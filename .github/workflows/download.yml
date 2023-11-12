@@ -1,0 +1,33 @@
+name: Update catalog from NuGet.org
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: update-catalog
+
+jobs:
+  update-catalog:
+    name: Update catalog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Download catalog
+        shell: pwsh
+        run: ./nuget-catalog.ps1 -InformationAction Continue -SkipVerification
+        timeout-minutes: 50
+        continue-on-error: true
+
+      - name: Commit results
+        run: |
+          git config --global user.name 'DataBot'
+          git config --global user.email 'databot-noreply@nikhildabas.com'
+          if git diff --exit-code cursor.txt; then
+            echo "No changes to catalog"
+            exit 0
+          fi
+          git add . && git commit -am "Catalog updated to $(cat cursor.txt)"
+          git push

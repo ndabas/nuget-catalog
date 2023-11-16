@@ -1,0 +1,196 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "TPJ.Logging",
+  "catalog:commitId": "9d18a817-da80-4c58-8b09-22a61fe9db46",
+  "catalog:commitTimeStamp": "2018-12-04T18:41:13.9377225Z",
+  "created": "2016-08-25T14:19:09.267Z",
+  "description": "TPJ Logging library",
+  "id": "TPJ.Logging",
+  "isPrerelease": false,
+  "language": "en",
+  "lastEdited": "2018-12-04T18:41:04.687Z",
+  "listed": false,
+  "packageHash": "UxXZPmciBOMQKny/MUjrfZt4LeA0QqRmtH3NODtiEnRG1FzLIV69ws5KrklbJVYMCqOxeFOAXNcGB1ra5MaUEQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 43999,
+  "published": "1900-01-01T00:00:00Z",
+  "releaseNotes": "ASP.Net Core Website Set up \n\nCreate appsettings.json file and add the following \n\n{\n  \"TPJ\": {\n    \"Logging\": {\n      \"ApplicationName\": \"\",\n      \"ErrorLogType\": \"\",\n      \"LogFileDirectory\": \"\",\n      \"ErrorEmails\": \"\"\n    },\n    \"Email\": {\n      \"SmtpClient\": \"\",\n      \"SmtpUser\": \"\",\n      \"SmtpPassword\": \"\",\n      \"EmailFrom\": \"\",\n      \"Port\": \"\",\n      \"EnableSSL\": \"\"\n    }\n  }\n}\n\nApplicationName - Name of the application used on the log file names and e-mails \n\nErrorLogType - There are three types of error log types \n              1) Email - Errors are sent via e-mail only (as per rest of the config settings) \n              2) LogFile - Errors are logged in a txt file (named - {Application Name} Error Log.txt) \n              3) EmailLogFile - Does both Email and LogFile \n\nLogEnvironment - There are three environment types. logging will be done on all logs marked at or below the log environment type E.G logs marked at \"Staging\" will log when the config is set to development and staging but NOT production\n              1) Development \n              2) Staging\n              3) Production \n\nLogFileDirectory - the location at which the log / error file will be placed \n\nSmtpClient - SMTP server which e-mails will be sent from \n\nSmtpUser - (Not required) send e-mail using the given user name and password \n\nSmtpPassword - (Not required) send e-mail using the given user name and password \n\nEmailFrom - E-mails are sent from this account \n\nErrorEmails - List of all e-mail address which error e-mails will be sent to split using ; e.g test@test.com;test2@test.com;test3@test.com \n\nPort - (Not required) port to send from\n\nEnableSSL - (Not required) enable SSL when sending the e-mail\n\n\nFor Websites - \n\nOpen StartUp.cs file and go to ConfigureServices \n\nAdd the following (I do not need port or enable SSL so have not include them)\n\nservices.Configure<TPJ.Logging.Models.LoggerProperties>(options =>\n{\n\toptions.ApplicationName = Configuration[\"TPJ:Logging:ApplicationName\"];\n\toptions.ErrorEmailList = Configuration[\"TPJ:Logging:ErrorEmails\"].Split(';').ToList();\n\toptions.LogFileDirectory = Configuration[\"TPJ:Logging:LogFileDirectory\"];\n\toptions.ErrorLogType = TPJ.Logging.Helper.GetLogType(Configuration[\"TPJ:Logging:ErrorLogType\"]);\n\toptions.LogEnvironment = TPJ.Logging.Helper.GetLogLevelEnvironment(Configuration[\"TPJ:Logging:LogEnvironment\"]);\n\n\toptions.SmtpClient = Configuration[\"TPJ:Email:SmtpClient\"];\n\toptions.EmailFrom = Configuration[\"TPJ:Email:EmailFrom\"];\n\toptions.SmtpUser = Configuration[\"TPJ:Email:SmtpUser\"];\n\toptions.SmtpPassword = Configuration[\"TPJ:Email:SmtpPassword\"];\n});\n\nTop Tip - you can use the log environment using Configuration[\"ASPNETCORE_ENVIRONMENT\"] instead of using your json file. To do this.\n\npublic void ConfigureServices(IServiceCollection services, IHostingEnvironment env)\n{            \n\tservices.Configure<TPJ.Logging.Models.LoggerProperties>(options =>\n\t{\n\t\toptions.ApplicationName = Configuration[\"TPJ:Logging:ApplicationName\"];\n\t\toptions.ErrorEmailList = Configuration[\"TPJ:Logging:ErrorEmails\"].Split(';').ToList();\n\t\toptions.LogFileDirectory = Configuration[\"TPJ:Logging:LogFileDirectory\"];\n\t\toptions.ErrorLogType = TPJ.Logging.Helper.GetLogType(Configuration[\"TPJ:Logging:ErrorLogType\"]);\n\t\toptions.LogEnvironment = TPJ.Logging.Helper.GetLogLevelEnvironment(Configuration[\"ASPNETCORE_ENVIRONMENT\"]);\n\n\t\toptions.SmtpClient = Configuration[\"TPJ:Email:SmtpClient\"];\n\t\toptions.EmailFrom = Configuration[\"TPJ:Email:EmailFrom\"];\n\t\toptions.SmtpUser = Configuration[\"TPJ:Email:SmtpUser\"];\n\t\toptions.SmtpPassword = Configuration[\"TPJ:Email:SmtpPassword\"];\n\t});\n}\n\nservices.AddTransient<TPJ.Logging.Interfaces.ILogger, TPJ.Logging.Logger>(); \n\nThen using DI within asp.net core you can call ILogger like so \n\nprivate readonly TPJ.Logging.Interfaces.ILogger _logger; \n\npublic HomeController(TPJ.Logging.Interfaces.ILogger logger) \n{ \n    _logger = logger; \n} \n\nThen within an IActionResult you might have this \n\npublic IActionResult About() \n{ \n  try \n  { \n    _logger.InformationLog(\"About Page Loaded\", Enums.LogEnvironment.Development); \n\n    return View(); \n\n  } \n  catch (Exception e) \n  { \n    _logger.Error(System.Reflection.MethodBase.GetCurrentMethod(), e, Enums.LogEnvironment.Production); \n\n    return RedirectToAction(nameof(Error)); \n  } \n} \n\nHere a log will be made each time the \"about\" page is requested but only logged when in development. Where as if it errors a error log will always be made.\n\n\nASP.Net Core Console Application \n\nThis is how I do it. This may change and I'm sure there are different ways to do this. This is also just to get the logger to work. You may need to change things to get other packages to load. \n\nAdd to the top of the program class \n\npublic static TPJ.Logging.Interfaces.ILogger _logger; \n\nThen add set up method \n\nprivate static void SetUp() \n{ \n    var builder = new ConfigurationBuilder().AddJsonFile(\"appsettings.json\"); \n\n    _logger = new TPJ.Logging.Logger(new TPJ.Logging.Models.LoggerProperties(builder.Build())); \n} \n\nThen call the \"SetUp\" method from the Main method \n\npublic static void Main(string[] args) \n{ \n    SetUp(); \n} \n\nThen you can call the logger like so \n\npublic static void Main(string[] args) \n{ \n    SetUp(); \n\n    _logger.InformationLog(\"Test Log\", Enums.LogEnvironment.Development); \n\n    _logger.Error(System.Reflection.MethodBase.GetCurrentMethod(), new Exception(\"Test\"), Enums.LogEnvironment.Staging); \n} ",
+  "requireLicenseAcceptance": false,
+  "title": "TPJ Logging",
+  "verbatimVersion": "2.1.0",
+  "version": "2.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.5.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.5.1/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.5.1/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[1.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.5.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.5.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.5.2/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.5.2/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[1.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.5.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.6",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.6/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.6/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[1.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.6.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.6.1/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#dependencygroup/.netframework4.6.1/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[1.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6.1"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#TPJ.Logging.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2146,
+      "fullName": "TPJ.Logging.nuspec",
+      "length": 7150,
+      "name": "TPJ.Logging.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#lib/net451/TPJ.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8133,
+      "fullName": "lib/net451/TPJ.Logging.dll",
+      "length": 28672,
+      "name": "TPJ.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#lib/net452/TPJ.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7634,
+      "fullName": "lib/net452/TPJ.Logging.dll",
+      "length": 27136,
+      "name": "TPJ.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#lib/net46/TPJ.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7632,
+      "fullName": "lib/net46/TPJ.Logging.dll",
+      "length": 27136,
+      "name": "TPJ.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#lib/net461/TPJ.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7637,
+      "fullName": "lib/net461/TPJ.Logging.dll",
+      "length": 27136,
+      "name": "TPJ.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.12.04.18.41.13/tpj.logging.2.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 9459,
+      "fullName": ".signature.p7s",
+      "length": 9459,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    ".net",
+    "C#",
+    "Logging"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    }
+  }
+}

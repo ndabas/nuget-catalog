@@ -1,0 +1,3788 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Aaron Jensen",
+  "catalog:commitId": "572c45b7-7098-4783-bde0-21af750263fd",
+  "catalog:commitTimeStamp": "2018-11-11T08:27:22.6686155Z",
+  "copyright": "Copyright 2012",
+  "created": "2015-10-11T02:05:13.917Z",
+  "description": "Carbon is a DevOps PowerShell module for automating the configuration of Windows 2008, Windows 2008 R2, 7, 2012, and 2012 R2 computers. Carbon can configure and manage:\n\n * Local users and groups\n * IIS websites, virtual directories, and applications\n * Certificates\n * .NET connection strings and app settings\n * File system permissions, junctions, compressions\n * Hosts file\n * INI files\n * Performance counters\n * Services\n * Shares\n * Privileges\n * COM permissions\n * Registry keys/values",
+  "id": "Carbon",
+  "isPrerelease": false,
+  "language": "en-us",
+  "lastEdited": "2018-11-11T08:26:58.79Z",
+  "licenseUrl": "http://www.apache.org/licenses/LICENSE-2.0",
+  "listed": true,
+  "packageHash": "5lLyfVbrlfZPB79FPUeQSXuZtIb/5A3/X2YHs5pAptegOpLe8/hN/9VfGoxRWpEw9Pa6jJg9FLW8cQKxFhDHsA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1174152,
+  "projectUrl": "http://get-carbon.org",
+  "published": "2015-10-11T02:05:13.917Z",
+  "releaseNotes": "## Overview\n\nCarbon version 2.0 is a *huge* release, with lots of new enhancements and bug fixes. We hope you like them. Carbon 2.0 now requires PowerShell 4, so it is not backwards-compatabile with Carbon 1.x. Because of this, we made some additional backwards-incompatible changes. See the `Upgrade Instructions` section for things to look out for.\n\nIf you're upgrading from a previous 2.0 alpha release, you'll want to review the changes since your alpha version (found after the *Upgrade Instructions* section). We improved backwards-compatability with Carbon 1.x since the last alpha release, but that broke compatability with the alphas. \n\n## Upgrade Instructions\n\nMake sure you're running PowerShell 4. \n\n`Install-Certificate`'s parameters have changed:\n\n * Remove the `Exportable` switch from any usages of `Install-Certificate` when installing from an `X509Certificate2` *object*, since that switch only gets used when installing a certificate from a file.\n\nSome functions now return different objects and/or the objects returned have changed:\n\n* Use the `Sid` property on objects returned by `Test-Identity` when using the `PassThru` switch: it now returns a `Carbon.Identity` object if the identity exists *and* you use the `-PassThru` switch, e.g. `Test-Identity -Name $userName -PassThru | Select-Object -Expand 'Sid'`.\n * Update usages of `Carbon.Computer.ProgramInstallInfo`'s `Version` property (returned by `Get-ProgramInstallInfo`). It was an `int` and is now a [Version](http://msdn.microsoft.com/en-us/library/y0hf9t2e.aspx) object.\n\nThe Carbon assembly was re-organized. If you were reaching into `Carbon.dll` (***NOT RECOMMENDED***), you'll want to:\n\n * Rename usages of `[Carbon.AdvApi32]` class to `[Carbon.Service.ServiceSecurity]`.\n * Rename usages of `[Carbon.Lsa]` class to `[Carbon.Security.Privilege]`.\n * Rename usages of `[Carbon.Win32]` class to `[Carbon.FileSystem.Path]`.\n * Rename usages of `[Carbon.HandleInfo]` class to `[Carbon.Win32.HandleInfo]`.\n * Remove usages of `[Carbon.Lsa]::LookupPrivilegeValue` class method. It was incorrectly exposed as a public method.\n * Remove usages of `[Carbon.Kernel32]::LocalFree` class method. It was incorrectly exposed as a public method.\n\nThe following commands no longer return the stdout output from the console applications each one calls. To see the old output, use the `-Verbose` switch. Remove any usage of the output you were processing.\n\n * All IIS functions.\n * `Disable-FirewallStatefulFtp`\n * `Enable-FirewallStatefulFtp`\n * `Install-Service`\n * `Install-SmbShare`\n * `Remove-SslCertificateBinding`\n * `Set-SslCertificateBinding`\n * `Uninstall-Service`\n\nThe following functions' internal behavior has changed. This may or may not impact you.\n\n * `Grant-Permission` now only grants permissions on an object if those permissions aren't present.  To preserve previous behavior, add the `-Force` switch to all `Grant-Permission` usages.\n * `Grant-Permission` now writes an error if you don't have access to a private key. Previously, it would skip the key without any messages.\n * `Install-Msi` (fka `Invoke-WindowsInstaller`) now only installs the MSI if it isn't already installed. To preserve the previous behavior and always install, add the `-Force` switch to all `Invoke-WindowsInstaller`\\`Install-Msi` usages.\n * All IIS functions were re-written to use the `Microsoft.Web.Administration` API instead of `appcmd.exe`.\n * `Install-IisWebsite` no longer deletes and re-creates websites. If a website exists, it updates its configuration to match parameters passed in. To preserve previous behavior and delete the website before installing, use the `-Force` switch.\n * `Install-IisVirtualDirectory` no longer deletes and re-creates virtual directories. If a virtual directory exists, its configuration is updated in place. To preserve previous behavior and delete the virtual directory before installing, use the `Force` switch.\n * `Install-FileShare` (fka `Install-SmbShare`) no longer deletes and re-creates the share, instead it modifies existing shares in place. To preserve previous behavior and delete existing shares before re-creating, use the `Force` switch.\n * `Set-RegistryKeyValue` only sets the value if the value doesn't exist or the current value is different than the desired value.\n\nWe've added parameter validation to some functions. This shouldn't impact anybody, since if you were passing data that breaks this new validation, the function wouldn't have worked even in previous versions of Carbon.\n\n * Ensure that all thumbprints passed to `Set-SslCertificateBinding` are valid (40 character hex strings), since it now validates thumbprints.\n * Check that all IP addresses passed to `Set-HostsEntry` are valid IP v4 or v6 addresses.  `Set-HostsEntry`'s IPAddress parameter is now a `System.Net.IPAddress` object.  Previously it was a string validated with a regular expression, so you *should* be OK.\n\nAll Carbon functions now respect each caller's common parameters (e.g. `-Verbose`, `-ErrorAction`, etc.). This means if you pass a common parameter to a script that calls a Carbon function, that Carbon function will use that common parameter. This may or may not impact you.\n\n## Bug Fixes\n\n * Carbon's `System.ServiceProcess.ServiceController` extended type data causes errors when PowerShell formats `System.ServiceProcess.ServiceController` objects that represent services on remote computers.\n * `Compress-Item` doesn't remove handled errors from global error array.\n * `Grant-Permission` fails with an unhelpful error message if it is unable to get the ACL on a private key.\n * `Install-Msi` didn't properly detect when installation failed.\n * `Install-ScheduledTask` fails under PowerShell 5 to create a scheduled task to run on Sunday.\n * `Install-Service`:\n   * No longer writes a warning about being unable to stop an already stopped service (fixes [issue #158](https://bitbucket.org/splatteredbits/carbon/issues/158/install-service-extraneous-warning-about)).\n   * Starting the service now respects caller's error action preference. Before, `Start-Service` would write an error even if somone called `Install-Service` with an `Ignore` or `SilentlyContinue` error action preference.\n   * Service arguments that are quoted still get quoted. Now, quotes are trimmed before arguments are quoted.\n * `Set-EnvironmentVariable` fails to set process-level environment variable. \n * `Set-HostsEntry` fails to preserve whitespace if existing lines end with a comment/description. Thanks to [Konstantin Ushenin](https://vk.com/kostanew) for the fix.\n\n\n## Enhancements\n\n### General\n\n * Carbon now requires PowerShell 4.\n * `Import-Carbon.ps1` is more intelligent about when it tries to re-load Carbon. It will force a re-import of Carbon if any of Carbon's files have changed or the version has changed.\n * Added new `FileIndex`, `LinkCount`, and `VolumeSerialNumber` extended type data on `System.IO.FileInfo` objects for getting a file's index, its hard link count, and volume serial number, respectively.\n * The product version of the Carbon assembly now includes pre-release version information, as defined by the [Semantic Versioning specification](http://semver.org). To get this version, run `Get-Item Carbon.dll | Select-Object -ExpandProperty 'VersionInfo' | Select-Object -ExpandProperty 'ProductVersion'`.\n * The Carbon NuGet package now supports installing and uninstalling under Chocolatey.\n * All IIS functions were re-written to use the `Microsoft.Web.Administration` API instead of `appcmd.exe`. As a side effect, they no longer return `appcmd.exe` console output.\n * The following functions no longer use `Write-Host`. Instead, they use `Write-Verbose`:\n   * `Disable-NtfsCompression`\n   * `Enable-NtfsCompression`\n   * `Grant-ComPermission`\n   * `Grant-Permission`\n   * `Install-Service` \n   * `Remove-SslCertificateBinding` \n   * `Revoke-ComPermission` \n * Created default, table-based display formats for `System.DirectoryServices.AccountManagement.UserPrincipal`, `System.DirectoryServices.AccountManagement.GroupPrincipal`, `Microsoft.Web.Administration.ApplicationPool`, `Microsoft.Web.Administration.Site`, and `Microsoft.Web.Administration.Application` objects.\n * Re-organized Carbon's internal directory structure. You shouldn't be reaching into Carbon's internals, so this shouldn't matter, but wanted to let everyone know just in case.\n \n### New Functions\n\n * `Clear-DscLocalResourceCache` clears the local LCM's DSC resource. This makes developing resources easier.\n * `Clear-MofAuthoringMetadata` removes authoring metadata from .mof files.\n * `Copy-DscResource` copies DSC resources (ZIP files, MSI archives, MOF files, etc.), including timestamps, checksums, and copying only changed files.\n * `ConvertTo-SecurityIdentifer` converts a binary, string, or `System.Security.Principal.SecurityIdentifier` object into a `System.Security.Principal.SecurityIdentifier` object.\n * `Get-DscError` gets any DSC errors that were written to a computer's DSC event log.\n * `Get-DscWinEvent` gets DSC events that were written to a computer's DSC event log.\n * `Get-FileSharePermission` gets the sharing permissions on a file/SMB share (*not* the NTFS file system permissions).\n * `Get-FileShare` uses WMI to get `Win32_Share` objects for the file shares installed on the local computer.\n * `Get-Group` gets a local group or all local groups.\n * `Get-Msi` reads installer information and properties from an MSI file.\n * `Get-PowerShellModuleInstallPath` gets the path where new module's should be installed. Beginning with PowerShell 4, modules should get installed into `$env:ProgramFiles\\Windows PowerShell\\Modules`. Under PowerShell 3, it is `$PSHome\\Modules`. This function returns the correct location for the version of PowerShell you're using.\n * `Get-User` gets a local user or all local users.\n * `Initialize-Lcm` configures the DSC Local Configuration Manager on computers, including installing the private key needed for decrypting credentials.\n * `Remove-GroupMember` removes a user/group from a local group. Thanks to [Philip Kluss](https://bitbucket.org/philkloose) for the contribution. \n * `Resolve-Identity` converts a system, local, or domain principal name or a SID (as a `SecurityIdentifer`, string SDDL, or byte array) into its canonical representation and includes extended identity information: domain, type, and SID.\n * `Start-DscPullConfiguration` starts a configuration check on a computer that is configured to use the PULL refresh mode.\n * `Test-DscTargetResource` compares target resource with desired resource. Helpful when writing `Test-TargetResource` functions.\n * `Test-Group` checks if a *local* group exists.\n * `Test-FileShare` uses WMI to check if a file/SMB share exists on the local computer.\n * `Test-TypeDataMember` tests if a type has an extended type member defined.\n * `Uninstall-FileShare` uninstalls/removes a file share, if it exists.\n * `Write-DscError` writes DSC `ErrorLogRecord` objects as errors.\n\n### New DSC Resources\n\n * `Carbon_EnvironmentVariable` creates/removes machine-level environment variables.\n * `Carbon_FirewallRule` configures firewall rules.\n * `Carbon_IniFile` manages the contents of INI files.\n * `Carbon_Permission` configures file, directory, registry, and certificate permissions.\n * `Carbon_Privilege` configures an identity's privileges.\n * `Carbon_ScheduledTask` configures scheduled tasks with `schtasks.exe`.\n * `Carbon_Service` configures Windows services.\n \n### Added `PassThru` Switches\n\nAdded a `PassThru` switch to the following functions, which will return objects of the given type:\n\n * `Grant-ComPermission`: `Carbon.Security.ComAccessRule`, representing the granted permission.\n * `Grant-Permission`: `System.Security.AccessControl.AccessRule`, representing the granted permission.\n * `Install-Group`: `System.DirectoryServices.AccountManagement.GroupPrincipal`, representing the group. \n * `Install-IisApplication`: `Microsoft.Web.Administration.Application`, representing the application.\n * `Install-IisWebsite`: `Microsoft.Web.Administration.Site`, representing the website.\n * `Install-Junction`: `System.IO.DirectoryInfo`, representing new target directories and any new/updated junctions.\n * `Install-Service`: `System.ServiceProcess.ServiceController`, representing the service.\n * `Install-User`: `System.DirectoryServices.AccountManagement.UserPrincipal`, representing the user.\n * `Set-SslCertificateBinding`: `Carbon.Certificates.SslCertificateBinding`, representing the configured binding.\n \n### No More Console Output\n\nThe following functions no longer return the console output of the program each one runs. Instead, the output is written to the verbose stream (i.e. use the `-Verbose` switch to see it).\n\n * `Disable-FirewallStatefulFtp`\n * `Enable-FirewallStatefulFtp`\n * `Install-Service`\n * `Remove-SslCertificateBinding`\n * `Set-SslCertificateBinding`\n * `Uninstall-Service`\n \n### Obsolete Functions and Parameters\n\nThe following functions are now obsolete. Please don't use them and stop using them if you are. They will be removed from a future major version of Carbon. You'll get warnings if you use them.\n\n * `Complete-Job`: It's total crap. Use PowerShell's `Wait-Job` cmdlet instead.\n * `Invoke-AppCmd`: Switch to Carbon's IIS functions, or use `Get-IisConfigurationSection` to get `ConfigurationElement` objects from the `Microsoft.Web.Administration` API that you can modify.\n * `Resolve-NetPath`: Switch to something else. Carbon doesn't use `net.exe` anymore.\n \nThe following functions now have obsolete parameters, which will be removed from a future major version of Carbon. You'll get warnings if you use them.\n\n * `Install-IisAppPool's` `UserName` and `Password` parameters. Use the new `Credential` parameter instead.\n * `Install-Msi's` `Quiet` switch. `Install-Msi` always installs in quiet mode. Please remove usages.\n * `Install-Service's` `Password` parameter. Use the new `Credential` parameter instead.\n * `Install-User's` `UserName` and `Password` parameters. Use the new `Credential` parameter instead.\n * `Set-RegistryKeyValue`'s `Quiet` parameter. Please remove usages.\n \n### Renamed Functions\n\nThe following functions were renamed, but with backwards-compatible aliases in place, so you shouldn't have to change any code.\n\n * `Invoke-WindowsInstaller` -> `Install-Msi`\n * `Install-SmbShare` -> `Install-FileShare`\n \n### Switch to System.DirectoryServices.AccountManagement API for User/Group Management\n\nThe following functions were re-written to use the `System.DirectoryServices.AccountManagement` API, introduced in .NET 3.5.\n\n * `Add-MemberToGroup`\n * `Install-Group`\n * `Install-User` \n * `Test-User`\n * `Uninstall-User`\n \n### Miscellaneous Changes\n\n * `Get-IisAppPool`\n    * Now return all application pools installed on the local computer when called with no parameters.\n    * Added a default table format for `Microsoft.Web.Administration.ApplicationPool` objects.\n * `Get-ProgramInstallInfo`\n    * Return object's `Version` property changed from an `int` to a [Version](http://msdn.microsoft.com/en-us/library/y0hf9t2e.aspx) object.\n    * Return object's now have `ProductCode` and `User` properties. If a program doesn't have a product code, it is set to `[Guid]::Empty`. The `User` property is only set for per-user software installs.\n * `Get-ServiceConfiguration` now supports services from remote computers.\n * `Grant-Permission` now only grants permissions on an object if those permissions aren't present.  To preserve previous behavior, add the `-Force` switch to all `Grant-Permission` usages.\n * `Install-Certificate's` `Exportable` switch is now only allowed when installing a certificate from a file. Previously, you could supply the switch when installing from an X509Certificate2 object but it was ignored.\n * `Install-Group's` `Members` parameter renamed to `Member` (with backwards-compatible alias).\n * Added `Credential` parameter to `Install-IisAppPool` for increased security and to follow PowerShell guidelines.\n * `Install-IisVirtualDirectory` no longer deletes and re-creates existing virtual directories, but modifies existing virtual directories in place.\n * `Install-IisWebsite`\n    * Added `SiteID` parameter tfor setting a website's IIS ID.\n    * No longer deletes and re-creates websites, but modifies existing websites in place. This may or may not be a breaking change in your environment.\n * `Install-Msi`\n    * `Path` parameter now supports wildcards.\n    * Now only installs an MSI if it isn't already installed. To preserve the previous behavior and always install, add the `-Force` switch to all `Invoke-WindowsInstaller`\\`Install-Msi` usages.\n * `Install-Service`\n    * Now supports service startup parameters/arguments via the `ArgumentList` parameter.\n    * Improved error handling and messages. It now uses `net helpmsg` to get helpful error messages based on sc.exe exit codes.\n    * Added `Credential` parameter for increased security and to follow PowerShell guidelines.\n    * Added `Description` parameter for setting a service's description.\n    * Added `DisplayName` parameter for setting a service's display name.\n * `Install-FileShare` (fka `Install-SmbShare`):\n    * Re-written to use WMI isntead of `net.exe`, so it no longer returns any console output.\n    * Modifies existing shares in place, instead of deleting and re-creating, *unless* the share's path changes. Changing a share's path requires the old share to be deleted and a new one created.\n * `Install-User`\n    * Added `PasswordExpires` switch for creating accounts with passwords that expire.\n    * Added `UserCannotChangePassword` to prevent user from changing his password.\n * `Remove-SslCertificateBinding` has better error handling.\n * Added `SID` parameter to `Resolve-IdentityName` to resolve a SID into its identity name.\n * `Set-HostsEntry's` `IPAddress` parameter is now a `System.Net.IPAddress` object. It used to be a string validated with a regular expression.\n * `Set-RegistryKeyValue`: \n    * Added `UDWord` and `UQWord` parameters for setting registry key values to unsigned integers (i.e. integer values greater than `[int]::MaxValue` and `[long]::MaxValue`). Fixes [issue #165: Set-RegistryKeyValue rejects unsigned integers larger than [int]::MaxValue](https://bitbucket.org/splatteredbits/carbon/issues/165/set-registrykeyvalue).\n    * Deprecated `Quiet` switch.\n    *  Only sets the value if the value doesn't exist or the current value is different than the desired value. Use the `Force` parameter to preserve previous behavior.\n * `Test-Identity` now returns a `Carbon.Identity` object if the identity exists *and* you use the `-PassThru` switch. It used to return the identity's SID. Update scripts to use the `FullName` property to get the old return value, e.g. `Test-Identity -Name $userName -PassThru | Select-Object -Expand 'FullName'`.\n * `Test-OSIs32Bit` now uses the Environment class's new [Is64BitOperatingSystem](http://msdn.microsoft.com/en-us/library/system.environment.is64bitoperatingsystem.aspx) property.\n * `Test-OSIs64Bit` now uses the Environment class's new [Is64BitOperatingSystem](http://msdn.microsoft.com/en-us/library/system.environment.is64bitoperatingsystem.aspx) property.\n * `Test-PowerShellIs32Bit` now uses the `Environment` class's new [Is64BitProcess](http://msdn.microsoft.com/en-us/library/system.environment.is64bitprocess.aspx) property.\n * `Test-PowerShellIs64Bit` now uses the `Environment` class's new [Is64BitProcess](http://msdn.microsoft.com/en-us/library/system.environment.is64bitprocess.aspx) property.\n * `Uninstall-ScheduledTask` now retries when un-installing a task fails with \"The function attempted to use a name that is reserved for use by another transaction.\" error.\n * `Unprotect-String`\n    * Added `AsSecureString` switch, which will return a secure string instead of a normal string.\n    * The `Password` parameter now accepts `SecureString` values.\n * `Initialize-Lcm`\n    * Added support for PowerShell 5: `RefreshIntervalMinutes` default value changed to from 15 to 30; `RefreshIntervalMinutes` minimum value is now 30; `ConfigurationFrequency`'s minimum value is now 1 (from 2).\n \n## Changes Since `alpha.26`\n\n### Enhancements\n\n * Includes all changes made in version 1.9.0.\n * PowerShell 4 is now required. Carbon won't even import under PowerShell 3.\n * Removed `Carbon_Script` resource. It only existed so I could pass values to my script blocks. Turns out, the built-in `Script` resource supports this with the `$using:` scope. Remember, your most important features is documentation!\n * Created a new `Carbon_ScheduledTask` DSC resource for managing scheduled tasks.\n * The `Version` property on the objects returned by `Get-ProgramInstallInfo` is now a proper .NET `Version` object instead of an integer.\n \n### Bug Fixes\n\n * `Carbon_Permission` DSC resource fails when assigning multiple permissions\n * Grant-Permission fails when clearing multiple existing, non-inherited permission on an item.\n \n## Changes Since `alpha.31`\n\n### Bug Fixes\n\n * `Set-HostsEntry` fails to preserve whitespace if existing lines end with a comment/description. Thanks to [Konstantin Ushenin](https://vk.com/kostanew) for the fix.\n * Carbon's `System.ServiceProcess.ServiceController` extended type data causes errors when PowerShell formats `System.ServiceProcess.ServiceController` objects that represent services on remote computers.\n * `Install-Msi` didn't properly detect when installation failed.\n * `Set-EnvironmentVariable` fails to set process-level environment variable.\n * `Compress-Item` doesn't remove handled errors from global error array.\n * `Grant-Permission` fails with an unhelpful error message if it is unable to get the ACL on a private key.\n \n### Enhancements\n\n * `Import-Carbon.ps1` is more intelligent about when it tries to re-load Carbon. It will force a re-import of Carbon if any of Carbon's files have changed or the version has changed.\n * Created `Uninstall-Junction` for uninstalling a junction in an idempotent way (i.e. without errors). Thanks to [Konstantin Ushenin](https://vk.com/kostanew) for the contribution.\n * Improved error handling in `Remove-Junction`.\n * `Install-Service`:\n   * Now supports service startup parameters/arguments.\n   * No longer returns `ServiceController` objects by default. This should improve backwards-compatability. Added a `PassThru` switch you can use to get a `ServiceController` object returned to you.\n   * Improved error handling. It now uses `net helpmsg` to get helpful error messages based on sc.exe exit codes.\n   * Improved handling of arguments/services with spaces in them under PowerShell 5.\n   * Added `Credential` parameter for increased security and to follow PowerShell guidelines.\n   * Now supports setting a service's description and display name.\n   * Starting the service now respects caller's error action preference. Before, `Start-Service` would write an error even if somone called `Install-Service` with an `Ignore` or `SilentlyContinue` error action preference.\n * New `Test-TypeDataMember` for testing if a type has an extended type member defined.\n * `Install-IisAppPool` no longer returns appcmd.exe output.\n * Added `PassThru` parameter to `Install-IisAppPool` to control when a `Microsoft.Web.Administration.ApplicationPool` for the installed app pool is returned.\n * `Get-ServiceConfiguration` and Carbon's extended type data for `System.ServiceProcess.ServiceController` objects now supports services from remote computers.\n * `Uninstall-ScheduledTask` now retries when un-installing a task fails with \"The function attempted to use a name that is reserved for use by another transaction.\" error.\n * Added new `FileIndex`, `LinkCount`, and `VolumeSerialNumber` extended type data on `System.IO.FileInfo` objects for getting a file's index, its hard link count, and volume serial number, respectively.\n * `Grant-Permission` now only returns an access rule object when the new `PassThru` switch is used. In previous 2.0 alpha releases, it only returned something when permissions on an object were added or changed.\n * `Install-User` only returns a user object when the new `PassThru` switch is used. In previous 2.0 alpha releases, it only returned an object if a user was created or updated.\n * `Grant-ComPermissions` only returns an access rule object when the new `PassThru` switch is used. In previous 2.0 alpha releases, it only returned an object if permissions were changed.\n * `Install-IisApplication` only returns an IIS application object when the new `PassThru` switch is used. In previous 2.0 alpha releases, it only returned an object if the application was created or modified.\n * Created `Get-Msi` function for reading MSI information and properties from an MSI file.\n * `Carbon.Computer.ProgramInstallInfo` objects (returned from `Get-ProgramInstallInfo`) now have `ProductCode` and `User` properties. If a program doesn't have a product code, it is set to `[Guid]::Empty`. The `User` property is only set for per-user software installs.\n * `Invoke-WindowsInstaller` renamed `Install-Msi`, with a backwards-compatibility-preserving alias.\n * `Install-Msi` now supports wildcards for MSI path to install.\n * `Install-Msi` now only installs an MSI if it isn't already installed. To preserve the previous behavior and always install, add the `-Force` switch to all `Invoke-WindowsInstaller`\\`Install-Msi` usages.\n * Added `SiteID` parameter to `Install-IisWebsite` for setting a website's IIS ID.\n * Put the `Resolve-IdentityName` function back. It was removed from previous alpha releases.\n * `Install-IisWebsite` no longer deletes and re-creates websites. This may or may not be a breaking change in your environment.\n * `Install-SmbShare` no longer returns net.exe output, instead writing it to the verbose stream. To see previous output, use the `-Verbose` switch.\n * Changed `-PasswordNeverExpires` switch to  `PasswordExpires` on `Install-User` for improved backwards-compatability.\n * `Set-SslCertificateBinding` no longer returns binding objects by default. Use new `PassThru` switch to get the old behavior.\n * The product version of the Carbon assembly now includes pre-release version information, as defined by the [Semantic Versioning specification](http://semver.org). To get this version, run `Get-Item Carbon.dll | Select-Object -ExpandProperty 'VersionInfo' | Select-Object -ExpandProperty 'ProductVersion'`\n * The Carbon NuGet package now supports installing and uninstalling using Chocolatey.\n * Added `AsSecureString` switch to `Unprotect-String` which causes `Unprotect-String` to return a secure string instead of a normal string.\n * `Unprotect-String` now accepts a `SecureString` as the value for the `Password` parameter, which is the password for the private key used to decrypt from password-protected RSA certificate file.\n * Added `Credential` parameter to `Install-IisAppPool` for increased security and to follow PowerShell guidelines.\n * Added `Credential` parameter to `Install-User` for increased security and to follow PowerShell guidelines.\n * `Install-IisVirtualDirectory` now modifies existing virtual directories in place, instead of deleting and re-creating.\n * `Invoke-AppCmd` is now obsolete and will be removed from a future version of Carbon. Switch to Carbon's IIS functions, or use `Get-IisConfigurationSection` to get `ConfigurationElement` objects from the `Microsoft.Web.Administration` API that you can modify.\n * Added `Description` and `DisplayName` properties to `Carbon_Service` for setting a service's description and display name.\n * `Grant-Permission` now writes an error if you don't have access to a private key. Previously, it would skip the key without any messages.\n * `Resolve-Identity` now converts SIDs to a `Carbon.Identity` object. The SID may be a string (SID in SDDL form), byte array, or a `SecurityIdentifier` object.\n * `Get-FileSharePermission` gets the sharing permissions on a file/SMB share (*not* the NTFS file system permissions).\n * Created `Get-FileShare` function. It uses WMI to get `Win32_Share` objects for the file shares installed on the local computer.\n * Renamed `Install-SmbShare` to `Install-FileShare`, with a backwards-compatible alias in place.\n * Added `SID` parameter to `Resolve-IdentityName` to resolve a SID into its identity name.\n * Created `ConvertTo-SecurityIdentifer` function to convert a binary, string, or `System.Security.Principal.SecurityIdentifier` object into a `System.Security.Principal.SecurityIdentifier` object.\n * `Install-FileShare` (fka `Install-SmbShare`):\n    * Re-written to use WMI isntead of `net.exe`.\n    * Modifies existing shares in place, instead of deleting and re-creating, *unless* the share's path changes. Changing a share's path requires the old share to be deleted and a new one created.\n * `Carbon_FirewallRule` now fails with an error if it finds multiple firewall rules with the same name.\n * `Set-RegistryKeyValue`: \n    * Added `UDWord` and `UQWord` parameters for setting registry key values to unsigned integers (i.e. integer values greater than `[int]::MaxValue` and `[long]::MaxValue`). Fixes [issue #165: Set-RegistryKeyValue rejects unsigned integers larger than [int]::MaxValue](https://bitbucket.org/splatteredbits/carbon/issues/165/set-registrykeyvalue).\n    * Deprecated `Quiet` switch.\n    * Only sets value if the value is changed. Use the `Force` parameter to preserve previous behavior.\n * `Uninstall-Service` no longer returns sc.exe stdout.",
+  "requireLicenseAcceptance": false,
+  "summary": "Carbon is a PowerShell DevOps setup/configuration automation module.",
+  "verbatimVersion": "2.0.0",
+  "version": "2.0.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 8122,
+      "fullName": "Carbon.nuspec",
+      "length": 30722,
+      "name": "Carbon.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#LICENSE.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 3963,
+      "fullName": "LICENSE.txt",
+      "length": 11558,
+      "name": "LICENSE.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#RELEASE%20NOTES.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 23716,
+      "fullName": "RELEASE%20NOTES.txt",
+      "length": 95813,
+      "name": "RELEASE%20NOTES.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Carbon.format.ps1xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2567,
+      "fullName": "Carbon/Carbon.format.ps1xml",
+      "length": 38257,
+      "name": "Carbon.format.ps1xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Carbon.psd1",
+      "@type": "PackageEntry",
+      "compressedLength": 1201,
+      "fullName": "Carbon/Carbon.psd1",
+      "length": 3295,
+      "name": "Carbon.psd1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Carbon.psm1",
+      "@type": "PackageEntry",
+      "compressedLength": 1895,
+      "fullName": "Carbon/Carbon.psm1",
+      "length": 6555,
+      "name": "Carbon.psm1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Carbon.types.ps1xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2059,
+      "fullName": "Carbon/Carbon.types.ps1xml",
+      "length": 13224,
+      "name": "Carbon.types.ps1xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Import-Carbon.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1389,
+      "fullName": "Carbon/Import-Carbon.ps1",
+      "length": 3381,
+      "name": "Import-Carbon.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/LICENSE.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 3963,
+      "fullName": "Carbon/LICENSE.txt",
+      "length": 11558,
+      "name": "LICENSE.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/bin/Carbon.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27352,
+      "fullName": "Carbon/bin/Carbon.dll",
+      "length": 66560,
+      "name": "Carbon.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/bin/Carbon.Iis.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3317,
+      "fullName": "Carbon/bin/Carbon.Iis.dll",
+      "length": 7680,
+      "name": "Carbon.Iis.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/bin/Carbon.Xdt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3111,
+      "fullName": "Carbon/bin/Carbon.Xdt.dll",
+      "length": 7168,
+      "name": "Carbon.Xdt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/bin/Ionic.Zip.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 279603,
+      "fullName": "Carbon/bin/Ionic.Zip.dll",
+      "length": 462848,
+      "name": "Ionic.Zip.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/bin/Microsoft.Web.XmlTransform.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 35356,
+      "fullName": "Carbon/bin/Microsoft.Web.XmlTransform.dll",
+      "length": 80984,
+      "name": "Microsoft.Web.XmlTransform.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/bin/Protect-String.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 681,
+      "fullName": "Carbon/bin/Protect-String.ps1",
+      "length": 1310,
+      "name": "Protect-String.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/bin/Set-DotNetAppSetting.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 830,
+      "fullName": "Carbon/bin/Set-DotNetAppSetting.ps1",
+      "length": 1617,
+      "name": "Set-DotNetAppSetting.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/bin/Set-DotNetConnectionString.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 892,
+      "fullName": "Carbon/bin/Set-DotNetConnectionString.ps1",
+      "length": 1896,
+      "name": "Set-DotNetConnectionString.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Initialize-CarbonDscResource.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "Carbon/DscResources/Initialize-CarbonDscResource.ps1",
+      "length": 1037,
+      "name": "Initialize-CarbonDscResource.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_EnvironmentVariable/Carbon_EnvironmentVariable.psm1",
+      "@type": "PackageEntry",
+      "compressedLength": 1396,
+      "fullName": "Carbon/DscResources/Carbon_EnvironmentVariable/Carbon_EnvironmentVariable.psm1",
+      "length": 4421,
+      "name": "Carbon_EnvironmentVariable.psm1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_EnvironmentVariable/Carbon_EnvironmentVariable.schema.mof",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "Carbon/DscResources/Carbon_EnvironmentVariable/Carbon_EnvironmentVariable.schema.mof",
+      "length": 1676,
+      "name": "Carbon_EnvironmentVariable.schema.mof"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_FirewallRule/Carbon_FirewallRule.psm1",
+      "@type": "PackageEntry",
+      "compressedLength": 3560,
+      "fullName": "Carbon/DscResources/Carbon_FirewallRule/Carbon_FirewallRule.psm1",
+      "length": 14050,
+      "name": "Carbon_FirewallRule.psm1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_FirewallRule/Carbon_FirewallRule.schema.mof",
+      "@type": "PackageEntry",
+      "compressedLength": 993,
+      "fullName": "Carbon/DscResources/Carbon_FirewallRule/Carbon_FirewallRule.schema.mof",
+      "length": 4002,
+      "name": "Carbon_FirewallRule.schema.mof"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_IniFile/Carbon_IniFile.psm1",
+      "@type": "PackageEntry",
+      "compressedLength": 2087,
+      "fullName": "Carbon/DscResources/Carbon_IniFile/Carbon_IniFile.psm1",
+      "length": 8791,
+      "name": "Carbon_IniFile.psm1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_IniFile/Carbon_IniFile.schema.mof",
+      "@type": "PackageEntry",
+      "compressedLength": 687,
+      "fullName": "Carbon/DscResources/Carbon_IniFile/Carbon_IniFile.schema.mof",
+      "length": 2006,
+      "name": "Carbon_IniFile.schema.mof"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_Permission/Carbon_Permission.psm1",
+      "@type": "PackageEntry",
+      "compressedLength": 3047,
+      "fullName": "Carbon/DscResources/Carbon_Permission/Carbon_Permission.psm1",
+      "length": 15142,
+      "name": "Carbon_Permission.psm1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_Permission/Carbon_Permission.schema.mof",
+      "@type": "PackageEntry",
+      "compressedLength": 761,
+      "fullName": "Carbon/DscResources/Carbon_Permission/Carbon_Permission.schema.mof",
+      "length": 3182,
+      "name": "Carbon_Permission.schema.mof"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_Privilege/Carbon_Privilege.psm1",
+      "@type": "PackageEntry",
+      "compressedLength": 2217,
+      "fullName": "Carbon/DscResources/Carbon_Privilege/Carbon_Privilege.psm1",
+      "length": 8450,
+      "name": "Carbon_Privilege.psm1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_Privilege/Carbon_Privilege.schema.mof",
+      "@type": "PackageEntry",
+      "compressedLength": 656,
+      "fullName": "Carbon/DscResources/Carbon_Privilege/Carbon_Privilege.schema.mof",
+      "length": 1726,
+      "name": "Carbon_Privilege.schema.mof"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_ScheduledTask/Carbon_ScheduledTask.psm1",
+      "@type": "PackageEntry",
+      "compressedLength": 2523,
+      "fullName": "Carbon/DscResources/Carbon_ScheduledTask/Carbon_ScheduledTask.psm1",
+      "length": 9780,
+      "name": "Carbon_ScheduledTask.psm1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_ScheduledTask/Carbon_ScheduledTask.schema.mof",
+      "@type": "PackageEntry",
+      "compressedLength": 703,
+      "fullName": "Carbon/DscResources/Carbon_ScheduledTask/Carbon_ScheduledTask.schema.mof",
+      "length": 1920,
+      "name": "Carbon_ScheduledTask.schema.mof"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_Service/Carbon_Service.psm1",
+      "@type": "PackageEntry",
+      "compressedLength": 2657,
+      "fullName": "Carbon/DscResources/Carbon_Service/Carbon_Service.psm1",
+      "length": 14523,
+      "name": "Carbon_Service.psm1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/DscResources/Carbon_Service/Carbon_Service.schema.mof",
+      "@type": "PackageEntry",
+      "compressedLength": 962,
+      "fullName": "Carbon/DscResources/Carbon_Service/Carbon_Service.schema.mof",
+      "length": 4204,
+      "name": "Carbon_Service.schema.mof"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/en-US/about_Carbon.help.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 1606,
+      "fullName": "Carbon/en-US/about_Carbon.help.txt",
+      "length": 3671,
+      "name": "about_Carbon.help.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/en-US/about_Carbon_2.0.help.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 6543,
+      "fullName": "Carbon/en-US/about_Carbon_2.0.help.txt",
+      "length": 21153,
+      "name": "about_Carbon_2.0.help.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/en-US/about_Carbon_Contributing.help.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 1754,
+      "fullName": "Carbon/en-US/about_Carbon_Contributing.help.txt",
+      "length": 3890,
+      "name": "about_Carbon_Contributing.help.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/en-US/about_Carbon_Extended_Type_Data.help.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 1704,
+      "fullName": "Carbon/en-US/about_Carbon_Extended_Type_Data.help.txt",
+      "length": 5533,
+      "name": "about_Carbon_Extended_Type_Data.help.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/en-US/about_Carbon_Installation.help.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 893,
+      "fullName": "Carbon/en-US/about_Carbon_Installation.help.txt",
+      "length": 2591,
+      "name": "about_Carbon_Installation.help.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/en-US/about_Carbon_Support.help.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 747,
+      "fullName": "Carbon/en-US/about_Carbon_Support.help.txt",
+      "length": 1520,
+      "name": "about_Carbon_Support.help.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Add-GroupMember.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1556,
+      "fullName": "Carbon/Functions/Add-GroupMember.ps1",
+      "length": 4029,
+      "name": "Add-GroupMember.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Add-IisDefaultDocument.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1037,
+      "fullName": "Carbon/Functions/Add-IisDefaultDocument.ps1",
+      "length": 2316,
+      "name": "Add-IisDefaultDocument.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Add-IisServerManagerMember.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 778,
+      "fullName": "Carbon/Functions/Add-IisServerManagerMember.ps1",
+      "length": 1578,
+      "name": "Add-IisServerManagerMember.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Add-TrustedHost.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 942,
+      "fullName": "Carbon/Functions/Add-TrustedHost.ps1",
+      "length": 1953,
+      "name": "Add-TrustedHost.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Assert-AdminPrivilege.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 814,
+      "fullName": "Carbon/Functions/Assert-AdminPrivilege.ps1",
+      "length": 1709,
+      "name": "Assert-AdminPrivilege.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Assert-FirewallConfigurable.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 777,
+      "fullName": "Carbon/Functions/Assert-FirewallConfigurable.ps1",
+      "length": 1541,
+      "name": "Assert-FirewallConfigurable.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Assert-Service.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 759,
+      "fullName": "Carbon/Functions/Assert-Service.ps1",
+      "length": 1460,
+      "name": "Assert-Service.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Assert-WindowsFeatureFunctionsSupported.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 667,
+      "fullName": "Carbon/Functions/Assert-WindowsFeatureFunctionsSupported.ps1",
+      "length": 1248,
+      "name": "Assert-WindowsFeatureFunctionsSupported.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Clear-DscLocalResourceCache.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 806,
+      "fullName": "Carbon/Functions/Clear-DscLocalResourceCache.ps1",
+      "length": 1505,
+      "name": "Clear-DscLocalResourceCache.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Clear-MofAuthoringMetadata.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1636,
+      "fullName": "Carbon/Functions/Clear-MofAuthoringMetadata.ps1",
+      "length": 5029,
+      "name": "Clear-MofAuthoringMetadata.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Clear-TrustedHost.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 807,
+      "fullName": "Carbon/Functions/Clear-TrustedHost.ps1",
+      "length": 1609,
+      "name": "Clear-TrustedHost.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Complete-Job.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1384,
+      "fullName": "Carbon/Functions/Complete-Job.ps1",
+      "length": 4437,
+      "name": "Complete-Job.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Compress-Item.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2563,
+      "fullName": "Carbon/Functions/Compress-Item.ps1",
+      "length": 7842,
+      "name": "Compress-Item.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Convert-SecureStringToString.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 851,
+      "fullName": "Carbon/Functions/Convert-SecureStringToString.ps1",
+      "length": 1678,
+      "name": "Convert-SecureStringToString.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Convert-XmlFile.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 3271,
+      "fullName": "Carbon/Functions/Convert-XmlFile.ps1",
+      "length": 10477,
+      "name": "Convert-XmlFile.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/ConvertFrom-Base64.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1332,
+      "fullName": "Carbon/Functions/ConvertFrom-Base64.ps1",
+      "length": 4698,
+      "name": "ConvertFrom-Base64.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/ConvertTo-Base64.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1273,
+      "fullName": "Carbon/Functions/ConvertTo-Base64.ps1",
+      "length": 4544,
+      "name": "ConvertTo-Base64.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/ConvertTo-ContainerInheritanceFlags.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1264,
+      "fullName": "Carbon/Functions/ConvertTo-ContainerInheritanceFlags.ps1",
+      "length": 5488,
+      "name": "ConvertTo-ContainerInheritanceFlags.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/ConvertTo-InheritanceFlag.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1058,
+      "fullName": "Carbon/Functions/ConvertTo-InheritanceFlag.ps1",
+      "length": 3415,
+      "name": "ConvertTo-InheritanceFlag.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/ConvertTo-PropagationFlag.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1058,
+      "fullName": "Carbon/Functions/ConvertTo-PropagationFlag.ps1",
+      "length": 3314,
+      "name": "ConvertTo-PropagationFlag.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/ConvertTo-ProviderAccessControlRights.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1115,
+      "fullName": "Carbon/Functions/ConvertTo-ProviderAccessControlRights.ps1",
+      "length": 2504,
+      "name": "ConvertTo-ProviderAccessControlRights.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/ConvertTo-SecurityIdentifier.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1205,
+      "fullName": "Carbon/Functions/ConvertTo-SecurityIdentifier.ps1",
+      "length": 3352,
+      "name": "ConvertTo-SecurityIdentifier.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Copy-DscResource.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1826,
+      "fullName": "Carbon/Functions/Copy-DscResource.ps1",
+      "length": 5526,
+      "name": "Copy-DscResource.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Disable-FirewallStatefulFtp.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 775,
+      "fullName": "Carbon/Functions/Disable-FirewallStatefulFtp.ps1",
+      "length": 1582,
+      "name": "Disable-FirewallStatefulFtp.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Disable-IEEnhancedSecurityConfiguration.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1253,
+      "fullName": "Carbon/Functions/Disable-IEEnhancedSecurityConfiguration.ps1",
+      "length": 2893,
+      "name": "Disable-IEEnhancedSecurityConfiguration.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Disable-IisSecurityAuthentication.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1117,
+      "fullName": "Carbon/Functions/Disable-IisSecurityAuthentication.ps1",
+      "length": 2953,
+      "name": "Disable-IisSecurityAuthentication.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Disable-NtfsCompression.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1393,
+      "fullName": "Carbon/Functions/Disable-NtfsCompression.ps1",
+      "length": 3600,
+      "name": "Disable-NtfsCompression.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Enable-FirewallStatefulFtp.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 762,
+      "fullName": "Carbon/Functions/Enable-FirewallStatefulFtp.ps1",
+      "length": 1523,
+      "name": "Enable-FirewallStatefulFtp.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Enable-IEActivationPermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1186,
+      "fullName": "Carbon/Functions/Enable-IEActivationPermission.ps1",
+      "length": 2604,
+      "name": "Enable-IEActivationPermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Enable-IisDirectoryBrowsing.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 943,
+      "fullName": "Carbon/Functions/Enable-IisDirectoryBrowsing.ps1",
+      "length": 2143,
+      "name": "Enable-IisDirectoryBrowsing.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Enable-IisSecurityAuthentication.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1111,
+      "fullName": "Carbon/Functions/Enable-IisSecurityAuthentication.ps1",
+      "length": 2966,
+      "name": "Enable-IisSecurityAuthentication.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Enable-IisSsl.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1971,
+      "fullName": "Carbon/Functions/Enable-IisSsl.ps1",
+      "length": 6521,
+      "name": "Enable-IisSsl.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Enable-NtfsCompression.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1365,
+      "fullName": "Carbon/Functions/Enable-NtfsCompression.ps1",
+      "length": 3529,
+      "name": "Enable-NtfsCompression.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Expand-Item.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1534,
+      "fullName": "Carbon/Functions/Expand-Item.ps1",
+      "length": 4006,
+      "name": "Expand-Item.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Find-ADUser.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1227,
+      "fullName": "Carbon/Functions/Find-ADUser.ps1",
+      "length": 2699,
+      "name": "Find-ADUser.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Format-ADSearchFilterValue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 914,
+      "fullName": "Carbon/Functions/Format-ADSearchFilterValue.ps1",
+      "length": 1901,
+      "name": "Format-ADSearchFilterValue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ADDomainController.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1208,
+      "fullName": "Carbon/Functions/Get-ADDomainController.ps1",
+      "length": 3078,
+      "name": "Get-ADDomainController.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-Certificate.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2263,
+      "fullName": "Carbon/Functions/Get-Certificate.ps1",
+      "length": 8233,
+      "name": "Get-Certificate.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-CertificateStore.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1072,
+      "fullName": "Carbon/Functions/Get-CertificateStore.ps1",
+      "length": 2722,
+      "name": "Get-CertificateStore.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ComPermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1675,
+      "fullName": "Carbon/Functions/Get-ComPermission.ps1",
+      "length": 4888,
+      "name": "Get-ComPermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ComSecurityDescriptor.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1585,
+      "fullName": "Carbon/Functions/Get-ComSecurityDescriptor.ps1",
+      "length": 5130,
+      "name": "Get-ComSecurityDescriptor.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-DscError.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1717,
+      "fullName": "Carbon/Functions/Get-DscError.ps1",
+      "length": 4169,
+      "name": "Get-DscError.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-DscWinEvent.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2430,
+      "fullName": "Carbon/Functions/Get-DscWinEvent.ps1",
+      "length": 7518,
+      "name": "Get-DscWinEvent.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-FileShare.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1263,
+      "fullName": "Carbon/Functions/Get-FileShare.ps1",
+      "length": 2980,
+      "name": "Get-FileShare.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-FileSharePermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1662,
+      "fullName": "Carbon/Functions/Get-FileSharePermission.ps1",
+      "length": 4164,
+      "name": "Get-FileSharePermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-FirewallRule.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2330,
+      "fullName": "Carbon/Functions/Get-FirewallRule.ps1",
+      "length": 7640,
+      "name": "Get-FirewallRule.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-Group.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1142,
+      "fullName": "Carbon/Functions/Get-Group.ps1",
+      "length": 2767,
+      "name": "Get-Group.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IdentityPrincipalContext.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 771,
+      "fullName": "Carbon/Functions/Get-IdentityPrincipalContext.ps1",
+      "length": 1535,
+      "name": "Get-IdentityPrincipalContext.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisApplication.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1174,
+      "fullName": "Carbon/Functions/Get-IisApplication.ps1",
+      "length": 2834,
+      "name": "Get-IisApplication.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisAppPool.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1118,
+      "fullName": "Carbon/Functions/Get-IisAppPool.ps1",
+      "length": 2538,
+      "name": "Get-IisAppPool.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisConfigurationSection.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1186,
+      "fullName": "Carbon/Functions/Get-IisConfigurationSection.ps1",
+      "length": 3096,
+      "name": "Get-IisConfigurationSection.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisHttpHeader.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1072,
+      "fullName": "Carbon/Functions/Get-IisHttpHeader.ps1",
+      "length": 2621,
+      "name": "Get-IisHttpHeader.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisHttpRedirect.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1125,
+      "fullName": "Carbon/Functions/Get-IisHttpRedirect.ps1",
+      "length": 2682,
+      "name": "Get-IisHttpRedirect.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisMimeMap.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1304,
+      "fullName": "Carbon/Functions/Get-IisMimeMap.ps1",
+      "length": 3585,
+      "name": "Get-IisMimeMap.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisSecurityAuthentication.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1030,
+      "fullName": "Carbon/Functions/Get-IisSecurityAuthentication.ps1",
+      "length": 3087,
+      "name": "Get-IisSecurityAuthentication.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisVersion.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 697,
+      "fullName": "Carbon/Functions/Get-IisVersion.ps1",
+      "length": 1253,
+      "name": "Get-IisVersion.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IisWebsite.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 975,
+      "fullName": "Carbon/Functions/Get-IisWebsite.ps1",
+      "length": 2113,
+      "name": "Get-IisWebsite.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-IPAddress.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1233,
+      "fullName": "Carbon/Functions/Get-IPAddress.ps1",
+      "length": 3263,
+      "name": "Get-IPAddress.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-Msi.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1463,
+      "fullName": "Carbon/Functions/Get-Msi.ps1",
+      "length": 3390,
+      "name": "Get-Msi.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-MsmqMessageQueue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1023,
+      "fullName": "Carbon/Functions/Get-MsmqMessageQueue.ps1",
+      "length": 2343,
+      "name": "Get-MsmqMessageQueue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-MsmqMessageQueuePath.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 909,
+      "fullName": "Carbon/Functions/Get-MsmqMessageQueuePath.ps1",
+      "length": 1847,
+      "name": "Get-MsmqMessageQueuePath.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-PathProvider.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 981,
+      "fullName": "Carbon/Functions/Get-PathProvider.ps1",
+      "length": 1962,
+      "name": "Get-PathProvider.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-PathToHostsFile.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 712,
+      "fullName": "Carbon/Functions/Get-PathToHostsFile.ps1",
+      "length": 1260,
+      "name": "Get-PathToHostsFile.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-PerformanceCounter.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 813,
+      "fullName": "Carbon/Functions/Get-PerformanceCounter.ps1",
+      "length": 1699,
+      "name": "Get-PerformanceCounter.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-Permission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1592,
+      "fullName": "Carbon/Functions/Get-Permission.ps1",
+      "length": 4609,
+      "name": "Get-Permission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-PowerShellModuleInstallPath.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1003,
+      "fullName": "Carbon/Functions/Get-PowerShellModuleInstallPath.ps1",
+      "length": 2412,
+      "name": "Get-PowerShellModuleInstallPath.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-PowershellPath.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1084,
+      "fullName": "Carbon/Functions/Get-PowershellPath.ps1",
+      "length": 3162,
+      "name": "Get-PowershellPath.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-Privilege.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 839,
+      "fullName": "Carbon/Functions/Get-Privilege.ps1",
+      "length": 1661,
+      "name": "Get-Privilege.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ProgramInstallInfo.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1603,
+      "fullName": "Carbon/Functions/Get-ProgramInstallInfo.ps1",
+      "length": 4168,
+      "name": "Get-ProgramInstallInfo.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-RegistryKeyValue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 970,
+      "fullName": "Carbon/Functions/Get-RegistryKeyValue.ps1",
+      "length": 1966,
+      "name": "Get-RegistryKeyValue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ScheduledTask.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 4399,
+      "fullName": "Carbon/Functions/Get-ScheduledTask.ps1",
+      "length": 20060,
+      "name": "Get-ScheduledTask.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ServiceAcl.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 825,
+      "fullName": "Carbon/Functions/Get-ServiceAcl.ps1",
+      "length": 1660,
+      "name": "Get-ServiceAcl.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ServiceConfiguration.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1230,
+      "fullName": "Carbon/Functions/Get-ServiceConfiguration.ps1",
+      "length": 2839,
+      "name": "Get-ServiceConfiguration.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ServicePermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1307,
+      "fullName": "Carbon/Functions/Get-ServicePermission.ps1",
+      "length": 3582,
+      "name": "Get-ServicePermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-ServiceSecurityDescriptor.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 813,
+      "fullName": "Carbon/Functions/Get-ServiceSecurityDescriptor.ps1",
+      "length": 1696,
+      "name": "Get-ServiceSecurityDescriptor.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-SslCertificateBinding.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1495,
+      "fullName": "Carbon/Functions/Get-SslCertificateBinding.ps1",
+      "length": 4875,
+      "name": "Get-SslCertificateBinding.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-TrustedHost.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 816,
+      "fullName": "Carbon/Functions/Get-TrustedHost.ps1",
+      "length": 1577,
+      "name": "Get-TrustedHost.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-User.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1162,
+      "fullName": "Carbon/Functions/Get-User.ps1",
+      "length": 2891,
+      "name": "Get-User.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-WindowsFeature.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1430,
+      "fullName": "Carbon/Functions/Get-WindowsFeature.ps1",
+      "length": 4246,
+      "name": "Get-WindowsFeature.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Get-WmiLocalUserAccount.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1068,
+      "fullName": "Carbon/Functions/Get-WmiLocalUserAccount.ps1",
+      "length": 2052,
+      "name": "Get-WmiLocalUserAccount.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Grant-ComPermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2105,
+      "fullName": "Carbon/Functions/Grant-ComPermission.ps1",
+      "length": 10166,
+      "name": "Grant-ComPermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Grant-MsmqMessageQueuePermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1211,
+      "fullName": "Carbon/Functions/Grant-MsmqMessageQueuePermission.ps1",
+      "length": 2880,
+      "name": "Grant-MsmqMessageQueuePermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Grant-Permission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 4914,
+      "fullName": "Carbon/Functions/Grant-Permission.ps1",
+      "length": 19030,
+      "name": "Grant-Permission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Grant-Privilege.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1608,
+      "fullName": "Carbon/Functions/Grant-Privilege.ps1",
+      "length": 4683,
+      "name": "Grant-Privilege.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Grant-ServiceControlPermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 995,
+      "fullName": "Carbon/Functions/Grant-ServiceControlPermission.ps1",
+      "length": 2244,
+      "name": "Grant-ServiceControlPermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Grant-ServicePermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1562,
+      "fullName": "Carbon/Functions/Grant-ServicePermission.ps1",
+      "length": 5421,
+      "name": "Grant-ServicePermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Initialize-Lcm.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 5031,
+      "fullName": "Carbon/Functions/Initialize-Lcm.ps1",
+      "length": 19061,
+      "name": "Initialize-Lcm.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-Certificate.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1513,
+      "fullName": "Carbon/Functions/Install-Certificate.ps1",
+      "length": 5200,
+      "name": "Install-Certificate.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-FileShare.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2879,
+      "fullName": "Carbon/Functions/Install-FileShare.ps1",
+      "length": 9779,
+      "name": "Install-FileShare.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-Group.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1436,
+      "fullName": "Carbon/Functions/Install-Group.ps1",
+      "length": 3531,
+      "name": "Install-Group.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-IisApplication.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1795,
+      "fullName": "Carbon/Functions/Install-IisApplication.ps1",
+      "length": 5461,
+      "name": "Install-IisApplication.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-IisAppPool.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2935,
+      "fullName": "Carbon/Functions/Install-IisAppPool.ps1",
+      "length": 10303,
+      "name": "Install-IisAppPool.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-IisVirtualDirectory.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1613,
+      "fullName": "Carbon/Functions/Install-IisVirtualDirectory.ps1",
+      "length": 4660,
+      "name": "Install-IisVirtualDirectory.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-IisWebsite.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 3595,
+      "fullName": "Carbon/Functions/Install-IisWebsite.ps1",
+      "length": 10975,
+      "name": "Install-IisWebsite.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-Junction.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1626,
+      "fullName": "Carbon/Functions/Install-Junction.ps1",
+      "length": 4425,
+      "name": "Install-Junction.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-Msi.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1607,
+      "fullName": "Carbon/Functions/Install-Msi.ps1",
+      "length": 3870,
+      "name": "Install-Msi.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-Msmq.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1570,
+      "fullName": "Carbon/Functions/Install-Msmq.ps1",
+      "length": 3527,
+      "name": "Install-Msmq.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-MsmqMessageQueue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1558,
+      "fullName": "Carbon/Functions/Install-MsmqMessageQueue.ps1",
+      "length": 4039,
+      "name": "Install-MsmqMessageQueue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-PerformanceCounter.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1802,
+      "fullName": "Carbon/Functions/Install-PerformanceCounter.ps1",
+      "length": 5878,
+      "name": "Install-PerformanceCounter.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-RegistryKey.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 799,
+      "fullName": "Carbon/Functions/Install-RegistryKey.ps1",
+      "length": 1533,
+      "name": "Install-RegistryKey.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-ScheduledTask.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 5943,
+      "fullName": "Carbon/Functions/Install-ScheduledTask.ps1",
+      "length": 32078,
+      "name": "Install-ScheduledTask.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-Service.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 5212,
+      "fullName": "Carbon/Functions/Install-Service.ps1",
+      "length": 21805,
+      "name": "Install-Service.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-User.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1821,
+      "fullName": "Carbon/Functions/Install-User.ps1",
+      "length": 5331,
+      "name": "Install-User.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Install-WindowsFeature.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1539,
+      "fullName": "Carbon/Functions/Install-WindowsFeature.ps1",
+      "length": 4962,
+      "name": "Install-WindowsFeature.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Invoke-AppCmd.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 932,
+      "fullName": "Carbon/Functions/Invoke-AppCmd.ps1",
+      "length": 2087,
+      "name": "Invoke-AppCmd.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Invoke-ConsoleCommand.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 855,
+      "fullName": "Carbon/Functions/Invoke-ConsoleCommand.ps1",
+      "length": 1748,
+      "name": "Invoke-ConsoleCommand.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Invoke-PowerShell.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2890,
+      "fullName": "Carbon/Functions/Invoke-PowerShell.ps1",
+      "length": 8817,
+      "name": "Invoke-PowerShell.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Join-IisVirtualPath.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 829,
+      "fullName": "Carbon/Functions/Join-IisVirtualPath.ps1",
+      "length": 1556,
+      "name": "Join-IisVirtualPath.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Lock-IisConfigurationSection.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 939,
+      "fullName": "Carbon/Functions/Lock-IisConfigurationSection.ps1",
+      "length": 2006,
+      "name": "Lock-IisConfigurationSection.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/New-Credential.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1461,
+      "fullName": "Carbon/Functions/New-Credential.ps1",
+      "length": 3436,
+      "name": "New-Credential.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/New-Junction.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 971,
+      "fullName": "Carbon/Functions/New-Junction.ps1",
+      "length": 2106,
+      "name": "New-Junction.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/New-RsaKeyPair.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 3061,
+      "fullName": "Carbon/Functions/New-RsaKeyPair.ps1",
+      "length": 9804,
+      "name": "New-RsaKeyPair.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/New-TempDirectory.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1322,
+      "fullName": "Carbon/Functions/New-TempDirectory.ps1",
+      "length": 3288,
+      "name": "New-TempDirectory.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Protect-Acl.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1024,
+      "fullName": "Carbon/Functions/Protect-Acl.ps1",
+      "length": 2199,
+      "name": "Protect-Acl.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Protect-String.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 3567,
+      "fullName": "Carbon/Functions/Protect-String.ps1",
+      "length": 11671,
+      "name": "Protect-String.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Remove-EnvironmentVariable.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1005,
+      "fullName": "Carbon/Functions/Remove-EnvironmentVariable.ps1",
+      "length": 2515,
+      "name": "Remove-EnvironmentVariable.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Remove-GroupMember.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1563,
+      "fullName": "Carbon/Functions/Remove-GroupMember.ps1",
+      "length": 4054,
+      "name": "Remove-GroupMember.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Remove-HostsEntry.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1255,
+      "fullName": "Carbon/Functions/Remove-HostsEntry.ps1",
+      "length": 2868,
+      "name": "Remove-HostsEntry.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Remove-IisMimeMap.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1196,
+      "fullName": "Carbon/Functions/Remove-IisMimeMap.ps1",
+      "length": 2822,
+      "name": "Remove-IisMimeMap.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Remove-IniEntry.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1480,
+      "fullName": "Carbon/Functions/Remove-IniEntry.ps1",
+      "length": 3331,
+      "name": "Remove-IniEntry.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Remove-Junction.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 921,
+      "fullName": "Carbon/Functions/Remove-Junction.ps1",
+      "length": 2067,
+      "name": "Remove-Junction.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Remove-RegistryKeyValue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 834,
+      "fullName": "Carbon/Functions/Remove-RegistryKeyValue.ps1",
+      "length": 1725,
+      "name": "Remove-RegistryKeyValue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Remove-SslCertificateBinding.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 987,
+      "fullName": "Carbon/Functions/Remove-SslCertificateBinding.ps1",
+      "length": 2231,
+      "name": "Remove-SslCertificateBinding.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Reset-HostsFile.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1149,
+      "fullName": "Carbon/Functions/Reset-HostsFile.ps1",
+      "length": 2529,
+      "name": "Reset-HostsFile.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Reset-MsmqQueueManagerID.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1082,
+      "fullName": "Carbon/Functions/Reset-MsmqQueueManagerID.ps1",
+      "length": 2401,
+      "name": "Reset-MsmqQueueManagerID.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Resolve-FullPath.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1000,
+      "fullName": "Carbon/Functions/Resolve-FullPath.ps1",
+      "length": 2144,
+      "name": "Resolve-FullPath.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Resolve-Identity.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1695,
+      "fullName": "Carbon/Functions/Resolve-Identity.ps1",
+      "length": 4516,
+      "name": "Resolve-Identity.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Resolve-IdentityName.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1401,
+      "fullName": "Carbon/Functions/Resolve-IdentityName.ps1",
+      "length": 3424,
+      "name": "Resolve-IdentityName.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Resolve-NetPath.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 823,
+      "fullName": "Carbon/Functions/Resolve-NetPath.ps1",
+      "length": 1713,
+      "name": "Resolve-NetPath.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Resolve-PathCase.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1226,
+      "fullName": "Carbon/Functions/Resolve-PathCase.ps1",
+      "length": 2836,
+      "name": "Resolve-PathCase.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Resolve-RelativePath.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1349,
+      "fullName": "Carbon/Functions/Resolve-RelativePath.ps1",
+      "length": 3653,
+      "name": "Resolve-RelativePath.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Resolve-WindowsFeatureName.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1026,
+      "fullName": "Carbon/Functions/Resolve-WindowsFeatureName.ps1",
+      "length": 2491,
+      "name": "Resolve-WindowsFeatureName.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Restart-RemoteService.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1092,
+      "fullName": "Carbon/Functions/Restart-RemoteService.ps1",
+      "length": 2533,
+      "name": "Restart-RemoteService.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Revoke-ComPermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1539,
+      "fullName": "Carbon/Functions/Revoke-ComPermission.ps1",
+      "length": 4526,
+      "name": "Revoke-ComPermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Revoke-Permission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1597,
+      "fullName": "Carbon/Functions/Revoke-Permission.ps1",
+      "length": 4229,
+      "name": "Revoke-Permission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Revoke-Privilege.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1551,
+      "fullName": "Carbon/Functions/Revoke-Privilege.ps1",
+      "length": 4267,
+      "name": "Revoke-Privilege.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Revoke-ServicePermission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 905,
+      "fullName": "Carbon/Functions/Revoke-ServicePermission.ps1",
+      "length": 2054,
+      "name": "Revoke-ServicePermission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-CryptoKeySecurity.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1035,
+      "fullName": "Carbon/Functions/Set-CryptoKeySecurity.ps1",
+      "length": 2509,
+      "name": "Set-CryptoKeySecurity.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-DotNetAppSetting.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1354,
+      "fullName": "Carbon/Functions/Set-DotNetAppSetting.ps1",
+      "length": 4058,
+      "name": "Set-DotNetAppSetting.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-DotNetConnectionString.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1527,
+      "fullName": "Carbon/Functions/Set-DotNetConnectionString.ps1",
+      "length": 4833,
+      "name": "Set-DotNetConnectionString.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-EnvironmentVariable.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1248,
+      "fullName": "Carbon/Functions/Set-EnvironmentVariable.ps1",
+      "length": 3533,
+      "name": "Set-EnvironmentVariable.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-HostsEntry.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2300,
+      "fullName": "Carbon/Functions/Set-HostsEntry.ps1",
+      "length": 6540,
+      "name": "Set-HostsEntry.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-IisHttpHeader.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1184,
+      "fullName": "Carbon/Functions/Set-IisHttpHeader.ps1",
+      "length": 3077,
+      "name": "Set-IisHttpHeader.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-IisHttpRedirect.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1393,
+      "fullName": "Carbon/Functions/Set-IisHttpRedirect.ps1",
+      "length": 3798,
+      "name": "Set-IisHttpRedirect.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-IisMimeMap.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1227,
+      "fullName": "Carbon/Functions/Set-IisMimeMap.ps1",
+      "length": 3092,
+      "name": "Set-IisMimeMap.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-IisWebsiteID.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1492,
+      "fullName": "Carbon/Functions/Set-IisWebsiteID.ps1",
+      "length": 3983,
+      "name": "Set-IisWebsiteID.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-IisWebsiteSslCertificate.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1202,
+      "fullName": "Carbon/Functions/Set-IisWebsiteSslCertificate.ps1",
+      "length": 2685,
+      "name": "Set-IisWebsiteSslCertificate.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-IisWindowsAuthentication.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1209,
+      "fullName": "Carbon/Functions/Set-IisWindowsAuthentication.ps1",
+      "length": 3008,
+      "name": "Set-IisWindowsAuthentication.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-IniEntry.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1915,
+      "fullName": "Carbon/Functions/Set-IniEntry.ps1",
+      "length": 5510,
+      "name": "Set-IniEntry.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-RegistryKeyValue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2531,
+      "fullName": "Carbon/Functions/Set-RegistryKeyValue.ps1",
+      "length": 9066,
+      "name": "Set-RegistryKeyValue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-ServiceAcl.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1059,
+      "fullName": "Carbon/Functions/Set-ServiceAcl.ps1",
+      "length": 2288,
+      "name": "Set-ServiceAcl.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-SslCertificateBinding.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1390,
+      "fullName": "Carbon/Functions/Set-SslCertificateBinding.ps1",
+      "length": 3507,
+      "name": "Set-SslCertificateBinding.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Set-TrustedHost.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 862,
+      "fullName": "Carbon/Functions/Set-TrustedHost.ps1",
+      "length": 1734,
+      "name": "Set-TrustedHost.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Split-Ini.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2522,
+      "fullName": "Carbon/Functions/Split-Ini.ps1",
+      "length": 9379,
+      "name": "Split-Ini.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Start-DscPullConfiguration.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2479,
+      "fullName": "Carbon/Functions/Start-DscPullConfiguration.ps1",
+      "length": 7302,
+      "name": "Start-DscPullConfiguration.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-AdminPrivilege.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 962,
+      "fullName": "Carbon/Functions/Test-AdminPrivilege.ps1",
+      "length": 2091,
+      "name": "Test-AdminPrivilege.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-DotNet.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1071,
+      "fullName": "Carbon/Functions/Test-DotNet.ps1",
+      "length": 2686,
+      "name": "Test-DotNet.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-DscTargetResource.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1488,
+      "fullName": "Carbon/Functions/Test-DscTargetResource.ps1",
+      "length": 4436,
+      "name": "Test-DscTargetResource.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-FileShare.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 813,
+      "fullName": "Carbon/Functions/Test-FileShare.ps1",
+      "length": 1662,
+      "name": "Test-FileShare.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-FirewallStatefulFtp.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 811,
+      "fullName": "Carbon/Functions/Test-FirewallStatefulFtp.ps1",
+      "length": 1635,
+      "name": "Test-FirewallStatefulFtp.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-Group.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 897,
+      "fullName": "Carbon/Functions/Test-Group.ps1",
+      "length": 1921,
+      "name": "Test-Group.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-Identity.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 996,
+      "fullName": "Carbon/Functions/Test-Identity.ps1",
+      "length": 2187,
+      "name": "Test-Identity.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-IisAppPool.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 719,
+      "fullName": "Carbon/Functions/Test-IisAppPool.ps1",
+      "length": 1399,
+      "name": "Test-IisAppPool.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-IisConfigurationSection.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1232,
+      "fullName": "Carbon/Functions/Test-IisConfigurationSection.ps1",
+      "length": 3351,
+      "name": "Test-IisConfigurationSection.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-IisSecurityAuthentication.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1019,
+      "fullName": "Carbon/Functions/Test-IisSecurityAuthentication.ps1",
+      "length": 2790,
+      "name": "Test-IisSecurityAuthentication.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-IisWebsite.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 820,
+      "fullName": "Carbon/Functions/Test-IisWebsite.ps1",
+      "length": 1604,
+      "name": "Test-IisWebsite.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-IPAddress.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 838,
+      "fullName": "Carbon/Functions/Test-IPAddress.ps1",
+      "length": 1748,
+      "name": "Test-IPAddress.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-MsmqMessageQueue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 821,
+      "fullName": "Carbon/Functions/Test-MsmqMessageQueue.ps1",
+      "length": 1697,
+      "name": "Test-MsmqMessageQueue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-NtfsCompression.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 860,
+      "fullName": "Carbon/Functions/Test-NtfsCompression.ps1",
+      "length": 1736,
+      "name": "Test-NtfsCompression.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-OSIs32Bit.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 725,
+      "fullName": "Carbon/Functions/Test-OSIs32Bit.ps1",
+      "length": 1334,
+      "name": "Test-OSIs32Bit.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-OSIs64Bit.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 727,
+      "fullName": "Carbon/Functions/Test-OSIs64Bit.ps1",
+      "length": 1344,
+      "name": "Test-OSIs64Bit.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-PathIsJunction.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 901,
+      "fullName": "Carbon/Functions/Test-PathIsJunction.ps1",
+      "length": 1864,
+      "name": "Test-PathIsJunction.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-PerformanceCounter.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 827,
+      "fullName": "Carbon/Functions/Test-PerformanceCounter.ps1",
+      "length": 1795,
+      "name": "Test-PerformanceCounter.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-PerformanceCounterCategory.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 729,
+      "fullName": "Carbon/Functions/Test-PerformanceCounterCategory.ps1",
+      "length": 1426,
+      "name": "Test-PerformanceCounterCategory.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-Permission.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 2680,
+      "fullName": "Carbon/Functions/Test-Permission.ps1",
+      "length": 8865,
+      "name": "Test-Permission.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-PowerShellIs32Bit.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 706,
+      "fullName": "Carbon/Functions/Test-PowerShellIs32Bit.ps1",
+      "length": 1322,
+      "name": "Test-PowerShellIs32Bit.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-PowerShellIs64Bit.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 710,
+      "fullName": "Carbon/Functions/Test-PowerShellIs64Bit.ps1",
+      "length": 1330,
+      "name": "Test-PowerShellIs64Bit.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-Privilege.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 787,
+      "fullName": "Carbon/Functions/Test-Privilege.ps1",
+      "length": 1692,
+      "name": "Test-Privilege.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-RegistryKeyValue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 935,
+      "fullName": "Carbon/Functions/Test-RegistryKeyValue.ps1",
+      "length": 1992,
+      "name": "Test-RegistryKeyValue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-ScheduledTask.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 922,
+      "fullName": "Carbon/Functions/Test-ScheduledTask.ps1",
+      "length": 1849,
+      "name": "Test-ScheduledTask.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-Service.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 824,
+      "fullName": "Carbon/Functions/Test-Service.ps1",
+      "length": 1676,
+      "name": "Test-Service.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-SslCertificateBinding.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 840,
+      "fullName": "Carbon/Functions/Test-SslCertificateBinding.ps1",
+      "length": 1996,
+      "name": "Test-SslCertificateBinding.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-TypeDataMember.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 885,
+      "fullName": "Carbon/Functions/Test-TypeDataMember.ps1",
+      "length": 1913,
+      "name": "Test-TypeDataMember.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-UncPath.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 853,
+      "fullName": "Carbon/Functions/Test-UncPath.ps1",
+      "length": 1610,
+      "name": "Test-UncPath.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-User.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 919,
+      "fullName": "Carbon/Functions/Test-User.ps1",
+      "length": 1956,
+      "name": "Test-User.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-WindowsFeature.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1091,
+      "fullName": "Carbon/Functions/Test-WindowsFeature.ps1",
+      "length": 2779,
+      "name": "Test-WindowsFeature.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Test-ZipFile.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 983,
+      "fullName": "Carbon/Functions/Test-ZipFile.ps1",
+      "length": 1878,
+      "name": "Test-ZipFile.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-Certificate.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1444,
+      "fullName": "Carbon/Functions/Uninstall-Certificate.ps1",
+      "length": 4711,
+      "name": "Uninstall-Certificate.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-FileShare.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1292,
+      "fullName": "Carbon/Functions/Uninstall-FileShare.ps1",
+      "length": 3082,
+      "name": "Uninstall-FileShare.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-IisAppPool.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 753,
+      "fullName": "Carbon/Functions/Uninstall-IisAppPool.ps1",
+      "length": 1458,
+      "name": "Uninstall-IisAppPool.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-IisWebsite.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 882,
+      "fullName": "Carbon/Functions/Uninstall-IisWebsite.ps1",
+      "length": 1835,
+      "name": "Uninstall-IisWebsite.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-Junction.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 765,
+      "fullName": "Carbon/Functions/Uninstall-Junction.ps1",
+      "length": 1574,
+      "name": "Uninstall-Junction.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-MsmqMessageQueue.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 959,
+      "fullName": "Carbon/Functions/Uninstall-MsmqMessageQueue.ps1",
+      "length": 2124,
+      "name": "Uninstall-MsmqMessageQueue.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-PerformanceCounterCategory.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 847,
+      "fullName": "Carbon/Functions/Uninstall-PerformanceCounterCategory.ps1",
+      "length": 1820,
+      "name": "Uninstall-PerformanceCounterCategory.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-ScheduledTask.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1391,
+      "fullName": "Carbon/Functions/Uninstall-ScheduledTask.ps1",
+      "length": 3717,
+      "name": "Uninstall-ScheduledTask.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-Service.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1225,
+      "fullName": "Carbon/Functions/Uninstall-Service.ps1",
+      "length": 2698,
+      "name": "Uninstall-Service.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-User.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 843,
+      "fullName": "Carbon/Functions/Uninstall-User.ps1",
+      "length": 1788,
+      "name": "Uninstall-User.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Uninstall-WindowsFeature.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1552,
+      "fullName": "Carbon/Functions/Uninstall-WindowsFeature.ps1",
+      "length": 4959,
+      "name": "Uninstall-WindowsFeature.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Unlock-IisConfigurationSection.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 969,
+      "fullName": "Carbon/Functions/Unlock-IisConfigurationSection.ps1",
+      "length": 2037,
+      "name": "Unlock-IisConfigurationSection.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Unprotect-String.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 3582,
+      "fullName": "Carbon/Functions/Unprotect-String.ps1",
+      "length": 11853,
+      "name": "Unprotect-String.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Use-CallerPreference.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1776,
+      "fullName": "Carbon/Functions/Use-CallerPreference.ps1",
+      "length": 4842,
+      "name": "Use-CallerPreference.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Write-DscError.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1144,
+      "fullName": "Carbon/Functions/Write-DscError.ps1",
+      "length": 2410,
+      "name": "Write-DscError.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Carbon/Functions/Write-IisVerbose.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 702,
+      "fullName": "Carbon/Functions/Write-IisVerbose.ps1",
+      "length": 1454,
+      "name": "Write-IisVerbose.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Examples/Initialize-BuildServer.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 734,
+      "fullName": "Examples/Initialize-BuildServer.ps1",
+      "length": 1477,
+      "name": "Initialize-BuildServer.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Examples/Initialize-WebServer.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 1103,
+      "fullName": "Examples/Initialize-WebServer.ps1",
+      "length": 2645,
+      "name": "Initialize-WebServer.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#tools/chocolateyInstall.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 536,
+      "fullName": "tools/chocolateyInstall.ps1",
+      "length": 1341,
+      "name": "chocolateyInstall.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#tools/chocolateyUninstall.ps1",
+      "@type": "PackageEntry",
+      "compressedLength": 309,
+      "fullName": "tools/chocolateyUninstall.ps1",
+      "length": 435,
+      "name": "chocolateyUninstall.ps1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/about_Carbon.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2008,
+      "fullName": "Website/about_Carbon.html",
+      "length": 5099,
+      "name": "about_Carbon.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/about_Carbon_2.0.html",
+      "@type": "PackageEntry",
+      "compressedLength": 7218,
+      "fullName": "Website/about_Carbon_2.0.html",
+      "length": 26778,
+      "name": "about_Carbon_2.0.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/about_Carbon_Contributing.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2154,
+      "fullName": "Website/about_Carbon_Contributing.html",
+      "length": 5021,
+      "name": "about_Carbon_Contributing.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/about_Carbon_Extended_Type_Data.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2102,
+      "fullName": "Website/about_Carbon_Extended_Type_Data.html",
+      "length": 6757,
+      "name": "about_Carbon_Extended_Type_Data.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/about_Carbon_Installation.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1250,
+      "fullName": "Website/about_Carbon_Installation.html",
+      "length": 3945,
+      "name": "about_Carbon_Installation.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/about_Carbon_Support.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1126,
+      "fullName": "Website/about_Carbon_Support.html",
+      "length": 2711,
+      "name": "about_Carbon_Support.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Add-GroupMember.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1424,
+      "fullName": "Website/Add-GroupMember.html",
+      "length": 3897,
+      "name": "Add-GroupMember.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Add-IisDefaultDocument.html",
+      "@type": "PackageEntry",
+      "compressedLength": 983,
+      "fullName": "Website/Add-IisDefaultDocument.html",
+      "length": 2535,
+      "name": "Add-IisDefaultDocument.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Add-TrustedHost.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1133,
+      "fullName": "Website/Add-TrustedHost.html",
+      "length": 3131,
+      "name": "Add-TrustedHost.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Assert-AdminPrivilege.html",
+      "@type": "PackageEntry",
+      "compressedLength": 721,
+      "fullName": "Website/Assert-AdminPrivilege.html",
+      "length": 1725,
+      "name": "Assert-AdminPrivilege.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Assert-FirewallConfigurable.html",
+      "@type": "PackageEntry",
+      "compressedLength": 775,
+      "fullName": "Website/Assert-FirewallConfigurable.html",
+      "length": 1798,
+      "name": "Assert-FirewallConfigurable.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Assert-Service.html",
+      "@type": "PackageEntry",
+      "compressedLength": 909,
+      "fullName": "Website/Assert-Service.html",
+      "length": 2145,
+      "name": "Assert-Service.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Carbon_EnvironmentVariable.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1184,
+      "fullName": "Website/Carbon_EnvironmentVariable.html",
+      "length": 3371,
+      "name": "Carbon_EnvironmentVariable.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Carbon_FirewallRule.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2595,
+      "fullName": "Website/Carbon_FirewallRule.html",
+      "length": 10767,
+      "name": "Carbon_FirewallRule.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Carbon_IniFile.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1726,
+      "fullName": "Website/Carbon_IniFile.html",
+      "length": 6135,
+      "name": "Carbon_IniFile.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Carbon_Permission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2420,
+      "fullName": "Website/Carbon_Permission.html",
+      "length": 10040,
+      "name": "Carbon_Permission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Carbon_Privilege.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2044,
+      "fullName": "Website/Carbon_Privilege.html",
+      "length": 7015,
+      "name": "Carbon_Privilege.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Carbon_ScheduledTask.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1777,
+      "fullName": "Website/Carbon_ScheduledTask.html",
+      "length": 5502,
+      "name": "Carbon_ScheduledTask.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Carbon_Service.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2085,
+      "fullName": "Website/Carbon_Service.html",
+      "length": 9199,
+      "name": "Carbon_Service.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Clear-DscLocalResourceCache.html",
+      "@type": "PackageEntry",
+      "compressedLength": 727,
+      "fullName": "Website/Clear-DscLocalResourceCache.html",
+      "length": 1628,
+      "name": "Clear-DscLocalResourceCache.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Clear-MofAuthoringMetadata.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1546,
+      "fullName": "Website/Clear-MofAuthoringMetadata.html",
+      "length": 4253,
+      "name": "Clear-MofAuthoringMetadata.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Clear-TrustedHost.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1069,
+      "fullName": "Website/Clear-TrustedHost.html",
+      "length": 2866,
+      "name": "Clear-TrustedHost.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Complete-Job.html",
+      "@type": "PackageEntry",
+      "compressedLength": 974,
+      "fullName": "Website/Complete-Job.html",
+      "length": 2410,
+      "name": "Complete-Job.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Compress-Item.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1819,
+      "fullName": "Website/Compress-Item.html",
+      "length": 5889,
+      "name": "Compress-Item.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Convert-SecureStringToString.html",
+      "@type": "PackageEntry",
+      "compressedLength": 992,
+      "fullName": "Website/Convert-SecureStringToString.html",
+      "length": 2333,
+      "name": "Convert-SecureStringToString.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Convert-XmlFile.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2468,
+      "fullName": "Website/Convert-XmlFile.html",
+      "length": 8266,
+      "name": "Convert-XmlFile.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/ConvertFrom-Base64.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1185,
+      "fullName": "Website/ConvertFrom-Base64.html",
+      "length": 2999,
+      "name": "ConvertFrom-Base64.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/ConvertTo-Base64.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1137,
+      "fullName": "Website/ConvertTo-Base64.html",
+      "length": 2919,
+      "name": "ConvertTo-Base64.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/ConvertTo-ContainerInheritanceFlags.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1303,
+      "fullName": "Website/ConvertTo-ContainerInheritanceFlags.html",
+      "length": 3800,
+      "name": "ConvertTo-ContainerInheritanceFlags.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/ConvertTo-InheritanceFlag.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1045,
+      "fullName": "Website/ConvertTo-InheritanceFlag.html",
+      "length": 3023,
+      "name": "ConvertTo-InheritanceFlag.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/ConvertTo-PropagationFlag.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1040,
+      "fullName": "Website/ConvertTo-PropagationFlag.html",
+      "length": 2982,
+      "name": "ConvertTo-PropagationFlag.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/ConvertTo-SecurityIdentifier.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1225,
+      "fullName": "Website/ConvertTo-SecurityIdentifier.html",
+      "length": 3375,
+      "name": "ConvertTo-SecurityIdentifier.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Copy-DscResource.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1574,
+      "fullName": "Website/Copy-DscResource.html",
+      "length": 5273,
+      "name": "Copy-DscResource.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Disable-FirewallStatefulFtp.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1019,
+      "fullName": "Website/Disable-FirewallStatefulFtp.html",
+      "length": 2785,
+      "name": "Disable-FirewallStatefulFtp.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Disable-IEEnhancedSecurityConfiguration.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1134,
+      "fullName": "Website/Disable-IEEnhancedSecurityConfiguration.html",
+      "length": 3102,
+      "name": "Disable-IEEnhancedSecurityConfiguration.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Disable-IisSecurityAuthentication.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1326,
+      "fullName": "Website/Disable-IisSecurityAuthentication.html",
+      "length": 5289,
+      "name": "Disable-IisSecurityAuthentication.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Disable-NtfsCompression.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1411,
+      "fullName": "Website/Disable-NtfsCompression.html",
+      "length": 4265,
+      "name": "Disable-NtfsCompression.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/documentation.html",
+      "@type": "PackageEntry",
+      "compressedLength": 4916,
+      "fullName": "Website/documentation.html",
+      "length": 59911,
+      "name": "documentation.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Enable-FirewallStatefulFtp.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1018,
+      "fullName": "Website/Enable-FirewallStatefulFtp.html",
+      "length": 2778,
+      "name": "Enable-FirewallStatefulFtp.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Enable-IEActivationPermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1113,
+      "fullName": "Website/Enable-IEActivationPermission.html",
+      "length": 2922,
+      "name": "Enable-IEActivationPermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Enable-IisDirectoryBrowsing.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1014,
+      "fullName": "Website/Enable-IisDirectoryBrowsing.html",
+      "length": 2778,
+      "name": "Enable-IisDirectoryBrowsing.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Enable-IisSecurityAuthentication.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1327,
+      "fullName": "Website/Enable-IisSecurityAuthentication.html",
+      "length": 5304,
+      "name": "Enable-IisSecurityAuthentication.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Enable-IisSsl.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1901,
+      "fullName": "Website/Enable-IisSsl.html",
+      "length": 7306,
+      "name": "Enable-IisSsl.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Enable-NtfsCompression.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1375,
+      "fullName": "Website/Enable-NtfsCompression.html",
+      "length": 4190,
+      "name": "Enable-NtfsCompression.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Expand-Item.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1529,
+      "fullName": "Website/Expand-Item.html",
+      "length": 4945,
+      "name": "Expand-Item.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Find-ADUser.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1187,
+      "fullName": "Website/Find-ADUser.html",
+      "length": 3061,
+      "name": "Find-ADUser.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Format-ADSearchFilterValue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1000,
+      "fullName": "Website/Format-ADSearchFilterValue.html",
+      "length": 2472,
+      "name": "Format-ADSearchFilterValue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ADDomainController.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1027,
+      "fullName": "Website/Get-ADDomainController.html",
+      "length": 2462,
+      "name": "Get-ADDomainController.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-Certificate.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2041,
+      "fullName": "Website/Get-Certificate.html",
+      "length": 7655,
+      "name": "Get-Certificate.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-CertificateStore.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1269,
+      "fullName": "Website/Get-CertificateStore.html",
+      "length": 3663,
+      "name": "Get-CertificateStore.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ComPermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1663,
+      "fullName": "Website/Get-ComPermission.html",
+      "length": 5502,
+      "name": "Get-ComPermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ComSecurityDescriptor.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1265,
+      "fullName": "Website/Get-ComSecurityDescriptor.html",
+      "length": 5347,
+      "name": "Get-ComSecurityDescriptor.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-DscError.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1983,
+      "fullName": "Website/Get-DscError.html",
+      "length": 6025,
+      "name": "Get-DscError.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-DscWinEvent.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2093,
+      "fullName": "Website/Get-DscWinEvent.html",
+      "length": 7134,
+      "name": "Get-DscWinEvent.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-FileShare.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1235,
+      "fullName": "Website/Get-FileShare.html",
+      "length": 3245,
+      "name": "Get-FileShare.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-FileSharePermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1336,
+      "fullName": "Website/Get-FileSharePermission.html",
+      "length": 3524,
+      "name": "Get-FileSharePermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-FirewallRule.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1403,
+      "fullName": "Website/Get-FirewallRule.html",
+      "length": 3801,
+      "name": "Get-FirewallRule.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-Group.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1143,
+      "fullName": "Website/Get-Group.html",
+      "length": 2694,
+      "name": "Get-Group.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisApplication.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1280,
+      "fullName": "Website/Get-IisApplication.html",
+      "length": 3554,
+      "name": "Get-IisApplication.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisAppPool.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1189,
+      "fullName": "Website/Get-IisAppPool.html",
+      "length": 3237,
+      "name": "Get-IisAppPool.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisConfigurationSection.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1111,
+      "fullName": "Website/Get-IisConfigurationSection.html",
+      "length": 3498,
+      "name": "Get-IisConfigurationSection.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisHttpHeader.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1159,
+      "fullName": "Website/Get-IisHttpHeader.html",
+      "length": 3418,
+      "name": "Get-IisHttpHeader.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisHttpRedirect.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1300,
+      "fullName": "Website/Get-IisHttpRedirect.html",
+      "length": 3470,
+      "name": "Get-IisHttpRedirect.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisMimeMap.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1331,
+      "fullName": "Website/Get-IisMimeMap.html",
+      "length": 4411,
+      "name": "Get-IisMimeMap.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisSecurityAuthentication.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1177,
+      "fullName": "Website/Get-IisSecurityAuthentication.html",
+      "length": 4899,
+      "name": "Get-IisSecurityAuthentication.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisVersion.html",
+      "@type": "PackageEntry",
+      "compressedLength": 658,
+      "fullName": "Website/Get-IisVersion.html",
+      "length": 1445,
+      "name": "Get-IisVersion.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IisWebsite.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1016,
+      "fullName": "Website/Get-IisWebsite.html",
+      "length": 2563,
+      "name": "Get-IisWebsite.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-IPAddress.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1249,
+      "fullName": "Website/Get-IPAddress.html",
+      "length": 3647,
+      "name": "Get-IPAddress.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-Msi.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1245,
+      "fullName": "Website/Get-Msi.html",
+      "length": 2951,
+      "name": "Get-Msi.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-MSMQMessageQueue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1140,
+      "fullName": "Website/Get-MSMQMessageQueue.html",
+      "length": 3155,
+      "name": "Get-MSMQMessageQueue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-MSMQMessageQueuePath.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1221,
+      "fullName": "Website/Get-MSMQMessageQueuePath.html",
+      "length": 3634,
+      "name": "Get-MSMQMessageQueuePath.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-PathProvider.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1007,
+      "fullName": "Website/Get-PathProvider.html",
+      "length": 2251,
+      "name": "Get-PathProvider.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-PathToHostsFile.html",
+      "@type": "PackageEntry",
+      "compressedLength": 711,
+      "fullName": "Website/Get-PathToHostsFile.html",
+      "length": 1525,
+      "name": "Get-PathToHostsFile.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-PerformanceCounter.html",
+      "@type": "PackageEntry",
+      "compressedLength": 926,
+      "fullName": "Website/Get-PerformanceCounter.html",
+      "length": 2248,
+      "name": "Get-PerformanceCounter.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-Permission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1490,
+      "fullName": "Website/Get-Permission.html",
+      "length": 4704,
+      "name": "Get-Permission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-PowerShellModuleInstallPath.html",
+      "@type": "PackageEntry",
+      "compressedLength": 878,
+      "fullName": "Website/Get-PowerShellModuleInstallPath.html",
+      "length": 2127,
+      "name": "Get-PowerShellModuleInstallPath.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-PowershellPath.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1127,
+      "fullName": "Website/Get-PowershellPath.html",
+      "length": 3223,
+      "name": "Get-PowershellPath.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-Privilege.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1007,
+      "fullName": "Website/Get-Privilege.html",
+      "length": 2363,
+      "name": "Get-Privilege.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ProgramInstallInfo.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1354,
+      "fullName": "Website/Get-ProgramInstallInfo.html",
+      "length": 3409,
+      "name": "Get-ProgramInstallInfo.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-RegistryKeyValue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1037,
+      "fullName": "Website/Get-RegistryKeyValue.html",
+      "length": 2506,
+      "name": "Get-RegistryKeyValue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ScheduledTask.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1292,
+      "fullName": "Website/Get-ScheduledTask.html",
+      "length": 3458,
+      "name": "Get-ScheduledTask.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ServiceAcl.html",
+      "@type": "PackageEntry",
+      "compressedLength": 965,
+      "fullName": "Website/Get-ServiceAcl.html",
+      "length": 2332,
+      "name": "Get-ServiceAcl.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ServiceConfiguration.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1400,
+      "fullName": "Website/Get-ServiceConfiguration.html",
+      "length": 3778,
+      "name": "Get-ServiceConfiguration.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ServicePermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1097,
+      "fullName": "Website/Get-ServicePermission.html",
+      "length": 2855,
+      "name": "Get-ServicePermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-ServiceSecurityDescriptor.html",
+      "@type": "PackageEntry",
+      "compressedLength": 983,
+      "fullName": "Website/Get-ServiceSecurityDescriptor.html",
+      "length": 2412,
+      "name": "Get-ServiceSecurityDescriptor.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-SslCertificateBinding.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1097,
+      "fullName": "Website/Get-SslCertificateBinding.html",
+      "length": 2943,
+      "name": "Get-SslCertificateBinding.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-TrustedHost.html",
+      "@type": "PackageEntry",
+      "compressedLength": 814,
+      "fullName": "Website/Get-TrustedHost.html",
+      "length": 1815,
+      "name": "Get-TrustedHost.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-User.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1147,
+      "fullName": "Website/Get-User.html",
+      "length": 2858,
+      "name": "Get-User.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-WindowsFeature.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1181,
+      "fullName": "Website/Get-WindowsFeature.html",
+      "length": 3037,
+      "name": "Get-WindowsFeature.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Get-WmiLocalUserAccount.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1334,
+      "fullName": "Website/Get-WmiLocalUserAccount.html",
+      "length": 3633,
+      "name": "Get-WmiLocalUserAccount.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Grant-ComPermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1554,
+      "fullName": "Website/Grant-ComPermission.html",
+      "length": 8834,
+      "name": "Grant-ComPermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Grant-MSMQMessageQueuePermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1389,
+      "fullName": "Website/Grant-MSMQMessageQueuePermission.html",
+      "length": 4682,
+      "name": "Grant-MSMQMessageQueuePermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Grant-Permission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 3689,
+      "fullName": "Website/Grant-Permission.html",
+      "length": 15126,
+      "name": "Grant-Permission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Grant-Privilege.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1477,
+      "fullName": "Website/Grant-Privilege.html",
+      "length": 4731,
+      "name": "Grant-Privilege.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Grant-ServiceControlPermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1292,
+      "fullName": "Website/Grant-ServiceControlPermission.html",
+      "length": 3926,
+      "name": "Grant-ServiceControlPermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Grant-ServicePermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1634,
+      "fullName": "Website/Grant-ServicePermission.html",
+      "length": 8135,
+      "name": "Grant-ServicePermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/helpindex.js",
+      "@type": "PackageEntry",
+      "compressedLength": 244,
+      "fullName": "Website/helpindex.js",
+      "length": 582,
+      "name": "helpindex.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Import-Carbon.ps1.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1141,
+      "fullName": "Website/Import-Carbon.ps1.html",
+      "length": 3305,
+      "name": "Import-Carbon.ps1.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/index.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2036,
+      "fullName": "Website/index.html",
+      "length": 5168,
+      "name": "index.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/index.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1173,
+      "fullName": "Website/index.md",
+      "length": 2389,
+      "name": "index.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Initialize-Lcm.html",
+      "@type": "PackageEntry",
+      "compressedLength": 3678,
+      "fullName": "Website/Initialize-Lcm.html",
+      "length": 15897,
+      "name": "Initialize-Lcm.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-Certificate.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1708,
+      "fullName": "Website/Install-Certificate.html",
+      "length": 6649,
+      "name": "Install-Certificate.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-FileShare.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1597,
+      "fullName": "Website/Install-FileShare.html",
+      "length": 5312,
+      "name": "Install-FileShare.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-Group.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1556,
+      "fullName": "Website/Install-Group.html",
+      "length": 4853,
+      "name": "Install-Group.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-IisApplication.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1437,
+      "fullName": "Website/Install-IisApplication.html",
+      "length": 4670,
+      "name": "Install-IisApplication.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-IisAppPool.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2309,
+      "fullName": "Website/Install-IisAppPool.html",
+      "length": 9224,
+      "name": "Install-IisAppPool.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-IisVirtualDirectory.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1412,
+      "fullName": "Website/Install-IisVirtualDirectory.html",
+      "length": 4420,
+      "name": "Install-IisVirtualDirectory.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-IisWebsite.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2540,
+      "fullName": "Website/Install-IisWebsite.html",
+      "length": 7863,
+      "name": "Install-IisWebsite.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-Junction.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1618,
+      "fullName": "Website/Install-Junction.html",
+      "length": 5465,
+      "name": "Install-Junction.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-Msi.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1430,
+      "fullName": "Website/Install-Msi.html",
+      "length": 4168,
+      "name": "Install-Msi.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-MSMQ.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1794,
+      "fullName": "Website/Install-MSMQ.html",
+      "length": 5158,
+      "name": "Install-MSMQ.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-MSMQMessageQueue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1170,
+      "fullName": "Website/Install-MSMQMessageQueue.html",
+      "length": 3803,
+      "name": "Install-MSMQMessageQueue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-PerformanceCounter.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1819,
+      "fullName": "Website/Install-PerformanceCounter.html",
+      "length": 8195,
+      "name": "Install-PerformanceCounter.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-RegistryKey.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1055,
+      "fullName": "Website/Install-RegistryKey.html",
+      "length": 2890,
+      "name": "Install-RegistryKey.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-ScheduledTask.html",
+      "@type": "PackageEntry",
+      "compressedLength": 4246,
+      "fullName": "Website/Install-ScheduledTask.html",
+      "length": 28463,
+      "name": "Install-ScheduledTask.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-Service.html",
+      "@type": "PackageEntry",
+      "compressedLength": 3067,
+      "fullName": "Website/Install-Service.html",
+      "length": 14987,
+      "name": "Install-Service.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-User.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1764,
+      "fullName": "Website/Install-User.html",
+      "length": 6908,
+      "name": "Install-User.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Install-WindowsFeature.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1348,
+      "fullName": "Website/Install-WindowsFeature.html",
+      "length": 5226,
+      "name": "Install-WindowsFeature.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Invoke-AppCmd.html",
+      "@type": "PackageEntry",
+      "compressedLength": 918,
+      "fullName": "Website/Invoke-AppCmd.html",
+      "length": 2336,
+      "name": "Invoke-AppCmd.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Invoke-PowerShell.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2107,
+      "fullName": "Website/Invoke-PowerShell.html",
+      "length": 6836,
+      "name": "Invoke-PowerShell.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Invoke-WindowsInstaller.html",
+      "@type": "PackageEntry",
+      "compressedLength": 3524,
+      "fullName": "Website/Invoke-WindowsInstaller.html",
+      "length": 19404,
+      "name": "Invoke-WindowsInstaller.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Join-IisVirtualPath.html",
+      "@type": "PackageEntry",
+      "compressedLength": 967,
+      "fullName": "Website/Join-IisVirtualPath.html",
+      "length": 2292,
+      "name": "Join-IisVirtualPath.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/jquery-2.1.4.min.js",
+      "@type": "PackageEntry",
+      "compressedLength": 29551,
+      "fullName": "Website/jquery-2.1.4.min.js",
+      "length": 84345,
+      "name": "jquery-2.1.4.min.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Lock-IisConfigurationSection.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1154,
+      "fullName": "Website/Lock-IisConfigurationSection.html",
+      "length": 3244,
+      "name": "Lock-IisConfigurationSection.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/New-Credential.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1482,
+      "fullName": "Website/New-Credential.html",
+      "length": 3992,
+      "name": "New-Credential.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/New-Junction.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1064,
+      "fullName": "Website/New-Junction.html",
+      "length": 2774,
+      "name": "New-Junction.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/New-RsaKeyPair.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2252,
+      "fullName": "Website/New-RsaKeyPair.html",
+      "length": 7839,
+      "name": "New-RsaKeyPair.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/New-TempDirectory.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1531,
+      "fullName": "Website/New-TempDirectory.html",
+      "length": 4917,
+      "name": "New-TempDirectory.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Protect-Acl.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1301,
+      "fullName": "Website/Protect-Acl.html",
+      "length": 3739,
+      "name": "Protect-Acl.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Protect-String.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2532,
+      "fullName": "Website/Protect-String.html",
+      "length": 9300,
+      "name": "Protect-String.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/releasenotes.html",
+      "@type": "PackageEntry",
+      "compressedLength": 27236,
+      "fullName": "Website/releasenotes.html",
+      "length": 136678,
+      "name": "releasenotes.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Remove-EnvironmentVariable.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1247,
+      "fullName": "Website/Remove-EnvironmentVariable.html",
+      "length": 4689,
+      "name": "Remove-EnvironmentVariable.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Remove-GroupMember.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1438,
+      "fullName": "Website/Remove-GroupMember.html",
+      "length": 3994,
+      "name": "Remove-GroupMember.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Remove-HostsEntry.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1293,
+      "fullName": "Website/Remove-HostsEntry.html",
+      "length": 3818,
+      "name": "Remove-HostsEntry.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Remove-IisMimeMap.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1171,
+      "fullName": "Website/Remove-IisMimeMap.html",
+      "length": 3160,
+      "name": "Remove-IisMimeMap.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Remove-IniEntry.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1568,
+      "fullName": "Website/Remove-IniEntry.html",
+      "length": 4834,
+      "name": "Remove-IniEntry.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Remove-Junction.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1083,
+      "fullName": "Website/Remove-Junction.html",
+      "length": 3162,
+      "name": "Remove-Junction.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Remove-RegistryKeyValue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1078,
+      "fullName": "Website/Remove-RegistryKeyValue.html",
+      "length": 3162,
+      "name": "Remove-RegistryKeyValue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Remove-SslCertificateBinding.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1177,
+      "fullName": "Website/Remove-SslCertificateBinding.html",
+      "length": 3474,
+      "name": "Remove-SslCertificateBinding.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Reset-HostsFile.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1233,
+      "fullName": "Website/Reset-HostsFile.html",
+      "length": 3422,
+      "name": "Reset-HostsFile.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Reset-MsmqQueueManagerID.html",
+      "@type": "PackageEntry",
+      "compressedLength": 911,
+      "fullName": "Website/Reset-MsmqQueueManagerID.html",
+      "length": 2039,
+      "name": "Reset-MsmqQueueManagerID.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Resolve-FullPath.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1110,
+      "fullName": "Website/Resolve-FullPath.html",
+      "length": 2732,
+      "name": "Resolve-FullPath.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Resolve-Identity.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1749,
+      "fullName": "Website/Resolve-Identity.html",
+      "length": 5274,
+      "name": "Resolve-Identity.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Resolve-IdentityName.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1432,
+      "fullName": "Website/Resolve-IdentityName.html",
+      "length": 4149,
+      "name": "Resolve-IdentityName.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Resolve-NetPath.html",
+      "@type": "PackageEntry",
+      "compressedLength": 653,
+      "fullName": "Website/Resolve-NetPath.html",
+      "length": 1491,
+      "name": "Resolve-NetPath.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Resolve-PathCase.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1014,
+      "fullName": "Website/Resolve-PathCase.html",
+      "length": 2300,
+      "name": "Resolve-PathCase.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Resolve-RelativePath.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1284,
+      "fullName": "Website/Resolve-RelativePath.html",
+      "length": 3986,
+      "name": "Resolve-RelativePath.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Restart-RemoteService.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1312,
+      "fullName": "Website/Restart-RemoteService.html",
+      "length": 3843,
+      "name": "Restart-RemoteService.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Revoke-ComPermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1252,
+      "fullName": "Website/Revoke-ComPermission.html",
+      "length": 4483,
+      "name": "Revoke-ComPermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Revoke-Permission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1409,
+      "fullName": "Website/Revoke-Permission.html",
+      "length": 4363,
+      "name": "Revoke-Permission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Revoke-Privilege.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1465,
+      "fullName": "Website/Revoke-Privilege.html",
+      "length": 4618,
+      "name": "Revoke-Privilege.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Revoke-ServicePermission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 972,
+      "fullName": "Website/Revoke-ServicePermission.html",
+      "length": 2484,
+      "name": "Revoke-ServicePermission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-DotNetAppSetting.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1370,
+      "fullName": "Website/Set-DotNetAppSetting.html",
+      "length": 5546,
+      "name": "Set-DotNetAppSetting.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-DotNetConnectionString.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1571,
+      "fullName": "Website/Set-DotNetConnectionString.html",
+      "length": 6572,
+      "name": "Set-DotNetConnectionString.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-EnvironmentVariable.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1363,
+      "fullName": "Website/Set-EnvironmentVariable.html",
+      "length": 5153,
+      "name": "Set-EnvironmentVariable.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-HostsEntry.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1636,
+      "fullName": "Website/Set-HostsEntry.html",
+      "length": 5245,
+      "name": "Set-HostsEntry.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-IisHttpHeader.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1252,
+      "fullName": "Website/Set-IisHttpHeader.html",
+      "length": 4297,
+      "name": "Set-IisHttpHeader.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-IisHttpRedirect.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1635,
+      "fullName": "Website/Set-IisHttpRedirect.html",
+      "length": 6141,
+      "name": "Set-IisHttpRedirect.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-IisMimeMap.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1257,
+      "fullName": "Website/Set-IisMimeMap.html",
+      "length": 4142,
+      "name": "Set-IisMimeMap.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-IisWebsiteID.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1225,
+      "fullName": "Website/Set-IisWebsiteID.html",
+      "length": 3390,
+      "name": "Set-IisWebsiteID.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-IisWebsiteSslCertificate.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1354,
+      "fullName": "Website/Set-IisWebsiteSslCertificate.html",
+      "length": 3937,
+      "name": "Set-IisWebsiteSslCertificate.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-IisWindowsAuthentication.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1421,
+      "fullName": "Website/Set-IisWindowsAuthentication.html",
+      "length": 4821,
+      "name": "Set-IisWindowsAuthentication.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-IniEntry.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1686,
+      "fullName": "Website/Set-IniEntry.html",
+      "length": 5765,
+      "name": "Set-IniEntry.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-RegistryKeyValue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2651,
+      "fullName": "Website/Set-RegistryKeyValue.html",
+      "length": 12158,
+      "name": "Set-RegistryKeyValue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-ServiceAcl.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1267,
+      "fullName": "Website/Set-ServiceAcl.html",
+      "length": 3601,
+      "name": "Set-ServiceAcl.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-SslCertificateBinding.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1493,
+      "fullName": "Website/Set-SslCertificateBinding.html",
+      "length": 5006,
+      "name": "Set-SslCertificateBinding.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Set-TrustedHost.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1108,
+      "fullName": "Website/Set-TrustedHost.html",
+      "length": 3120,
+      "name": "Set-TrustedHost.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/silk.css",
+      "@type": "PackageEntry",
+      "compressedLength": 740,
+      "fullName": "Website/silk.css",
+      "length": 2205,
+      "name": "silk.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Split-Ini.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2440,
+      "fullName": "Website/Split-Ini.html",
+      "length": 8926,
+      "name": "Split-Ini.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Start-DscPullConfiguration.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1805,
+      "fullName": "Website/Start-DscPullConfiguration.html",
+      "length": 5311,
+      "name": "Start-DscPullConfiguration.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/styles.css",
+      "@type": "PackageEntry",
+      "compressedLength": 141,
+      "fullName": "Website/styles.css",
+      "length": 304,
+      "name": "styles.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-AdminPrivilege.html",
+      "@type": "PackageEntry",
+      "compressedLength": 746,
+      "fullName": "Website/Test-AdminPrivilege.html",
+      "length": 1735,
+      "name": "Test-AdminPrivilege.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-DotNet.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1030,
+      "fullName": "Website/Test-DotNet.html",
+      "length": 3364,
+      "name": "Test-DotNet.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-DscTargetResource.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1455,
+      "fullName": "Website/Test-DscTargetResource.html",
+      "length": 4307,
+      "name": "Test-DscTargetResource.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-FileShare.html",
+      "@type": "PackageEntry",
+      "compressedLength": 978,
+      "fullName": "Website/Test-FileShare.html",
+      "length": 2422,
+      "name": "Test-FileShare.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-FirewallStatefulFtp.html",
+      "@type": "PackageEntry",
+      "compressedLength": 834,
+      "fullName": "Website/Test-FirewallStatefulFtp.html",
+      "length": 2025,
+      "name": "Test-FirewallStatefulFtp.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-Group.html",
+      "@type": "PackageEntry",
+      "compressedLength": 957,
+      "fullName": "Website/Test-Group.html",
+      "length": 2371,
+      "name": "Test-Group.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-Identity.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1192,
+      "fullName": "Website/Test-Identity.html",
+      "length": 3149,
+      "name": "Test-Identity.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-IisAppPool.html",
+      "@type": "PackageEntry",
+      "compressedLength": 834,
+      "fullName": "Website/Test-IisAppPool.html",
+      "length": 1943,
+      "name": "Test-IisAppPool.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-IisConfigurationSection.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1216,
+      "fullName": "Website/Test-IisConfigurationSection.html",
+      "length": 4034,
+      "name": "Test-IisConfigurationSection.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-IisSecurityAuthentication.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1162,
+      "fullName": "Website/Test-IisSecurityAuthentication.html",
+      "length": 4683,
+      "name": "Test-IisSecurityAuthentication.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-IisWebsite.html",
+      "@type": "PackageEntry",
+      "compressedLength": 842,
+      "fullName": "Website/Test-IisWebsite.html",
+      "length": 1976,
+      "name": "Test-IisWebsite.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-IPAddress.html",
+      "@type": "PackageEntry",
+      "compressedLength": 995,
+      "fullName": "Website/Test-IPAddress.html",
+      "length": 2437,
+      "name": "Test-IPAddress.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-MSMQMessageQueue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 983,
+      "fullName": "Website/Test-MSMQMessageQueue.html",
+      "length": 2660,
+      "name": "Test-MSMQMessageQueue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-NtfsCompression.html",
+      "@type": "PackageEntry",
+      "compressedLength": 919,
+      "fullName": "Website/Test-NtfsCompression.html",
+      "length": 2219,
+      "name": "Test-NtfsCompression.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-OSIs32Bit.html",
+      "@type": "PackageEntry",
+      "compressedLength": 767,
+      "fullName": "Website/Test-OSIs32Bit.html",
+      "length": 1847,
+      "name": "Test-OSIs32Bit.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-OSIs64Bit.html",
+      "@type": "PackageEntry",
+      "compressedLength": 766,
+      "fullName": "Website/Test-OSIs64Bit.html",
+      "length": 1847,
+      "name": "Test-OSIs64Bit.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-PathIsJunction.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1075,
+      "fullName": "Website/Test-PathIsJunction.html",
+      "length": 2585,
+      "name": "Test-PathIsJunction.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-PerformanceCounter.html",
+      "@type": "PackageEntry",
+      "compressedLength": 950,
+      "fullName": "Website/Test-PerformanceCounter.html",
+      "length": 2533,
+      "name": "Test-PerformanceCounter.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-PerformanceCounterCategory.html",
+      "@type": "PackageEntry",
+      "compressedLength": 881,
+      "fullName": "Website/Test-PerformanceCounterCategory.html",
+      "length": 2135,
+      "name": "Test-PerformanceCounterCategory.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-Permission.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2280,
+      "fullName": "Website/Test-Permission.html",
+      "length": 8053,
+      "name": "Test-Permission.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-PowerShellIs32Bit.html",
+      "@type": "PackageEntry",
+      "compressedLength": 740,
+      "fullName": "Website/Test-PowerShellIs32Bit.html",
+      "length": 1864,
+      "name": "Test-PowerShellIs32Bit.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-PowerShellIs64Bit.html",
+      "@type": "PackageEntry",
+      "compressedLength": 741,
+      "fullName": "Website/Test-PowerShellIs64Bit.html",
+      "length": 1868,
+      "name": "Test-PowerShellIs64Bit.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-Privilege.html",
+      "@type": "PackageEntry",
+      "compressedLength": 944,
+      "fullName": "Website/Test-Privilege.html",
+      "length": 2508,
+      "name": "Test-Privilege.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-RegistryKeyValue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1021,
+      "fullName": "Website/Test-RegistryKeyValue.html",
+      "length": 2471,
+      "name": "Test-RegistryKeyValue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-ScheduledTask.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1022,
+      "fullName": "Website/Test-ScheduledTask.html",
+      "length": 2496,
+      "name": "Test-ScheduledTask.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-Service.html",
+      "@type": "PackageEntry",
+      "compressedLength": 976,
+      "fullName": "Website/Test-Service.html",
+      "length": 2349,
+      "name": "Test-Service.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-SslCertificateBinding.html",
+      "@type": "PackageEntry",
+      "compressedLength": 986,
+      "fullName": "Website/Test-SslCertificateBinding.html",
+      "length": 2700,
+      "name": "Test-SslCertificateBinding.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-TypeDataMember.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1005,
+      "fullName": "Website/Test-TypeDataMember.html",
+      "length": 2680,
+      "name": "Test-TypeDataMember.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-UncPath.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1072,
+      "fullName": "Website/Test-UncPath.html",
+      "length": 2581,
+      "name": "Test-UncPath.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-User.html",
+      "@type": "PackageEntry",
+      "compressedLength": 977,
+      "fullName": "Website/Test-User.html",
+      "length": 2428,
+      "name": "Test-User.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-WindowsFeature.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1353,
+      "fullName": "Website/Test-WindowsFeature.html",
+      "length": 4374,
+      "name": "Test-WindowsFeature.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Test-ZipFile.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1113,
+      "fullName": "Website/Test-ZipFile.html",
+      "length": 2557,
+      "name": "Test-ZipFile.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-Certificate.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1613,
+      "fullName": "Website/Uninstall-Certificate.html",
+      "length": 6110,
+      "name": "Uninstall-Certificate.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-FileShare.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1284,
+      "fullName": "Website/Uninstall-FileShare.html",
+      "length": 3594,
+      "name": "Uninstall-FileShare.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-IisAppPool.html",
+      "@type": "PackageEntry",
+      "compressedLength": 995,
+      "fullName": "Website/Uninstall-IisAppPool.html",
+      "length": 2733,
+      "name": "Uninstall-IisAppPool.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-IisWebsite.html",
+      "@type": "PackageEntry",
+      "compressedLength": 908,
+      "fullName": "Website/Uninstall-IisWebsite.html",
+      "length": 2178,
+      "name": "Uninstall-IisWebsite.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-Junction.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1108,
+      "fullName": "Website/Uninstall-Junction.html",
+      "length": 3257,
+      "name": "Uninstall-Junction.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-MsmqMessageQueue.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1089,
+      "fullName": "Website/Uninstall-MsmqMessageQueue.html",
+      "length": 3283,
+      "name": "Uninstall-MsmqMessageQueue.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-PerformanceCounterCategory.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1101,
+      "fullName": "Website/Uninstall-PerformanceCounterCategory.html",
+      "length": 3118,
+      "name": "Uninstall-PerformanceCounterCategory.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-ScheduledTask.html",
+      "@type": "PackageEntry",
+      "compressedLength": 969,
+      "fullName": "Website/Uninstall-ScheduledTask.html",
+      "length": 2472,
+      "name": "Uninstall-ScheduledTask.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-Service.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1191,
+      "fullName": "Website/Uninstall-Service.html",
+      "length": 3169,
+      "name": "Uninstall-Service.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-User.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1074,
+      "fullName": "Website/Uninstall-User.html",
+      "length": 3028,
+      "name": "Uninstall-User.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Uninstall-WindowsFeature.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1339,
+      "fullName": "Website/Uninstall-WindowsFeature.html",
+      "length": 5122,
+      "name": "Uninstall-WindowsFeature.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Unlock-IisConfigurationSection.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1183,
+      "fullName": "Website/Unlock-IisConfigurationSection.html",
+      "length": 3273,
+      "name": "Unlock-IisConfigurationSection.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Unprotect-String.html",
+      "@type": "PackageEntry",
+      "compressedLength": 2592,
+      "fullName": "Website/Unprotect-String.html",
+      "length": 9127,
+      "name": "Unprotect-String.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/web.config",
+      "@type": "PackageEntry",
+      "compressedLength": 263,
+      "fullName": "Website/web.config",
+      "length": 963,
+      "name": "web.config"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#Website/Write-DscError.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1206,
+      "fullName": "Website/Write-DscError.html",
+      "length": 3036,
+      "name": "Write-DscError.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2018.11.11.08.27.22/carbon.2.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 9493,
+      "fullName": ".signature.p7s",
+      "length": 9493,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "DevOps",
+    "PowerShell",
+    "setup",
+    "computer",
+    "automation",
+    "admin"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    }
+  }
+}

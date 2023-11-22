@@ -62,7 +62,7 @@ $pages | ForEach-Object {
   Write-Information ('Processing page: {0}' -f $_.'@id')
   $page = GetUrl $_.'@id' ([datetime]$_.commitTimeStamp -gt $cursor)
 
-  $page.items | Sort-Object commitTimeStamp | ForEach-Object {
+  $page.items | Where-Object { $_.'@type' -ne 'nuget:PackageDelete' } | Sort-Object commitTimeStamp | ForEach-Object {
     $package = GetUrl $_.'@id' ([datetime]$_.commitTimeStamp -gt $cursor)
     Write-Verbose ('{0}@{1}' -f $package.id, $package.version)
 

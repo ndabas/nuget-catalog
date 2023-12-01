@@ -23,7 +23,20 @@ function GetUrl {
   $localPath = $url -replace $baseUrlRegex, '.'
   $localPath = $localPath -replace 'data/(\d+\.\d+\.\d+)', 'data/$1/$1'
   $localPath = $localPath -replace '/', [io.path]::DirectorySeparatorChar
-  New-Item -ItemType Directory -Force -Path (Split-Path $localPath) | Out-Null
+
+  # Check that the file name isn't longer than 255 characters
+  $maxFileNameLength = 255
+  $fileName = Split-Path $localPath -Leaf
+  $dirName = Split-Path $localPath -Parent
+  if ($fileName.Length -gt $maxFileNameLength) {
+    $extension = Split-Path $fileName -Extension
+    $hash = '-' + (Get-FileHash -InputStream ([System.IO.MemoryStream]::new($fileName.ToCharArray())) -Algorithm SHA256).Hash.Substring(0, 7)
+    $fileName = $fileName.Substring(0, $maxFileNameLength - $extension.Length - $hash.Length) + $hash + $extension
+    $localPath = Join-Path $dirName $fileName
+    Write-Information ('File name too long for url: {0}, truncating file name to: {1}' -f $url, $fileName)
+  }
+
+  New-Item -ItemType Directory -Force -Path $dirName | Out-Null
 
   if ($force -or (-not (Test-Path $localPath))) {
     Write-Information "Downloading $url"

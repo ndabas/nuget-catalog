@@ -1,0 +1,153 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Akka.NET Team",
+  "catalog:commitId": "feb194e4-7851-4825-a8bf-c4f19aca66bb",
+  "catalog:commitTimeStamp": "2023-02-28T01:54:43.1303752Z",
+  "copyright": "Copyright © 2013-2023 Akka.NET Team",
+  "created": "2023-02-28T01:52:39.77Z",
+  "description": "Akka.Persistence.PostgreSql Microsoft.Extensions.Hosting support.",
+  "iconFile": "akkalogo.png",
+  "id": "Akka.Persistence.PostgreSql.Hosting",
+  "isPrerelease": true,
+  "lastEdited": "2023-02-28T01:54:41.51Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "try4HDyjwKZetcsoYwF+weyQyvX+taM7Y1+2ZnhTJv7doxuUSszjALEdUALlRgCNF8FbJTgEcfUvXexPAlokGQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 41142,
+  "projectUrl": "https://github.com/akkadotnet/Akka.Hosting",
+  "published": "2023-02-28T01:52:39.77Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Version 1.5.0-beta3 integrates Akka.NET v1.5 into Akka.Hosting\n• [Update Akka.NET to 1.5.0-beta3](https://github.com/akkadotnet/akka.net/releases/tag/1.5.0-beta3)\n#### Upgrading From v1.4 To v1.5\nAs noted in [the upgrade advisories](https://github.com/akkadotnet/akka.net/blob/c9ccc25207b5a4cfa963a5a23f96c0676fbbef10/docs/community/whats-new/akkadotnet-v1.5-upgrade-advisories.md), there was a major change in Akka.Cluster.Sharding state storage. These notes contains the same documentation, but tailored for Akka.Hosting users\nThe recommended settings for maximum ease-of-use for Akka.Cluster.Sharding in new applications going forward will be:\ncsharp\nvar options = new ShardOptions\n{\n    StateStoreMode = StateStoreMode.DData,\n    RememberEntitiesStore = RememberEntitiesStore.Eventsourced\n};\n\nYou will need to set these options manually because the default settings are set for backward compatibility.\n#### Migrating to New Sharding Storage From Akka.Persistence\n> **NOTE**\n> \n> This section applies only to users who were using StateStoreMode = StateStoreMode.Persistence.\nSwitching over to using RememberEntitiesStore = RememberEntitiesStore.Eventsourced will cause an initial migration of data from the ShardCoordinator's journal into separate event journals going forward.\nUpgrading to Akka.NET v1.5 will **cause an irreversible migration of Akka.Cluster.Sharding data*• for users who were previously running StateStoreMode = StateStoreMode.Persistence, so follow the steps below carefully:\n##### Step 1 • Upgrade to Akka.NET v1.5 With New Options Setup\nUpdate your Akka.Cluster.Sharding options to look like the following (adjust as necessary for your custom settings):\ncsharp\nhostBuilder.Services.AddAkka(MyActorSystem, builder =>\n{\n    var shardOptions = new ShardOptions\n    {\n        // If you don't run Akka.Cluster.Sharding with RememberEntities = true,\n        // then set this to false\n        RememberEntities = true,\n        RememberEntitiesStore = RememberEntitiesStore.Eventsourced,\n        StateStoreMode = StateStoreMode.Persistence,\n        //fail if upgrade doesn't succeed\n        FailOnInvalidEntityStateTransition = true\n    };\n    // Modify these two options to suit your application, SqlServer used\n    // only as an illustration\n    var journalOptions = new SqlServerJournalOptions();\n    var snapshotOptions = new SqlServerSnapshotOptions();\n    builder\n        .WithClustering()\n        .WithSqlServerPersistence(journalOptions, snapshotOptions)\n        .WithShardRegion<UserActionsEntity>(\n            userActions, \n            s => UserActionsEntity.Props(s),\n            new UserMessageExtractor(),\n            // shardOptions is being used here\n            shardOptions);\n    // Add the Akka.Cluster.Sharding migration journal event adapter\n    builder.WithClusterShardingJournalMigrationAdapter(journalOptions);\n    // you can also declare the adapter by referencing the journal ID directly\n    builder.WithClusterShardingJournalMigrationAdapter(akka.persistence.journal.sql-server);\n})\n\nWith these HOCON settings in-place the following will happen:\n1. The old PersitentShardCoordinator state will be broken up • Remember entities data will be distributed to each of the PersistentShard actors, who will now use the new RememberEntitiesStore = RememberEntitiesStore.Eventsourced setting going forward;\n2. Old Akka.Cluster.Sharding.ShardCoordinator.IDomainEvent events will be upgraded to a new storage format via the injected Akka.Persistence event adapter; and\n3. The PersistentShardCoordinator will migrate its journal to the new format as well.\n##### Step 2 • Migrating Away From Persistence to DData\nOnce your cluster has successfully booted up with these settings, you can now optionally move to using distributed data to store sharding state by changing StateStoreMode = StateStoreMode.DData and deploying a second time:\ncsharp\nhostBuilder.Services.AddAkka(MyActorSystem, builder =>\n{\n    var shardOptions = new ShardOptions\n    {\n        RememberEntities = true,\n        RememberEntitiesStore = RememberEntitiesStore.Eventsourced,\n        // Change this line of code\n        StateStoreMode = StateStoreMode.DData,\n        FailOnInvalidEntityStateTransition = true\n    };\n    var journalOptions = new SqlServerJournalOptions();\n    var snapshotOptions = new SqlServerSnapshotOptions();\n    builder\n        .WithClustering()\n        .WithSqlServerPersistence(journalOptions, snapshotOptions)\n        .WithShardRegion<UserActionsEntity>(\n            userActions, \n            s => UserActionsEntity.Props(s),\n            new UserMessageExtractor(),\n            shardOptions);\n    builder.WithClusterShardingJournalMigrationAdapter(journalOptions);\n})\n\nNow you'll be running Akka.Cluster.Sharding with the recommended settings.\n#### Migrating to New Sharding Storage From Akka.DistributedData\nThe migration process onto Akka.NET v1.5's new Cluster.Sharding storage system is less involved for users who were already using StateStoreMode = StateStoreMode.DData. All these users need to do is change the RememberEntitiesStore option to RememberEntitiesStore.Eventsourced\ncsharp\nhostBuilder.Services.AddAkka(MyActorSystem, builder =>\n{\n    var shardOptions = new ShardOptions\n    {\n        RememberEntities = true,\n        // Use this option setting\n        RememberEntitiesStore = RememberEntitiesStore.Eventsourced,\n        StateStoreMode = StateStoreMode.DData,\n        FailOnInvalidEntityStateTransition = true\n    };\n    var journalOptions = new SqlServerJournalOptions();\n    var snapshotOptions = new SqlServerSnapshotOptions();\n    builder\n        .WithClustering()\n        .WithSqlServerPersistence(journalOptions, snapshotOptions)\n        .WithShardRegion<UserActionsEntity>(\n            userActions, \n            s => UserActionsEntity.Props(s),\n            new UserMessageExtractor(),\n            shardOptions);\n    builder.WithClusterShardingJournalMigrationAdapter(journalOptions);\n})\n\n\nFull changelog at https://github.com/akkadotnet/Akka.Hosting/blob/refs/tags/1.5.0-beta3/RELEASE_NOTES.md",
+  "repository": "",
+  "verbatimVersion": "1.5.0-beta3",
+  "version": "1.5.0-beta3",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#dependencygroup/.netstandard2.0/akka.hosting",
+          "@type": "PackageDependency",
+          "id": "Akka.Hosting",
+          "range": "[1.5.0-beta3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#dependencygroup/.netstandard2.0/akka.persistence.hosting",
+          "@type": "PackageDependency",
+          "id": "Akka.Persistence.Hosting",
+          "range": "[1.5.0-beta3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#dependencygroup/.netstandard2.0/akka.persistence.postgresql",
+          "@type": "PackageDependency",
+          "id": "Akka.Persistence.PostgreSql",
+          "range": "[1.4.46, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#dependencygroup/.netstandard2.0/akka.persistence.query.sql",
+          "@type": "PackageDependency",
+          "id": "Akka.Persistence.Query.Sql",
+          "range": "[1.5.0-beta3, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#Akka.Persistence.PostgreSql.Hosting.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2346,
+      "fullName": "Akka.Persistence.PostgreSql.Hosting.nuspec",
+      "length": 7579,
+      "name": "Akka.Persistence.PostgreSql.Hosting.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#lib/netstandard2.0/Akka.Persistence.PostgreSql.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4696,
+      "fullName": "lib/netstandard2.0/Akka.Persistence.PostgreSql.Hosting.dll",
+      "length": 11264,
+      "name": "Akka.Persistence.PostgreSql.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#akkalogo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 14480,
+      "fullName": "akkalogo.png",
+      "length": 17058,
+      "name": "akkalogo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6051,
+      "fullName": "README.md",
+      "length": 20298,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2023.02.28.01.54.43/akka.persistence.postgresql.hosting.1.5.0-beta3.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 11507,
+      "fullName": ".signature.p7s",
+      "length": 11507,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

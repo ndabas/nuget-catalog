@@ -1,0 +1,624 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Realm",
+  "catalog:commitId": "738322a8-655f-4e0e-8656-e806f1653703",
+  "catalog:commitTimeStamp": "2024-04-17T14:48:36.6504244Z",
+  "copyright": "Copyright © 2024 Realm Inc.",
+  "created": "2024-04-17T14:43:14.48Z",
+  "description": "Realm is a mobile database: a replacement for SQLite",
+  "iconFile": "icon.png",
+  "id": "Realm",
+  "isPrerelease": false,
+  "lastEdited": "2024-04-17T14:48:05.973Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "nIV3wjAIj50W8q2QbAYte+ypdTltRZotCx569xE2j3/iEGHXlMraERTfak6A5S1lSC/Pi5T94IPAlM20tOGFRQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 88894068,
+  "projectUrl": "https://github.com/realm/realm-dotnet",
+  "published": "2024-04-17T14:43:14.48Z",
+  "readmeFile": "NuGet.md",
+  "releaseNotes": "## 12.0.0 (2024-04-17)\n\n**File format version bumped. Old files will be automatically upgraded but cannot be downgraded and opened with older versions of the .NET SDK.**\n\n### Breaking Changes\n* Added automatic serialization and deserialization of Realm classes when using methods on `MongoClient.Collection`, without the need to annotate classes with `MongoDB.Bson`attributes. This feature required to change the default serialization for various types (including `DateTimeOffset`). If you prefer to use the previous serialization, you need to call `Realm.SetLegacySerialization` before any kind of serialization is done, otherwise it may not work as epxected. [#3459](https://github.com/realm/realm-dotnet/pull/3459)\n* `SyncProgress.TransferredBytes` and `SyncProgress.TransferableBytes` have been removed in favour of `SyncProgress.ProgressEstimate`, a double value between 0.0 and 1.0 that expresses the percentage estimate of the current progress. (Issue [#3478](https://github.com/realm/realm-dotnet/issues/3478]))\n* Support for upgrading from Realm files produced by RealmCore v5.23.9 (Realm .NET v5.0.1) or earlier is no longer supported. (Core 14.0.0)\n* `String` and `byte[]` are now strongly typed for comparisons and queries. This change is especially relevant when querying for a string constant on a `RealmValue` property, as now only strings will be returned. If searching for binary data is desired, then that type must be specified by the constant. In RQL (`.Filter()`) the new way to specify a binary constant is to use `RealmValueProp = bin('xyz')` or `RealmValueProp = binary('xyz')`. (Core 14.0.0)\n* Sorting order of strings has changed to use standard unicode codepoint order instead of grouping similar english letters together. A noticeable change will be from \"aAbBzZ\" to \"ABZabz\". (Core 14.0.0)\n* In RQL (`Filter()`), if you want to query using `@type` operation, you must use `objectlink` to match links to objects. `object` is reserved for dictionary types. (Core 14.0.0)\n* Opening realm with file format 23 or lower (Realm .NET versions earlier than 12.0.0) in read-only mode will crash. (Core 14.0.0)\n\n### Enhancements\n* Reduced memory usage of `RealmValue`. (PR [#3441](https://github.com/realm/realm-dotnet/pull/3441))\n* Add support for passing a key paths collection (`KeyPathsCollection`) when using `IRealmCollection.SubscribeForNotifications`. Passing a `KeyPathsCollection` allows to specify which changes in properties should raise a notification.\n\n  A `KeyPathsCollection` can be obtained by:\n  - building it explicitly by using the methods `KeyPathsCollection.Of` or `KeyPathsCollection.Of<T>`;\n  - building it implicitly with the conversion from a `List` or array of `KeyPath` or strings;\n  - getting one of the static values `Full` and `Shallow` for full and shallow notifications respectively.\n\n  A `KeyPath` can be obtained by implicit conversion from a string or built from an expression using the `KeyPath.ForExpression<T>` method.\n\n  For example:\n  ```csharp\n  var query = realm.All<Person>();\n\n  KeyPath kp1 = \"Email\";\n  KeyPath kp2 = KeyPath.ForExpression<Person>(p => p.Name);\n\n  KeyPathsCollection kpc;\n\n  //Equivalent declarations\n  kpc = KeyPathsCollection.Of(\"Email\", \"Name\");\n  kpc = KeyPathsCollection.Of<Person>(p => p.Email, p => p.Name);\n  kpc = new List<KeyPath> {\"Email\", \"Name\"};\n  kpc = new List<KeyPath> {kp1, kp2};\n\n  query.SubscribeForNotifications(NotificationCallback, kpc);\n  ```\n  (PR [#3501 ](https://github.com/realm/realm-dotnet/pull/3501))\n* Added the `MongoClient.GetCollection<T>` method to get a collection of documents from MongoDB that can be deserialized in Realm objects. This methods works the same as `MongoClient.GetDatabase(dbName).GetCollection(collectionName)`, but the database name and collection name are automatically derived from the Realm object class.  [#3414](https://github.com/realm/realm-dotnet/pull/3414)\n* Improved performance of RQL (`.Filter()`) queries on a non-linked string property using: >, >=, <, <=, operators and fixed behaviour that a null string should be evaulated as less than everything, previously nulls were not matched. (Core 13.27.0)\n* Updated bundled OpenSSL version to 3.2.0. (Core 13.27.0)\n* Storage of Decimal128 properties has been optimised so that the individual values will take up 0 bits (if all nulls), 32 bits, 64 bits or 128 bits depending on what is needed. (Core 14.0.0)\n* Add support for collection indexes in RQL (`Filter()`) queries.\n  For example:\n  ```csharp\n  var people = realm.All<Person>();\n\n  //People whose first dog is called \"Fluffy\"\n  var query1 = people.Filter(\"ListOfDogs[FIRST].Name = $0\", \"Fluffy\")\n\n  //People whose last dog is called \"Fluffy\"\n  var query2 = people.Filter(\"ListOfDogs[LAST].Name = $0\", \"Fluffy\")\n\n  //People whose second dog is called \"Fluffy\"\n  var query3 = people.Filter(\"ListOfDogs[2].Name = $0\", \"Fluffy\")\n\n  //People that have a dog called \"Fluffy\"\n  var query4 = people.Filter(\"ListOfDogs[*].Name = $0\", \"Fluffy\")\n\n  //People that have 3 dogs\n  var query5 = people.Filter(\"ListOfDogs[SIZE] = $0\", 3)\n  ```\n  (Core 14.0.0)\n* Added support for indexed `RealmValue` properties. (PR [#3544](https://github.com/realm/realm-dotnet/pull/3544))\n* Improve performance of object notifiers with complex schemas and very simple changes to process by as much as 20%. (Core 14.2.0)\n* Improve performance with very large number of notifiers as much as 75%. (Core 14.2.0)\n* Improve file compaction performance on platforms with page sizes greater than 4k (for example arm64 Apple platforms) for files less than 256 pages in size. (Core 14.4.0)\n* The default base url in `AppConfiguration` has been updated to point to `services.cloud.mongodb.com`. See https://www.mongodb.com/docs/atlas/app-services/domain-migration/ for more information. (Issue [#3551](https://github.com/realm/realm-dotnet/issues/3551))\n\n### Fixed\n* Fixed RQL (`.Filter()`) queries like `indexed_property == NONE {x}` which mistakenly matched on only x instead of not x. This only applies when an indexed property with equality (==, or IN) matches with `NONE` on a list of one item. If the constant list contained more than one value then it was working correctly. (Core 13.27.0)\n* Uploading the changesets recovered during an automatic client reset recovery may lead to 'Bad server version' errors and a new client reset. (Core 13.27.0)\n* Fixed crash in fulltext index using prefix search with no matches. (Core 13.27.0)\n* Fixed a crash with Assertion `failed: m_initiated` during sync session startup. (Core 13.27.0)\n* Fixed a TSAN violation where the user thread could race to read m_finalized with the sync event loop. (Core 13.27.0)\n* Fix a minor race condition when backing up Realm files before a client reset which could have lead to overwriting an existing file. (Core 13.27.0)\n* Boolean property `ChangeSet.IsCleared` that is true when the collection gets cleared is now also raised for `IDictionary`, aligning it to `ISet` and `IList`. (Core 14.0.0)\n* Fixed equality queries on `RealmValue` properties with an index. (Core 14.0.0)\n* Fixed a crash that would happen when more than 8388606 links were pointing to a specific object.\n* Fixed wrong results when querying for `NULL` value in `IDictionary`. (Core 14.0.0)\n* A Realm generated on a non-apple ARM 64 device and copied to another platform (and vice-versa) were non-portable due to a sorting order difference. This impacts strings or binaries that have their first difference at a non-ascii character. These items may not be found in a set, or in an indexed column if the strings had a long common prefix (> 200 characters). (Core 14.0.0)\n* Fixed an issue when removing items from a LnkLst that could result in invalidated links becoming visable which could cause crashes or exceptions when accessing those list items later on. This affects sync Realms where another client had previously removed a link in a linklist that has over 1000 links in it, and then further local removals from the same list caused the list to have fewer than 1000 items. (Core 14.2.0)\n* Fix a spurious crash related to opening a Realm on background thread while the process was in the middle of exiting. (Core 14.3.0)\n* Fix opening realm with cached user while offline results in fatal error and session does not retry connection. (Core 14.4.0)\n* Fix an assertion failure \"m_lock_info && m_lock_info->m_file.get_path() == m_filename\" that appears to be related to opening a Realm while the file is in the process of being closed on another thread. (Core 14.5.0)\n* Fixed diverging history due to a bug in the replication code when setting default null values (embedded objects included). (Core 14.5.0)\n* Null pointer exception may be triggered when logging out and async commits callbacks not executed. (Core 14.5.0)\n\n### Compatibility\n* Realm Studio: 15.0.0 or later.\n\n### Internal\n* Using Core 14.5.1.",
+  "repository": "",
+  "title": "Realm",
+  "verbatimVersion": "12.0.0",
+  "version": "12.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/realm.platformhelpers",
+          "@type": "PackageDependency",
+          "id": "Realm.PlatformHelpers",
+          "range": "[12.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/fody",
+          "@type": "PackageDependency",
+          "id": "Fody",
+          "range": "[6.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/microsoft.csharp",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CSharp",
+          "range": "[4.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/mongodb.bson",
+          "@type": "PackageDependency",
+          "id": "MongoDB.Bson",
+          "range": "[2.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/remotion.linq",
+          "@type": "PackageDependency",
+          "id": "Remotion.Linq",
+          "range": "[2.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/system.buffers",
+          "@type": "PackageDependency",
+          "id": "System.Buffers",
+          "range": "[4.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/system.dynamic.runtime",
+          "@type": "PackageDependency",
+          "id": "System.Dynamic.Runtime",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.5.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/system.net.security",
+          "@type": "PackageDependency",
+          "id": "System.Net.Security",
+          "range": "[4.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/system.net.websockets.client",
+          "@type": "PackageDependency",
+          "id": "System.Net.WebSockets.Client",
+          "range": "[4.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/system.runtime.compilerservices.unsafe",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.CompilerServices.Unsafe",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/net6.0/system.threading.channels",
+          "@type": "PackageDependency",
+          "id": "System.Threading.Channels",
+          "range": "[6.0.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/realm.platformhelpers",
+          "@type": "PackageDependency",
+          "id": "Realm.PlatformHelpers",
+          "range": "[12.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/fody",
+          "@type": "PackageDependency",
+          "id": "Fody",
+          "range": "[6.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/microsoft.csharp",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CSharp",
+          "range": "[4.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/mongodb.bson",
+          "@type": "PackageDependency",
+          "id": "MongoDB.Bson",
+          "range": "[2.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/remotion.linq",
+          "@type": "PackageDependency",
+          "id": "Remotion.Linq",
+          "range": "[2.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/system.buffers",
+          "@type": "PackageDependency",
+          "id": "System.Buffers",
+          "range": "[4.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/system.dynamic.runtime",
+          "@type": "PackageDependency",
+          "id": "System.Dynamic.Runtime",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.5.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/system.net.security",
+          "@type": "PackageDependency",
+          "id": "System.Net.Security",
+          "range": "[4.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/system.net.websockets.client",
+          "@type": "PackageDependency",
+          "id": "System.Net.WebSockets.Client",
+          "range": "[4.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/system.runtime.compilerservices.unsafe",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.CompilerServices.Unsafe",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#dependencygroup/.netstandard2.0/system.threading.channels",
+          "@type": "PackageDependency",
+          "id": "System.Threading.Channels",
+          "range": "[6.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#Realm.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4343,
+      "fullName": "Realm.nuspec",
+      "length": 12247,
+      "name": "Realm.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#lib/net6.0/Realm.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 75823,
+      "fullName": "lib/net6.0/Realm.pdb",
+      "length": 171440,
+      "name": "Realm.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#lib/netstandard2.0/Realm.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 87748,
+      "fullName": "lib/netstandard2.0/Realm.pdb",
+      "length": 185624,
+      "name": "Realm.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#lib/net6.0/Realm.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 194818,
+      "fullName": "lib/net6.0/Realm.dll",
+      "length": 525312,
+      "name": "Realm.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#lib/net6.0/Realm.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 78848,
+      "fullName": "lib/net6.0/Realm.xml",
+      "length": 612444,
+      "name": "Realm.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#lib/netstandard2.0/Realm.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 195536,
+      "fullName": "lib/netstandard2.0/Realm.dll",
+      "length": 527360,
+      "name": "Realm.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#lib/netstandard2.0/Realm.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 81603,
+      "fullName": "lib/netstandard2.0/Realm.xml",
+      "length": 634892,
+      "name": "Realm.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#build/xamarinios/Realm.dll.config",
+      "@type": "PackageEntry",
+      "compressedLength": 122,
+      "fullName": "build/xamarinios/Realm.dll.config",
+      "length": 170,
+      "name": "Realm.dll.config"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#build/xamarinios/Realm.props",
+      "@type": "PackageEntry",
+      "compressedLength": 416,
+      "fullName": "build/xamarinios/Realm.props",
+      "length": 1061,
+      "name": "Realm.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#build/xamarintvos/Realm.dll.config",
+      "@type": "PackageEntry",
+      "compressedLength": 122,
+      "fullName": "build/xamarintvos/Realm.dll.config",
+      "length": 170,
+      "name": "Realm.dll.config"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#build/xamarintvos/Realm.props",
+      "@type": "PackageEntry",
+      "compressedLength": 416,
+      "fullName": "build/xamarintvos/Realm.props",
+      "length": 1063,
+      "name": "Realm.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#build/xamarinmac/Realm.props",
+      "@type": "PackageEntry",
+      "compressedLength": 299,
+      "fullName": "build/xamarinmac/Realm.props",
+      "length": 548,
+      "name": "Realm.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#build/monoandroid/Realm.props",
+      "@type": "PackageEntry",
+      "compressedLength": 347,
+      "fullName": "build/monoandroid/Realm.props",
+      "length": 1041,
+      "name": "Realm.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#build/net46/Realm.props",
+      "@type": "PackageEntry",
+      "compressedLength": 345,
+      "fullName": "build/net46/Realm.props",
+      "length": 849,
+      "name": "Realm.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#NuGet.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2031,
+      "fullName": "NuGet.md",
+      "length": 4578,
+      "name": "NuGet.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#analyzers/dotnet/cs/Realm.SourceGenerator.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 41454,
+      "fullName": "analyzers/dotnet/cs/Realm.SourceGenerator.dll",
+      "length": 122368,
+      "name": "Realm.SourceGenerator.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#build/Realm.props",
+      "@type": "PackageEntry",
+      "compressedLength": 180,
+      "fullName": "build/Realm.props",
+      "length": 219,
+      "name": "Realm.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#weaver/Realm.Fody.xcf",
+      "@type": "PackageEntry",
+      "compressedLength": 758,
+      "fullName": "weaver/Realm.Fody.xcf",
+      "length": 2412,
+      "name": "Realm.Fody.xcf"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#weaver/Realm.Fody.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 82649,
+      "fullName": "weaver/Realm.Fody.dll",
+      "length": 156160,
+      "name": "Realm.Fody.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/ios/native/realm-wrappers.framework/Info.plist",
+      "@type": "PackageEntry",
+      "compressedLength": 583,
+      "fullName": "runtimes/ios/native/realm-wrappers.framework/Info.plist",
+      "length": 805,
+      "name": "Info.plist"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/ios/native/realm-wrappers.framework/realm-wrappers",
+      "@type": "PackageEntry",
+      "compressedLength": 2425519,
+      "fullName": "runtimes/ios/native/realm-wrappers.framework/realm-wrappers",
+      "length": 7331560,
+      "name": "realm-wrappers"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/iossimulator/native/realm-wrappers.framework/Info.plist",
+      "@type": "PackageEntry",
+      "compressedLength": 560,
+      "fullName": "runtimes/iossimulator/native/realm-wrappers.framework/Info.plist",
+      "length": 785,
+      "name": "Info.plist"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/iossimulator/native/realm-wrappers.framework/realm-wrappers",
+      "@type": "PackageEntry",
+      "compressedLength": 5213942,
+      "fullName": "runtimes/iossimulator/native/realm-wrappers.framework/realm-wrappers",
+      "length": 15220720,
+      "name": "realm-wrappers"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/iossimulator/native/realm-wrappers.framework/_CodeSignature/CodeResources",
+      "@type": "PackageEntry",
+      "compressedLength": 422,
+      "fullName": "runtimes/iossimulator/native/realm-wrappers.framework/_CodeSignature/CodeResources",
+      "length": 1798,
+      "name": "CodeResources"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/maccatalyst/native/realm-wrappers.framework.zip",
+      "@type": "PackageEntry",
+      "compressedLength": 5440778,
+      "fullName": "runtimes/maccatalyst/native/realm-wrappers.framework.zip",
+      "length": 5449036,
+      "name": "realm-wrappers.framework.zip"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/tvos/native/realm-wrappers.framework/Info.plist",
+      "@type": "PackageEntry",
+      "compressedLength": 544,
+      "fullName": "runtimes/tvos/native/realm-wrappers.framework/Info.plist",
+      "length": 756,
+      "name": "Info.plist"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/tvos/native/realm-wrappers.framework/realm-wrappers",
+      "@type": "PackageEntry",
+      "compressedLength": 2420013,
+      "fullName": "runtimes/tvos/native/realm-wrappers.framework/realm-wrappers",
+      "length": 7313872,
+      "name": "realm-wrappers"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/tvossimulator/native/realm-wrappers.framework/Info.plist",
+      "@type": "PackageEntry",
+      "compressedLength": 559,
+      "fullName": "runtimes/tvossimulator/native/realm-wrappers.framework/Info.plist",
+      "length": 783,
+      "name": "Info.plist"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/tvossimulator/native/realm-wrappers.framework/realm-wrappers",
+      "@type": "PackageEntry",
+      "compressedLength": 5209721,
+      "fullName": "runtimes/tvossimulator/native/realm-wrappers.framework/realm-wrappers",
+      "length": 15187184,
+      "name": "realm-wrappers"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/tvossimulator/native/realm-wrappers.framework/_CodeSignature/CodeResources",
+      "@type": "PackageEntry",
+      "compressedLength": 422,
+      "fullName": "runtimes/tvossimulator/native/realm-wrappers.framework/_CodeSignature/CodeResources",
+      "length": 1798,
+      "name": "CodeResources"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/osx/native/librealm-wrappers.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 5527582,
+      "fullName": "runtimes/osx/native/librealm-wrappers.dylib",
+      "length": 15537696,
+      "name": "librealm-wrappers.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/linux-x64/native/librealm-wrappers.so",
+      "@type": "PackageEntry",
+      "compressedLength": 6020922,
+      "fullName": "runtimes/linux-x64/native/librealm-wrappers.so",
+      "length": 17442792,
+      "name": "librealm-wrappers.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/linux-arm/native/librealm-wrappers.so",
+      "@type": "PackageEntry",
+      "compressedLength": 5410828,
+      "fullName": "runtimes/linux-arm/native/librealm-wrappers.so",
+      "length": 13393368,
+      "name": "librealm-wrappers.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/linux-arm64/native/librealm-wrappers.so",
+      "@type": "PackageEntry",
+      "compressedLength": 6048961,
+      "fullName": "runtimes/linux-arm64/native/librealm-wrappers.so",
+      "length": 16006688,
+      "name": "librealm-wrappers.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/android-arm/native/librealm-wrappers.so",
+      "@type": "PackageEntry",
+      "compressedLength": 3739792,
+      "fullName": "runtimes/android-arm/native/librealm-wrappers.so",
+      "length": 7976860,
+      "name": "librealm-wrappers.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/android-arm64/native/librealm-wrappers.so",
+      "@type": "PackageEntry",
+      "compressedLength": 5074373,
+      "fullName": "runtimes/android-arm64/native/librealm-wrappers.so",
+      "length": 13511728,
+      "name": "librealm-wrappers.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/android-x86/native/librealm-wrappers.so",
+      "@type": "PackageEntry",
+      "compressedLength": 4930482,
+      "fullName": "runtimes/android-x86/native/librealm-wrappers.so",
+      "length": 14075072,
+      "name": "librealm-wrappers.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/android-x64/native/librealm-wrappers.so",
+      "@type": "PackageEntry",
+      "compressedLength": 4835068,
+      "fullName": "runtimes/android-x64/native/librealm-wrappers.so",
+      "length": 14446800,
+      "name": "librealm-wrappers.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/win-x86/native/realm-wrappers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3540795,
+      "fullName": "runtimes/win-x86/native/realm-wrappers.dll",
+      "length": 7681536,
+      "name": "realm-wrappers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/win-x64/native/realm-wrappers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4221769,
+      "fullName": "runtimes/win-x64/native/realm-wrappers.dll",
+      "length": 10120192,
+      "name": "realm-wrappers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/win-arm64/native/realm-wrappers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4397261,
+      "fullName": "runtimes/win-arm64/native/realm-wrappers.dll",
+      "length": 9834496,
+      "name": "realm-wrappers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/win10-x86/nativeassets/uap10.0/realm-wrappers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3165751,
+      "fullName": "runtimes/win10-x86/nativeassets/uap10.0/realm-wrappers.dll",
+      "length": 7106048,
+      "name": "realm-wrappers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/win10-x64/nativeassets/uap10.0/realm-wrappers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3633199,
+      "fullName": "runtimes/win10-x64/nativeassets/uap10.0/realm-wrappers.dll",
+      "length": 8413696,
+      "name": "realm-wrappers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/win10-arm/nativeassets/uap10.0/realm-wrappers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3244085,
+      "fullName": "runtimes/win10-arm/nativeassets/uap10.0/realm-wrappers.dll",
+      "length": 6749696,
+      "name": "realm-wrappers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#runtimes/win10-arm64/nativeassets/uap10.0/realm-wrappers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3518683,
+      "fullName": "runtimes/win10-arm64/nativeassets/uap10.0/realm-wrappers.dll",
+      "length": 8767488,
+      "name": "realm-wrappers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 1674,
+      "fullName": "icon.png",
+      "length": 1669,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.04.17.14.48.36/realm.12.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12924,
+      "fullName": ".signature.p7s",
+      "length": 12924,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Realm",
+    "database",
+    "db",
+    "persistence",
+    "sqlite"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

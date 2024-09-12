@@ -1,0 +1,147 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "ihourglass",
+  "catalog:commitId": "0becd638-2d29-4458-b52d-74f9247fadae",
+  "catalog:commitTimeStamp": "2024-09-11T18:44:06.647705Z",
+  "created": "2024-09-11T18:40:15.217Z",
+  "description": "Package Description",
+  "iconUrl": "https://raw.githubusercontent.com/inversionhourglass/DependencyInjection.StaticAccessor/master/icon.png",
+  "id": "DependencyInjection.StaticAccessor.Blazor.WebAssembly",
+  "isPrerelease": true,
+  "lastEdited": "2024-09-11T18:42:53.54Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "gJn2fjoaRueYkCUSCSD4OWvTIVpecpCQGFYrmyr7d6BGQ5Pk7zGomGal3jqCZVR+jDpq7TNUCuC3rZ8lH28ntg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 26082,
+  "projectUrl": "https://github.com/inversionhourglass/DependencyInjection.StaticAccessor",
+  "published": "2024-09-11T18:40:15.217Z",
+  "readmeFile": "README_en.md",
+  "releaseNotes": "# DependencyInjection.StaticAccessor\n\n中文 | [English](README_en.md)\n\n`DependencyInjection.StaticAccessor`致力于为.NET各种类型的项目提供静态方式访问当前DI Scope对应的`IServiceProvider`对象，你可以很方便的在静态方法以及无法直接与DI服务交互的类型的方法中使用`IServiceProvider`。\n\n## NuGet包一览\n\n|                          包名                         |                               用途                              |\n|:-----------------------------------------------------:|:---------------------------------------------------------------|\n| DependencyInjection.StaticAccessor.Hosting            | 用于AspNetCore项目（WebApi、Mvc等）及通用主机（Generic Host）     |\n| DependencyInjection.StaticAccessor.Blazor             | 用于Blazor项目，Blazor Server和Blazor WebAssembly Server都用这个 |\n| DependencyInjection.StaticAccessor.Blazor.WebAssembly | 用于Blazor WebAssembly Client项目，同样支持Auto模式Client项目     |\n| DependencyInjection.StaticAccessor                    | 基础类库，一般不直接引用                                         |\n\n### 版本号说明\n\n所有版本号格式都采用语义版本号（SemVer），主版本号与`Microsoft.Extensions.*`保持一致（**引用NuGet时请保持主版本号与你引用的`Microsoft.Extensions.*`保持一致**），次版本号作为功能更新版本号，修订号为bug修复及微小改动版本号。\n\n## 快速开始\n\n根据项目类型，参考[nuget包一览](#nuget包一览)安装对应NuGet。\n\n```csharp\n// 1. 初始化（通用主机）\nvar builder = Host.CreateDefaultBuilder();\n\nbuilder.UsePinnedScopeServiceProvider(); // 仅此一步完成初始化\n\nvar host = builder.Build();\n\nhost.Run();\n\n// 2. 在任何地方获取\nclass Test\n{\n    public static void M()\n    {\n        var yourService = PinnedScope.ScopedServices.GetService<IYourService>();\n    }\n}\n```\n\n不同类型的项目初始化方式类似，都是调用扩展方法`UsePinnedScopeServiceProvider`，后面会给出不同类型项目初始化的示例代码。\n\n### AspNetCore项目初始化示例\n\n安装NuGet引用\n> dotnet add package DependencyInjection.StaticAccessor.Hosting\n\n```csharp\n// 1. 初始化\nvar builder = WebApplication.CreateBuilder();\n\nbuilder.Host.UsePinnedScopeServiceProvider(); // 仅此一步完成初始化\n\nvar app = builder.Build();\n\napp.Run();\n```\n\n### Blazor Server端项目初始化\n\n**注意，这里的Blazor Server端是包含Server, WebAssembly, Auto三种模式的Server端项目，不是单指Server模式。**\n\n安装NuGet引用\n> dotnet add package DependencyInjection.StaticAccessor.Blazor\n\nBlazor Server端初始化操作与AspNetCore相同，直接参考[AspNetCore项目初始化示例](#aspnetcore项目初始化示例)，这里不再赘述。不过由于Blazor的DI scope与常规的不同，所以还需要做一些额外的操作。\n\n#### 页面继承PinnedScopeComponentBase\n\nBlazor的特殊DI scope需要所有页面需要继承自`PinnedScopeComponentBase`，推荐做法是在`_Imports.razor`直接定义，一次定义所有页面都生效。\n\n```csharp\n// _Imports.razor\n\n@inherits DependencyInjection.StaticAccessor.Blazor.PinnedScopeComponentBase\n\n```\n\n除了`PinnedScopeComponentBase`，还提供了`PinnedScopeOwningComponentBase`和`PinnedScopeLayoutComponentBase`，后续会根据需要可能会加入更多类型。\n\n#### 已有自定义ComponentBase基类的解决方案\n\n你可能会使用其他包定义的`ComponentBase`基类，C#不支持多继承，所以这里提供了不继承`PinnedScopeComponentBase`的解决方案。\n\n```csharp\n// 假设你现在使用的ComponentBase基类是ThirdPartyComponentBase\n\n// 定义新的基类继承ThirdPartyComponentBase\npublic class YourComponentBase : ThirdPartyComponentBase, IHandleEvent, IServiceProviderHolder\n{\n    private IServiceProvider _serviceProvider;\n\n    [Inject]\n    public IServiceProvider ServiceProvider\n    {\n        get => _serviceProvider;\n        set\n        {\n            PinnedScope.Scope = new FoolScope(value);\n            _serviceProvider = value;\n        }\n    }\n\n    Task IHandleEvent.HandleEventAsync(EventCallbackWorkItem callback, object? arg)\n    {\n        return this.PinnedScopeHandleEventAsync(callback, arg);\n    }\n}\n\n// _Imports.razor\n@inherits YourComponentBase\n```\n\n### Blazor WebAssembly Client初始化\n\n**注意，这里是Blazor WebAssembly Client端的初始化，Server端的初始化请查看[Blazor Server端项目初始化](#blazor-server端项目初始化)**\n\n```csharp\nvar builder = WebAssemblyHostBuilder.CreateDefault(args);\n\nbuilder.UsePinnedScopeServiceProvider(); // 仅此一步完成初始化\n\nawait builder.Build().RunAsync();\n```\n\n与Server端相同，Client端的页面也需要继承`PinnedScopeComponentBase`，请参考[页面继承PinnedScopeComponentBase](#页面继承pinnedscopecomponentbase)。\n\n## 注意事项\n\n### 不要通过PinnedScope操作IServiceScope\n\n虽然你可以通过`PinnedScope.Scope`获取当前的DI Scope，但请不要通过该属性直接操作`PinnedScope.Scope`，比如调用`Dispose`方法，你应该通过你创建scope时创建的变量进行操作。\n\n### 不支持非通常Scope\n\n一般日常开发时不需要关注这个问题的，通常的AspNetCore项目也不会出现这样的场景，Blazor就是官方项目类型中非通常DI Scope的案例。\n\n在解释什么是非通常Scope前，我先聊聊通常的Scope模式。我们知道DI Scope是可以嵌套的，在通常情况下，嵌套的Scope呈现的是一种栈的结构，后创建的scope先释放，井然有序。\n\n```csharp\nusing (var scope11 = serviceProvider.CreateScope())                    // push scope11. [scope11]\n{\n    using (var scope21 = scope11.ServiceProvider.CreateScope())        // push scope21. [scope11, scope21]\n    {\n        using (var scope31 = scope21.ServiceProvider.CreateScope())    // push scope31. [scope11, scope21, scope31]\n        {\n\n        }                                                              // pop scope31.  [scope11, scope21]\n\n        using (var scope32 = scope21.ServiceProvider.CreateScope())    // push scope32. [scope11, scope21, scope32]\n        {\n\n        }                                                              // pop scope32.  [scope11, scope21]\n    }                                                                  // pop scope21.  [scope11]\n\n    using (var scope22 = scope11.ServiceProvider.CreateScope())        // push scope22. [scope11, scope22]\n    {\n\n    }                                                                  // pop scope22.  [scope22]\n}                                                                      // pop scope11.  []\n```\n\n了解了非通常Scope，那么就很好理解非通常Scope了，只要是不按照这种井然有序的栈结构的，那就是非通常Scope。比较常见的就是Blazor的这种情况：\n\n我们知道，Blazor SSR通过SignalR实现SPA，一个SignalR连接对应一个DI Scope，界面上的各种事件（点击、获取焦点等）通过SignalR通知服务端回调事件函数，而这个回调便是从外部横插一脚与SignalR进行交互的，在不进行特殊处理的情况下，回调事件所属的Scope是当前回调事件新创建的Scope，但我们在回调事件中与之交互的`Component`是SignalR所属Scope创建的，这就出现了Scope交叉交互的情况。`PinnedScopeComponentBase`所做的便是在执行回调函数之前，将`PinnedScope.Scope`重设回SignalR对应Scope。\n\n---",
+  "repository": "",
+  "verbatimVersion": "8.0.0-preview-1726080008",
+  "version": "8.0.0-preview-1726080008",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json#dependencygroup/net8.0/dependencyinjection.staticaccessor",
+          "@type": "PackageDependency",
+          "id": "DependencyInjection.StaticAccessor",
+          "range": "[8.0.0-preview-1726080008, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json#dependencygroup/net8.0/microsoft.aspnetcore.components.webassembly",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.WebAssembly",
+          "range": "[8.0.0, 9.0.0)"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json#DependencyInjection.StaticAccessor.Blazor.WebAssembly.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3436,
+      "fullName": "DependencyInjection.StaticAccessor.Blazor.WebAssembly.nuspec",
+      "length": 9101,
+      "name": "DependencyInjection.StaticAccessor.Blazor.WebAssembly.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json#lib/net8.0/DependencyInjection.StaticAccessor.Blazor.WebAssembly.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4054,
+      "fullName": "lib/net8.0/DependencyInjection.StaticAccessor.Blazor.WebAssembly.dll",
+      "length": 9216,
+      "name": "DependencyInjection.StaticAccessor.Blazor.WebAssembly.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json#lib/net8.0/DependencyInjection.StaticAccessor.Blazor.WebAssembly.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 587,
+      "fullName": "lib/net8.0/DependencyInjection.StaticAccessor.Blazor.WebAssembly.xml",
+      "length": 4377,
+      "name": "DependencyInjection.StaticAccessor.Blazor.WebAssembly.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json#README_en.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2800,
+      "fullName": "README_en.md",
+      "length": 8665,
+      "name": "README_en.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2024.09.11.18.44.06/dependencyinjection.staticaccessor.blazor.webassembly.8.0.0-preview-1726080008.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12930,
+      "fullName": ".signature.p7s",
+      "length": 12930,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "DI",
+    "IoC",
+    "DependencyInjection",
+    "Blazor",
+    "WebAssembly"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

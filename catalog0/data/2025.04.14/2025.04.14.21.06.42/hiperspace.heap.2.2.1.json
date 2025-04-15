@@ -1,0 +1,194 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Stephen Channell",
+  "catalog:commitId": "d11b330e-9a4d-4cb5-91d0-306f084d13bc",
+  "catalog:commitTimeStamp": "2025-04-14T21:06:42.4012352Z",
+  "copyright": "Cepheis Ltd (C) 2023, 2024, 2025",
+  "created": "2025-04-14T21:03:29.55Z",
+  "description": "Hiperspace heap store for session, edge and testing purposes",
+  "iconFile": "Hiper.png",
+  "id": "Hiperspace.Heap",
+  "isPrerelease": false,
+  "lastEdited": "2025-04-14T21:06:32.85Z",
+  "licenseExpression": "GPL-2.0-or-later",
+  "licenseUrl": "https://licenses.nuget.org/GPL-2.0-or-later",
+  "listed": true,
+  "packageHash": "eLARx8938Gb9cwROT3EWx0WOdcYQDCx6ma0oxvcN5Se9ewe44eO+VGiXX/5WJNNuWQSNh0fpJPb0alca3fg+4w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 52178,
+  "projectUrl": "https://www.cepheis.com/hiperspace/Hiperspace-Heap",
+  "published": "2025-04-14T21:03:29.55Z",
+  "readmeFile": "readme.md",
+  "releaseNotes": "https://www.cepheis.com/hiperspace/20250414\n      # Overview\n      This release extends the `Hipperspace` model to better support streaming aggregation of Cube and viewing of aggregates part of graph view.  It also updated `SessionSpace` to use stream replication rather than Zip file compression.\n\n      ## Cube aggregation\n      Traditional [OLAP Cubes](https://en.wikipedia.org/wiki/OLAP_cube) do not include the notion of history unless includes as a dimension in the cube, and are either calculated\n      1.  *Multidimensional* cubes recalculated each night\n      2.  *Relational* cubes are translated into the SQL queries that aggregate at a point in time from source data\n      3.  *Hybrid* cubes combine an overnight batch with intraday *relational* updates\n\n      Hiperspace includes history for element stored in `Hiperspace` with access to the full history of the element.  Cube data is not overwritten whenever a value is changed intraday, but a new version is created.  This allows a point-in-time view of a `SubSpace` to be opened, or history to be used for regression analysis over time (*A portfolio/book view can be aggregated in a cube and trend-line examined as the data changes*).  Traditionally the value of the latest summary (e.g. total-sales per product) is discounted by the frequency it is examined (*you wouldn't want to calculate a per-minute summary for a product if you only analyze it once a day*) and the cost of recalculating it each night if only reviewed at month end.\n\n      When you add the capability for regression analysis, the value of each observation increases: we presume that historical values will be re-used many times, and calculate the projection for fast access to data.\n\n      ### Stream aggregation\n      `Hiperspace` uses Delta indexes to fast access to changes within a short epoch, and version history to calculate the delta from the last epoch.  The a price change to APPL.N stock will only update the portfolio that reference this stock, and not require the reaggregation of the entire portfolio (if APPL.N changes from $300 to $290 for a portfolio of 100 shares, the value of the portfolio changes by $-900, which is added to the current portfolio value) . Point-in-time `AsAt` views of the `SubSpace` are used to perform aggregation *concurrently* with other changes (*which will be included in the next epoch calculation*) without degradation to performance.\n\n      ### code changes\n      Additional interfaces are added for runtime access to Cube data:\n      * **CubeDimension** property of a {`entity`, `segment`, `aspect`} now includes an `ICubeDimension` interface that includes the *CubeSlice* string (used to directly access the summary value for a cube node, without retriveing intersection with other dimensions\n      * **CubeHierarchy** property to indicate that the dimension is part of a hierarchy and aggregates for levels in the hierarchy should be calculated in addition to the leaf values\n      * **CubeFact** property of of a {`entity`, `segment`, `aspect`} now includes `ICubeFact` for the fact table, and includes methods to add dimensions and retrieve values generically.\n\n      These methods enable cube data to be viewed as part of graph view.  When a *Cube Dimension* is a graph node, a `Node` view is added *fact table* with two edges *Dimension*-(Fact)->*Fact* for traversal from dimennsion to fact, and *Fact*-(Dimension)->*Dimension* for traversal from Fact to the Dimension.\n\n      For example, a Cube of Transactions with dimensions {Customer, Product, Region}, the addition of *Fact Nodes* creates transitive edges for {Customer->Product, Customer->Region, Product->Region} via transaction fact.  When combined with *Transitive Edges* (*Hyper Edges*) it becomes possible to view to Cube data through a graph view in a [Hypergraph](https://en.wikipedia.org/wiki/Hypergraph).\n\n      For the Customer \"British Steel\" (*Client Node*), and \"Coking Coal\" (*Product Node*) the Quantity Fact contains the total available ( \"British Steel\" -> \"Coking Coal\" -> Quantity Edge), and ( \"British Steel\" -> \"Coking Coal\" -> \"Scunthorpe\" -> Quantity Edge) references only the total currently in that region.\n\n      [image]Sites/hiperspace/cube-edge.png[/image]\n\n      ## Transitative Edge becomes Hiper Edge\n      The name of `SetSpace` `TransitiveEdge` has been changed to `HiperEdge` better distinguish Graph Edges that are transitively projected as Hiper-edges, from edges that might themselves be transitive without being projected.  This **breaking change** is used because Hiper-Edges can be viewed as *Cube edges* where each step in a *Cube Edge* is also a drill-down into the dimensions of a **Cube** for the dimensions in the hipergraph.\n\n      `HiperEdge` is used instead of the mathematically correct *hyper-edge* (within a [Hyper-Graph](https://en.wikipedia.org/wiki/Hypergraph) because our implementation explicitly includes the references to the *Hiper Edge* (extended) and *Edge* (projected): The inclusion of the path enables the identification of each *Dimension* and `CubeSlice` referenced\n\n      ## Hiperspace.DB\n      `Hiperspace.DB` provides functionality to project *Edge* to *HiperEdge*, and aggregate *Fact Cubes* close to the data without network access - especially important for web-assembly clients that may be accessing the `Hiperspace` over the internet.\n      *Edges*, *HiperEdges* and *Facts* can be used in SQL queries (our implementation of SQL allows joins to nested sets (syntax appears as a cross-join since the actual join is created by ownership).\n      ```\n      select  p.Name as Person,\n      r.To.Name as Relation,\n      r.TypeName as Relationship,\n      r.Length as Length,\n      r.Width as Width\n      from    Persons as p,\n      p.AllRelatives as r\n      where   p.Name = :name;\n      ```\n      ## SessionSpace\n      `HiperSpace` has additional streaming methods for `ExportAsync` and `ImportAsync` for bulk data import, but also for `SessionSpace` which might exceed message sizes when saving a large amount of data over the internet.  The legacy `Space()` function has is now `[Obsolete]`, and will be removed in a future release\n\n      ## Hilang\n      The Hilang AOT compiler has been updated to provide the implementation for the `ICubeDimension` and 'ICubeFact` views.",
+  "repository": "",
+  "requireLicenseAcceptance": true,
+  "title": "Hiperspace Heap Store",
+  "verbatimVersion": "2.2.1",
+  "version": "2.2.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net8.0/hiperspace",
+          "@type": "PackageDependency",
+          "id": "Hiperspace",
+          "range": "[2.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net8.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net8.0/system.numerics.tensors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Tensors",
+          "range": "[9.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net8.0/protobuf-net.core",
+          "@type": "PackageDependency",
+          "id": "protobuf-net.Core",
+          "range": "[3.2.52, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net9.0/hiperspace",
+          "@type": "PackageDependency",
+          "id": "Hiperspace",
+          "range": "[2.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net9.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net9.0/system.numerics.tensors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Tensors",
+          "range": "[9.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#dependencygroup/net9.0/protobuf-net.core",
+          "@type": "PackageDependency",
+          "id": "protobuf-net.Core",
+          "range": "[3.2.52, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#Hiperspace.Heap.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3259,
+      "fullName": "Hiperspace.Heap.nuspec",
+      "length": 8236,
+      "name": "Hiperspace.Heap.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#lib/net8.0/Hiperspace.Heap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13777,
+      "fullName": "lib/net8.0/Hiperspace.Heap.dll",
+      "length": 31744,
+      "name": "Hiperspace.Heap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#lib/net9.0/Hiperspace.Heap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13781,
+      "fullName": "lib/net9.0/Hiperspace.Heap.dll",
+      "length": 31744,
+      "name": "Hiperspace.Heap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#Hiper.png",
+      "@type": "PackageEntry",
+      "compressedLength": 6176,
+      "fullName": "Hiper.png",
+      "length": 6209,
+      "name": "Hiper.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#readme.md",
+      "@type": "PackageEntry",
+      "compressedLength": 185,
+      "fullName": "readme.md",
+      "length": 279,
+      "name": "readme.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.04.14.21.06.42/hiperspace.heap.2.2.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12921,
+      "fullName": ".signature.p7s",
+      "length": 12921,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

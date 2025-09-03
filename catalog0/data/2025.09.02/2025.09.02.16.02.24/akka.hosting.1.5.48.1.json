@@ -1,0 +1,216 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Akka.NET Team",
+  "catalog:commitId": "c38c8b42-50f8-4e6d-a6ec-3492fafc4e22",
+  "catalog:commitTimeStamp": "2025-09-02T16:02:24.9682032Z",
+  "copyright": "Copyright © 2013-2025 Akka.NET Team",
+  "created": "2025-09-02T15:58:56.33Z",
+  "description": "Akka.NET Microsoft.Extensions.Hosting support.",
+  "iconFile": "akkalogo.png",
+  "id": "Akka.Hosting",
+  "isPrerelease": false,
+  "lastEdited": "2025-09-02T16:02:02.927Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "QoABclVnSknbtqHqN7X/HwGHMOSZ0wPv6Ppk1KRawkuC37THhIVTFk2ewFiOCkf7JHHrlWFOeKSGInFl2LWLRw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 91218,
+  "projectUrl": "https://github.com/akkadotnet/Akka.Hosting",
+  "published": "2025-09-02T15:58:56.33Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Introduces new health check functionality and completey replaces [Akka.HealthChecks](https://github.com/petabridge/akkadotnet-healthcheck)\n\n### Problems with Akka.HealthChecks\n\nThere are a few major problems with Akka.HealthChecks:\n\n1. **Hair triggers that can inadvertently nuke an otherwise functioning Akka.NET cluster**: see https://github.com/petabridge/akkadotnet-healthcheck/issues/278 and https://github.com/petabridge/akkadotnet-healthcheck/issues/237 - we have had to do constant firefighting to get these right over the years. The fundamental problem is that Akka.HealthChecks tries to do too much and doesn't give the underlying systems time to recover, resulting in wild swings in availability. The new design approaches these things much more carefully and, generally, tries to use fewer, more meaningful health checks.\n2. **Clunky and awkward to configure** - you have to configure health checks in three places, you have to install several different NuGet packages, and there are a lot of settings + moving parts involved. A lot of this is legacy baggage from before Microsoft.Extensions.Diagnostics.HealthChecks existed.\n3. **Difficult to customize** - writing custom health checks with Akka.HealthCheck is... arduous, to say the least.\n\n### How This Feature Solves Them\n\n1. **No additional packages** - Akka.Hosting now takes a direct dependency on Microsoft.Extensions.Diagnostics.HealthChecks and exposes APIs for configuring Akka.NET-specific health checks that will be registered with the `HealthCheckService`.\n2. **Automatic registration of health checks with `HealthCheckService`** - if you call any of the `WithHealthCheck` overloads on the `AkkaConfigurationBuilder`, those types will automatically be registered with the `Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckService` and they will \"just work.\" No additional API calls required - happens automatically.\n3. **Automatic health checks for core Akka and Akka.Cluster** - we ship with two built in checks out of the box: an `ActorSystem` liveness check - if it's dead, the check fails. And an Akka.Cluster \"have we joined the cluster yet?\" readiness check. \n\n**These are not enabled by default - you have to opt-in to turning them on.**\n\nYou can see what the outputs of this look like by running:\n\n```shell\ndotnet run --project src/Examples/Akka.Hosting.Asp.LoggingDemo/Akka.Hosting.Asp.LoggingDemo.csproj\n```\n\nThis will expose the output of both of these healthchecks as pretty-printed JSON at http://localhost:5000/healthz\n\n```json\n{\n  \"status\": \"Healthy\",\n  \"totalDuration\": \"00:00:00.0002317\",\n  \"checks\": [\n    {\n      \"name\": \"ActorSystem Available\",\n      \"status\": \"Healthy\",\n      \"duration\": \"00:00:00.0000138\",\n      \"description\": \"ActorSystem is running.\",\n      \"tags\": [\n        \"akka\"\n      ],\n      \"data\": {}\n    },\n    {\n      \"name\": \"cluster.join\",\n      \"status\": \"Healthy\",\n      \"duration\": \"00:00:00.0000248\",\n      \"description\": \"Successfully joined Akka.NET cluster after [0:00:06.3427821].\",\n      \"tags\": [\n        \"ready\",\n        \"akka.cluster\",\n        \"akka\"\n      ],\n      \"data\": {}\n    }\n  ]\n}\n```\n\n4. **Easy to customize** - we expose several types of helper methods, all called `WithHealthCheck`, that make it very easy to define a health check. For example:\n\n```csharp\nbuilder.WithHealthCheck(\"FooActor alive\", async (system, registry, cancellationToken) =>\n        {\n            /*\n             * N.B. CancellationToken is set by the call to MSFT.EXT.DIAGNOSTICS.HEALTHCHECK,\n             * so that value could be \"infinite\" by default.\n             *\n             * Therefore, it might be a really, really good idea to guard this with a non-infinite\n             * timeout via a LinkedCancellationToken here.\n             */\n            try\n            {\n                var fooActor = await registry.GetAsync<FooActor>(cancellationToken);\n\n                try\n                {\n                    var r = await fooActor.Ask<ActorIdentity>(new Identify(\"foo\"), cancellationToken: cancellationToken);\n                    if (r.Subject.IsNobody())\n                        return HealthCheckResult.Unhealthy(\"FooActor was alive but is now dead\");\n                }\n                catch (Exception e)\n                {\n                    return HealthCheckResult.Degraded(\"FooActor found but non-responsive\", e);\n                }\n            }\n            catch (Exception e2)\n            {\n                return HealthCheckResult.Unhealthy(\"FooActor not found in registry\", e2);\n            }\n\n            return HealthCheckResult.Healthy(\"fooActor found and responsive\");\n        });\n```\n\nA basic lambda function can handle it - the only reason this function is as complicated as this is because I wanted to include _different reasons for why it failed_ in the description. You can also implement your own `IAkkaHealthCheck` and pass it into a `WithHealthCheck` method that way too.",
+  "repository": "",
+  "verbatimVersion": "1.5.48.1",
+  "version": "1.5.48.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/net6.0/akka.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Akka.DependencyInjection",
+          "range": "[1.5.48, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/net6.0/akka.streams",
+          "@type": "PackageDependency",
+          "id": "Akka.Streams",
+          "range": "[1.5.48, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/net6.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/net6.0/microsoft.extensions.diagnostics.healthchecks",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/net6.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/net6.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[6.0.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/.netstandard2.0/akka.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Akka.DependencyInjection",
+          "range": "[1.5.48, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/.netstandard2.0/akka.streams",
+          "@type": "PackageDependency",
+          "id": "Akka.Streams",
+          "range": "[1.5.48, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/.netstandard2.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/.netstandard2.0/microsoft.extensions.diagnostics.healthchecks",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/.netstandard2.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#dependencygroup/.netstandard2.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[6.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#Akka.Hosting.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2581,
+      "fullName": "Akka.Hosting.nuspec",
+      "length": 7173,
+      "name": "Akka.Hosting.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#lib/net6.0/Akka.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25475,
+      "fullName": "lib/net6.0/Akka.Hosting.dll",
+      "length": 55808,
+      "name": "Akka.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#lib/netstandard2.0/Akka.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25135,
+      "fullName": "lib/netstandard2.0/Akka.Hosting.dll",
+      "length": 55296,
+      "name": "Akka.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#akkalogo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 14478,
+      "fullName": "akkalogo.png",
+      "length": 17058,
+      "name": "akkalogo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 8513,
+      "fullName": "README.md",
+      "length": 32250,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.02.16.02.24/akka.hosting.1.5.48.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

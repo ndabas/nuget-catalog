@@ -1,0 +1,435 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "That_One_Nerd",
+  "catalog:commitId": "9e386442-254e-46ea-8a6a-4c3559ca75d9",
+  "catalog:commitTimeStamp": "2025-09-18T16:41:16.1765974Z",
+  "created": "2025-09-18T16:38:04.65Z",
+  "description": "A general-purpose mathematics library for C#.",
+  "iconFile": "Logo Square.png",
+  "id": "Nerd_STF",
+  "isPrerelease": false,
+  "lastEdited": "2025-09-18T16:40:41.64Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "n5uiwq6fVTC89hHgCBq8d+vtIZKXUjLvSZMPA3Z0+T6zNVuCc46OVeZVr8KWWHx0NYouMBw3P8plcmjsCIvkKQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 698011,
+  "projectUrl": "https://github.com/That-One-Nerd/Nerd_STF",
+  "published": "2025-09-18T16:38:04.65Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Nerd_STF Version 3.0\n\nIt's time to get this thing out of beta.\n\nNerd_STF 3.0 is finally out! Honestly, there's not a whole lot of tweaks here from the last prerelease, because I got bored of implementing `INumber` methods for the `Quaternion` class, so I'm putting that on hold for now.\n\nFor those that haven't seen the pre-releases, the v3.0 update is basically an entire rewrite of the previous library. Almost everything made it over, but there's also a lot of breaking changes. Here's the gist:\n\n# What's New\n\n## More Compatibility\n\nNerd_STF now targets several versions of .NET and .NET Standard, making it basically run anywhere. You can use [this website](https://dotnet.microsoft.com/en-us/platform/dotnet-standard#versions) to see what different versions of .NET Standard support, but if your project uses a version of .NET that was released in the last 10 years, chances are Nerd_STF supports it.\n\nIn addition, Nerd_STF uses some of the new C# features while still retaining older compatibility. If you want to use Nerd_STF in your .NET 8.0 project, you will reference the version of Nerd_STF compiled for .NET 7.0 and retain those fancy new interface features (among others) found in C# 11. Nullability support has been added to all versions of .NET that use C# 8 and above. And if I decide to use more new C# features for Nerd_STF, I'll just target another version of .NET.\n\n## Committed to Doubles\n\nNerd_STF is a precision library, not one meant to be highly optimized at the sacrifice of precision. So I've decided to fully commit to doubles. The double groups are still called `Float2`, `Float3` and `Float4`, because `Double2` doesn't have quite the same ring to it now, does it? Hope it doesn't get too confusing.\n\nBut all math functions are now using doubles (with a few exceptions).\n\n## 'w' Goes in Front Now\n\nI think this is how it should have been. I was really breaking the rules of the alphabet before. Previously in a `Float4`, the `w` component was fourth. Now it is first. The order goes w, x, y, z. You know, how it should.\n\nThis means though that casting a `Float3` to a `Float4` will put the extra zero at the start, not the end (because `x` -> `x` in the cast).\n```csharp\nFloat3  xyz = (5, 6, 7);\nFloat4 wxyz = xyz;       // Gives (0, 5, 6, 7)\n```\nThis also means that truncating a `Float4` removes the front `w` first, giving some odd results.\n```csharp\nFloat2  xy  = (10, 9);\nFloat4 wxyz = xy;       // Gives (0, 10, 9, 0)\n```\n```csharp\nFloat4 wxyz = (9, 8, 7, 6);\nFloat2  xy  = (Float2)wxyz; // Must be explicitly stated. Yields (8, 7)\n```\n\nBut `x` always goes to `x` when casting between groups, same with the other variables. Hopefully that'll make more sense.\n\n## Combination Indexers\n\nOne thing I've always been envious of was HLSL's ability to easily make a subset of a group.\n```c++\nfloat3 group = float3(1, 2, 3);\nfloat2 part = group.yz;         // Like this.\n```\nAnd I had a crude version of this in Nerd_STF before, with properties for `XY`, `YZW`, and stuff like that. But you couldn't do things out of order (for example, you could never do `.ZY`). Also, the naming scheme would not make very much sense. `x` was always the first item Now, you can do it with an indexer.\n\n```csharp\nFloat4 wxyz = (1, 2, 3, 4);\nIEnumerable<double> zyx = wxyz[\"zyx\"]; // Yields [ 4, 3, 2 ]\n```\n\nI think you get it, it makes sense. It returns an IEnumerable though, so support has been added in the group constructors to read data from an IEnumerable. You can also set things this way.\n\n```csharp\nFloat4 wxyz = (1, 2, 3, 4);\nwxyz[\"xy\"] = [ 9, 8 ];      // Yields (9, 8, 3, 4)\n```\n\nYou can also have duplicates. Why you would want duplicates is beyond me. And the order can be whatever you'd like.\n```csharp\nFloat4 wxyz = (1, 2, 3, 4);\nIEnumerable<double> nums = wxyz[\"wyyxzzwy\"]; // Yields [ 1, 3, 3, 2, 4, 4, 1, 3 ]\n```\n\n## Better Equations\n\nThe previous equation system was just a delegate to a method. While it worked for unoptimized things, it won't automatically give precise results. So that system has been overhauled.\n\nNow, every equation derives from the `IEquation` interface, which defines a few operators (most importantly the `Get(double)` method, which is intended to evaluate the equation at the given input). And there are multiple types. There's the base `Equation` type that replicates the method delegate it used to be, but there are also now `Polynomial` equations which specialize in... uh... polynomials, including `Quadratic` and `Linear` along with the dynamic `Polynomial` type.\n\nThe indexer is equivalent to calling the `Get(double)` method.\n\nCreating your own is easy, simply derive from the interface and implement the methods required. You should never throw an exception if the two equations you are adding (or multiplying or whatever) are not the same type. If they cannot be combined in a nice way, you should default to the delegate-based approach. Here is an example:\n```csharp\npublic IEquation Add(IEquation other) {\n    if (other is YourEquation yourEqu) {\n        // Properly add your two equations.\n    } else {\n        // Unknown other equation type, do a basic addition system.\n        return new Equation(x => Get(x) + other.Get(x));\n    }\n}\n```\n\nAnd in practice, you should avoid referring to a general equation by its type. Go by the interface operators instead.\n```csharp\ndouble Fun(double x) => 0.5 * MathE.Sin(x);\nEquation a = (Equation)Fun; // The traditional delegate approach from previous versions.\nPolynomial b = new Polynomial(1, 5, 4); // x^2 + 5x + 4\n\nIEquation c = a.Add(b).Multiply(2); // Result is technically an `Equation`, but we should not cast here.\n```\n\n## Renamed the `Mathf` class.\n\nI chose that name because I thought Unity did it well, but I also intend for this project to be compatible with Unity. So I've renamed it to `MathE`. I'm still iffy on that name. I'll commit to one before this project goes out of beta, but it might change until then. Other ideas I'm considering are `Mathe` and `Math2`. Feel free to give your input!\n\n## Support for `System.Drawing` types.\n\nI've tried to use this library when working with Windows Forms a few times. Problem is, it sucks having to manually set the variables from `Point` and `Size`. So Nerd_STF 3.0 now does that for you, with implicit casts to and from both, along with their float variations.\n\n**It's worth mentioning that `Float2` is a double group, while `PointF` is a float group. Data *will* be lost slightly when implicitly casting. Watch out!**\n\n## List Tuples\n\nIn the beta1, I introduced **Combination Indexers** for the double and int groups, however a problem was that they only returned `IEnumerable`s. So while some interesting things were supported, some things were not.\n\n```csharp\nFloat4 wxyz = (1, 2, 3, 4);\nIEnumerable<double> vals1 = wxyz[\"xy\"]; // Yields [2, 3]\n\nFloat2 vals2 = wxyz[\"xy\"];              // Not allowed!\n```\n\nAnd that kind of sucked. So I created the `ListTuple<T>` type. It's job is to act like a regular tuple, but be able to impliclty convert to either an `IEnumerable` or a regular `ValueTuple<T>`, thus allowing conversions to the double and int groups indirectly. Now, all combination indexers return a `ListTuple` instead of an `IEnumerable`.\n\nUnder the hood, the `ListTuple` actually uses an array, but you get the idea.\n\n```csharp\nFloat4 wxyz = (1, 2, 3, 4);\nListTuple<double> vals1 = wxyz[\"xy\"]; // Yields (2, 3)\n\nFloat2 vals2 = vals1;                 // Yields (2, 3)\nIEnumerable<double> vals3 = vals1;    // Yields [2, 3]\n```\n\nProblem is, now the names have the potential to make much less sense.\n```csharp\nFloat4 wxyz = (1, 2, 3, 4);\nFloat2 xy = wxyz[\"xy\"];     // x <- x, y <- y\nFloat2 wz = wxyz[\"wz\"];     // x <- w, y <- z\n```\n\nBut whatever. You can always stick to using `IEnumerable`s if you want.\n\n## No More `*.Abstract`\n\nI got rid of all the `Abstract` namespaces, since they don't really make much sense in the grand scheme of things. They've all been moved to the namespace that applies to them most (eg. `INumberGroup` went to `Nerd_STF.Mathematics`, `ICombinationIndexer` went to `Nerd_STF` since it applies to more than just mathematics).\n\n## The `Fraction` Type\n\nThis type originally went under the name of `Rational` in Nerd_STF 2.x, but that name is actually incorrect, right? So in the rework, it changed names. But it also can do much more now thanks to the `INumber` interface added in .NET 7.0. If you're using that framework or above, the fraction type is fully compatible with that type, and all the math functions in `MathE` and elsewhere that use `INumber` will work with it.\n\nCan I just say that the `INumber` interface is really annoying to write a type for? There's so many weird casting functions and a whole lot of methods that even the .NET developers will hide in public declarations. Why have them at all?\n\n## And Best of All, Matrices\n\nOh yeah, we're adding those things again. We've got hard-coded `Matrix2x2`, `Matrix3x3`, and `Matrix4x4` classes, as well as a dynamic-sized `Matrix` class fully implemented. The `ToString()` methods are much better with the new implementation than previously, and the `GetHashCode()` methods give different results even if the numbers have their positions swapped (which they originally didn't do).\n\nAnd they're much faster. Much, much faster. Don't get me wrong, multiplying a 4x4 matrix still requires 64 multiplications and 48 additions, which is quite a lot, but my original implementation was littered with many method calls, easily doubling the runtime. I have now super-inlined basically all of the static matrix code. And I mean, replacing all method calls with nothing but multiplication and addition for things like the determinants, the cofactors, the inverses, and more. Don't look at the source, it's really ugly.\n\n**Note that the dynamic matrix class is not optimized this way, only the constant-size classes.**\n\n## `Fill<T>` and `Fill2d<T>` are back!\n\nI thought the `Fill<T>` delegate was slightly redundant, since you could probably just pass an `IEnumerable` or something instead, but I've learned that it's really easy to pass a Fill delegate in places where an IEnumerable would be annoying. I might add support for Fill stuff in the future, such as an extension list, but for now I've just re-added the delegate and made most types support it in a constructor.\n\n## And Best of All: Colors!\n\nI have had plenty of time to think about how I could have done colors better in the previous iteration of the library, and I've come up with this, which I think is slightly better.\n\nFirst of all, colors derive from the `IColor<TSelf>` interface similarly to how they did before, but no more `IColorFloat`. Now, every color has double-precision channels by default. To handle specific bit sizes, the `IColorFormat` interface has been created. It can of course be derived from, and I think it's pretty easy to use and understand, but hopefully there will be enough color formats already defined that you won't even need to touch it directly. At the moment, there's only one real color format created, `R8G8B8A8`, which is what it sounds like: 8 bits for each of the RGBA channels. There will be plenty more to come.\n\nI have been thinking about writing a stream class that is capable of having a bit-offset. I would use it in tandom with the color formats, as many of them span multiple bytes in ways that don't always align with 8-bit bytes. It seems somewhat out of place, but I think I'll go for it anyway.\n\nThere's also a color palette system now. You give it a certain number of colors and it allocates room to the nearest power of two. If you give it 6 colors, it allocates room for 8. This is to always keep the size of the palette identical to its bit depth. 6 colors needs 3 bits per color, so might as well do as much as you can with those 3 bits.\n\nThere is also an `IndexedColor` \"format,\" which does not store its color directly. Rather, it stores its index and a reference to the color palette it came from. I understand a true \"indexed color\" wouldn't store a reference to its palette to save memory, but this is mostly for ease of use. Colors are passed through methods with the `ref` keyword, so you can manipulate them directly.\n\n```csharp\nvoid MethodA()\n{\n    ColorPalette<ColorRGB> palette = new(8);\n\n    // palette[3] is currently set to black.\n    MethodB(palette[3]);\n    // palette[3] is now set to blue.\n}\n\nvoid MethodB(IndexedColor<ColorRGB> color)\n{\n    color.Color() = ColorRGB.Blue;\n\n    // You could also:\n    ref ColorRGB val = ref color.Color();\n    val = ColorRGB.Blue;\n}\n```\n\n---\n\nAnyway, that's a lot of stuff. It's a big update. You should download it!\n\nSorry my original writing has been a bit off. I kind of forgot about this project again. I can't promise a new update any time soon, but maybe there'll be one!\n\nEnjoy the full release!",
+  "repository": "",
+  "title": "Nerd_STF",
+  "verbatimVersion": "3.0.0",
+  "version": "3.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netframework4.6",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netframework4.6/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.5.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netframework4.6/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.5.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netframework4.6.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netframework4.6.2/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netframework4.6.2/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.1, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netframework4.7",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netframework4.7/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.1/netstandard.library",
+          "@type": "PackageDependency",
+          "id": "NETStandard.Library",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.1/system.drawing.primitives",
+          "@type": "PackageDependency",
+          "id": "System.Drawing.Primitives",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.1/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.5.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.1/system.net.http",
+          "@type": "PackageDependency",
+          "id": "System.Net.Http",
+          "range": "[4.3.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.1/system.numerics.vectors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Vectors",
+          "range": "[4.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.1/system.text.regularexpressions",
+          "@type": "PackageDependency",
+          "id": "System.Text.RegularExpressions",
+          "range": "[4.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.1/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.5.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard1.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.3",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.3/netstandard.library",
+          "@type": "PackageDependency",
+          "id": "NETStandard.Library",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.3/system.drawing.primitives",
+          "@type": "PackageDependency",
+          "id": "System.Drawing.Primitives",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.3/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.5.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.3/system.net.http",
+          "@type": "PackageDependency",
+          "id": "System.Net.Http",
+          "range": "[4.3.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.3/system.numerics.vectors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Vectors",
+          "range": "[4.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.3/system.text.regularexpressions",
+          "@type": "PackageDependency",
+          "id": "System.Text.RegularExpressions",
+          "range": "[4.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard1.3/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.5.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard1.3"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netcoreapp3.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETCoreApp3.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/net5.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net5.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/net7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#dependencygroup/.netstandard2.1",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETStandard2.1"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#Nerd_STF.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6385,
+      "fullName": "Nerd_STF.nuspec",
+      "length": 16738,
+      "name": "Nerd_STF.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/net46/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 69656,
+      "fullName": "lib/net46/Nerd_STF.dll",
+      "length": 189952,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/net462/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 69658,
+      "fullName": "lib/net462/Nerd_STF.dll",
+      "length": 189952,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/net47/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 69649,
+      "fullName": "lib/net47/Nerd_STF.dll",
+      "length": 189952,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/net5.0/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 72016,
+      "fullName": "lib/net5.0/Nerd_STF.dll",
+      "length": 196608,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/net7.0/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 83006,
+      "fullName": "lib/net7.0/Nerd_STF.dll",
+      "length": 225280,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/netcoreapp3.0/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 71999,
+      "fullName": "lib/netcoreapp3.0/Nerd_STF.dll",
+      "length": 197120,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/netstandard1.1/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 69472,
+      "fullName": "lib/netstandard1.1/Nerd_STF.dll",
+      "length": 189952,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/netstandard1.3/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 69552,
+      "fullName": "lib/netstandard1.3/Nerd_STF.dll",
+      "length": 189952,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#lib/netstandard2.1/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 71860,
+      "fullName": "lib/netstandard2.1/Nerd_STF.dll",
+      "length": 196608,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#Logo%20Square.png",
+      "@type": "PackageEntry",
+      "compressedLength": 24225,
+      "fullName": "Logo Square.png",
+      "length": 24710,
+      "name": "Logo Square.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1707,
+      "fullName": "README.md",
+      "length": 3579,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#Changelog.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1812,
+      "fullName": "Changelog.md",
+      "length": 3814,
+      "name": "Changelog.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 643,
+      "fullName": "LICENSE.md",
+      "length": 1091,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.09.18.16.41.16/nerd_stf.3.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12987,
+      "fullName": ".signature.p7s",
+      "length": 12987,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "c#",
+    "csharp",
+    "c",
+    "sharp",
+    "math",
+    "mathematics",
+    "mathametics",
+    "maths",
+    "color",
+    "rgb",
+    "rgba",
+    "cmyk",
+    "cmyka",
+    "hsv",
+    "hsva",
+    "calculus",
+    "linear",
+    "algebra",
+    "linalg",
+    "linearalgebra",
+    "matrix",
+    "matrix2x2",
+    "2x2",
+    "matrix3x3",
+    "3x3",
+    "matrix4x4",
+    "4x4",
+    "multiplication",
+    "vector",
+    "vector2d",
+    "vector3d",
+    "vector2",
+    "vector3",
+    "float2",
+    "float3",
+    "float4",
+    "int2",
+    "int3",
+    "int4",
+    "angle",
+    "geometry",
+    "vert",
+    "line",
+    "polygon",
+    "triangle",
+    "quadrilateral",
+    "sphere",
+    "circle",
+    "number",
+    "system",
+    "numbersystem",
+    "complex",
+    "numbers",
+    "2d",
+    "2dnumbers",
+    "quaternions",
+    "4d",
+    "4dnumbers",
+    "equation",
+    "equations",
+    "polynomial",
+    "quadratic"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

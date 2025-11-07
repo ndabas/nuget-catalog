@@ -1,0 +1,329 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Stephen Channell",
+  "catalog:commitId": "0a822e33-3dde-422a-9384-fb23e574991e",
+  "catalog:commitTimeStamp": "2025-11-06T23:20:01.6410048Z",
+  "copyright": "Cepheis Ltd (C) 2023, 2024, 2025",
+  "created": "2025-11-06T23:16:41.633Z",
+  "description": "# Hiperspace.SQL\nHiperspace.SQL is a full SQL query engine for Hiperspace, supporting the full range of joins, aggregations, and subqueries.\n\nHiperspace.SQL provides the same query functionality as a .NET client can use with LINQ queries, but without the need to write code in C#/F#\n\nHiperspace fully supports point-in-time \"time travel\" queries that are not possible with Python Data-Frames or DuckDB\n\n## Features\n- Hiperspace.SQL is not limited to queries of columns within a table, but supports the full navigation of properties of Hiperspace elements\n- Where a column is a complex object it is returned as a JSON object\n- Executing a batch of SQL statements return columnar data frames (dictionary of column-name and array of values)\n- Explain SQL returns the execution plan, detailing the SetSPaces accessed and keys used for search (Key, Index, Scan)\n- The Parquet method returns a Parquet file that can be used with any Apache Parquet library, or added to DuckDB OLAP store",
+  "iconFile": "Hiper.png",
+  "id": "Hiperspace.SQL",
+  "isPrerelease": false,
+  "lastEdited": "2025-11-06T23:19:45.033Z",
+  "licenseFile": "licence.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "0PkSqCE6iYfrO9SSIzEGVn2ovEwU/eVkxJqkSRcRrH3bz0Bst53QoSjPqyB3NLQ7K47xY921R2AEQQz03bJT7w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 286311,
+  "projectUrl": "https://www.cepheis.com/hiperspace/SQL",
+  "published": "2025-11-06T23:16:41.633Z",
+  "readmeFile": "readme.md",
+  "releaseNotes": "https://www.cepheis.com/hiperspace/20251106\n## Overview\n\nThis release builds on the functionality provided by **message** to execute queries on a remote **Hiperspace.DB** and return the full set of *elements* back to a client without the need to return every intermediate object necessary.  The prime example is the **Hiperspace.DB** opening page, which displays a summary bar-graphs of the number of **nodes** and **edges** in each database, and validates that *changes* to the (compiled) schema for databases does not change the definition of an already stored *element set.*\n\nThe *graph-view* functionality of **Hiperspace.DB** uses `HiperEdge` functions to recursively search (*in parallel*) all `Node` types that satisfy the view criteria and display as a navigable [SVG](https://en.wikipedia.org/wiki/SVG) graph of connections.  These capabilities use the [`GraphFunctions`](https://github.com/channell/Hiperspace/blob/master/src/Hiperspace/Graph/GraphFunctions.cs) to search Nodes using message-keys *sent* to teh server and message-value *provided* on completion together with rendering information for `Node` *shapes* and *color*.\n\nTo support these use-cases, a couple of enhancements have been added to [Hiperspace](https://www.nuget.org/packages/Hiperspace/) and [HiLang](https://www.nuget.org/packages/HiLang) to better support the functions.\n\n### SubSpace\n`IServiceProvider` is  an interface on the .NET Platform to inject *Services* into components ([IoC](https://en.wikipedia.org/wiki/Inversion_of_control)) at runtime.  A ServiceProvider property has been added to `SubSpace` to enable messages to enlist functionality when a message is received, and a parameter added to `SubSpaceParameters` for *domain space* construction.\n\n`FindPaths` and `FindPathsAsync` functions now have *domain-specific* implementations that use a ***message*** to transmit the call through to a server where the parallel recursive search can be efficiently executed close the data, using many of the cores of the server.\n\n### Node\nThe `Node` element has been extended to include additional functions that provide `HiperEdge`  search for related nodes across transitive edges\n\n|Name| Description |\n|-|-|-|-|-|\n| HiperEdges|Treat the TypeName parameter as a HiperEdge and find all matching|\n| HiperEdgesAsync|as above, but non-blocking (especially for Blazor web clients)|\n\n\n```\n        /// <summary>\n        /// Treat the Edges of TypeName as a HiperEdge and find all transitive paths for that type\n        /// </summary>\n        /// <param name=\"TypeName\">The Edge type name</param>\n        /// <param name=\"length\">the maximum length of the path</param>\n        /// <param name=\"targets\">only return HiperEdges that end with a Node of the type matching one of these types</param>\n        /// <returns>The full set of HiperEdges for this path</returns>\n        public HashSet<HiperEdge> HiperEdges(string TypeName, int? length = null, HashSet<string>? targets = null)\n\n        /// <summary>\n        /// Create an inline HiperName from TypeNames and find all transitive paths for that type\n        /// </summary>\n        /// <param name=\"HiperName\">The name of the HiperEdge being infered from the Edge TyopeNames</param>\n        /// <param name=\"TypeNames\">the set of Edge TypeNames that make up this HiperEdge</param>\n        /// <param name=\"length\">the maximum length of the path</param>\n        /// <param name=\"targets\">only return HiperEdges that end with a Node of the type matching one of these types</param>\n        /// <returns>The full set of HiperEdges for this path</returns>\n        public HashSet<HiperEdge> HiperEdges(string HiperName, IEnumerable<string> TypeNames, int? length = null, HashSet<string>? targets = null)\n\n        /// <summary>\n        /// Treat the Edges of TypeName as a HiperEdge and find all transitive paths for that type\n        /// </summary>\n        /// <param name=\"TypeName\">the name given to this transitative hiperedge</param>\n        /// <param name=\"rules\">the set of meta edges (start-node type, end-node type, edge type) rules that define the transitative path</param>\n        /// <param name=\"length\">the maximum length of the path</param>\n        /// <param name=\"targets\">only return HiperEdges that end with a Node of the type matching one of these types</param>\n        /// <returns>The full set of HiperEdges for this path</returns>\n        public HashSet<HiperEdge> HiperEdges(string TypeName, HashSet<Rule> rules, int? length = null, HashSet<string>? targets = null)\n\n        /// <summary>\n        /// Treat the Edges of TypeName as a HiperEdge and find all transitive paths for that type\n        /// </summary>\n        /// <param name=\"TypeName\">The Edge type name</param>\n        /// <param name=\"length\">the maximum length of the path</param>\n        /// <param name=\"targets\">only return HiperEdges that end with a Node of the type matching one of these types</param>\n        /// <returns>The full set of HiperEdges for this path</returns>\n        public async Task<HashSet<Graph.HiperEdge>> HiperEdgesAsync(string TypeName, int? length = null, HashSet<string>? targets = null, CancellationToken cancellationToken = default)\n\n        /// <summary>\n        /// Create an inline HiperName from TypeNames and find all transitive paths for that type\n        /// </summary>\n        /// <param name=\"HiperName\">The name of the HiperEdge being infered from the Edge TyopeNames</param>\n        /// <param name=\"TypeNames\">the set of Edge TypeNames that make up this HiperEdge</param>\n        /// <param name=\"length\">the maximum length of the path</param>\n        /// <param name=\"targets\">only return HiperEdges that end with a Node of the type matching one of these types</param>\n        /// <returns>The full set of HiperEdges for this path</returns>\n        public async Task<HashSet<HiperEdge>> HiperEdgesAsync(string HiperName, IEnumerable<string> TypeNames, int? length = null, HashSet<string>? targets = null, CancellationToken cancellationToken = default)\n\n        /// <summary>\n        /// Treat the Edges of TypeName as a HiperEdge and find all transitive paths for that type\n        /// </summary>\n        /// <param name=\"TypeName\">the name given to this transitative hiperedge</param>\n        /// <param name=\"rules\">the set of meta edges (start-node type, end-node type, edge type) rules that define the transitative path</param>\n        /// <param name=\"length\">the maximum length of the path</param>\n        /// <param name=\"targets\">only return HiperEdges that end with a Node of the type matching one of these types</param>\n        /// <returns>The full set of HiperEdges for this path</returns>\n        public async Task<HashSet<Graph.HiperEdge>> HiperEdgesAsync(string TypeName, HashSet<Rule> rules, int? length = null, HashSet<string>? targets = null, CancellationToken cancellationToken = default)\n```\nThe [Test cases](https://github.com/channell/Hiperspace/blob/master/examples/CousinProblem/Test.cs) demonstrate the use of these functions to provide *server-side* search for relations. The first example treats \"Child\" as a transitive `HiperEdge`, while the second infers an \"Ancestors\" `HiperEdge` from either *Mother* or *Father*.\n\n```\n                var descendants = node.HiperEdges(\"Child\");\n                var ancestors = node.HiperEdges(\"Ancestors\", new[] {\"Mother\", \"Father\" });\n```",
+  "repository": "",
+  "title": "Hiperspace SQL query engine",
+  "verbatimVersion": "2.5.2",
+  "version": "2.5.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[9.0.303, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/fslexyacc",
+          "@type": "PackageDependency",
+          "id": "FsLexYacc",
+          "range": "[11.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/hilang",
+          "@type": "PackageDependency",
+          "id": "HiLang",
+          "range": "[2.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/hiperspace",
+          "@type": "PackageDependency",
+          "id": "Hiperspace",
+          "range": "[2.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/microsoft.codeanalysis",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CodeAnalysis",
+          "range": "[4.14.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/microsoft.codeanalysis.csharp",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CodeAnalysis.CSharp",
+          "range": "[4.14.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/parquet.net",
+          "@type": "PackageDependency",
+          "id": "Parquet.Net",
+          "range": "[5.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/system.codedom",
+          "@type": "PackageDependency",
+          "id": "System.CodeDom",
+          "range": "[9.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[9.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/protobuf-net.core",
+          "@type": "PackageDependency",
+          "id": "protobuf-net.Core",
+          "range": "[3.2.56, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/fslexyacc.runtime",
+          "@type": "PackageDependency",
+          "id": "FsLexYacc.Runtime",
+          "range": "[11.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net8.0/microsoft.codeanalysis.analyzers",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CodeAnalysis.Analyzers",
+          "range": "[4.14.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[9.0.303, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/fslexyacc",
+          "@type": "PackageDependency",
+          "id": "FsLexYacc",
+          "range": "[11.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/hilang",
+          "@type": "PackageDependency",
+          "id": "HiLang",
+          "range": "[2.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/hiperspace",
+          "@type": "PackageDependency",
+          "id": "Hiperspace",
+          "range": "[2.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/microsoft.codeanalysis",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CodeAnalysis",
+          "range": "[4.14.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/microsoft.codeanalysis.csharp",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CodeAnalysis.CSharp",
+          "range": "[4.14.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/parquet.net",
+          "@type": "PackageDependency",
+          "id": "Parquet.Net",
+          "range": "[5.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/system.codedom",
+          "@type": "PackageDependency",
+          "id": "System.CodeDom",
+          "range": "[9.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[9.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/protobuf-net.core",
+          "@type": "PackageDependency",
+          "id": "protobuf-net.Core",
+          "range": "[3.2.56, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/fslexyacc.runtime",
+          "@type": "PackageDependency",
+          "id": "FsLexYacc.Runtime",
+          "range": "[11.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#dependencygroup/net9.0/microsoft.codeanalysis.analyzers",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CodeAnalysis.Analyzers",
+          "range": "[4.14.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#Hiperspace.SQL.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2968,
+      "fullName": "Hiperspace.SQL.nuspec",
+      "length": 12317,
+      "name": "Hiperspace.SQL.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#lib/net8.0/Hiperspace.SQL.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 128221,
+      "fullName": "lib/net8.0/Hiperspace.SQL.dll",
+      "length": 335872,
+      "name": "Hiperspace.SQL.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#lib/net8.0/Hiperspace.SQL.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 814,
+      "fullName": "lib/net8.0/Hiperspace.SQL.xml",
+      "length": 3506,
+      "name": "Hiperspace.SQL.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#lib/net9.0/Hiperspace.SQL.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 128318,
+      "fullName": "lib/net9.0/Hiperspace.SQL.dll",
+      "length": 335872,
+      "name": "Hiperspace.SQL.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#lib/net9.0/Hiperspace.SQL.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 814,
+      "fullName": "lib/net9.0/Hiperspace.SQL.xml",
+      "length": 3506,
+      "name": "Hiperspace.SQL.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#licence.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 1652,
+      "fullName": "licence.txt",
+      "length": 4060,
+      "name": "licence.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#Hiper.png",
+      "@type": "PackageEntry",
+      "compressedLength": 6176,
+      "fullName": "Hiper.png",
+      "length": 6209,
+      "name": "Hiper.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#readme.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1449,
+      "fullName": "readme.md",
+      "length": 4279,
+      "name": "readme.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.11.06.23.20.01/hiperspace.sql.2.5.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "SQL",
+    "Hiperspace"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

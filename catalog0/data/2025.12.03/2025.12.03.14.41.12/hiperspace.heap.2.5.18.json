@@ -1,0 +1,233 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Stephen Channell",
+  "catalog:commitId": "459721a7-4deb-4be2-9bb4-8edf266e8aa4",
+  "catalog:commitTimeStamp": "2025-12-03T14:41:12.2342308Z",
+  "copyright": "Cepheis Ltd (C) 2023, 2024, 2025",
+  "created": "2025-12-03T14:38:32.23Z",
+  "description": "Hiperspace heap store for session, edge and testing purposes",
+  "iconFile": "Hiper.png",
+  "id": "Hiperspace.Heap",
+  "isPrerelease": false,
+  "lastEdited": "2025-12-03T14:41:07.52Z",
+  "licenseExpression": "GPL-2.0-or-later",
+  "licenseUrl": "https://licenses.nuget.org/GPL-2.0-or-later",
+  "listed": true,
+  "packageHash": "AJ8xsJ77RihYVo6ouFmnXssSvBUQ6L8aaq4054b8DrJo7krLMyM9+Gf7ZEZ+KO3orjsNKttL0NH00O5FkX4A/w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 75688,
+  "projectUrl": "https://www.cepheis.com/hiperspace/Hiperspace-Heap",
+  "published": "2025-12-03T14:38:32.23Z",
+  "readmeFile": "readme.md",
+  "releaseNotes": "https://www.cepheis.com/hiperspace/20251303\n## Overview\nThis release adds `NotFoundException` to distinguish *not found* from *cannot be found* conditions. and extends the functionality of `@AlternateIndex` to support multiple alternate indexes on *segments* and *aspects* that are referenced by multiple *entities*.\n\n-----\n\n### Not Found\n\nPrior to this release `Get(...)` calls did not distinguish between *Not Found* and *not found because of IO error*.  To improve the handling of missing values several changes have been made:\n* Additional Exception class `NotFoundException` \n* `KeyRef<>` (*reference to another element*) changed to return `null` when a value cannot be found \n* `RefSingle<>` (*reference to an aspect*) changed to return `null` when a value cannot be found \n\n-----\n\n### AlternateIndex\nAlternate indexes are created automatically whenever there is a path from an *element* from another *element*, but can be added to support access from a view.  The prime example is `Edge` which is defined (*in the Hilang prelude*) as\n```\n\"edge between nodes\"\nview Edge \n( /* keys */\n    From        : Node,\n    To          : Node,\n    TypeName    : String\n)\n{ /* values */\n    Name        : String\n};\n```\n`@AlternateIndex` enables an *element* to index the *key/value* that corresponds to the `From` key member for indexed access from a `Node.Froms` extension property\n\nFor the model \n```\nentity CostCentre (Id : Int32) [Costs : Cost (CostCentre = this)];\naspect Cost {CostCentre : CostCentre, Amount : Decimal};\n```\nwith\n```\nentity Asset (...) {...} [Cost : Cost];\nentity Project (...) {...} [Cost : Cost];\n```\nConcreate elements `AssetCost` and `ProjectCost` will be created indexes\n`AssetCostCostCentre.Index` and `ProjectCostCostCentre.Index` \n\nSource edit will  change the source to  \n```\nentity CostCentre (Id : Int32) [Costs : Cost (CostCentre = this)];\naspect Cost \n{\n  @AlternateIndex(\"AssetCost\", 42)\n  ,AlternateIndex(\"ProjectCost\", 43) \n  CostCentre : CostCentre, Amount : Decimal};\n```\nTo ensure the index Id is not used for something else resultuing in an incompatible model and store.\n\n ***how does CostCentre know what (Asset/Project/ etc) the Cost is for?***\n The `aspect Cost` is transformed to a `view` that is equvilent to \n ```\n view Cost (owner : Any) {CostCentre : CostCentre, Amount : Decimal};\n ```\n the (*C#*) hiperspace query \n ```\n from centre in space.CostCentres \n select centre.Id, (from line in centre.Costs \n                    let asset = line.owner.Is<Asset>() ? Amount : 0 \n                    let project = line.owner.Is<Project>() ? Amount : 0 \n                    group line by line.CostCentre into totals\n                    select new { Projects = totals.Sum(v => v.asset),\n                                 Assets = totals.Sum(v => v.project)})\n ```\n Will return the total costs by type for each CostCentre\n\n#### Inherited Index\nThis model defines an overall *trade* type with three different implementations for {*FI, EQ, FX*}  that have different properties for the different asset-classes.   *Trade* is referenced by *Book*,  the extension property *`Book.Trades`* returns a collection of *Trade* has a *`Book`* equal to the current *Book*.  For efficient access, and index is created for the *`Trade.Book`* that is inherited by each implementation.\n\nThe syntax `Banking.FI.Trade : Banking.Trade = Banking.Trade()` means `Banking.FI.Trade`:\n* Inherits *keys / values / extensions / properties* from `Banking.Trade` (via **`:`**)\n* Can be viewed as a `Banking.Trade` (via **`=`**)\n\n```\nview Banking.Trade (Id : String) \n{Book : Banking.Book};\nentity Banking.FI.Trade : Banking.Trade = Banking.Trade();\nentity Banking.FX.Trade : Banking.Trade = Banking.Trade();\nentity Banking.EQ.Trade : Banking.Trade = Banking.Trade();\nentity Banking.Book (Id : String) [Trades : Banking.Trade (Book = this)];\n```\n\nAdding `%ids` to the model, with result in a source edit to a `#` id to each *element*, *key/value* and extension property, and `@AlternateIndex` property for each generated concrete index.\n```\nview Banking.Trade #45 (Id : String) \n{@AlternateIndex(\"Banking.EQ.Trade\", 52) \n ,AlternateIndex(\"Banking.FI.Trade\", 48)\n ,AlternateIndex(\"Banking.FX.Trade\", 50) \n Book : Banking.Book};\nentity Banking.FI.Trade : Banking.Trade = Banking.Trade() #49;\nentity Banking.FX.Trade : Banking.Trade = Banking.Trade() #51;\nentity Banking.EQ.Trade : Banking.Trade = Banking.Trade() #53;\nentity Banking.Book #47 (Id : String #1) [Trades : Banking.Trade (Book = this) #54];\n```\nsubsequent compilation of the model will result in the indexes using the same *Id* value when stored.  \n**NB** the `#id` can be of any value, but can never to reused for a different purpose once used with a *Hiperspace*.\n\n-----\n\n### Source Editing\nWhen the directive `%ids` is added to a hilang model, the source code is edited to add `#id` values to ensure that the schema can be evolved without the risk of introducing incompatible changes. \n\n***know issue***: Source editing lacks the context of other edits to a line of `hilang` source `@AlternateIndex(\"Banking.EQ.Trade\", 52) @AlternateIndex(\"Banking.FI.Trade\", 48) Book : Banking.Book` will create a syntax error the next time the *schema* is compiled because `@` is the prefix for a comma-separated list of one-or-more attributes.  The code needs to be edited to change subsequent `@` to `,`",
+  "repository": "",
+  "requireLicenseAcceptance": true,
+  "title": "Hiperspace Heap Store",
+  "verbatimVersion": "2.5.18",
+  "version": "2.5.18",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net8.0/hiperspace",
+          "@type": "PackageDependency",
+          "id": "Hiperspace",
+          "range": "[2.5.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net8.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net8.0/system.numerics.tensors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Tensors",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net8.0/protobuf-net.core",
+          "@type": "PackageDependency",
+          "id": "protobuf-net.Core",
+          "range": "[3.2.56, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net9.0/hiperspace",
+          "@type": "PackageDependency",
+          "id": "Hiperspace",
+          "range": "[2.5.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net9.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net9.0/system.numerics.tensors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Tensors",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net9.0/protobuf-net.core",
+          "@type": "PackageDependency",
+          "id": "protobuf-net.Core",
+          "range": "[3.2.56, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net10.0/hiperspace",
+          "@type": "PackageDependency",
+          "id": "Hiperspace",
+          "range": "[2.5.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net10.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net10.0/system.numerics.tensors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Tensors",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#dependencygroup/net10.0/protobuf-net.core",
+          "@type": "PackageDependency",
+          "id": "protobuf-net.Core",
+          "range": "[3.2.56, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#Hiperspace.Heap.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2740,
+      "fullName": "Hiperspace.Heap.nuspec",
+      "length": 7779,
+      "name": "Hiperspace.Heap.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#lib/net10.0/Hiperspace.Heap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17132,
+      "fullName": "lib/net10.0/Hiperspace.Heap.dll",
+      "length": 41984,
+      "name": "Hiperspace.Heap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#lib/net8.0/Hiperspace.Heap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17128,
+      "fullName": "lib/net8.0/Hiperspace.Heap.dll",
+      "length": 41984,
+      "name": "Hiperspace.Heap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#lib/net9.0/Hiperspace.Heap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17133,
+      "fullName": "lib/net9.0/Hiperspace.Heap.dll",
+      "length": 41984,
+      "name": "Hiperspace.Heap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#Hiper.png",
+      "@type": "PackageEntry",
+      "compressedLength": 6176,
+      "fullName": "Hiper.png",
+      "length": 6209,
+      "name": "Hiper.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#readme.md",
+      "@type": "PackageEntry",
+      "compressedLength": 185,
+      "fullName": "readme.md",
+      "length": 279,
+      "name": "readme.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.03.14.41.12/hiperspace.heap.2.5.18.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

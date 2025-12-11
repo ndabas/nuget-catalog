@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Binaryinject",
+  "catalog:commitId": "40f9b942-ff86-42dd-ae40-101a3a002e68",
+  "catalog:commitTimeStamp": "2025-12-11T02:52:44.8451747Z",
+  "copyright": "Copyright (c) 2025 Binaryinject",
+  "created": "2025-12-11T02:49:57.65Z",
+  "description": "A high-performance C# library for Unity that provides streaming key-value pair reading with GZip compression support. Supports generating compact binary format from CSV files and features an intelligent cache system with time control. Fully compatible with Unity 2019.1+. Now supports generic types with KVStreamer<TValue>, ZLinq zero-allocation LINQ, and UniTask async/await integration!",
+  "id": "KVStreamer",
+  "isPrerelease": false,
+  "lastEdited": "2025-12-11T02:52:32.157Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "1i5WqGUcUeSRqTos8zMgH39l0yhOPL0+cYcPu36JXqdx3Yzs36aDhAWv19pqlll653t2JNYoSa5EmMDQGbeopA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 43098,
+  "projectUrl": "https://github.com/Binaryinject/KVStreamer",
+  "published": "2025-12-11T02:49:57.65Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Version 1.7.3 - Critical Memory Leak Fix in CloseDataStream:\n⚠️ 严重 Bug 修复：CloseDataStream() 内存泄漏\n\n问题描述：\n- CloseDataStream() 只清理了 _dataStream\n- 没有清理 _rawData 和 ThreadLocal 创建的 MemoryStream\n- 导致 ThreadLocal 模式下内存泄漏\n- 重复调用 LoadBinaryData 会导致内存累积\n\n修复内容：\n1. 在 CloseDataStream() 中释放所有 ThreadLocal 的 MemoryStream\n2. 清空 _rawData 引用释放内存\n3. 确保重复加载数据时正确清理旧数据\n\n影响场景：\n- 使用 ThreadLocal 模式（useThreadLocalStream: true）\n- 多次调用 LoadBinaryData() 加载不同数据\n- 长时间运行的应用\n\n泄漏示例：\n```csharp\nvar streamer = new KVStreamer(300f, false, true);\nstreamer.LoadBinaryData(data1);  // 10MB\nstreamer.LoadBinaryData(data2);  // 10MB\n// v1.7.2: 泄漏 10MB (data1 未释放)\n// v1.7.3: 泄漏 0MB (正确清理)\n```\n\n升级建议：\n如果使用 ThreadLocal 模式，强烈建议立即升级！\n\nVersion 1.7.2 - Critical Resource Leak Fix:\n⚠️ 严重 Bug 修复：ThreadLocal<MemoryStream> 资源泄漏\n\n问题描述：\n- 原代码使用 trackAllValues: false\n- 导致 ThreadLocal 创建的 MemoryStream 无法被正确释放\n- 多线程场景下会造成严重内存泄漏\n\n修复内容：\n1. 将 trackAllValues 修改为 true\n2. Dispose() 中手动释放所有线程的 MemoryStream\n3. 添加 foreach 遍历 _threadLocalStream.Values\n\n影响范围：\n- 使用 useThreadLocalStream: true 的用户\n- 多线程/高并发场景\n- 长时间运行的应用\n\n升级建议：\n如果使用了 ThreadLocal 模式，强烈建议立即升级！\n这是一个严重的内存泄漏 bug，可能导致应用崩溃。\n\nVersion 1.7.1 - Critical Bug Fixes:\n- 修复：KVStreamer<TValue>.TryGetValueAsync() 值类型判断错误\n  * 原代码：value != null 对值类型永远为 true\n  * 修复后：使用 EqualityComparer<TValue> 正确判断\n- 修复：PreheatAsync() 性能问题\n  * 原代码：每个 key 都 yield，导致性能下降\n  * 修复后：每10个 key yield 一次\n- 增强：TryGetValueAsync() 异常处理\n  * 添加 try-catch 避免转换器异常\n\nBug 影响：\n- 值类型（int, long, float 等）的 TryGetValueAsync 可能返回错误结果\n- PreheatAsync 性能比预期低 10 倍\n\n建议更新：\n如果使用 v1.7.0 并使用了泛型异步 API，强烈建议升级到 v1.7.1\n\nVersion 1.7.0 - Async/Await and UniTask Support:\n- 新增：UniTask 2.5.10 异步支持（Unity 专用）\n- 新增：标准 Task 异步支持（.NET Core/.NET Standard）\n- 新增：IKVStreamerAsync<TValue> 异步接口\n- 新增：LoadBinaryDataAsync() 异步加载\n- 新增：GetValueAsync() 异步读取\n- 新增：TryGetValueAsync() 异步尝试读取\n- 新增：PreheatAsync() 异步预热\n- 新增：PreheatAllAsync() 异步全量预热\n- 支持 CancellationToken 取消操作\n\n异步特性：\n- Unity 环境自动使用 UniTask（零 GC、高性能）\n- 非 Unity 环境使用标准 Task\n- 支持主线程/线程池自动切换\n- 缓存命中时无异步开销（快速路径）\n- 泛型 KVStreamer<TValue> 完全支持异步\n\n使用示例（Unity + UniTask）：async 加载、读取、预热数据，泛型异步转换\n\nVersion 1.6.1 - Bug Fixes and Performance Improvements:\n- 修复：AccessStats.AccessCount 线程安全问题（使用 Interlocked.Increment）\n- 优化：ArrayPool.Return 添加 clearArray: false 参数（提升性能）\n- 优化：ICollection.CopyTo 使用 ZLinq 零分配\n- 优化：GetEnumerator 使用 ZLinq 零分配\n- 优化：IReadOnlyDictionary.Values 使用 ZLinq 零分配\n- 优化：IDictionary.Values 使用 ZLinq 零分配\n\nBug 修复详情：\n- 在高并发场景下，AccessCount++ 可能导致竞态条件\n- 现使用 Interlocked.Increment 原子操作确保线程安全\n\n性能提升：\n- ArrayPool 返回时无需清除缓冲区，减少开销\n- 所有枚举操作均使用 ZLinq 零分配\n\nVersion 1.6.0 - ZLinq Zero-Allocation Integration:\n- 集成 Cysharp/ZLinq 1.5.4 零分配 LINQ 库\n- 使用 AsValueEnumerable() 实现零分配遍历\n- 优化 GetAccessStatistics()：零分配转换\n- 优化 Preheat()：零分配遍历\n- 优化 ValueCache.CleanupExpiredEntries()：零分配查找\n- 优化 IDictionary.Values 和 CopyTo()：零分配遍历\n- 新增 GetAllKeysArray()：零分配获取键数组\n- 升级 System.Memory 到 4.6.3\n- 升级 System.Buffers 到 4.6.1\n\nZLinq 性能优势：\n- 零分配的 LINQ 操作链\n- 比传统 LINQ 更高的基础性能\n- 兼容 .NET Standard 2.0 和 Unity\n- 所有 .NET 平台可用 .NET 10 的 LINQ 操作符\n\n使用示例：\n// 零分配遍历\nforeach (var key in streamer.Keys.AsValueEnumerable()) { }\n\n// 零分配获取键数组\nstring[] keys = streamer.GetAllKeysArray();\n\nVersion 1.5.2 - Code Quality Improvements:\n- Optimized constructor chain to reduce code duplication (43 lines removed)\n- Changed AccessStats storage to ConcurrentDictionary for thread-safety\n- Improved RecordAccess to use AddOrUpdate atomic operation\n- Optimized ValueCache.CleanupExpiredEntries with LINQ\n- Removed unused Lazy Loading fields (simplified codebase)\n- Better code consistency and maintainability\n\nPerformance Impact:\n- Slightly better thread-safety in adaptive cache mode\n- Reduced code surface = fewer bugs\n- No breaking changes\n\nVersion 1.5.1 - Unity Support Enhancements:\n- Unified conditional compilation symbols for consistency\n- Added comprehensive Unity 6.3 support documentation\n- Clarified Brotli limitation across all Unity versions\n- Code organization improvements for better maintainability\n- UNITY_SUPPORT.md added with detailed compatibility matrix\n- Performance benchmarks for Unity 6.3 (Mono vs IL2CPP)\n- Best practices and configuration guides\n\nUnity 6.3 Status:\n- Mono backend: Full Span<T> support (40-60% less GC)\n- IL2CPP backend: ArrayPool optimization (30-50% less GC)\n- All features except Brotli fully supported\n- Adaptive cache, ThreadLocal, and generics work perfectly\n\nVersion 1.5.0 - P2 Optimizations (Generic Support):\n- Added generic type support with KVStreamer<TValue>\n- IKVStreamer<TValue> interface for type-safe access\n- Built-in converters: Int32, Int64, Single, Double, Boolean\n- Custom converter support for any type\n- JSON converter support (.NET Core 3.0+)\n- KVStreamer now implements IKVStreamer<string>\n- Lazy loading preparation (field infrastructure added)\n- Zero breaking changes - fully backward compatible\n\nGeneric Usage Examples:\n// Integer values\nvar intStreamer = new KVStreamer<int>(KVConverters.Int32);\nintStreamer.LoadBinaryData(data);\nint value = intStreamer[\"key\"];\n\n// Custom types\nvar customStreamer = new KVStreamer<MyType>(\n    s => JsonSerializer.Deserialize<MyType>(s)\n);\n\nVersion 1.4.1 - Unity 6+ Optimization:\n- Added Span<T> support for Unity 6.0+ (when using Mono backend)\n- Unity 6+ with .NET Standard 2.1 can now use stackalloc and Span<T>\n- 40-60% less GC allocation in Unity 6+ projects\n- Conditional compilation: UNITY_6000_0_OR_NEWER && !ENABLE_IL2CPP\n- IL2CPP builds still use traditional ArrayPool path (safe fallback)\n\nUnity Compatibility Matrix:\n- Unity 2019-2021: ArrayPool optimization (supported)\n- Unity 6.0+ (Mono): Span<T> + ArrayPool (fully optimized)\n- Unity 6.0+ (IL2CPP): ArrayPool optimization (supported)\n- All Unity versions: ThreadLocal<Stream> lock-free mode (supported)\n\nVersion 1.4.0 - P1 Optimizations:\n- Span<T> optimization for .NET Core 3.1+ (reduce GC pressure)\n- ThreadLocal<Stream> lock-free mode for high concurrency (3-10x faster in multi-thread scenarios)\n- Adaptive cache based on access statistics (smart hot-key caching)\n- GetAccessStatistics() API for performance analysis\n- Three constructor overloads for different performance profiles\n- stackalloc buffer limit increased to 1KB for .NET Core 3.1+\n\nPerformance Improvements:\n- 40-60% less GC allocation with Span<T> (NETCOREAPP3_1+ / Unity 6+)\n- 3-10x better concurrency with ThreadLocal<Stream> mode\n- 50-70% memory savings with adaptive cache\n- Zero lock contention in lock-free mode\n\nVersion 1.3.1:\n- Fixed Unity compatibility: Brotli disabled in Unity builds\n- Added conditional compilation for Unity (UNITY_2019_1_OR_NEWER)\n- Ensures GZip works perfectly in all Unity versions\n- Updated documentation for Unity users\n\nVersion 1.3.0:\n- Major performance optimization using ArrayPool (30-50% less GC pressure)\n- Upgraded cache system with Ticks and ConcurrentDictionary (2-3x faster)\n- Replaced lock with ReaderWriterLockSlim (3-5x better concurrency)\n- Added String.Intern for memory optimization (10-20% memory savings)\n- Added preheat functionality for cache warming\n- Added Brotli compression support (.NET Core 3.0+, 15-20% better ratio)\n- Multiple compression algorithm support\n- Added NuGet dependencies for netstandard2.0 compatibility\n\nVersion 1.2.0:\n- Implement full Dictionary interface compatibility\n- Support IDictionary<string, string> and IReadOnlyDictionary<string, string>\n- Support ICollection and IEnumerable interfaces (generic and non-generic)\n- Add Values property and enumeration support\n- Add DictionaryEnumerator for non-generic IDictionary\n- All modification methods throw NotSupportedException (read-only)\n- Fully compatible with Dictionary<TKey, TValue> interface\n- Performance optimization using TryGetValue\n\nVersion 1.1.0:\n- Change namespace to FSTGame\n- GZip compression (60-70% size reduction)\n- Map header indexing for fast lookup\n- Smart caching system\n- Thread-safe operations",
+  "repository": "",
+  "verbatimVersion": "1.7.3",
+  "version": "1.7.3",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#dependencygroup/.netstandard2.0/system.buffers",
+          "@type": "PackageDependency",
+          "id": "System.Buffers",
+          "range": "[4.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#dependencygroup/.netstandard2.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#dependencygroup/.netstandard2.0/system.threading.tasks.extensions",
+          "@type": "PackageDependency",
+          "id": "System.Threading.Tasks.Extensions",
+          "range": "[4.5.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#dependencygroup/.netstandard2.0/unitask",
+          "@type": "PackageDependency",
+          "id": "UniTask",
+          "range": "[2.5.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#dependencygroup/.netstandard2.0/zlinq",
+          "@type": "PackageDependency",
+          "id": "ZLinq",
+          "range": "[1.5.4, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#KVStreamer.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4952,
+      "fullName": "KVStreamer.nuspec",
+      "length": 11630,
+      "name": "KVStreamer.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#lib/netstandard2.0/KVStreamer.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16970,
+      "fullName": "lib/netstandard2.0/KVStreamer.dll",
+      "length": 36864,
+      "name": "KVStreamer.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6108,
+      "fullName": "README.md",
+      "length": 17074,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2025.12.11.02.52.44/kvstreamer.1.7.3.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12978,
+      "fullName": ".signature.p7s",
+      "length": 12978,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Unity",
+    "CSV",
+    "Binary",
+    "KeyValue",
+    "Streaming",
+    "Cache",
+    "Performance",
+    "GZip",
+    "Compression",
+    "Generic",
+    "Span",
+    "ZLinq",
+    "ZeroAllocation",
+    "UniTask",
+    "Async",
+    "Await"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

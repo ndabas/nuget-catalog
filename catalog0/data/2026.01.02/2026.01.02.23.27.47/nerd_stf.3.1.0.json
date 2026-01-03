@@ -1,0 +1,442 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "That_One_Nerd",
+  "catalog:commitId": "704ba751-8bd8-40c1-8d75-2e17faa8e3de",
+  "catalog:commitTimeStamp": "2026-01-02T23:27:47.9320335Z",
+  "created": "2026-01-02T23:23:55.18Z",
+  "description": "A general-purpose mathematics library for C#.",
+  "iconFile": "Logo Square.png",
+  "id": "Nerd_STF",
+  "isPrerelease": false,
+  "lastEdited": "2026-01-02T23:27:32.973Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "h3cAs+wogFVOWEST+9LX1ovZAAQ8kCf56CuL3WppHHLys8/Cxmq2/sgCLZ0dMXRMTzhPTsc8AtJr/8kqC39n5A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 778132,
+  "projectUrl": "https://github.com/That-One-Nerd/Nerd_STF",
+  "published": "2026-01-02T23:23:55.18Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Nerd_STF v3.1\n\nHi! It's been a while, but I've got a few things for you guys.\n\n## More color configurations.\n\nI've been spending a lot of my time recently working on [a Java library for FRC light strips](https://github.com/That-One-Nerd/betterlights) and in the process I made a tool for gradients. I ended up finding myself wishing I had it in here, too, so I've added it.\n\nIt functions mostly as a list of colors and associated positions for those colors. You can add and remove colors over time, and you index it (or call `.Get()`) with a value between 0 and 1 to determine a color. For example:\n\n```csharp\nGradient<ColorRGB> gradient = new()\n{\n    { 0.0, ColorRGB.Red },\n    { 0.5, ColorRGB.Green },\n    { 1.0, ColorRGB.Blue },\n};\n\nConsole.WriteLine(gradient[0.2].HexCode()); // #996600\n```\n\nYou can also quickly and easily visualize your gradients right in the console, so long as your console has compatibility for RGB colors.\n\n```\nConsole.WriteLine(\"Our gradient: \" + gradient.ToColorString());\n```\nproduces this in the terminal:\n<img width=\"590\" height=\"38\" alt=\"image\" src=\"https://github.com/user-attachments/assets/692b9263-a4f6-4a18-97af-71e9ce830f34\" />\n<sub>Note that the resulting preview is actually a 1668 character string behind the scenes.</sub>\n\nYou can change the way the colors interpolate, if you'd like. Simply set `gradient.Interpolation` to any function that takes two colors and a float, and outputs a color.\n\n```csharp\nGradient<ColorRGB> gradient = new()\n{\n    { 0.0, ColorRGB.Red },\n    { 0.5, ColorRGB.Green },\n    { 1.0, ColorRGB.Blue },\n};\n\n// Interpolate through white. Don't look at the implementation too\n// much, the point is to demonstrate that it can be set to whatever.\ngradient.Interpolation = (a, b, t) =>\n{\n    ColorRGB c;\n    if (t <= 0.5) (c, t) = (a, t * 2);\n    else (c, t) = (b, -2 * t + 2);\n    return (t, t, t) + c * (1 - t);\n};\nConsole.WriteLine(\"        Through White: \" + gradient.ToColorString() + \"\\n\");\n\n// Or you can set it to some simple templates.\ngradient.Interpolation = Gradient<ColorRGB>.Nearest;\nConsole.WriteLine(\"     Nearest Neighbor: \" + gradient.ToColorString() + \"\\n\");\n\ngradient.Interpolation = Gradient<ColorRGB>.Lerp;\nConsole.WriteLine(\"Default Interpolation: \" + gradient.ToColorString() + \"\\n\");\n```\n\nFor the result:\n<img width=\"666\" height=\"105\" alt=\"image\" src=\"https://github.com/user-attachments/assets/96c17685-5817-4d70-bdb9-241cb6735309\" />\n\n### `ColorYCC`\n\nIn addition, I have also implemented the YC<sub>b</sub>C<sub>r</sub> color space in the `ColorYCC` class. [YCbCr](https://en.wikipedia.org/wiki/YCbCr) is a way to convert RGB colors into a luminance value and two chrominance values. The conversion relies on the constants K<sub>r</sub>, K<sub>g</sub>, and K<sub>b</sub>, which can be statically modified in the class. The constants are set to what I'm fairly certain is the most common standard, but the conversion system works for any $K_r + K_g + K_b = 1$.\n\n## `Validatable<T>`\n\nA small object I created mostly for the purposes of RGB <-> YCC conversion. It's done using matrix and vector multiplication, so I've cached the matrices required. However, if the K constants ever got changed, the matrix and its inverse needed to be recomputed. This is the purpose of the `Validatable` class.\n\nWhen constructed, a method must be passed that \"generates\" a valid value when requested.\n`Validatable<int> obj = new(() -> ...);`\n\nAfterwards, when `obj.Value` is read, the object either runs the generation function and caches the result, or returns an already cached result.\n\nTo force the object to re-generate a value, simply declare it invalidated by `obj.Invalidate()`. This will cause the generator to be re-invoked *only when required*. It's essentially a re-usable version of `System.Lazy<T>`.\n\n## Discrete Math\n\nI took discrete math last semester and decided to implement some of the things we discussed in that class here. Namely, the `Nerd_STF.Mathematics.Discrete` namespace contains mathematically-defined sets and relations. I think I went a little overboard with the abstraction here, I may use a better system in the future. But the important types to note are the `DiscreteSet<T>` and `DiscreteRelation<T1, T2>` types. The `DiscreteSet` contains a unique set of elements of type `T`, and a relation is a mapping of one set to another. Here's an example.\n\n```csharp\nDiscreteSet<int> evens = [], odds = [], primes = [];\nfor (int i = 0; i < 20; i++)\n{\n    if (i % 2 == 0) evens += i;\n    else odds += i;\n\n    if (IsPrime(i)) primes += i;\n}\nConsole.WriteLine($\"Evens set: {evens}\\nOdds set: {odds}\\nPrimes set: {primes}\");\n\nDiscreteRelation<int, int> relation = new();\nforeach (int odd in odds)\n{\n    if (odd == 1) continue;\n    foreach (int even in evens)\n    {\n        if (even % (odd - 1) == 0) relation += (even, odd);\n    }\n}\nConsole.WriteLine(\"\\nRelation between evens and odds:\\n\" + relation);\n```\n\nYields:\n<img width=\"1083\" height=\"158\" alt=\"image\" src=\"https://github.com/user-attachments/assets/028d1c09-6074-420f-9c34-71c93eaf9348\" />\n\nSome things were handled better than others. The source code of the `DiscreteRelation` class specifically is a scuffed mess of long type names and abstraction, and none of this is particularly fast or efficient, but it works for simple situations and isn't too abstraction-heavy on the part of the user of this library.\n\n## Some final thoughts.\n\nI may in the future condense `DiscreteRelation<T1, T2>` into a single type parameter for both the input and output. It makes things like the relation matrix and symmetry detection easier to implement.\n\nI don't think I'm done with graphics. I've got some more ideas in the pipeline, but this library obviously takes a while to work on.\n\nI also have a ton of very small tweaks I want to make. Things such as clamping color values in the constructors, or getting rid of `SplitArray` because the `System.Linq` namespace basically does that in a more modular way. Some small patches may be in order, but releasing this is such a pain I like to do it in bulk.\n\n---\n\nTake care, and enjoy 3.1!",
+  "repository": "",
+  "title": "Nerd_STF",
+  "verbatimVersion": "3.1.0",
+  "version": "3.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netframework4.6",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netframework4.6/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.5.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netframework4.6/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.5.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netframework4.6.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netframework4.6.2/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netframework4.6.2/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.1, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netframework4.7",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netframework4.7/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.1/netstandard.library",
+          "@type": "PackageDependency",
+          "id": "NETStandard.Library",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.1/system.drawing.primitives",
+          "@type": "PackageDependency",
+          "id": "System.Drawing.Primitives",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.1/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.5.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.1/system.net.http",
+          "@type": "PackageDependency",
+          "id": "System.Net.Http",
+          "range": "[4.3.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.1/system.numerics.vectors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Vectors",
+          "range": "[4.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.1/system.text.regularexpressions",
+          "@type": "PackageDependency",
+          "id": "System.Text.RegularExpressions",
+          "range": "[4.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.1/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.5.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard1.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.3",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.3/netstandard.library",
+          "@type": "PackageDependency",
+          "id": "NETStandard.Library",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.3/system.drawing.primitives",
+          "@type": "PackageDependency",
+          "id": "System.Drawing.Primitives",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.3/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.5.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.3/system.net.http",
+          "@type": "PackageDependency",
+          "id": "System.Net.Http",
+          "range": "[4.3.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.3/system.numerics.vectors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Vectors",
+          "range": "[4.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.3/system.text.regularexpressions",
+          "@type": "PackageDependency",
+          "id": "System.Text.RegularExpressions",
+          "range": "[4.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard1.3/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.5.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard1.3"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netcoreapp3.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETCoreApp3.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/net5.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net5.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/net7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#dependencygroup/.netstandard2.1",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETStandard2.1"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#Nerd_STF.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3694,
+      "fullName": "Nerd_STF.nuspec",
+      "length": 10052,
+      "name": "Nerd_STF.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/net46/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78606,
+      "fullName": "lib/net46/Nerd_STF.dll",
+      "length": 213504,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/net462/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78595,
+      "fullName": "lib/net462/Nerd_STF.dll",
+      "length": 213504,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/net47/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78578,
+      "fullName": "lib/net47/Nerd_STF.dll",
+      "length": 213504,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/net5.0/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 81320,
+      "fullName": "lib/net5.0/Nerd_STF.dll",
+      "length": 221184,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/net7.0/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 93123,
+      "fullName": "lib/net7.0/Nerd_STF.dll",
+      "length": 250368,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/netcoreapp3.0/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 81377,
+      "fullName": "lib/netcoreapp3.0/Nerd_STF.dll",
+      "length": 221184,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/netstandard1.1/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78435,
+      "fullName": "lib/netstandard1.1/Nerd_STF.dll",
+      "length": 213504,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/netstandard1.3/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78447,
+      "fullName": "lib/netstandard1.3/Nerd_STF.dll",
+      "length": 212992,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#lib/netstandard2.1/Nerd_STF.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 81168,
+      "fullName": "lib/netstandard2.1/Nerd_STF.dll",
+      "length": 221184,
+      "name": "Nerd_STF.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#Logo%20Square.png",
+      "@type": "PackageEntry",
+      "compressedLength": 24225,
+      "fullName": "Logo Square.png",
+      "length": 24710,
+      "name": "Logo Square.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1707,
+      "fullName": "README.md",
+      "length": 3579,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#Changelog.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1812,
+      "fullName": "Changelog.md",
+      "length": 3814,
+      "name": "Changelog.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 643,
+      "fullName": "LICENSE.md",
+      "length": 1091,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.02.23.27.47/nerd_stf.3.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "c#",
+    "csharp",
+    "c",
+    "sharp",
+    "math",
+    "mathematics",
+    "mathametics",
+    "maths",
+    "color",
+    "rgb",
+    "rgba",
+    "cmyk",
+    "cmyka",
+    "hsv",
+    "hsva",
+    "calculus",
+    "linear",
+    "algebra",
+    "linalg",
+    "linearalgebra",
+    "matrix",
+    "matrix2x2",
+    "2x2",
+    "matrix3x3",
+    "3x3",
+    "matrix4x4",
+    "4x4",
+    "multiplication",
+    "vector",
+    "vector2d",
+    "vector3d",
+    "vector2",
+    "vector3",
+    "float2",
+    "float3",
+    "float4",
+    "int2",
+    "int3",
+    "int4",
+    "angle",
+    "geometry",
+    "vert",
+    "line",
+    "polygon",
+    "triangle",
+    "quadrilateral",
+    "sphere",
+    "circle",
+    "number",
+    "system",
+    "numbersystem",
+    "complex",
+    "numbers",
+    "2d",
+    "2dnumbers",
+    "quaternions",
+    "4d",
+    "4dnumbers",
+    "equation",
+    "equations",
+    "polynomial",
+    "quadratic",
+    "discrete",
+    "set",
+    "notation",
+    "relation",
+    "ycbcr",
+    "ypbpr",
+    "ycc"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,219 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Sendspin Contributors",
+  "catalog:commitId": "77fd9994-a5a2-43fb-a50f-b1558e29c6ee",
+  "catalog:commitTimeStamp": "2026-01-08T03:56:01.6035835Z",
+  "copyright": "Copyright © 2024-2026 Sendspin Contributors",
+  "created": "2026-01-08T03:53:24.873Z",
+  "description": "Cross-platform SDK for the Sendspin synchronized multi-room audio protocol. Connect to Music Assistant servers and play synchronized audio across multiple devices.",
+  "id": "Sendspin.SDK",
+  "isPrerelease": false,
+  "lastEdited": "2026-01-08T03:55:59.777Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "2MCEmqRZUL1rklrbeikPv2eklBL9mHrKu2S38l5oXu2kUZeGe9i1UssPP5m0mSE1at169ZyvLN9gWVK3vccH1g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 255701,
+  "projectUrl": "https://github.com/chrisuthe/windowsSpin",
+  "published": "2026-01-08T03:53:24.873Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v5.0.1:\nBug Fixes:\n- Fixed Task.Run exception handling in TimedAudioBuffer re-anchor event firing\n  - If Task.Run throws (ThreadPool exhaustion, OOM), the pending flag is now reset\n  - Prevents permanently blocking future re-anchor events in rare edge cases\n\nImprovements:\n- SyncCorrectionCalculator constructor now validates sampleRate and channels > 0\n  - Throws ArgumentOutOfRangeException with clear message for invalid inputs\n- NotifyExternalCorrection now throws separate exceptions for each invalid parameter\n- Added Debug.Assert to catch logically invalid state (both drop and insert > 0)\n- Enhanced documentation for thread safety, contracts, and IDisposable lifecycle\n\nv5.0.0 - Major Architecture Change: External Sync Correction\n\nBREAKING CHANGES:\nThis release moves sync correction logic OUT of the SDK into the application layer.\nThe SDK now only reports sync error - your app decides HOW to correct.\n\nThis enables:\n- Different platforms to use different correction strategies (browser: playbackRate, Windows: drop/insert, Linux: ALSA rate)\n- Apps to offer multiple correction profiles\n- Cleaner SDK with single responsibility (buffering + timing, not correction)\n\nNew Public API:\n- ISyncCorrectionProvider: Interface for correction strategy abstraction\n  - CurrentMode: SyncCorrectionMode (None, Resampling, Dropping, Inserting)\n  - DropEveryNFrames: Interval for dropping frames (0 = disabled)\n  - InsertEveryNFrames: Interval for inserting frames (0 = disabled)\n  - TargetPlaybackRate: Rate for resampling-based correction (1.0 = normal)\n  - CorrectionChanged event: Notifies when correction parameters change\n  - UpdateFromSyncError(): Call with buffer's sync error values\n  - Reset(): Reset to initial state on buffer clear/restart\n\n- SyncCorrectionCalculator: Default ISyncCorrectionProvider implementation\n  - Implements tiered correction matching the CLI: deadband → resampling → drop/insert\n  - Uses SyncCorrectionOptions for configuration\n  - Thread-safe for use from audio callbacks\n\n- ITimedAudioBuffer new members:\n  - SyncErrorMicroseconds: Raw sync error (positive = behind, negative = ahead)\n  - SmoothedSyncErrorMicroseconds: EMA-filtered error for stable decisions\n  - ReadRaw(): Read samples WITHOUT internal correction (use with external provider)\n  - NotifyExternalCorrection(): Report drops/inserts for accurate error tracking\n\nDeprecated API (still functional for backwards compatibility):\n- ITimedAudioBuffer.TargetPlaybackRate [Obsolete]\n- ITimedAudioBuffer.TargetPlaybackRateChanged [Obsolete]\n- ITimedAudioBuffer.Read() [Obsolete] - use ReadRaw() with external correction\n\nMigration Guide:\nOLD (SDK applies correction internally):\n  var read = buffer.Read(samples, currentTime);\n  buffer.TargetPlaybackRateChanged += rate => resampler.Rate = rate;\n\nNEW (App applies correction externally):\n  // Create correction provider\n  var correctionProvider = new SyncCorrectionCalculator(\n      buffer.SyncOptions, sampleRate, channels);\n\n  // Read raw samples (no internal correction)\n  var read = buffer.ReadRaw(samples, currentTime);\n\n  // Update correction provider with current error\n  correctionProvider.UpdateFromSyncError(\n      buffer.SyncErrorMicroseconds,\n      buffer.SmoothedSyncErrorMicroseconds);\n\n  // Apply correction based on provider's decisions\n  var mode = correctionProvider.CurrentMode;\n  if (mode == SyncCorrectionMode.Dropping) {\n      // Apply drop every N frames\n      buffer.NotifyExternalCorrection(droppedCount, 0);\n  }\n\n  // Or subscribe to rate changes for resampling\n  correctionProvider.CorrectionChanged += p => resampler.Rate = p.TargetPlaybackRate;\n\nArchitecture Diagram:\n  SDK (reports error only)         →    App (applies correction)\n  ─────────────────────────────────────────────────────────────\n  TimedAudioBuffer                      SyncCorrectionCalculator\n  ├─ ReadRaw() - no correction          ├─ UpdateFromSyncError()\n  ├─ SyncErrorMicroseconds              ├─ DropEveryNFrames\n  ├─ SmoothedSyncErrorMicroseconds      ├─ InsertEveryNFrames\n  └─ NotifyExternalCorrection()         └─ TargetPlaybackRate\n\nBenefits:\n- Browser apps can use native playbackRate (WSOLA time-stretching)\n- Windows apps can choose WDL resampler, SoundTouch, or drop/insert only\n- Linux apps can use ALSA hardware rate adjustment\n- Embedded systems can implement platform-specific correction\n- Testability: Correction logic isolated, easier to unit test\n\nv3.5.1:\nImproved Push-Model Backend Support:\n- Refactored calibrated startup latency handling for cleaner architecture\n- Instead of adding latency to every sync error calculation, now backdates\n  _playbackStartLocalTime when playback starts\n- This handles static buffer pre-fill time once at initialization\n- Sync error formula remains clean: elapsed - samplesReadTime\n- Drift/fluctuation correction logic unchanged\n\nv3.5.0:\nNew Features:\n- CalibratedStartupLatencyMicroseconds: New property on ITimedAudioBuffer for push-model audio backend support\n  - Compensates for ALSA-style backends that pre-fill output buffers before playback starts\n  - Without compensation, buffer prefill causes constant negative sync error (~-200ms)\n  - Pull-model backends (WASAPI) leave this at 0 (default) - no behavior change\n- IAudioPlayer.CalibratedStartupLatencyMs: New property with default implementation returning 0\n  - ALSA players can override to report their measured startup latency\n  - Value is automatically passed to TimedAudioBuffer by AudioPipeline\n\nSync Error Formula Update:\n- syncError = elapsed - samplesReadTime + CalibratedStartupLatencyMicroseconds\n- When CalibratedStartupLatencyMicroseconds = 0, behavior is unchanged from previous versions\n\nv3.4.0:\nImproved Sync Correction:\n- Replaced fixed rate steps (1-2%) with proportional correction\n  - Rate = 1.0 + (error / CorrectionTargetSeconds / 1,000,000)\n  - Prevents overshoot by adjusting rate based on error magnitude\n  - Example: 10ms error with 3s target = 0.33% rate adjustment (vs fixed 1-2%)\n- Added EMA smoothing for sync error measurements (alpha=0.1)\n  - Filters measurement jitter before making correction decisions\n  - Prevents rapid oscillation between correction modes\n- Tiered correction now: deadband (1ms) -> proportional (1-15ms) -> drop/insert (15ms+)\n\nDeprecations:\n- EntryDeadbandMicroseconds: No longer used, marked [Obsolete]\n- ExitDeadbandMicroseconds: No longer used, marked [Obsolete]\n- BypassDeadband: No longer used, marked [Obsolete]\nThese properties are retained for backward compatibility but have no effect.\n\nv3.3.1:\nNew Features:\n- IAudioPlayer.OutputFormat: Optional property exposing the audio format sent to output device\n  - Default implementation returns null (non-breaking)\n  - Override in your implementation to expose actual output format\n- IAudioPipeline.OutputFormat: Optional property for output format (complements CurrentFormat)\n  - Default implementation returns null (non-breaking)\n  - Useful for debugging format conversions in the pipeline\n\nv3.3.0:\nNew Features:\n- SyncCorrectionOptions: All sync correction parameters are now configurable via TimedAudioBuffer constructor\n  - EntryDeadbandMicroseconds: Error threshold to start correcting (default: 2ms)\n  - ExitDeadbandMicroseconds: Error threshold to stop correcting with hysteresis (default: 0.5ms)\n  - MaxSpeedCorrection: Maximum playback rate adjustment (default: 2%, CLI uses 4%)\n  - CorrectionTargetSeconds: Target time to eliminate drift (default: 3s, CLI uses 2s)\n  - ResamplingThresholdMicroseconds: Boundary between resampling and drop/insert (default: 15ms)\n  - ReanchorThresholdMicroseconds: Error threshold for buffer clear/restart (default: 500ms)\n  - StartupGracePeriodMicroseconds: No correction during startup (default: 500ms)\n  - ScheduledStartGraceWindowMicroseconds: Start timing tolerance (default: 10ms)\n  - BypassDeadband: Disable deadband for continuous correction (default: false)\n- Static presets: SyncCorrectionOptions.Default and SyncCorrectionOptions.CliDefaults\n- ITimedAudioBuffer.SyncOptions property for runtime inspection\n- Validation via SyncCorrectionOptions.Validate() to catch invalid configurations\n\nThis enables SDK consumers to tune sync behavior for different platforms (ALSA, PulseAudio, CoreAudio, embedded)\nwithout code changes, addressing platform-specific timing characteristics.\n\nv3.2.0:\nSync Correction Tuning:\n- Reduced MaxSpeedCorrection from 4% to 2% to prevent oscillation on platforms with higher timing variability (e.g., PulseAudio)\n- Increased CorrectionTargetSeconds from 2.0s to 3.0s for gentler, more stable convergence\n- These changes improve stability on cross-platform audio backends while maintaining good sync accuracy\n\nv3.1.0:\nNew Features:\n- ClockSyncConverged event: Notifies when clock synchronizer reaches stable estimate\n  - Indicates client is ready for sample-accurate synchronized playback\n  - Useful for UI feedback and playback state management\n- SyncOffsetApplied event: Reports when external calibration adjusts sync offset\n  - Triggered by GroupSync acoustic calibration\n  - Provides offset value and source information via SyncOffsetEventArgs\n\nInternal Improvements:\n- Extracted WaitForHandshakeAsync for cleaner handshake timeout handling\n- Improved code organization in SendSpinHostService\n\nv3.0.2:\nDocumentation:\n- Completely rewritten README with updated architecture diagram\n- Added sync correction tier table explaining hysteresis behavior\n- Updated Quick Start example with device info configuration\n- Added migration guides for v2.0 and v3.0 upgrades\n\nv3.0.1:\nNew Features:\n- Configurable device info: ClientCapabilities now exposes ProductName, Manufacturer, and SoftwareVersion\n  - All fields are optional and omitted from JSON when null\n  - SDK consumers can now identify their player to servers\n\nBug Fixes:\n- Fixed sync correction oscillation with hysteresis deadband\n  - Entry threshold: 2ms (start correcting when error exceeds this)\n  - Exit threshold: 0.5ms (stop correcting when error drops below this)\n  - Prevents constant toggling between \"Resampling\" and \"None\" modes\n  - Results in smoother, more stable playback rate adjustments\n\nv3.0.0 - Breaking Changes:\n- BREAKING: IClockSynchronizer interface now requires HasMinimalSync property\n  - Returns true after 2+ time sync measurements (vs IsConverged which requires 5+)\n  - Existing implementations must add this property\n\nNew Features:\n- Quick-start playback: reduced time-to-playback from ~5 seconds to ~300-500ms\n  - AudioPipeline now uses HasMinimalSync instead of IsConverged for playback gating\n  - Matches JS/CLI player behavior for faster startup\n  - Sync correction system handles any initial estimation errors\n- Default convergence timeout reduced from 5000ms to 1000ms\n\nMigration Guide:\n- If you implement IClockSynchronizer, add: bool HasMinimalSync => MeasurementCount >= 2;\n- If you only use KalmanClockSynchronizer (most users), no changes needed\n\nv2.2.1:\nBug Fixes:\n- CRITICAL: Fixed sync error calculation that prevented resampling correction from converging\n  - Removed incorrect output latency subtraction from sync error formula\n  - Output latency is a constant offset that doesn't affect sync rate correction\n  - Previously caused permanent negative sync error (~-115ms), continuous slowdown, and buffer growth\n- ITimedAudioBuffer.OutputLatencyMicroseconds is now informational only (not used in sync calculation)\n\nv2.2.0:\nNew Features:\n- Tiered sync correction strategy matching JS client for smoother playback:\n  - Tier 1 (<2ms): Deadband, no correction needed\n  - Tier 2 (2-15ms): Smooth playback rate adjustment via resampling (imperceptible)\n  - Tier 3 (>15ms): Frame drop/insert for faster correction\n- ITimedAudioBuffer.TargetPlaybackRate property for resampler-based sync correction\n- ITimedAudioBuffer.TargetPlaybackRateChanged event for rate change notifications\n- SyncCorrectionMode.Resampling enum value for stats reporting\n- AudioPipeline clock sync gating: waits for Kalman filter convergence before playback\n- Reduced default buffer target from 500ms to 250ms for faster playback start\n- Configurable convergence timeout (default 5s) prevents indefinite waiting\n\nv2.1.1:\nBug Fixes:\n- Fixed StaticDelayMs not working: TimedAudioBuffer now respects scheduled start times\n  from IClockSynchronizer, enabling the static delay feature to properly delay/advance\n  playback relative to other clients\n\nv2.1.0:\nNew Features:\n- Adaptive forgetting factor in KalmanClockSynchronizer for improved clock sync stability\n- New client/sync_offset protocol message support for GroupSync coordination\n- SyncOffsetReceived event on SendSpinClient for handling sync offset messages\n\nBug Fixes:\n- Fixed position/duration values: now correctly reported in seconds (was milliseconds)\n- Fixed ClientGoodbyeMessage to use proper envelope format with payload\n\nv2.0.0 - Breaking Changes:\n- BREAKING: IClockSynchronizer.HardwareLatencyMs property removed (latency now handled in audio buffer layer)\n- BREAKING: IAudioPipeline now requires SwitchDeviceAsync() method implementation\n- BREAKING: IAudioPlayer now requires SwitchDeviceAsync() method implementation\n- Now multi-targets net8.0 and net10.0\n\nNew Features:\n- Audio device hot-switching without stopping playback\n- SendspinHostService: Control mDNS advertising independently (StopAdvertisingAsync/StartAdvertisingAsync)\n- TimedAudioBuffer.ResetSyncTracking() for soft re-anchor after device switches\n- Improved server name display from mDNS discovery (smarter hostname cleanup)\n- Sync timing improvements for better multi-room accuracy",
+  "repository": "",
+  "verbatimVersion": "5.0.1",
+  "version": "5.0.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net8.0/concentus",
+          "@type": "PackageDependency",
+          "id": "Concentus",
+          "range": "[2.2.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net8.0/fleck",
+          "@type": "PackageDependency",
+          "id": "Fleck",
+          "range": "[1.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net8.0/makaretu.dns.multicast",
+          "@type": "PackageDependency",
+          "id": "Makaretu.Dns.Multicast",
+          "range": "[0.27.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net8.0/zeroconf",
+          "@type": "PackageDependency",
+          "id": "Zeroconf",
+          "range": "[3.7.16, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net10.0/concentus",
+          "@type": "PackageDependency",
+          "id": "Concentus",
+          "range": "[2.2.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net10.0/fleck",
+          "@type": "PackageDependency",
+          "id": "Fleck",
+          "range": "[1.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net10.0/makaretu.dns.multicast",
+          "@type": "PackageDependency",
+          "id": "Makaretu.Dns.Multicast",
+          "range": "[0.27.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#dependencygroup/net10.0/zeroconf",
+          "@type": "PackageDependency",
+          "id": "Zeroconf",
+          "range": "[3.7.16, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#Sendspin.SDK.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5778,
+      "fullName": "Sendspin.SDK.nuspec",
+      "length": 16027,
+      "name": "Sendspin.SDK.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#lib/net10.0/Sendspin.SDK.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 87856,
+      "fullName": "lib/net10.0/Sendspin.SDK.dll",
+      "length": 215040,
+      "name": "Sendspin.SDK.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#lib/net10.0/Sendspin.SDK.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 27891,
+      "fullName": "lib/net10.0/Sendspin.SDK.xml",
+      "length": 192073,
+      "name": "Sendspin.SDK.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#lib/net8.0/Sendspin.SDK.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 87851,
+      "fullName": "lib/net8.0/Sendspin.SDK.dll",
+      "length": 215040,
+      "name": "Sendspin.SDK.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#lib/net8.0/Sendspin.SDK.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 27891,
+      "fullName": "lib/net8.0/Sendspin.SDK.xml",
+      "length": 192073,
+      "name": "Sendspin.SDK.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3155,
+      "fullName": "README.md",
+      "length": 8913,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.08.03.56.01/sendspin.sdk.5.0.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "sendspin",
+    "audio",
+    "multiroom",
+    "sync",
+    "music-assistant",
+    "streaming"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,477 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "ClickHouse",
+  "catalog:commitId": "356212dd-2e83-4427-877f-779313b5ebc1",
+  "catalog:commitTimeStamp": "2026-01-21T16:20:49.5005869Z",
+  "created": "2026-01-21T16:18:02.11Z",
+  "description": "Official .NET driver for ClickHouse with high-performance binary transport",
+  "iconFile": "icon.png",
+  "id": "ClickHouse.Driver",
+  "isPrerelease": true,
+  "lastEdited": "2026-01-21T16:20:36.55Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "PPbjfVftx8HfXsXM7PqsGaplVDxMISaRBuVZ6qyDx02P9bGg+YYZsFFZOK9TJfHdQGBNa1CVhRkC6vgQUbF3BA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 615462,
+  "projectUrl": "https://github.com/ClickHouse/clickhouse-cs",
+  "published": "2026-01-21T16:18:02.11Z",
+  "readmeFile": "README.nuget.md",
+  "releaseNotes": "v?\n---\n\n**Breaking Changes:**\n* **Removed feature discovery query from `OpenAsync`.** The connection's `OpenAsync()` method no longer executes `SELECT version()` to discover server capabilities. This makes connection opening instantaneous (no network round-trip) but removes the `SupportedFeatures` property from `ClickHouseConnection`. The `ServerVersion` property now throws `InvalidOperationException`.\n\n  **Migration guidance:** If you need to check the server version:\n  ```csharp\n  using var reader = await connection.ExecuteReaderAsync(\"SELECT version()\");\n  reader.Read();\n  var version = reader.GetString(0);\n  ```\n\n* **DateTime reading behavior changed for columns without explicit timezone.** Previously, `DateTime` columns without a timezone (e.g., `DateTime` vs `DateTime('Europe/Amsterdam')`) would use the server timezone (with `UseServerTimezone=true`) or client timezone to interpret the stored value. Now, these columns return `DateTime` with `Kind=Unspecified`, preserving the wall-clock time exactly as stored without making assumptions about timezone.\n\n  | Column Type | Old Behavior | New Behavior |\n  |-------------|--------------|--------------|\n  | `DateTime` (no timezone) | Returned with server/client timezone applied | `DateTime` with `Kind=Unspecified` |\n  | `DateTime('UTC')` | `DateTime` with `Kind=Utc` | `DateTime` with `Kind=Utc` (unchanged) |\n  | `DateTime('Europe/Amsterdam')` | `DateTime` with `Kind=Unspecified` | `DateTime` with `Kind=Unspecified` (unchanged). Reading as DateTimeOffset has correct offset applied. |\n\n  **Migration guidance:** If you need timezone-aware behavior, either:\n  1. Use explicit timezones in your column definitions: `DateTime('UTC')` or `DateTime('Europe/Amsterdam')`\n  2. Apply the timezone yourself after reading.\n\n* **DateTime writing now respects `DateTime.Kind` property.** Previously, all `DateTime` values were treated as wall-clock time in the target column's timezone regardless of their `Kind` property. The new behavior:\n\n  | DateTime.Kind | Old Behavior | New Behavior |\n  |---------------|--------------|--------------|\n  | `Utc` | Treated as wall-clock time in column timezone | Preserved as-is (instant is maintained) |\n  | `Local` | Treated as wall-clock time in column timezone | Instant is maintained (inserted as UTC timestamp) |\n  | `Unspecified` | Treated as wall-clock time in column timezone | Treated as wall-clock time in column timezone (unchanged) |\n\n  Migration guidance: If you were relying on the old behavior where UTC `DateTime` values were reinterpreted in the column timezone, you should change these to `DateTimeKind.Unspecified`:\n  ```csharp\n  // Old code (worked by accident):\n  var utcTime = DateTime.UtcNow;  // Would be reinterpreted in column timezone\n\n  // New code (explicit intent):\n  var wallClockTime = DateTime.SpecifyKind(myTime, DateTimeKind.Unspecified);\n  ```\n\n    **Important:** When using parameters, you must specify the timezone in the parameter type hint to have string values interpreted in the column timezone:\n  ```csharp\n  // Correct: timezone in type hint ensures proper interpretation\n  command.AddParameter(\"dt\", myDateTime, \"DateTime('Europe/Amsterdam')\");\n  command.CommandText = \"INSERT INTO table (dt_column) VALUES ({dt:DateTime('Europe/Amsterdam')})\";\n\n  // Gotcha: without timezone hint, UTC is used for interpretation\n  command.AddParameter(\"dt\", myDateTime);\n  command.CommandText = \"INSERT INTO table (dt_column) VALUES ({dt:DateTime})\";\n  // ^ String value interpreted in UTC, not column timezone!\n  ```\n\n  This differs from bulk copy operations where the column timezone is known and used automatically.\n\n* **Removed `UseServerTimezone` setting.** This setting has been removed from the connection string, `ClickHouseClientSettings`, and `ClickHouseConnectionStringBuilder`. It no longer has any effect since columns without timezones now return `Unspecified` DateTime values without any timezone changes applied to what is returned from the server.\n* **Moved `ServerTimezone` property from `ClickHouseConnection` to `ClickHouseCommand`.** The server timezone is now available on `ClickHouseCommand.ServerTimezone` after any query execution (the timezone is now extracted from the `X-ClickHouse-Timezone` response header instead of requiring a separate query).\n* **Helper and extension methods made internal:** DateTimeConversions, DataReaderExtensions, DictionaryExtensions, EnumerableExtensions, MathUtils, StringExtensions.\n\n**New Features/Improvements:**\n * Added support for QBit data type. QBit is a transposed vector column, designed to allow the user to choose a desired quantization level at runtime, speeding up approximate similarity searches. See the GitHub repo for usage examples.\n * Added support for setting roles at the connection and command levels.\n * Added support for custom headers at the connection level.\n * Added support for JWT/Bearer token authentication at both connection and command levels.\n * Added `InsertRawStreamAsync` method to `ClickHouseConnection` for inserting raw data streams (CSV, JSON, Parquet, etc.) directly from files or memory. Check out the examples on GitHub for usage examples of all the above.\n * When the query id has not been set, it will now be automatically generated by the client.\n * Added support for writing `byte[]` values to String type columns via BulkCopy.\n * Added `PingAsync` method to `ClickHouseConnection` for checking server availability via the `/ping` endpoint.\n * Added support for detecting mid-stream exceptions via the `X-ClickHouse-Exception-Tag` header (ClickHouse 25.11+). When `http_write_exception_in_output_format` is set to 0 on the server, exceptions that occur while streaming results are now properly detected and thrown as `ClickHouseServerException` (which includes the exception message) instead of `EndOfStreamException`.\n\n**Bug Fixes:**\n * Fixed a crash when reading a Map with duplicate keys. The current behavior is to return only the last value for a given key.",
+  "repository": "",
+  "verbatimVersion": "1.0.0-rc1",
+  "version": "1.0.0-rc1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.6.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.6.2/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.6.2/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.6.2/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.6.2/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.6.2/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.6.2/system.net.http",
+          "@type": "PackageDependency",
+          "id": "System.Net.Http",
+          "range": "[4.3.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.6.2/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.1, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.8/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.8/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.8/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.8/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.8/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.8/system.net.http",
+          "@type": "PackageDependency",
+          "id": "System.Net.Http",
+          "range": "[4.3.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netframework4.8/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.1, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net6.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net6.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net6.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net6.0/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net6.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.1, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net8.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net8.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net8.0/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net8.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.1, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net9.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net9.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net9.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net9.0/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net9.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.1, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net10.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net10.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/net10.0/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netstandard2.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netstandard2.1/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netstandard2.1/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netstandard2.1/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netstandard2.1/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#dependencygroup/.netstandard2.1/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.1, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.1"
+    }
+  ],
+  "frameworkAssemblyGroup": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#frameworkassemblygroup/.netframework4.6.2",
+      "assembly": "System.Web",
+      "targetFramework": ".NETFramework4.6.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#frameworkassemblygroup/.netframework4.8",
+      "assembly": [
+        "System.Web",
+        "System.IO",
+        "System.Net.Http",
+        "System.Runtime",
+        "System.Security.Cryptography.Algorithms",
+        "System.Security.Cryptography.Encoding",
+        "System.Security.Cryptography.Primitives",
+        "System.Security.Cryptography.X509Certificates"
+      ],
+      "targetFramework": ".NETFramework4.8"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#ClickHouse.Driver.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3150,
+      "fullName": "ClickHouse.Driver.nuspec",
+      "length": 12025,
+      "name": "ClickHouse.Driver.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#lib/net10.0/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 85953,
+      "fullName": "lib/net10.0/ClickHouse.Driver.dll",
+      "length": 194560,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#lib/net462/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 80000,
+      "fullName": "lib/net462/ClickHouse.Driver.dll",
+      "length": 179712,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#lib/net48/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 80716,
+      "fullName": "lib/net48/ClickHouse.Driver.dll",
+      "length": 181760,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#lib/net6.0/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 83166,
+      "fullName": "lib/net6.0/ClickHouse.Driver.dll",
+      "length": 188928,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#lib/net8.0/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 85903,
+      "fullName": "lib/net8.0/ClickHouse.Driver.dll",
+      "length": 194560,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#lib/net9.0/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 85949,
+      "fullName": "lib/net9.0/ClickHouse.Driver.dll",
+      "length": 194560,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#lib/netstandard2.1/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 80500,
+      "fullName": "lib/netstandard2.1/ClickHouse.Driver.dll",
+      "length": 181248,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#README.nuget.md",
+      "@type": "PackageEntry",
+      "compressedLength": 670,
+      "fullName": "README.nuget.md",
+      "length": 1361,
+      "name": "README.nuget.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 901,
+      "fullName": "icon.png",
+      "length": 996,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.01.21.16.20.49/clickhouse.driver.1.0.0-rc1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 25715,
+      "fullName": ".signature.p7s",
+      "length": 25715,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "clickhouse",
+    "click",
+    "house",
+    "database",
+    "ado",
+    "ado.net",
+    "http",
+    "client"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

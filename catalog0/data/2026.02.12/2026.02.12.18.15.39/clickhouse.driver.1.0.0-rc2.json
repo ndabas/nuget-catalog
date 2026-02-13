@@ -1,0 +1,297 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "ClickHouse",
+  "catalog:commitId": "98f9c8c1-e6f3-45c6-adcb-f442015f60e2",
+  "catalog:commitTimeStamp": "2026-02-12T18:15:39.3661282Z",
+  "created": "2026-02-12T18:11:58.493Z",
+  "description": "Official .NET driver for ClickHouse with high-performance binary transport",
+  "iconFile": "icon.png",
+  "id": "ClickHouse.Driver",
+  "isPrerelease": true,
+  "lastEdited": "2026-02-12T18:15:06.307Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "8DgfXglAn+2bXeSHmaZRFZG2oDQIjuWZ4jGary2JxwQxS8trKUzQUm9N5S1Z6IwaOxihe+7r1O93L+oMkd9zzw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 414199,
+  "projectUrl": "https://github.com/ClickHouse/clickhouse-cs",
+  "published": "2026-02-12T18:11:58.493Z",
+  "readmeFile": "README.nuget.md",
+  "releaseNotes": "v?\n---\n\n**Documentation and Usage Examples:**\nCoinciding with the 1.0.0 release of the driver, we have greatly expanded the documentation and usage examples.\n* Documentation: https://clickhouse.com/docs/integrations/csharp\n* Usage examples: https://github.com/ClickHouse/clickhouse-cs/tree/main/examples\n\n---\n\n**New: ClickHouseClient - Simplified Primary API**\n\n`ClickHouseClient` is the new recommended way to interact with ClickHouse. Thread-safe, singleton-friendly, and simpler than ADO.NET classes.\n\n```csharp\nusing var client = new ClickHouseClient(\"Host=localhost\");\n```\n\n| Method | Description                                                  |\n|--------|--------------------------------------------------------------|\n| `ExecuteNonQueryAsync` | Execute DDL/DML (CREATE, INSERT, ALTER, DROP)                |\n| `ExecuteScalarAsync` | Return first column of first row                             |\n| `ExecuteReaderAsync` | Stream results via `ClickHouseDataReader`                    |\n| `InsertBinaryAsync` | High-performance bulk insert (replaces `ClickHouseBulkCopy`) |\n| `ExecuteRawResultAsync` | Get raw result stream bypassing the parser                   |\n| `InsertRawStreamAsync` | Insert from stream (CSV, JSON, Parquet, etc.)                |\n| `PingAsync` | Check server connectivity                                    |\n| `CreateConnection()` | Get `ClickHouseConnection` for ORM compatibility             |\n\n**Per-query configuration** via `QueryOptions`.\n\n**Parameters** via `ClickHouseParameterCollection`:\n```csharp\nvar parameters = new ClickHouseParameterCollection();\nparameters.Add(\"id\", 42UL);\nawait client.ExecuteReaderAsync(\"SELECT * FROM t WHERE id = {id:UInt64}\", parameters);\n```\n\n**Deprecation:** `ClickHouseBulkCopy` is deprecated. Use `client.InsertBinaryAsync(table, columns, rows)` instead.\n\n---\n\n**Breaking Changes:**\n* **Dropped support for .NET Framework and .NET Standard.** The library now targets only `net6.0`, `net8.0`, `net9.0`, and `net10.0`. Removed support for `net462`, `net48`, and `netstandard2.1`. If you are using .NET Framework, you will need to stay on the previous version or migrate to .NET 6.0+.\n\n* **Removed feature discovery query from `OpenAsync`.** The connection's `OpenAsync()` method no longer executes `SELECT version()` to discover server capabilities. This makes connection opening instantaneous (no network round-trip) but removes the `SupportedFeatures` property from `ClickHouseConnection`. The `ServerVersion` property now throws `InvalidOperationException`.\n\n  **Migration guidance:** If you need to check the server version:\n  ```csharp\n  using var reader = await connection.ExecuteReaderAsync(\"SELECT version()\");\n  reader.Read();\n  var version = reader.GetString(0);\n  ```\n\n* **DateTime reading behavior changed for columns without explicit timezone.** Previously, `DateTime` columns without a timezone (e.g., `DateTime` vs `DateTime('Europe/Amsterdam')`) would use the server timezone (with `UseServerTimezone=true`) or client timezone to interpret the stored value. Now, these columns return `DateTime` with `Kind=Unspecified`, preserving the wall-clock time exactly as stored without making assumptions about timezone.\n\n  | Column Type | Old Behavior | New Behavior |\n  |-------------|--------------|--------------|\n  | `DateTime` (no timezone) | Returned with server/client timezone applied | `DateTime` with `Kind=Unspecified` |\n  | `DateTime('UTC')` | `DateTime` with `Kind=Utc` | `DateTime` with `Kind=Utc` (unchanged) |\n  | `DateTime('Europe/Amsterdam')` | `DateTime` with `Kind=Unspecified` | `DateTime` with `Kind=Unspecified` (unchanged). Reading as DateTimeOffset has correct offset applied. |\n\n  **Migration guidance:** If you need timezone-aware behavior, either:\n    1. Use explicit timezones in your column definitions: `DateTime('UTC')` or `DateTime('Europe/Amsterdam')`\n    2. Apply the timezone yourself after reading.\n\n* **DateTime writing now respects `DateTime.Kind` property.** Previously, all `DateTime` values were treated as wall-clock time in the target column's timezone regardless of their `Kind` property. The new behavior:\n\n  | DateTime.Kind | Old Behavior | New Behavior |\n  |---------------|--------------|--------------|\n  | `Utc` | Treated as wall-clock time in column timezone | Preserved as-is (instant is maintained) |\n  | `Local` | Treated as wall-clock time in column timezone | Instant is maintained (inserted as UTC timestamp) |\n  | `Unspecified` | Treated as wall-clock time in column timezone | Treated as wall-clock time in column timezone (unchanged) |\n\n  Migration guidance: If you were relying on the old behavior where UTC `DateTime` values were reinterpreted in the column timezone, you should change these to `DateTimeKind.Unspecified`:\n  ```csharp\n  // Old code (worked by accident):\n  var utcTime = DateTime.UtcNow;  // Would be reinterpreted in column timezone\n\n  // New code (explicit intent):\n  var wallClockTime = DateTime.SpecifyKind(myTime, DateTimeKind.Unspecified);\n  ```\n\n  **Important:** When using parameters, you must specify the timezone in the parameter type hint to have string values interpreted in the column timezone:\n  ```csharp\n  command.AddParameter(\"dt\", myDateTime);\n  \n  // Correct: timezone in type hint ensures proper interpretation\n  command.CommandText = \"INSERT INTO table (dt_column) VALUES ({dt:DateTime('Europe/Amsterdam')})\";\n\n  // Gotcha: without timezone hint, UTC is used for interpretation\n  command.CommandText = \"INSERT INTO table (dt_column) VALUES ({dt:DateTime})\";\n  // ^ String value interpreted in UTC, not column timezone!\n  ```\n\n  This differs from bulk copy operations where the column timezone is known and used automatically.\n\n* **Removed `UseServerTimezone` setting.** This setting has been removed from the connection string, `ClickHouseClientSettings`, and `ClickHouseConnectionStringBuilder`. It no longer has any effect since columns without timezones now return `Unspecified` DateTime values without any timezone changes applied to what is returned from the server.\n* **Moved `ServerTimezone` property from `ClickHouseConnection` to `ClickHouseCommand`.** The server timezone is now available on `ClickHouseCommand.ServerTimezone` after any query execution (the timezone is now extracted from the `X-ClickHouse-Timezone` response header instead of requiring a separate query).\n* **Helper and extension methods made internal:** DateTimeConversions, DataReaderExtensions, DictionaryExtensions, EnumerableExtensions, MathUtils, StringExtensions.\n\n* **JSON writing default behavior changed.** The default `JsonWriteMode` has changed from `Binary` to `String`. This affects how JSON data is written to ClickHouse:\n\n  | Input Type | Old Default (Binary) | New Default (String) |\n  |------------|---------------------|----------------------|\n  | `JsonObject` / `JsonNode` | Binary encoding | Serialized via `JsonSerializer.Serialize()` |\n  | `string` | Binary encoding (parsed client-side) | Passed through directly |\n  | POCO (registered) | Binary encoding with type hints | Serialized via `JsonSerializer.Serialize()` |\n  | POCO (unregistered) | Exception | Serialized via `JsonSerializer.Serialize()` |\n\n  **Impact if you don't modify your code:**\n    - JSON writing will still work, but uses string serialization instead of binary encoding; the JSON string will be parsed on the server instead of the client. This could lead to subtle changes in paths without type hints, e.g., values previously parsed as ints may be parsed as longs.\n    - `ClickHouseJsonPath` and `ClickHouseJsonIgnore` attributes are ignored in String mode (they only work in Binary mode). Serialization happens via `System.Text.Json`, so you can use those attributes instead.\n    - Server setting `input_format_binary_read_json_as_string=1` is automatically set when using String write mode\n\n**New Features/Improvements:**\n\n* **Automatic parameter type extraction from SQL.** Types specified in the SQL query using `{name:Type}` syntax are now automatically used for parameter formatting, eliminating the need to specify the type twice:\n  ```csharp\n  // Before: type specified twice\n  command.CommandText = \"SELECT {dt:DateTime('Europe/Amsterdam')}\";\n  command.AddParameter(\"dt\", \"DateTime('Europe/Amsterdam')\", value);\n\n  // After: type extracted from SQL automatically\n  command.CommandText = \"SELECT {dt:DateTime('Europe/Amsterdam')}\";\n  command.AddParameter(\"dt\", value);\n  ```\n  The `AddParameter(name, type, value)` overload is now marked obsolete. Use `AddParameterWithTypeOverride()` if you need to explicitly override the SQL type hint.\n\n* **POCO serialization support for JSON columns.** When writing POCOs to JSON columns with typed hints (e.g., `JSON(id Int64, name String)`), the driver serializes properties using the hinted types for full type fidelity. Properties without a corresponding hinted path will have their ClickHouse types inferred automatically. Two attributes are available: `[ClickHouseJsonPath(\"path\")]` for custom JSON paths and `[ClickHouseJsonIgnore]` to exclude properties. Property name matching to hint paths is case-sensitive (matching ClickHouse behavior which allows paths like `userName` and `UserName` to coexist). Register types via `client.RegisterJsonSerializationType<T>()`.\n\n* **`JsonReadMode` and `JsonWriteMode` connection string settings** for configurable JSON handling:\n    - `JsonReadMode.Binary` (default): Returns `System.Text.Json.Nodes.JsonObject`\n    - `JsonReadMode.String`: Returns raw JSON string. Sets server setting `output_format_binary_write_json_as_string=1`.\n    - `JsonWriteMode.String` (default): Accepts `JsonObject`, `JsonNode`, strings, and any object (serialized via `System.Text.Json.JsonSerializer`). Sets server setting `input_format_binary_read_json_as_string=1`.\n    - `JsonWriteMode.Binary`: Only accepts registered POCO types with full type hint support and custom path attributes. Writing `string` or `JsonNode` values with `JsonWriteMode.Binary` throws an exception.\n\n* **QBit data type support.** QBit is a transposed vector column, designed to allow the user to choose a desired quantization level at runtime, speeding up approximate similarity searches. See the GitHub repo for usage examples.\n\n* **Dynamic type binary writing support** via `InsertBinaryAsync`. Values are automatically type-inferred from their .NET types and serialized with the appropriate binary type header. Supports all common types including integers, floating point, strings, booleans, DateTime, Guid, decimal, arrays, lists, and dictionaries.\n\n* **Binary data in String/FixedString columns.** Write `byte[]`, `ReadOnlyMemory<byte>`, or `Stream` values to String and FixedString columns via `InsertBinaryAsync`. Read binary data back using the `ReadStringsAsByteArrays` connection string setting, which returns String columns as `byte[]` instead of `string`. Useful for storing binary data that may not be valid UTF-8.\n\n* **First-class support for roles**, with query-level override.\n\n* **Custom HTTP headers** at the connection level for proxy/infrastructure integration.\n\n* **Support for JWT authentication**, with query-level override.\n\n* **Mid-stream exception detection** via `X-ClickHouse-Exception-Tag` header (ClickHouse 25.11+). When `http_write_exception_in_output_format` is set to 0 on the server, exceptions that occur while streaming results are now properly detected and thrown as `ClickHouseServerException` (which includes the exception message) instead of `EndOfStreamException`.\n\n* **Query ID auto-generation.** When the query ID has not been set, it will now be automatically generated by the client.\n\n* **`AddParameter()` convenience method** for `ClickHouseParameterCollection`, simplifying parameter creation.\n\n**Bug Fixes:**\n* Fixed a crash when reading a Map with duplicate keys. The current behavior is to return only the last value for a given key.",
+  "repository": "",
+  "verbatimVersion": "1.0.0-rc2",
+  "version": "1.0.0-rc2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net6.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net6.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net6.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net6.0/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net6.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.2, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net8.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net8.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net8.0/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net8.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.2, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net9.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net9.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net9.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net9.0/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net9.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[10.0.2, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net10.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net10.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#dependencygroup/net10.0/nodatime",
+          "@type": "PackageDependency",
+          "id": "NodaTime",
+          "range": "[3.2.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#ClickHouse.Driver.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5040,
+      "fullName": "ClickHouse.Driver.nuspec",
+      "length": 15062,
+      "name": "ClickHouse.Driver.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#lib/net10.0/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95567,
+      "fullName": "lib/net10.0/ClickHouse.Driver.dll",
+      "length": 217600,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#lib/net6.0/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 92873,
+      "fullName": "lib/net6.0/ClickHouse.Driver.dll",
+      "length": 211456,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#lib/net8.0/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95491,
+      "fullName": "lib/net8.0/ClickHouse.Driver.dll",
+      "length": 217088,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#lib/net9.0/ClickHouse.Driver.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95539,
+      "fullName": "lib/net9.0/ClickHouse.Driver.dll",
+      "length": 217600,
+      "name": "ClickHouse.Driver.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#README.nuget.md",
+      "@type": "PackageEntry",
+      "compressedLength": 670,
+      "fullName": "README.nuget.md",
+      "length": 1362,
+      "name": "README.nuget.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 901,
+      "fullName": "icon.png",
+      "length": 996,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.02.12.18.15.39/clickhouse.driver.1.0.0-rc2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 25715,
+      "fullName": ".signature.p7s",
+      "length": 25715,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "clickhouse",
+    "click",
+    "house",
+    "database",
+    "ado",
+    "ado.net",
+    "http",
+    "client"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,570 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Adam \"AdaskoTheBeAsT\" Pluciński",
+  "catalog:commitId": "e33492f1-d9de-4425-b4ba-2e3389e0050f",
+  "catalog:commitTimeStamp": "2026-04-19T21:24:33.1741423Z",
+  "copyright": "Adam \"AdaskoTheBeAsT\" Pluciński",
+  "created": "2026-04-19T21:15:04.28Z",
+  "description": "Microsoft.Extensions.DependencyInjection helpers for AdaskoTheBeAsT.Interop.Execution: AddExecutionWorker<TSession>() and AddExecutionWorkerPool<TSession>() extensions with IOptions<T> binding for ExecutionWorkerOptions / ExecutionWorkerPoolOptions. Targets net10.0, net9.0, net8.0, and net481/net48/net472/net471/net47/net462.",
+  "id": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection",
+  "isPrerelease": false,
+  "lastEdited": "2026-04-19T21:17:41.003Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "zF/FCdkwSOfTPFTheklZBQ3bA9LoaQZV3lS0/OyVFyPkHYeLZ8Ku/roh+RczZ0jxGPuxbjRyX+q7PT8/9+pybQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 133067,
+  "projectUrl": "https://github.com/AdaskoTheBeAsT/AdaskoTheBeAsT.Interop",
+  "published": "2026-04-19T21:15:04.28Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## [Unreleased]\n\n### Added\n\n#### `AdaskoTheBeAsT.Interop.Execution` (core)\n\n- **Zero-allocation `ExecuteValueAsync` hot path on every supported TFM.**\n  `ExecutionWorker<TSession>` and `ExecutionWorkerPool<TSession>` expose\n  instance `ExecuteValueAsync` overloads backed by pooled\n  `IValueTaskSource<TResult>` / `IValueTaskSource` work items\n  (`ManualResetValueTaskSourceCore<T>`). The `IValueTaskSource` primitives\n  ship natively from `net8.0+` and are available on `net462`..`net481`\n  through the `System.Threading.Tasks.Extensions` NuGet facade (pulled\n  in transitively by `System.Threading.Channels`), so the same zero-alloc\n  code path runs on all nine TFMs — no `Task` → `ValueTask` wrapper\n  fallback anywhere, and no public `ExecutionWorkerValueTaskExtensions`\n  static class to duplicate the API surface.\n  See [`docs/adr/0007-zero-alloc-value-task-source.md`](docs/adr/0007-zero-alloc-value-task-source.md).\n- **`ExecutionWorkerPool<TSession>` single-factory constructors.** Two new\n  overloads accept a single `IExecutionSessionFactory<TSession>` that is\n  shared across every pool worker, eliminating the `Func<int, factory>`\n  boilerplate at call sites that do not need per-worker isolation. The\n  original per-index factory constructors remain for callers that do.\n  See [`docs/adr/0008-uniform-snapshot-surface.md`](docs/adr/0008-uniform-snapshot-surface.md).\n- **Unified `Name` / `GetSnapshot` observability surface** on both worker\n  and pool:\n  - `IExecutionWorker<TSession>.Name` and `IExecutionWorkerPool<TSession>.Name`;\n  - `ExecutionWorkerSnapshot` (public `readonly struct`) with `Name`,\n    `QueueDepth`, `IsFaulted`, `Fault`;\n  - `ExecutionWorkerPoolSnapshot` (public `readonly struct`) with `Name`,\n    `WorkerCount`, aggregate `QueueDepth`, `IsAnyFaulted`, and an\n    index-aligned `IReadOnlyList<ExecutionWorkerSnapshot> Workers`;\n  - `IExecutionWorker<TSession>.GetSnapshot()` and\n    `IExecutionWorkerPool<TSession>.GetSnapshot()` capture all fields in a\n    single call so dashboards cannot observe inconsistent mixes of values.\n- **Scoped `ExecutionDiagnostics`** public class replaces the previous\n  process-wide static diagnostics class. `ExecutionDiagnostics.Shared` is a\n  lazy singleton that continues to emit under\n  `ExecutionDiagnosticNames.SourceName`, so every existing OpenTelemetry /\n  `MeterListener` / `ActivityListener` subscriber by that name is unaffected.\n  New overloads on both `ExecutionWorkerOptions` and\n  `ExecutionWorkerPoolOptions` accept a custom `ExecutionDiagnostics` scope;\n  workers wired to a custom scope do not contribute measurements to\n  `Shared`, removing the parallel-test-host race on the previously shared\n  `Counter<long>` / `ObservableGauge<int>` state.\n  See [`docs/adr/0009-scoped-execution-diagnostics.md`](docs/adr/0009-scoped-execution-diagnostics.md).\n\n### Quality\n\n- **SonarCloud PR sweep (round 2) — 29 additional INFO-severity findings\n  addressed.** Modern-BCL suggestions that target `net6.0+` / `net7.0+` /\n  `net8.0+` are adopted on the matching TFMs via `#if` preprocessor\n  guards while legacy `net462`..`net481` keeps the explicit-throw fallback,\n  so nothing is regressed on older frameworks:\n  - **`CA1510` (13 findings).** `ArgumentNullException.ThrowIfNull` on\n    `net8.0+`, explicit `throw new ArgumentNullException(nameof(x))` on\n    `net462`..`net7.0` in `ExecutionWorker`, `ExecutionWorkerPool`,\n    `ExecutionDiagnostics`, `RoundRobinWorkerScheduler`,\n    `LeastQueuedWorkerScheduler`, `ExecutionWorkerServiceCollectionExtensions`,\n    `ExecutionWorkerHostingExtensions`.\n  - **`CA1513` (2 findings).** `ObjectDisposedException.ThrowIf` on\n    `net7.0+`, explicit `throw new ObjectDisposedException(TypeName)`\n    otherwise — `ExecutionWorker.ThrowIfDisposed`,\n    `ExecutionWorkerPool.ThrowIfDisposed`.\n  - **`CA2263` (1 finding).** `Enum.IsDefined<TEnum>(TEnum)` generic\n    overload on `net5.0+`, non-generic `Enum.IsDefined(Type, object)`\n    otherwise — `ExecutionWorkerPoolOptions` validation.\n  - **`MA0042` / `MA0040` (src — 2 findings).** Extended existing\n    `VSTHRD002` / `VSTHRD103` scoped pragmas in `ExecutionWorker` to\n    cover the related Meziantou cancellation rules, with the reasoning\n    comments expanded to document why the sync `Cancel()` and the\n    no-token `disposeTask.Wait(timeout)` are the correct primitives\n    inside the non-async `DisposeAsync` / sync-disposal paths.\n  - **Test-side `MA0040` (7 findings).** Passed\n    `TestContext.Current.CancellationToken` (xUnit v3, `net8.0+`) or\n    `CancellationToken.None` (xUnit v2, legacy TFMs) through a\n    preprocessor-guarded local to the relevant `ExecuteAsync` /\n    `ExecuteValueAsync` calls in `ExecutionWorkerTest`. The two\n    `ManualResetEventSlim.Wait(TimeSpan)` sites inside a session-factory\n    delegate in `ExecutionWorkerPoolTest` stay under a scoped\n    `MA0040` pragma because the callback signature has no token.\n  - **Test-side `MA0042` / `RCS1261` (3 findings).** The two intentionally\n    synchronous `Fact` methods in `ExecutionWorkerPoolTest`\n    (`IsAnyFaulted_ShouldBeFalseForHealthyPool`,\n    `SetWorkerThreadForTesting_ShouldThrowWhenWorkerThreadIsNull`) and\n    the single sync assertion block in `ExecutionWorkerTest`\n    (`InitializeAsync_ShouldReturnCancelledTaskForPreCancelledTokenAsync`)\n    keep `using var` + `Cancel()` under scoped pragmas because\n    `await using` / `CancelAsync` would force them to become async and\n    invalidate the sync-return assertions.\n  - **`IDE0350` (2 findings).** Two `ActivityListener.Sample` ref-lambdas\n    in `ExecutionWorkerTest` stay under a scoped pragma because the\n    analyzer's suggested simplification cannot compile against the\n    `SampleActivity` delegate signature (`ref ActivityCreationOptions<ActivityContext>`).\n\n- **SonarCloud PR sweep — 123 INFO-severity findings addressed.** All\n  open code-smells reported on the pull request were either fixed or\n  intentionally suppressed with explanatory comments. Highlights:\n  - **Async-dispose preference (60 findings: `MA0042` + `RCS1261`).**\n    Converted `using var worker = new ExecutionWorker<T>(...)` and\n    `using var workerPool = new ExecutionWorkerPool<T>(...)` to\n    `await using` in every async test method. The two intentional\n    `Dispose()` timeout tests keep sync disposal under file-scoped\n    pragmas (`MA0042`, `RCS1261`, `IDISPxxx`, `VSTHRD103`, `S6966`,\n    `S125`) because they specifically exercise the synchronous\n    timeout branch.\n  - **Primary constructors (`IDE0290`, 11 findings).** `ExecutionWorkerHostedService`,\n    `ExecutionWorkerPoolHostedService`, `ExecutionWorker.ExecutionWorkItem<T>`\n    nested class, `ExecutionWorkerRegistration`, `ExecutionWorkerSnapshot`,\n    `WorkerFaultedEventArgs`, plus test sessions (`IntegrationSession`,\n    `DiTestSession`, `DiSecondTestSession`, `HostedTestSession`,\n    `MeterSnapshot.RecordedMeasurement`) all moved to primary\n    constructors with field-style initializers that preserve every\n    `ArgumentNullException` guard.\n  - **Auto-properties (`RCS1085`, 3 findings).** `ExecutionDiagnostics`\n    converted `_activitySource`, `_operationsCounter`, and\n    `_sessionRecyclesCounter` private fields into auto-implemented\n    properties.\n  - **FluentAssertions style (`FAA0001`, 9 findings).** Replaced\n    `result.Should().BeGreaterThan(0)` with `result.Should().BePositive()`\n    and replaced `observedSessionIds[i].Should().Be(x)` with\n    `observedSessionIds.Should().HaveElementAt(i, x)`.\n  - **Collection initializers (`IDE0028` / `IDE0300` / `IDE0301`,\n    8 findings).** `Array.Empty<T>()` and explicit `new[] { ... }`\n    occurrences in scheduler tests, `ExecutionWorkerPoolSnapshot`'s\n    `EmptyWorkers` field, and `MeterSnapshot._measurements` switched\n    to the `[]` collection-expression syntax.\n  - **`ValueTask` discards (`CA2012`, 5 findings).** Pragma-suppressed\n    around the explicit-throw assertions in\n    `ExecuteValueAsync_ShouldThrowWhenActionDelegateIsNull`,\n    `ExecuteValueAsync_ShouldThrowObjectDisposedExceptionAfterDispose`,\n    and the foreign-scheduler / null-scheduler pool tests, where\n    the test contract is that the call throws synchronously and\n    no usable `ValueTask` is ever produced.\n  - **Named arguments (`MA0003`, 3 findings).** `throw new ArgumentException(...)`\n    in `ExecutionWorker.Process`, `new ExecutionWorkerSnapshot(...)`\n    in scheduler test stubs, and `new ManualResetEventSlim(false)`\n    in dispose-timeout tests now spell parameters by name.\n  - **Polyfill in canonical namespace (`IDE0130`, `MA0182`, `RCS1251`).**\n    `Polyfills/IsExternalInit.cs` MUST live in\n    `System.Runtime.CompilerServices` for the C# compiler to\n    recognize it as the init-only marker on legacy `net46x` / `net47x` /\n    `net48x` TFMs; the three rules are pragma-suppressed at file\n    scope with an inline justification comment.\n  - **Documentation langword (`MA0154`, 2 findings).** `ExecutionWorkerOptions`\n    and `ExecutionWorkerPoolOptions` use `<see langword=\"new\"/>`\n    instead of `<c>new</c>` in their summaries.\n  - **Misc fixes:** unused `workerIndex` parameter in\n    `ExecutionWorkerServiceCollectionExtensions` lambda renamed to\n    `_` (`RCS1163`); cancellation overload added to\n    `TaskCompletionSource.TrySetCanceled` in `ExecutionHelpers`\n    polyfill (`MA0040`); culture-invariant `int.ToString` in\n    interpolated assertion message (`MA0076`); `if/else if` ladder\n    in `Initialize_ShouldDisposeAlreadyStartedWorkers...` test\n    rewritten as a `switch` (`CC0019`); single-statement lambdas in\n    multi-threaded / value-task tests collapsed to expression-bodied\n    form (`RCS1021`); `IDE0042` deconstructed `requiredTags` foreach\n    in `MeterSnapshot.MatchesTags`; `RCS1118` upgraded\n    `expectedSessionCount` to a `const` in\n    `SessionRecyclingExecutionWorkerTest`; `RCS1205` reordered\n    named arguments in `MultiThreadedExecutionWorkerTest`; `CA1806`\n    discarded `new ExecutionDiagnostics(...)` in\n    `ScopedDiagnosticsTest` lambdas (with `IDISP004` co-suppressed\n    because the constructor throws before producing a disposable).\n- **Quality Gate: OK.** All 6 conditions passed; 100 % new-code\n  coverage; A ratings on Reliability, Maintainability, and Security.\n\n### Tests\n\n- **Coverage raised further from ~92% to ~96.5% overall** by adding a second\n  round of 17 tests targeting the remaining defensive branches:\n  - `ExecutionWorker.InitializeAsync` pre-cancelled token fast-path\n    (`Task.FromCanceled`).\n  - `ExecutionWorker.SetFatalFailure` double-fire idempotency — the\n    `WorkerFaulted` event raises exactly once thanks to the CAS in\n    `RaiseFaultedOnce`.\n  - `ExecutionWorker.ProcessWorkItem` success + failure paths under a\n    registered `ActivityListener` (both `Activity.Status = Ok` and\n    `Activity.Status = Error` branches of the `SetStatus` calls).\n  - Synchronous `ExecutionWorker.Dispose` + `ExecutionWorkerPool.Dispose`\n    timeout branches: a blocking `IExecutionSessionFactory` wedges the\n    worker thread; `Dispose` abandons the wait after\n    `DisposeTimeout` without throwing.\n  - `ExecutionWorkerPool.IsAnyFaulted` returns `false` for a healthy pool\n    (post-loop `return false` branch).\n  - `ExecutionWorkerPool.SetWorkerThreadForTesting` argument-null guard.\n  - Pool `ExecuteAsync` and `ExecuteValueAsync` both throw\n    `InvalidOperationException(\"The worker scheduler returned null.\")`\n    when a custom scheduler violates the contract.\n  - Direct unit tests on internal pooled work items covering:\n    explicit non-generic `IValueTaskSource` interface on\n    `PooledValueExecutionWorkItem<,>` (`GetStatus` / `OnCompleted` /\n    `GetResult`), `TrySetCanceled` → cancelled `ValueTask(<T>)`, the\n    stale-token guard in `GetResult` (`token != Version` mismatch), the\n    defensive `_action is null` branch (rented with a null delegate),\n    and the `Options` + `CancellationToken` property accessors.\n- **Coverage raised from ~86% to ~92% overall** by adding ~45 focused tests:\n  - `TrivialCoverageTest` and `DiagnosticsAndHelpersTest` cover all the\n    small defensive branches in `ExecutionWorkerOptions` /\n    `ExecutionWorkerPoolOptions` (negative `DisposeTimeout`, undefined\n    `SchedulingStrategy`, fresh-instance `Default`),\n    `WorkerFaultedEventArgs` (null-exception guard), `ExecutionHelpers`\n    (null-action guard), `ExecutionWorkerRegistration` (null-accessor\n    guard), `ExecutionDiagnostics` (null/whitespace source name,\n    idempotent Dispose, no-op Dispose on `Shared`, null-registration\n    guards), `ExecutionWorkerPoolSnapshot` (null-workers fallback,\n    aggregation), and both `RoundRobinWorkerScheduler` /\n    `LeastQueuedWorkerScheduler` (null / empty / single-worker /\n    all-faulted / healthy-lowest-depth paths).\n  - New `ExecutionWorkerHostingExtensionsTest` covers the two\n    `services is null` guards.\n  - New null / pre-cancelled / post-dispose / channel-closed tests for\n    `ExecutionWorker.ExecuteValueAsync` (void + `TResult`).\n  - Pool-level tests now exercise the shared-factory constructor\n    (with and without an explicit scheduler), `ExecuteValueAsync` void\n    and `TResult` routing through `SelectConcreteWorker`, and the\n    foreign-worker `InvalidOperationException` branch via a custom\n    `IExecutionWorker<T>` stub that is deliberately not an\n    `ExecutionWorker<T>`.\n  - DI-level tests now cover the `IOptionsFactory<T>` fallback branch\n    (by removing the open-generic `IOptionsMonitor<>` descriptor\n    before building the provider), the unnamed-`IOptions<T>` fallback\n    when no configure delegate is supplied, and the\n    `ExecutionWorkerOptions.Default` fallback when nothing at all is\n    registered. Same coverage is added for the pool pipeline.\n\n### Removed\n\n#### `AdaskoTheBeAsT.Interop.Execution` (core)\n\n- **`ExecutionWorkerValueTaskExtensions` public static class** — deleted.\n  Its only job was to dispatch `.ExecuteValueAsync(...)` calls on\n  `IExecutionWorker<T>` / `IExecutionWorkerPool<T>` to the concrete type's\n  instance method when on `net8.0+`, and on older TFMs to wrap\n  `ExecuteAsync(...)`'s `Task` in a `ValueTask` as a best-effort ergonomic\n  fallback (not zero-alloc). Now that the instance `ExecuteValueAsync`\n  overloads are unconditionally available on every TFM, the extension\n  added nothing but a second public-API surface and a `Task → ValueTask`\n  wrapper on the slow path for third-party `IExecutionWorker<T>`\n  implementations — callers can write `new ValueTask(worker.ExecuteAsync(...))`\n  themselves with identical semantics.\n\n### Fixed\n\n#### `AdaskoTheBeAsT.Interop.Execution` (core)\n\n- **`WorkerFaulted` / `IsFaulted` publication ordering.** `ExecutionWorker<TSession>.SetFatalFailure`\n  now dispatches the `WorkerFaulted` event *before* writing the fault through\n  the volatile `_fatalFailure` field. This establishes a happens-before\n  chain so any observer that sees `IsFaulted == true` (or\n  `IsAnyFaulted == true` on a pool) has also seen every `WorkerFaulted`\n  subscriber complete. The previous ordering made it possible for a caller\n  polling `IsFaulted` to read `true` during the narrow window between the\n  volatile write and the event dispatch, and assert on subscriber state\n  that had not yet been produced. `WorkerFaultedEventArgs` still carries\n  the exception, so event handlers do not rely on `IsFaulted` / `Fault`\n  inside their own scope.\n- **`ExecutionWorkerPool<TSession>.Dispose` / `DisposeAsync` now share a\n  single in-flight drain `Task`.** Previously a caller whose synchronous\n  `Dispose()` timed out via `DisposeTimeout` would have the `_asyncDisposed`\n  interlocked flag flipped to 1, so any subsequent `await pool.DisposeAsync()`\n  became an instant no-op even though the background drain was still\n  running. The pool now caches the dispose `Task` on first invocation\n  behind `_disposeLock`, and both the sync and async paths await the same\n  instance — callers who await `DisposeAsync()` after a timed-out\n  `Dispose()` correctly observe drain completion (or the fault) instead of\n  a silent early return.\n- **`MeterSnapshot.Last()` determinism.** The test helper used a\n  `ConcurrentBag<RecordedMeasurement>` whose enumeration order is\n  thread-local-stack-based, not insertion-ordered. `Last()` therefore\n  returned whichever thread's local slot happened to be iterated last —\n  non-deterministic, and the root cause of intermittent flakes on\n  telemetry assertions under parallel test-host load. Replaced with a\n  coarse-locked `List<T>` whose reverse-iteration returns the strictly\n  last-inserted matching measurement.\n- **`ExecutionWorkerOptions.Default` is no longer a mutable shared\n  singleton.** Changed from `static ExecutionWorkerOptions Default { get; } = new();`\n  to `static ExecutionWorkerOptions Default => new();` so every fallback\n  site (null-coalescing path in `ExecutionWorker` ctor; DI extension\n  fallback) receives a fresh instance. Prevents accidental global-state\n  poisoning via e.g. `ExecutionWorkerOptions.Default.DisposeTimeout = TimeSpan.Zero`.\n- **NuGet package metadata mismatch.** All three packages'\n  `<Description>` strings, the README TFM matrix, and the DI-test\n  conditional `ItemGroup` still mentioned `netstandard2.0`, which was\n  dropped from `TargetFrameworks` earlier. Descriptions and metadata are\n  now aligned with the actual shipping 9-TFM matrix (`net10.0`,\n  `net9.0`, `net8.0`, `net481`, `net48`, `net472`, `net471`, `net47`,\n  `net462`).\n- **DI: `AddExecutionWorker<TSession>` / `AddExecutionWorkerPool<TSession>`\n  no longer leak `configure` delegates across different `TSession` types.**\n  Previously the extension called `services.Configure(configure)` which\n  pushed the delegate into the single global\n  `IOptions<ExecutionWorkerOptions>` (or `...PoolOptions`) pipeline, so\n  multiple `AddExecutionWorker<T>(...)` calls for different `TSession`\n  types stacked their delegates and produced a single merged options\n  instance shared by every worker (last-wins on `Name` + union of the\n  other properties). The extension now registers a *named* options entry\n  keyed by `typeof(TSession).FullName`, and the factory resolves via\n  `IOptionsMonitor<T>.Get(name)` so each `TSession` binding receives its\n  own isolated options. Consumers who only call `AddExecutionWorker<T>`\n  once (the common case) observe no behavioural change; consumers who\n  pre-bind configuration to the unnamed `IOptions<T>` pipeline (i.e. do\n  not pass a `configure` delegate) continue to get the existing shared\n  behaviour. Two new regression tests\n  (`AddExecutionWorker_ShouldIsolateOptionsAcrossDifferentSessionTypesAsync`,\n  `AddExecutionWorkerPool_ShouldIsolateOptionsAcrossDifferentSessionTypesAsync`)\n  pin the isolation contract.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#repository",
+    "commit": "d4abf7c86474fbcd6a048632633915da62f87b28",
+    "type": "git",
+    "url": "https://github.com/AdaskoTheBeAsT/AdaskoTheBeAsT.Interop"
+  },
+  "verbatimVersion": "1.0.0",
+  "version": "1.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.6.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.6.2/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.6.2/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.6, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.6.2/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.6, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.6, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.6, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7.1/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7.1/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.6, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7.1/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.6, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7.2/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7.2/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.6, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.7.2/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.6, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.8/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.8/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.6, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.8/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.6, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.8.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.8.1/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.8.1/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.6, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/.netframework4.8.1/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.6, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.8.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net8.0/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[8.0.2, 9.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net8.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[8.0.2, 9.0.0)"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net9.0/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net9.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.15, 10.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net9.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[9.0.15, 10.0.0)"
+        }
+      ],
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net10.0/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.6, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#dependencygroup/net10.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.6, 11.0.0)"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#AdaskoTheBeAsT.Interop.Execution.DependencyInjection.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7982,
+      "fullName": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.nuspec",
+      "length": 24387,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7655,
+      "fullName": "README.md",
+      "length": 23960,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 660,
+      "fullName": "LICENSE",
+      "length": 1093,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3694,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9216,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8250,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 13824,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net462/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3911,
+      "fullName": "lib/net462/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9728,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net462/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 6621,
+      "fullName": "lib/net462/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 11680,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net462/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net462/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net47/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3917,
+      "fullName": "lib/net47/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9728,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net47/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 6609,
+      "fullName": "lib/net47/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 11692,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net47/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net47/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net471/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3917,
+      "fullName": "lib/net471/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9728,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net471/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 6636,
+      "fullName": "lib/net471/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 11764,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net471/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net471/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3915,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9728,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 3843,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 5716,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3917,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9728,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 3836,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 5728,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3916,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9728,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 3849,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 5752,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net8.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3697,
+      "fullName": "lib/net8.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9216,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net8.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8081,
+      "fullName": "lib/net8.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 13652,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net8.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net8.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net9.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3694,
+      "fullName": "lib/net9.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll",
+      "length": 9216,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net9.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8099,
+      "fullName": "lib/net9.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb",
+      "length": 13668,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#lib/net9.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 625,
+      "fullName": "lib/net9.0/AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml",
+      "length": 3094,
+      "name": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.19.21.24.33/adaskothebeast.interop.execution.dependencyinjection.1.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Interop",
+    "STA",
+    "Worker",
+    "WorkerPool",
+    "Threading",
+    "Session",
+    "DependencyInjection",
+    "DI",
+    "Microsoft.Extensions.DependencyInjection"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

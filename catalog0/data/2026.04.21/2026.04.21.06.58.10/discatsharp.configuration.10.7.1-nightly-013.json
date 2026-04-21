@@ -1,0 +1,451 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "AITSYS, DisCatSharp, DisCatSharp Contributors",
+  "catalog:commitId": "828a26d7-f97d-45eb-83d5-081775a2f56c",
+  "catalog:commitTimeStamp": "2026-04-21T06:58:10.0948696Z",
+  "copyright": "Copyright 2021-2026 AITSYS",
+  "created": "2026-04-21T06:55:03.797Z",
+  "description": "Configuration for the DisCatSharp Hosting Extension.",
+  "iconFile": "logo-pride.png",
+  "id": "DisCatSharp.Configuration",
+  "isPrerelease": true,
+  "lastEdited": "2026-04-21T06:57:44.04Z",
+  "licenseFile": "LICENSE.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "BS8M/YWRYUUuoQ2GFKF2YJCz049A1/zgogb3cxkzzg2jqw6se/NhN1CAJYCZEy8Qv6RumKNLsp5TThs9C3Ye+A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 171615,
+  "projectUrl": "https://docs.dcs.aitsys.dev/",
+  "published": "2026-04-21T06:55:03.797Z",
+  "releaseNotes": "DisCatSharp Release Notes\n\n    - Fixed `RingBuffer<T>.CopyTo` to respect the `index` parameter and validate that enough free slots exist before copying, preventing silent data corruption.\n    - Hardened gateway dispatch: all `GuildsInternal` indexer accesses now use `TryGetValue` guards to prevent `KeyNotFoundException` on late-arriving or missing guild payloads.\n    - Synchronized session state during reconnect under `_sessionStateLock` to close a TOCTOU race where `OnHelloAsync` could read a partially-cleared session ID and produce a malformed RESUME payload.\n    - Fixed heartbeat skipped-beat counter reset from a no-op `Interlocked.CompareExchange` to `Volatile.Write`, and cancels the old heartbeat loop before starting a new one to prevent task leaks across reconnects.\n    - Null-guarded `GetSocketLock` to return `null` instead of throwing before the WebSocket is fully initialized.\n    - Made `ReadyGuildIds` thread-safe via a dedicated lock and an atomic `SetReadyGuildIds()` mutator; dispatch now calls the mutator instead of writing directly to the backing set.\n    - Narrowed broad `catch (Exception)` blocks to specific exception types (`JsonReaderException`, `ArgumentOutOfRangeException`) in all seven Discord exception wrapper types and `Utilities`.\n    - Replaced `Stream.Read` with `Stream.ReadExactly` in `MediaTool` to prevent silent partial reads.\n    - Eliminated a redundant `DateTimeOffset` → `DateTime` → `DateTimeOffset` round-trip in `Formatter`, preserving UTC offset fidelity.\n    - Added a defensive copy on `AttachmentsInternal` in `DiscordMessage.Attachments` to prevent external callers from mutating cached message state.\n    - Capped REST `retry_after` to 3 600 s to guard against adversarially large values from misbehaving proxies or rogue buckets.\n    - Linearized concurrent bucket enumeration in `RestClient` with a `.ToList()` snapshot before iteration to prevent `InvalidOperationException` under concurrent request pressure.\n    - Fixed `SocketLock.ContinueWith` calls to use `CancellationToken.None` and `TaskScheduler.Default`, preventing ambient sync-context capture and potential deadlocks in UI/ASP.NET contexts.\n    - Added `DiscordConfiguration.Validate()`, called from `ConnectAsync` before any network I/O, which throws `InvalidOperationException` when `ShardId ≥ ShardCount`.\n    - Clamped `LargeThreshold` to the Discord-specified bot range (50–250) in `DiscordConfiguration`; values outside the range are silently clamped on assignment.\n    - Added non-negative validation for `ShardId` and positive validation for `ShardCount` in `DiscordConfiguration` property setters.\n    - Replaced fire-and-forget `Task.Run` gateway dispatch with an ordered `Channel<T>` queue and single-consumer loop per shard, guaranteeing FIFO cache and state mutations.\n    - Added `GatewayDispatchMode` enum (`ConcurrentHandlers` / `SequentialHandlers`) configurable via `GatewayAdvancedConfiguration.DispatchMode`; defaults to `ConcurrentHandlers` (fire-and-forget user handlers after sequential cache mutations).\n    - Routed `PRESENCE_UPDATE` to a dedicated unbounded channel and consumer task, decoupled from the main dispatch queue. Prevents high-volume presence spam from starving other gateway events.\n    - Added `AsyncEvent<TSender, TArgs>.HasHandlers` property; `OnPresenceUpdateEventAsync` now skips old-presence cloning, event args allocation, and `RaiseEventAsync` when no `PresenceUpdated` handlers are registered.\n    - Added presence coalescing: the presence consumer drains all immediately available payloads, deduplicates by user ID (latest wins), and processes only the coalesced batch — eliminating redundant cache writes during burst updates.\n    - Added 11 internal extension events on `DiscordClient` for reliable, ordered delivery to library extensions before public events fire. Extensions (AppCommands, CommandsNext, Interactivity, Lavalink, Voice) now subscribe to these instead of public events.\n    - Moved `Proxy` from `RestConfiguration` to root `DiscordConfiguration` since it applies to both REST and Gateway connections.\n    - Moved `EnableLibraryDeveloperMode` from `TelemetryConfiguration` to root `DiscordConfiguration` since it gates behavior beyond telemetry.\n    - Audited `NullValueHandling` across 51 serialized properties in 19 entity files: corrected 25 from `Include` to `Ignore` on fields Discord never reads as explicit `null`; preserved `Include` on 26 fields where `null` carries a distinct semantic (ungrouping channels, disconnecting from voice, clearing timeout/gradient/incident restrictions, null-as-boolean role tags, and unicode-vs-custom emoji disambiguation).\n    - Fixed `DiscordMember.BanAsync` and `UnbanAsync` to route through `ApiClient` directly, consistent with all other member REST operations.\n    - Renamed `deleteMessageDays` to `deleteMessageSeconds` on `DiscordMember.BanAsync` and all `DiscordGuild.BanMemberAsync` overloads; removed the legacy days-to-seconds compatibility shim — the API has always accepted seconds. **Note:** positional callers passing day values must be updated manually; named-argument callers are handled by `DCS1102`.\n    - Padded log-level labels to eight characters in `DefaultLogger` for consistent column alignment across log lines.\n    - Fixed `DiscordEventArgs` scoped service scope to be properly disposed after event dispatch, preventing scoped service leaks on high-volume bots.\n\n    - Overhauled presence caching and added follow-up regression coverage around gateway cache behavior.\n    - Added Discord parity updates for store, entitlement, SKU, guild powerup / applied boost, application, audit-log, automod, message-type, and OAuth scope surfaces.\n    - Fixed interaction response posting, soundboard cache refresh/list behavior, duplicate application-command execution logging, and several gateway/store dispatch follow-ups.\n    - Removed .NET 8 support and aligned the core package with the current target framework matrix.\n    - Reworked built-in Sentry telemetry around a per-client diagnostics sink with breadcrumbs, structured tags, better grouping, scrubbed file payload attachments, release/PDB upload support, and package-root stack frame rewriting for code mappings.\n    - Added package-level diagnostics participation for built-in extensions and hosting paths, including origin tagging for upstream Lavalink failures.\n    - Added gateway telemetry for unknown opcodes, disconnect/session lifecycle, and suppressed dispatch exceptions, plus follow-up fixes for wrapped exception filtering, preserved route-specific grouping, and shard-specific sink metadata.\n    - Adjusted Sentry environment tagging so local stable source builds report as `dev` while CI stable builds continue reporting as `production`.\n    - Removed the separate `ReportMissingFields` telemetry switch so schema-drift diagnostics now follow `EnableSentry` directly.\n    - Prevented the temporary sharded gateway-info client from reusing the parent telemetry sink and emitting spurious session-ended events.\n    - Made `DiscordApplicationCommandLocalization.ValidLocales` a static `FrozenSet<string>` for O(1) lookup and zero per-instance allocation.\n    - Added `IAsyncDisposable` support across `DiscordClient`, `DiscordShardedClient`, `DiscordOAuth2Client`, and `DiscordWebhookClient`; synchronous `Dispose()` remains for compatibility and delegates to the async path.\n    - Added async-disposal migration guidance, including a dedicated documentation article and lifecycle regression coverage for mixed sync/async disposal patterns.\n\nDisCatSharp.Attributes Release Notes\n\n    - No major API additions.\n    - Package metadata and target framework alignment were updated alongside the wider .NET 8 removal work.\n\nDisCatSharp.ApplicationCommands Release Notes\n\n    - Added dedicated `SlashCommandChecksFailed` and `ContextMenuChecksFailed` events with new event args for modern checks-failed handling.\n    - Updated command error flow to use dedicated checks-failed events instead of the older errored-event-only pattern.\n    - Included follow-up fixes and regression coverage around application-command checks-failed behavior and execution logging.\n    - Added diagnostics-sink reporting for application-command execution, registration, and autocomplete failure paths.\n    - Fixed command equality change detection: defensive copies for both source and target, type-based matching for entry points and context menus, and explicit `Optional` clearing for unchanged option fields.\n    - Fixed entry point (launch) command registration so it flows through normal create/overwrite/unchanged detection instead of being unconditionally re-created on every startup.\n    - Strip built-in localizations from the entry point command when `EnableLocalization` is disabled.\n    - Added `RegisterEntryPointCommand()` on `ApplicationCommandsExtension` so consumers can configure entry point properties (description, handler type, contexts, integration types) without hardcoding them.\n    - Replaced three wasteful `new ServiceCollection().BuildServiceProvider()` allocations with a shared `EmptyServiceProvider.Instance` singleton.\n    - Hardened `ChoiceProvider.Services` with a backing field and `InvalidOperationException` guard when accessed before initialization.\n    - Fixed bare `catch` blocks to use filtered `catch (Exception ex)` for proper debugger break behavior.\n    - Fixed unsafe `int`/`ulong` casts to use `Convert.ToInt32`/`Convert.ToUInt64` for safe numeric conversion.\n    - Normalized `ToLower()` calls to `ToLowerInvariant()` for culture-independent command name handling (including `SlashCommandGroupAttribute`).\n    - Improved choice value comparison with numeric normalization (`AreChoiceValuesEqual`) to avoid false change detection between `int`/`long`/`double` representations from JSON.\n    - Rewrote `DeepEqualOptions` to collect all option mismatches with per-field diagnostic messages instead of returning on the first difference.\n    - Added thread-safe snapshots for public collection properties (`GlobalCommands`, `GuildCommands`).\n    - Isolated `resultCommands` from the input `updateList` to prevent mutation of caller-provided data.\n    - Migrated to internal extension events for reliable, ordered event delivery from the dispatch pipeline.\n\nDisCatSharp.CommandsNext Release Notes\n\n    - No notable feature changes.\n    - Package alignment was updated as part of the .NET 8 removal and current framework support refresh.\n    - Added diagnostics-sink reporting for command execution failures.\n    - Migrated to internal extension events for reliable, ordered event delivery from the dispatch pipeline.\n\nDisCatSharp.Interactivity Release Notes\n\n    - Fixed `ComponentCollectRequest.Collected` never being initialized, which caused `NullReferenceException` on any component collect operation.\n    - Replaced non-thread-safe `Dictionary` in `ComponentPaginator` with `ConcurrentDictionary` to prevent race condition corruption during concurrent pagination.\n    - Added try-catch blocks around all fire-and-forget `Task.Run` calls in `Paginator` and `Poller` to prevent silent exception swallowing.\n    - Fixed `CancellationTokenSource` leak in `GetCancellationToken` by registering a self-disposal callback on the token.\n    - Fixed `InteractionPaginationRequest.GetPageAsync` so navigation buttons are properly disabled for single-page pagination and boundary conditions.\n    - Removed broken followup-without-ACK path in `ComponentEventWaiter.Handle` that caused Discord API 400 errors on non-matching interactions.\n    - Eliminated shared mutable `_builder` field in `ComponentPaginator`; each pagination response now uses a local builder to prevent concurrent corruption.\n    - Aligned `PaginationButtons` default custom IDs with their declared constants so custom ID matching works correctly.\n    - Removed spam followup messages in `ModalEventWaiter.Handle` for every non-matching interaction event.\n    - Fixed dispose-race in `Paginator` and `Poller` where `_client` was set to null before pending `Task.Run` could complete, causing `NullReferenceException`.\n    - Replaced reflection-based event lookup in `EventWaiter<T>` with explicit subscribe/unsubscribe delegates for the three known event types; reflection kept only as fallback for the dynamic `WaitForEventArgsAsync<T>` / `CollectEventArgsAsync<T>` public API.\n    - Replaced reflection-based event lookup in `ReactionCollector` with direct `+=` / `-=` event subscription matching the pattern `Paginator` and `Poller` already use.\n    - Added `lock()` guards around non-atomic read-modify-write operations on `ConcurrentHashSet` in `ReactionCollector` and `PollRequest` to prevent race conditions losing reactions or votes.\n    - Fixed multiple enumeration of `IEnumerable<Page>` in `SendPaginatedMessageAsync` / `SendPaginatedResponseAsync` by coercing to `IList<Page>` upfront.\n    - Added empty-pages guard (`ArgumentException`) in pagination methods instead of letting `pages.First()` throw an unhelpful exception.\n    - Removed dead code `HandleInvalidInteraction` method and unused `_componentInteractionWaiter` / `_modalInteractionWaiter` fields along with their suppressions.\n    - `IPaginator` now extends `IDisposable` so paginators held via the interface can be properly disposed.\n    - `InteractivityExtension` now implements `IDisposable` with a `_disposed` guard that disposes all nine internal components (waiters, paginators, poller, collector).\n    - Added double-dispose guards with `_disposed` flags to `ComponentPaginator`, `PaginationRequest`, `PollRequest`, `ReactionCollectRequest`, `Paginator`, and `Poller`.\n    - Replaced unnecessary `await Task.Yield()` calls in `PaginationRequest` with `Task.FromResult` / `Task.CompletedTask`.\n    - Renamed confusing `_behaviorBehavior` field to `_buttonBehavior`.\n    - `InteractivityHelpers.Recalculate` now throws if all pages lack embeds and preserves content-only pages in the output.\n    - Stored `CancellationTokenRegistration` in `ComponentMatchRequest` and `ModalMatchRequest` for proper lifecycle tracking.\n    - Added diagnostics-sink reporting for waiter, paginator, poller, and collector exception paths.\n    - Migrated to internal extension events for reliable, ordered event delivery from the dispatch pipeline.\n\nDisCatSharp.Common Release Notes\n\n    - No dedicated end-user feature changes.\n    - Shared framework/package alignment was updated with the rest of the solution.\n\nDisCatSharp.Lavalink Release Notes\n\n    - Fixed a regression affecting player updates when switching the bot's voice channel while using Lavalink.\n    - Included follow-up Lavalink session/internal cleanup and removed obsolete archived Lavalink v1 sources from the maintained tree.\n    - Added diagnostics-sink reporting for Lavalink REST, websocket, and connection failures with upstream-origin tagging to distinguish Lavalink server issues from library faults.\n    - Migrated to internal extension events for reliable, ordered event delivery from the dispatch pipeline.\n\nDisCatSharp.Voice Release Notes\n\n    - Fixed voice/lavalink integration regressions around channel switching.\n    - Voice native packaging/build settings were refreshed with the wider framework alignment changes.\n    - Added diagnostics-sink reporting across voice sender, receiver, keepalive, disconnect, and native-loading failure paths.\n    - Migrated to internal extension events for reliable, ordered event delivery from the dispatch pipeline.\n\nDisCatSharp.Experimental Release Notes\n\n    - Stabilized autocomplete interaction value handling.\n    - Added documentation/supporting work around newer experimental search-related behavior.\n\nDisCatSharp.Configuration Release Notes\n\n    - No standalone package-specific API additions.\n    - Configuration-related framework alignment was refreshed with the rest of the solution.\n\nDisCatSharp.Hosting Release Notes\n\n    - Added diagnostics-sink reporting for hosted-service startup and extension-initialization failures.\n    - Hosting package alignment was updated as part of the current framework support refresh.\n\nDisCatSharp.Hosting.DependencyInjection Release Notes\n\n    - No notable feature changes.\n    - Dependency injection/hosting package alignment was updated as part of the current framework support refresh.\n\nDisCatSharp.Analyzer Release Notes\n\n    - Reworked the analyzer/tooling stack into a NuGet-first workflow with real xUnit/Roslyn regression coverage.\n    - Added `DCS2101` as a application-command migration analyzer/code fix with rewrite, split, and manual migration modes..\n    - Added `DCS2101` to an error because leaving legacy checks-failed logic on errored events can break consumers.\n    - Improved `DCS0201` so the override fixer can update `DiscordConfiguration` across project documents.\n    - Updated analyzer packaging so `DisCatSharp.Attributes.dll` is bundled with the analyzer package for Roslyn runtime loading.\n    - Added analyzer authoring documentation, diagnostic family guidance, release tracking files, and release workflow support for publishing `DisCatSharp.Analyzer`.\n    - Added `DCS1102`, a ban-parameter migration analyzer/code fix: detects `deleteMessageDays:` named arguments on `BanAsync`/`BanMemberAsync` and renames them to `deleteMessageSeconds:`, multiplying integer literals by 86400 automatically.\n    - Updated `DCS1201` config property migration to support root-level property targets (empty `NestedPath`) for `Proxy` and `EnableLibraryDeveloperMode`.\n    - Added `DCS1301`/`DCS1302` async-disposal migration diagnostics and code fixes for moving from `using`/`.Dispose()` to `await using`/`.DisposeAsync()` on DisCatSharp client types.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "d3d60536f6a6b6560b6dc290f445a433e01fa170",
+    "type": "Git",
+    "url": "https://github.com/Aiko-IT-Systems/DisCatSharp"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "10.7.1-nightly-013",
+  "version": "10.7.1-nightly-013",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/discatsharp",
+          "@type": "PackageDependency",
+          "id": "DisCatSharp",
+          "range": "[10.7.1-nightly-013, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/discatsharp.attributes",
+          "@type": "PackageDependency",
+          "id": "DisCatSharp.Attributes",
+          "range": "[2026.3.26, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/microsoft.dependencyvalidation.analyzers",
+          "@type": "PackageDependency",
+          "id": "Microsoft.DependencyValidation.Analyzers",
+          "range": "[0.11.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/system.diagnostics.diagnosticsource",
+          "@type": "PackageDependency",
+          "id": "System.Diagnostics.DiagnosticSource",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net10.0/system.net.security",
+          "@type": "PackageDependency",
+          "id": "System.Net.Security",
+          "range": "[4.3.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/discatsharp",
+          "@type": "PackageDependency",
+          "id": "DisCatSharp",
+          "range": "[10.7.1-nightly-013, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/discatsharp.attributes",
+          "@type": "PackageDependency",
+          "id": "DisCatSharp.Attributes",
+          "range": "[2026.3.26, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/microsoft.dependencyvalidation.analyzers",
+          "@type": "PackageDependency",
+          "id": "Microsoft.DependencyValidation.Analyzers",
+          "range": "[0.11.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/system.diagnostics.diagnosticsource",
+          "@type": "PackageDependency",
+          "id": "System.Diagnostics.DiagnosticSource",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net11.0/system.net.security",
+          "@type": "PackageDependency",
+          "id": "System.Net.Security",
+          "range": "[4.3.2, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/discatsharp",
+          "@type": "PackageDependency",
+          "id": "DisCatSharp",
+          "range": "[10.7.1-nightly-013, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/discatsharp.attributes",
+          "@type": "PackageDependency",
+          "id": "DisCatSharp.Attributes",
+          "range": "[2026.3.26, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/microsoft.dependencyvalidation.analyzers",
+          "@type": "PackageDependency",
+          "id": "Microsoft.DependencyValidation.Analyzers",
+          "range": "[0.11.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/system.diagnostics.diagnosticsource",
+          "@type": "PackageDependency",
+          "id": "System.Diagnostics.DiagnosticSource",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#dependencygroup/net9.0/system.net.security",
+          "@type": "PackageDependency",
+          "id": "System.Net.Security",
+          "range": "[4.3.2, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#DisCatSharp.Configuration.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7395,
+      "fullName": "DisCatSharp.Configuration.nuspec",
+      "length": 22633,
+      "name": "DisCatSharp.Configuration.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5790,
+      "fullName": "LICENSE.md",
+      "length": 17202,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#RELEASENOTES.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6563,
+      "fullName": "RELEASENOTES.md",
+      "length": 17707,
+      "name": "RELEASENOTES.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net10.0/DisCatSharp.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6692,
+      "fullName": "lib/net10.0/DisCatSharp.Configuration.dll",
+      "length": 14848,
+      "name": "DisCatSharp.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net10.0/DisCatSharp.Configuration.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 9882,
+      "fullName": "lib/net10.0/DisCatSharp.Configuration.pdb",
+      "length": 16148,
+      "name": "DisCatSharp.Configuration.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net10.0/DisCatSharp.Configuration.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2178,
+      "fullName": "lib/net10.0/DisCatSharp.Configuration.xml",
+      "length": 13214,
+      "name": "DisCatSharp.Configuration.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net11.0/DisCatSharp.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6696,
+      "fullName": "lib/net11.0/DisCatSharp.Configuration.dll",
+      "length": 14848,
+      "name": "DisCatSharp.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net11.0/DisCatSharp.Configuration.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 9875,
+      "fullName": "lib/net11.0/DisCatSharp.Configuration.pdb",
+      "length": 16168,
+      "name": "DisCatSharp.Configuration.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net11.0/DisCatSharp.Configuration.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2178,
+      "fullName": "lib/net11.0/DisCatSharp.Configuration.xml",
+      "length": 13214,
+      "name": "DisCatSharp.Configuration.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net9.0/DisCatSharp.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6698,
+      "fullName": "lib/net9.0/DisCatSharp.Configuration.dll",
+      "length": 14848,
+      "name": "DisCatSharp.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net9.0/DisCatSharp.Configuration.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 9784,
+      "fullName": "lib/net9.0/DisCatSharp.Configuration.pdb",
+      "length": 15948,
+      "name": "DisCatSharp.Configuration.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#lib/net9.0/DisCatSharp.Configuration.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2178,
+      "fullName": "lib/net9.0/DisCatSharp.Configuration.xml",
+      "length": 13214,
+      "name": "DisCatSharp.Configuration.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#logo-pride.png",
+      "@type": "PackageEntry",
+      "compressedLength": 79268,
+      "fullName": "logo-pride.png",
+      "length": 93787,
+      "name": "logo-pride.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.21.06.58.10/discatsharp.configuration.10.7.1-nightly-013.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13028,
+      "fullName": ".signature.p7s",
+      "length": 13028,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "DisCatSharp",
+    "Discord",
+    "API",
+    "Wrapper",
+    "Bots",
+    "AITSYS",
+    "Net9",
+    "Net10",
+    "Net11",
+    "Hosting",
+    "Web",
+    "Configuration"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

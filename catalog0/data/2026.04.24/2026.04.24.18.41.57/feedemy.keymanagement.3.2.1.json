@@ -1,0 +1,267 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Ahmet Toker",
+  "catalog:commitId": "4c7ec0d0-86ab-4895-ab30-6bda326371b1",
+  "catalog:commitTimeStamp": "2026-04-24T18:41:57.7224141Z",
+  "copyright": "Copyright © 2025 Feedemy",
+  "created": "2026-04-24T18:38:55.88Z",
+  "description": "Enterprise-grade key management library with versioned encryption format (v2.3.0) and asymmetric key support (RSA, ECDSA). Features version-aware auto-decryption, automatic key rotation, multi-platform storage (Windows DPAPI, Linux AES-256-GCM, Azure Key Vault), distributed caching, health monitoring, and comprehensive audit logging. Fully tested with 117/117 tests passing (100% success rate).",
+  "iconFile": "icon.png",
+  "id": "Feedemy.KeyManagement",
+  "isPrerelease": false,
+  "lastEdited": "2026-04-24T18:41:34.04Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "tfe4UhcQg/Za/qFsMCI+SDlzwKvoTlXP9OJo4feEp8nAXeMf+WsDuGLnWUJhRR/fFFeViCTyxIXpFwnod4a6mg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 296847,
+  "projectUrl": "https://github.com/Toker38/Feedemy.KeyManagement",
+  "published": "2026-04-24T18:38:55.88Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v3.2.1 — Hotfix: Private L1 cache (do not configure shared IMemoryCache)\n\nv3.2.0 called services.AddMemoryCache(opts => { opts.SizeLimit = ... })\nwhich reconfigured the SHARED DI-wide IMemoryCache singleton. Any host\napplication that also uses IMemoryCache for its own purposes was forced\nto call SetSize(...) on every Set() call (otherwise InvalidOperationException).\nThis was a real breaking change that slipped through \"zero breaking\" testing.\n\nFix in 3.2.1:\n- Introduced FeedemyKeyManagementMemoryCache (sealed, inherits MemoryCache).\n  Library now owns its own private cache instance registered in DI by its\n  concrete type.\n- MemoryCacheProvider and KeyCacheService are registered via factory methods\n  that inject the private cache, NOT the shared IMemoryCache.\n- services.AddMemoryCache(...) is no longer called by the library; the host\n  application's shared IMemoryCache registration (if any) is left untouched.\n\nUpgrade from 3.2.0: drop-in. If you applied a PostConfigure<MemoryCacheOptions>\nworkaround to null out SizeLimit, you can remove it.\n\n-----\n\nv3.2.0 — Bench-Driven Reliability & Scalability Release\n\nProduced by a 90-scenario benchmark harness (bench/ + BenchNode) and 3 h\nof sustained endurance load. 31 findings documented, 21 fixed in 10 PRs,\nzero breaking changes.\n\nNEW APIS (additive):\n- SecretFileKeyStorageProvider: raw-key storage for Docker Swarm / K8s\n  secret mounts. Fixes the multi-node /etc/machine-id derivation trap\n  (finding #3). Fluent: WithSecretFileKeyStorage(\"/run/secrets\").\n- LinuxStorageOptions: KeyringPath, SaltPath, MachineKeySource (MachineId|\n  Hostname|Environment|File), EnvironmentVariableName, FilePath.\n- WithLinuxKeyStorage(Action<LinuxStorageOptions>?) overload;\n  parameterless overload still resolves to default.\n- ExternalKeyPairDto: public record for external asymmetric key import\n  (finding #17 — schema was undocumented).\n- Paged repository APIs on all three repositories:\n  GetPagedAsync(skip,take), GetDueForRotationPagedAsync(threshold),\n  GetActiveCountAsync, GetByKeyNamePagedAsync (audit),\n  GetActiveVersionCountsAsync (batched GROUP BY — kills N+1).\n- PagedResult<T> model.\n- KeyManagementOptions.AutoBootstrapMasterKey (default true): startup\n  now creates the master EncryptionKey if missing; consumers no longer\n  have to manually seed before first asymmetric create.\n- KeyManagementOptions.Cache.L1MaxSize (default 100_000 units) +\n  L1CompactionPercentage (default 0.25): bounded L1 IMemoryCache.\n- 2 new telemetry histograms:\n  keymanagement.cache.invalidation.publish.duration (ms)\n  keymanagement.cache.invalidation.receive.duration (ms)\n- ErrorCodes.MASTER_KEY_MISSING.\n\nCRITICAL FIXES:\n- #28 MasterKeyProvider cache stampede: per-version SemaphoreSlim +\n  atomic InvalidateCache + deferred ZeroMemory. Closes the 1 h-endurance\n  race that silently returned null for ~2767 reads per run.\n- #29 Unbounded IMemoryCache: SizeLimit + SetSize across all five entry\n  types. Working set dropped from 6.1 GB to bounded after sustained load.\n- #11 Admin API O(N) scan: pagination + SQL-level filtering throughout.\n  SystemHealthAsync goes from 20 k SQL queries (N+1) to 2 (single\n  GROUP BY). At 5 k keys, p99 drops from 2-4 s to <100 ms.\n- #1 Asymmetric silent master key dependency: auto-bootstrap hosted\n  service + clean Result.Fail(MASTER_KEY_MISSING) precondition.\n  Fresh deployments no longer crash on first RSA/ECDSA create.\n- #3 Multi-node /etc/machine-id trap: addressed via SecretFileKeyStorage\n  (primary recommendation) or LinuxStorageOptions.MachineKeySource\n  override.\n- #4 PostgreSQL schema init race: DatabaseMigrator now acquires\n  pg_advisory_xact_lock(\"KMMG\") on the migration transaction. Three\n  replicas converge cleanly instead of racing on CREATE TABLE.\n- #31 Rotation-retrieve race (regression surfaced by #28 fix):\n  RetrieveKeyAsync falls back to version-1 when the new version is\n  committed to DB but not yet written to storage. Closes the\n  \"DB-ahead-of-storage\" window (~6.4 % gap under concurrent retrieve +\n  rotate) transparently.\n\nCONTRACT & BEHAVIOR FIXES:\n- #16 RSA oversized plaintext: ArgumentException → CryptographicException\n  (honors IAsymmetricKeyOperations XML doc).\n- #25 Public key re-fetch write amplification: dedicated 15-min L1\n  cache replaces per-read metadata.UpdateAsync (eliminated\n  DbUpdateConcurrencyException under concurrent reads).\n- #23 GetECDsaAsync raw accessor: ImportPkcs8PrivateKey errors wrapped\n  with InvalidOperationException + meaningful context.\n- #27 Fresh asymmetric GetCurrentVersionAsync: bypass metadata cache\n  (L2 round-trip was corrupting large PublicKeyPem fields).\n- #9 WithRedisCache implicitly enables EnableCacheInvalidationListener\n  (opt-out still possible by explicit override).\n- #12 EncryptionTotal Prometheus counter: now emits on both symmetric\n  and asymmetric success paths (was a dead counter).\n\nNEW DOCS:\n- docs/claude/telemetry.md — OTel ↔ Prometheus naming reference, meter\n  inventory, PromQL + Grafana snippets.\n- docs/claude/security-model.md — threat matrix, per-provider guarantees\n  (cold disk, container escape, host root, memory dump, network), and\n  mitigation roadmap (Vault Transit, TPM sealed key, PKCS#11 softHSM).\n- Expanded XML docs: LinuxKeyringStorageProvider misnomer warning,\n  CreateKeyAsync concurrent-duplicate contract, RotationCheckInterval\n  validation message, CreateKeyRequest.ExternalAsymmetricKeyPair schema\n  (with JSON example).\n\nUPGRADE:\nDrop-in: all public APIs are additive; no signature changes. Consumers\nthat relied on the dead EncryptionTotal counter will now see non-zero\nvalues. Consumers configuring Redis via WithRedisCache() will have\nthe cache invalidation listener enabled automatically — set\nEnableCacheInvalidationListener=false explicitly to preserve the\npre-3.2 behavior.\n\nVERIFICATION:\n- 54+ unit tests pass (solution-wide 0 errors).\n- Bench 69/69 scenarios green, 0 violations (was 11+ violations in\n  pre-fix runs). S34 master-key-race endurance 0 bad (was 2767).\n- See docs/claude/bench-findings-verified-2026-04-24.md for the full\n  verification matrix.\n----\n\nv3.0.0 - Major Security, Performance & Stability Release\n\nSECURITY (CRITICAL):\n- Fixed SQL injection in PostgreSQL DatabaseMigrator (parameterized queries via NpgsqlParameter)\n- Fixed plaintext Azure credential storage on Linux (AES-256-GCM encryption with machine-derived key)\n- AES-GCM AAD bypass mitigation (AllowLegacyNoAadDecryption option, default false)\n- DPAPI application-specific entropy (\"Feedemy.KeyManagement.v1\") with legacy auto-migration\n- Linux per-installation random salt with .salt.bak backup/recovery chain\n- Linux key re-encryption safety: write-read-verify with FixedTimeEquals, .migrating transactional backup\n- Linux RetrieveKeyAsync TOCTOU fix (File.Exists moved inside lock)\n- Credential JSON secure deletion after import (random-overwrite + File.Delete)\n- CryptographicOperations.ZeroMemory throughout all sensitive byte array paths (12+ locations)\n- IDisposable for WindowsDpapiStorageProvider, FallbackStorageProvider, MasterKeyProvider\n\nPERFORMANCE:\n- MasterKeyProvider in-memory cache with 5-min TTL (eliminates 2 IO round-trips per decryption)\n- MasterKeyProvider.InvalidateCache() called after master key rotation for cache coherence\n- Source-generated logging ([LoggerMessage]) for retrieval hot path\n- TagList zero-allocation telemetry, Span-based IsEncryptedFormat detection\n- Prefix-based cache pattern removal fast path (bypasses regex for simple patterns)\n- Health check response caching (30s TTL with SemaphoreSlim double-check)\n- RandomNumberGenerator.Fill / SHA256.HashData static APIs (no instance allocation)\n- RegexOptions.None instead of Compiled (prevents assembly leak)\n- Volatile.Read for FallbackStorageProvider._consecutiveFailures (prevents torn reads)\n- Atomic RetrievalLockEntry.Dispose via Interlocked.CompareExchange\n- Static eviction callback in KeyCacheService (eliminates closure allocation)\n\nFIXED:\n- Startup crash risks shifted behind DI build (ConfigurationValidationHostedService)\n- Background services opt-in by default (EnableAutoRotation, EnableCacheInvalidationListener, EnableFallbackSync)\n- CacheInvalidationListener resiliency with bounded retry and exponential backoff\n- Double pub/sub removed from InvalidateAllVersionsAsync\n- Startup ordering fixed for ServicesStartConcurrently=true\n- UseAzureDefaults production safety: metadata provider validation enforced\n- Rollback log level: successful rollback now logs Warning instead of Critical\n- ConfigurationEnumMappings default cases now throw ArgumentOutOfRangeException\n- Fire-and-forget defensive copy in FallbackStorageProvider.SyncToFallbackAsync\n\nBREAKING CHANGES:\n- OperationResult<T> now immutable (init-only properties), Warnings is IReadOnlyList<string>\n- IKeyMetadataRepository has new required members (ExistsIncludingInactiveAsync, GetByKeyNameAsync)\n- IMasterKeyProvider has new InvalidateCache() method (custom implementations must add it)\n- MasterKeyProvider now implements IDisposable\n- Background services opt-in by default\n- UseAzureDefaults() requires persistent metadata provider\n- GetByNameAsync/ExistsAsync targets active records by default\n- See CHANGELOG.md and docs/MIGRATION_GUIDE.md for full migration guide",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#repository",
+    "branch": "master",
+    "commit": "660b8f78bc794aed5322162c3b0401a511f6c5a0",
+    "type": "git",
+    "url": "https://github.com/Toker38/Feedemy.KeyManagement.git"
+  },
+  "verbatimVersion": "3.2.1",
+  "version": "3.2.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/azure.identity",
+          "@type": "PackageDependency",
+          "id": "Azure.Identity",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/azure.security.keyvault.secrets",
+          "@type": "PackageDependency",
+          "id": "Azure.Security.KeyVault.Secrets",
+          "range": "[4.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.data.sqlclient",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.SqlClient",
+          "range": "[6.1.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.data.sqlite",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.Sqlite",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.entityframeworkcore.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.extensions.caching.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Caching.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.extensions.caching.memory",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Caching.Memory",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.extensions.diagnostics.healthchecks",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/opentelemetry.api",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Api",
+          "range": "[1.15.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.6.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#dependencygroup/net10.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.11.8, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#Feedemy.KeyManagement.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5435,
+      "fullName": "Feedemy.KeyManagement.nuspec",
+      "length": 12638,
+      "name": "Feedemy.KeyManagement.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 792,
+      "fullName": "LICENSE",
+      "length": 1330,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2318,
+      "fullName": "README.md",
+      "length": 6144,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 15105,
+      "fullName": "icon.png",
+      "length": 21916,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#lib/net10.0/Feedemy.KeyManagement.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 206552,
+      "fullName": "lib/net10.0/Feedemy.KeyManagement.dll",
+      "length": 627200,
+      "name": "Feedemy.KeyManagement.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#lib/net10.0/Feedemy.KeyManagement.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 51120,
+      "fullName": "lib/net10.0/Feedemy.KeyManagement.xml",
+      "length": 418996,
+      "name": "Feedemy.KeyManagement.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.24.18.41.57/feedemy.keymanagement.3.2.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "encryption",
+    "key-management",
+    "security",
+    "key-rotation",
+    "cryptography",
+    "azure-keyvault",
+    "redis",
+    "dpapi",
+    "health-checks",
+    "distributed-caching",
+    "asp-net-core",
+    "enterprise",
+    "audit-logging",
+    "rsa",
+    "ecdsa",
+    "jwt",
+    "digital-signature",
+    "asymmetric-encryption"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

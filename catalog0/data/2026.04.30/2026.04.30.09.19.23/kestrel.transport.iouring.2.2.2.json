@@ -1,0 +1,191 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "reedz",
+  "catalog:commitId": "117c62b8-cb2d-48f9-a3c4-2f07dcd65d2a",
+  "catalog:commitTimeStamp": "2026-04-30T09:19:23.1739075Z",
+  "copyright": "Copyright (c) 2026 reedz",
+  "created": "2026-04-30T09:15:42.457Z",
+  "description": "High-performance io_uring transport for ASP.NET Core Kestrel. Drop-in replacement for the default socket transport. Beats sockets on RPS, CPU efficiency (+48% RPS/CPU%), and tail latency on Linux. Thread-per-core architecture with provided buffer rings, zero-alloc send path, and inline HTTP processing.",
+  "id": "Kestrel.Transport.IoUring",
+  "isPrerelease": false,
+  "lastEdited": "2026-04-30T09:19:04.79Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "P4CjXVTtRUqBBFgYBT448mpjSM7eOZVpgFs44vqH1lynL3lYe7ISapZN69d7QvJPbxJNZRjC0grj09N3Daf2Bg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 136261,
+  "projectUrl": "https://github.com/reedz/Kestrel.Transport.IoUring",
+  "published": "2026-04-30T09:15:42.457Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v2.2.1 — Slot free-list: fixes high-c correctness + unlocks stronger wins\n• Fix: per-listener connection-slot allocator now uses a pre-populated free-list\n  (Stack<int>) instead of the pre-2.2.1 `connId % MaxConnections` modulo. The\n  modulo policy silently aliased connIds to slot indices and overwrote live\n  connections' slots once connId count exceeded MaxConnections, orphaning their\n  recv/send-loop/fd and producing mass errors at connection counts > MaxConnections.\n  Default MaxConnections is now 16384 (was 1024). Slot release is deferred until\n  all in-flight CQEs for the closing connection have drained, so the generation\n  check correctly rejects stale CQEs instead of misrouting them to a new\n  connection that happened to claim the same slot.\n• Fix: HandleAccept now soft-rejects (close fd, log warning) when the free-list\n  is empty, instead of the previous silent-overwrite. No more orphaning under\n  bursts above MaxConnections.\n\nBenchmarks (dotnet/Benchmarks aspnet-gold-lin, 56-core Intel Xeon Gold 6330,\nUbuntu-24.04 kernel 6.8, IOURING_THREAD_COUNT=32, 1-trial-per-cell matrix):\n  json c=128:  1.07M RPS vs sockets 1.04M  (+0.7%  RPS, -33% CPU)\n  json c=512:  979K  RPS vs sockets 937K   (+4.5%  RPS, -38% CPU)\n  json c=1024: 1.08M RPS vs sockets 1.04M  (+3.9%  RPS, -37% CPU)\n  json c=2048: 1.04M RPS vs sockets 958K   (+8.8%  RPS, -46% CPU)  *pre-2.2.1: 401K errors*\n  plaintext-dual c=1024: 15.45M RPS (+0.9% RPS, -40% CPU)\n  plaintext-dual c=2048: 15.06M RPS (-1.3% RPS, -52% CPU) *pre-2.2.1: 719K errors*\n  tls-steady-dual c=128:  798K RPS (+13.5% RPS, -41% CPU)\n  tls-steady-dual c=1024: 1.21M RPS (+7%    RPS, -35% CPU)\n  tls-steady-dual c=2048: 1.22M RPS (+9.5%  RPS, -41% CPU)\n  0 errors across all 24 cells (12 scenarios/connection pairs × 2 variants).\n\nKnown limitation (unchanged from 2.2.0): bombardier TLS handshake-churn with\n`connectionclose=true` still hits an IO-loop livelock after the first close.\nThis is orthogonal to the slot-collision bug — reproduces at c=1 and with\nIOURING_MAX_CONNECTIONS=65536. Deferred; keep-alive workloads (the common\nproduction shape) are unaffected.\n\nv2.2.0 — Stability + correctness + smaller pinned heap; consistently beats sockets\n• S0 Correctness fixes (3 latent bugs that caused ~1429 socket errors / 60s @ c=2048\n  with v2.1.0 and full death-spiral at higher loads):\n  - Accept-channel drop: when bounded accept-channel was full under burst, the new\n    connection was created but TryWrite return value was ignored, leaking the conn.\n    Now: on TryWrite=false, abort + close cleanly.\n  - Multishot recv rearm SQ-full silent loss: SubmitMultishotRecv now returns bool;\n    callers add to the recv-retry set on failure. No more silent stop-receiving.\n  - CQ-overflow recovery: RecoverFromCqOverflow now routes via UsingMultishotRecv\n    flag; previously always used single-shot recv even for buffer-ring connections.\n• S1 Skip per-connection pinned recv buffer when buffer ring is active (it's never\n  used in that path). Saves ~4 KB POH per connection.\n• P1 Default ThreadCount tuning: TC=64 was wildly oversubscribed on 56-core boxes.\n  TC=32 (or matching ProcessorCount/2) gives same/better RPS at half the CPU.\n• P2 Buffer-ring right-size: ReceiveBufferSize default 4096 -> 2048. Halves the\n  per-buffer pinned heap; keep-alive HTTP/1.1 small payloads need ~2 KB.\n• S2 Diagnostics: new RecvDiagnostics counters (ENOBUFS, EPIPE, ECONNRESET, accept\n  channel drops, recv-retry queue depth/water-mark, async-flush pending). Periodic\n  log via LogPoolStatsInterval.\n• Result: stable to c=4096+ (zero socket errors, zero bad responses, no death\n  spiral). v2.1.0 is broken at c>=256 — v2.2.0 fixes that AND beats sockets.\n\nBenchmarks (json, 56-core Intel Xeon Gold 6330, Azure D64as_v5, kernel 6.8, 3-trial\nmedian, single-load except c=2048 which is dual-load 2x c=1024):\n\n  c=256   patched 781,942 RPS @ 28% CPU  vs sockets 753,172 @ 40% CPU\n                  +3.8% RPS, -30% CPU, +48% RPS/CPU%, P99 0.64 vs 0.70 ms, 0 errors\n  c=1024  patched 1,068,612 RPS @ 34% CPU vs sockets 1,046,915 @ 51% CPU\n                  +2.1% RPS, -33% CPU, +53% RPS/CPU%, P99 5.50 vs 6.41 ms, 0 errors\n  c=2048  patched 2,132,290 RPS @ 34% CPU vs sockets 2,037,381 @ 48% CPU\n                  +4.7% RPS, -29% CPU, +48% RPS/CPU%, P99 5.74 vs 6.55 ms, 0 errors\n  c=4096  patched 1,718,626 RPS @ 33% CPU, P99 3.59 ms, 0 errors (stress validation)\n\n  Pinned heap dropped from 75 MB (v2.1.0 at TC=64) -> 16 MB (4.7x reduction).\n\nv2.0.0 — Architecture overhaul: beats sockets by 15%\n• IoUringPipeScheduler: custom PipeScheduler runs all pipe continuations on\n  the IO loop thread. Eliminates ThreadPool hops for both recv and send paths.\n• Inline HTTP processing: Kestrel HTTP pipeline runs on the IO thread\n  (like UnsafePreferInlineScheduling). Zero cross-thread signaling.\n• Non-blocking send: IValueTaskSource-based send completion. Send loop yields\n  after SQE submit, resumes inline on CQE. Zero-alloc send path.\n• Connection slot array: replaces ConcurrentDictionary with O(1) direct index.\n• Pre-pinned recv buffer: eliminates per-recv Pin()/Dispose().\n• Fix SetSqeFd infinite recursion bug (stack overflow when fd registration fails).\n• Coalesced PipeScheduler wakeups: flag-based eventfd dedup.\n\nBenchmark: json scenario, 56-core Intel Xeon Gold 6330, kernel 6.8.0\n  256c: 2,043K RPS (+9% vs sockets)\n  512c: 2,499K RPS (+13% vs sockets)\n  1024c: 2,829K RPS (+15% vs sockets)\n  CPU usage: 50% (sockets: 90%) — 1.9x more efficient per CPU cycle\n  Lock contention: 50/s (sockets: 1,994/s)\n  GC time: 0% | Allocation rate: 3.8M B/s (below sockets)\n\nv1.2.0 — Re-enable buffer ring + SQPOLL mode\n• Re-enable provided buffer ring (multishot recv) — stalling bug fixed\n  on kernel 6.6+. Eliminates per-recv Pin()/Dispose() overhead.\n  Controlled via EnableBufferRing option (default: true).\n• Add SQPOLL mode support (EnableSqPoll option). Kernel polls the SQ ring,\n  eliminating io_uring_enter syscalls. Requires CAP_SYS_NICE or root.\n• Ring constructor now accepts setup flags for SQPOLL and future kernel features.\n• BufferRingSize option for tuning buffer ring depth (default: 256).\n\nv1.1.0 — Performance: lock-free send path\n• Send operations are now enqueued to the IO loop via ConcurrentQueue + eventfd\n  instead of acquiring SubmitLock per send. Eliminates 90K+/s lock contentions\n  on multi-core machines.\n• IO loop is now the sole SQ producer — all submissions are batched into a\n  single io_uring_enter per loop iteration.\n• Reduces per-send syscalls from 1 each to 0 (batched with recv/accept work).\n\nv1.0.1 — Bug fix\n• Fix IOSQE_BUFFER_SELECT constant: was 1<<3 (0x08), now 1<<5 (0x20)\n  Matches kernel definition. Fixes EFAULT when using buffer rings with recv.\n• Add test project with 10 tests (unit + integration)\n• Add InternalsVisibleTo for test project\n\nv1.0.0 — Initial release\n• Drop-in io_uring transport via UseIoUring()\n• Multishot recv with buffer rings\n• Zero-copy send (SEND_ZC)\n• Registered file descriptors\n• Targets net8.0, net9.0, net10.0",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#repository",
+    "commit": "473fd53acc5b55667ac22775ee596441fe8a4754",
+    "type": "git",
+    "url": "https://github.com/reedz/Kestrel.Transport.IoUring"
+  },
+  "verbatimVersion": "2.2.2",
+  "version": "2.2.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#Kestrel.Transport.IoUring.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4091,
+      "fullName": "Kestrel.Transport.IoUring.nuspec",
+      "length": 8981,
+      "name": "Kestrel.Transport.IoUring.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1083,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2718,
+      "fullName": "README.md",
+      "length": 6859,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#lib/net10.0/Kestrel.Transport.IoUring.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30662,
+      "fullName": "lib/net10.0/Kestrel.Transport.IoUring.dll",
+      "length": 66048,
+      "name": "Kestrel.Transport.IoUring.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#lib/net10.0/Kestrel.Transport.IoUring.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7035,
+      "fullName": "lib/net10.0/Kestrel.Transport.IoUring.xml",
+      "length": 33058,
+      "name": "Kestrel.Transport.IoUring.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#lib/net8.0/Kestrel.Transport.IoUring.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30373,
+      "fullName": "lib/net8.0/Kestrel.Transport.IoUring.dll",
+      "length": 65536,
+      "name": "Kestrel.Transport.IoUring.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#lib/net8.0/Kestrel.Transport.IoUring.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7035,
+      "fullName": "lib/net8.0/Kestrel.Transport.IoUring.xml",
+      "length": 33058,
+      "name": "Kestrel.Transport.IoUring.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#lib/net9.0/Kestrel.Transport.IoUring.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30717,
+      "fullName": "lib/net9.0/Kestrel.Transport.IoUring.dll",
+      "length": 66048,
+      "name": "Kestrel.Transport.IoUring.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#lib/net9.0/Kestrel.Transport.IoUring.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7035,
+      "fullName": "lib/net9.0/Kestrel.Transport.IoUring.xml",
+      "length": 33058,
+      "name": "Kestrel.Transport.IoUring.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.04.30.09.19.23/kestrel.transport.iouring.2.2.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "io_uring",
+    "kestrel",
+    "aspnetcore",
+    "transport",
+    "linux",
+    "high-performance",
+    "networking",
+    "zero-copy"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

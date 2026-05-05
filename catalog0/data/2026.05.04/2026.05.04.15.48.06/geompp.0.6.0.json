@@ -1,0 +1,136 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.04.15.48.06/geompp.0.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Angelo Mastro",
+  "catalog:commitId": "b28c256c-bfda-4a49-a841-72d3a2e9cbea",
+  "catalog:commitTimeStamp": "2026-05-04T15:48:06.843566Z",
+  "created": "2026-05-04T15:42:06.71Z",
+  "description": "C# bindings for geompp, a C++20 geometry library.\n      Provides Point2D/3D, Vector2D/3D, Line2D/3D, Ray2D/3D, LineSegment2D/3D,\n      Polyline2D/3D, Triangle2D/3D, Polygon2D/3D, BBox2D/3D, Plane — with full\n      operator support, intersection queries, WKT serialization, and file I/O.\n      Built with C++/CLI for Windows x64. Targets both .NET 10 and .NET Framework 4.8.",
+  "id": "GeomPP",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-04T15:47:44.303Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "eXuDgPvQrNvadVltf+Hn9+ur7DPfCacD5lRjswYFQeILWeAwSyVPcrvQ07URWD2vCpJyoG12+GIsE/DoEiY78w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 664102,
+  "projectUrl": "https://github.com/amastrobera/geompp",
+  "published": "2026-05-04T15:42:06.71Z",
+  "releaseNotes": "> C++ library — tagged `v0.6.0` · C# / NuGet — tagged `csharp-v0.6.0` · Python / PyPI — tagged `python-v0.6.0`\n\n> Touches `Polyline2D`, `Polyline3D`, `Polygon2D`, `Polygon3D`, `Triangle2D`, `Triangle3D`.\n\n### Changed\n\n**C++ core / Python bindings**\n- `Polyline2D::Make` and `Polyline3D::Make` — fixed: now call `remove_collinear(points)` instead of `remove_collinear(remove_duplicates(points))`. `remove_duplicates` removed all duplicate points regardless of position, silently corrupting self-intersecting or backtracking paths; `remove_collinear` already handles consecutive duplicates as a degenerate collinear triplet, so the extra pass was both wrong and redundant.\n- `Polygon2D::Make` and `Polygon3D::Make` (no-holes overload) — fixed: now call `remove_collinear(points)`, consistent with the with-holes overload. Previously the no-holes path only called `remove_duplicates`, skipping collinear simplification.\n- `remove_duplicates_from_sorted_list()` renamed to `remove_consecutive_duplicates()` (Point2D and Point3D overloads). The old name was misleading — the function removes consecutive equal elements, not all duplicates from a sorted container. Affects `geompp::remove_consecutive_duplicates`, `geompp.remove_consecutive_duplicates` (Python), and all internal callers (`Polygon2D::Make`, `Polygon3D::Make`, `Triangle2D::Intersection`).\n\n**C++ core**\n- `Polyline2D::Length()` and `Polyline3D::Length()` — now inline cached getters; value is pre-computed in `Make()` and stored as a private member. No change to public API.\n- `Polygon2D::Perimeter()` and `Polygon3D::Perimeter()` — same inline-cached pattern. No change to public API.\n- `Polyline2D::operator=` and `Polyline3D::operator=` — now copy the cached `LENGTH` member.\n- `Polygon2D::operator=` and `Polygon3D::operator=` — now copy the cached `PERIMETER` member (and `PLANE` for 3D).\n- `Polyline2D::AlmostEquals()` and `Polyline3D::AlmostEquals()` — added fast-rejection on `LENGTH` difference before comparing vertices.\n- `Polyline2D::Contains()` and `Polyline3D::Contains()` — rewritten with `std::ranges::any_of` over `ToSegments()`.\n- `Polyline2D::DistanceTo()` and `Polyline3D::DistanceTo()` — rewritten with `std::ranges::min` + `views::transform` over `ToSegments()`; no intermediate allocation.\n- `Polyline2D::ProjectOnto()` and `Polyline3D::ProjectOnto()` — fixed double segment construction; now carries the best projected point directly through the loop.\n- `Polyline2D::Location()` and `Polyline3D::Location()` — fixed double `segs[i]` construction per iteration; each segment is now materialized once with `auto seg = segs[i]`.\n- `Polyline2D::Interpolate()` and `Polyline3D::Interpolate()` — now throws `std::invalid_argument` when `pct` is outside `[0, 1]`; previously clamped silently.\n- `Triangle2D::Contains()` — inlines the removed `Location()` math directly; behaviour unchanged.\n- `Triangle2D::DistanceTo()` — reverted to `throw std::runtime_error(\"not implemented\")`; previous implementation was incorrect.\n\n### Added\n\n**Python / PyPI**\n- `LineSegment2D.project_onto()`, `LineSegment3D.project_onto()`, `Ray2D.project_onto()`, `Ray3D.project_onto()`, `Polyline2D.project_onto()`, `Polyline3D.project_onto()` — bound from the existing C++ `ProjectOnto(Point)` method; was callable from C++ and C# but missing from Python bindings.\n\n### Fixed\n\n**C++ core**\n- `Polyline2D::Location()` and `Polyline3D::Location()` — corrected unit mismatch: `seg.Location(point)` returns a [0, 1] fraction but was treated as a raw length accumulator; result is now `(tot_len + seg.Location(point) * seg.Length()) / LENGTH`.\n- `Polyline2D::Interpolate()` and `Polyline3D::Interpolate()` — corrected unit mismatch: `pct` ∈ [0, 1] was compared directly against cumulative segment lengths; fixed by computing `target = pct * LENGTH` before the selection loop.\n- `WktParser::FromWkt()` — `LINESTRING` WKT strings were silently parsed as `Line2D`/`Line3D` because the `LINE` prefix check ran before the `LINESTRING` check; fixed by moving the `LINESTRING` branch first.\n\n**C# / NuGet**\n- `Line2D` binding — removed spurious `Location(Point2D^)` declaration and implementation; the backing `geompp::Line2D` has no such method, causing a build failure.\n\n### Removed (breaking)\n\n**C++ core**\n- `Polygon2D::Location()` and `Polygon3D::Location()` — removed; function had no meaningful geometric definition for a polygon.\n- `Polygon2D::Interpolate()` and `Polygon3D::Interpolate()` — removed; function had no meaningful geometric definition for a polygon.\n- `Triangle2D::Location()` — removed; returned parametric `(s,t)` coordinates as a `Point2D`, which is a type misuse and leaked an internal implementation detail.\n- `Triangle3D::Location()` — removed (was unimplemented stub).\n\n**C# / NuGet (breaking)**\n- `Polygon2D.Location()`, `Polygon3D.Location()`, `Polygon2D.Interpolate()`, `Polygon3D.Interpolate()` — removed.\n- `Triangle2D.Location()` and `Triangle3D.Location()` — removed.\n\n**Python / PyPI (breaking)**\n- `Polygon2D.location()`, `Polygon3D.location()`, `Polygon2D.interpolate()`, `Polygon3D.interpolate()` — removed.\n- `Triangle2D.location()` and `Triangle3D.location()` — removed.\n\n### Tests\n\n**C++ (`geompp_tests`)**\n- `test_polygon2d.cpp`: added `ToSegments`.\n- `test_polygon3d.cpp`: added `ToSegments`.\n- `test_polyline2d.cpp`: updated `Interpolate` — replaced clamp-assertions with `EXPECT_ANY_THROW` for out-of-range `pct`.\n- `test_polyline3d.cpp`: same as above.\n- `test_triangle2d.cpp`: replaced `Location`-based roundtrip assertion in `Interpolate` test with `Contains(Centroid())`; added outside-returns-nullopt cases; replaced `DistanceTo` test body with `EXPECT_ANY_THROW`.\n- `test_triangle3d.cpp`: removed `Location` test.\n\n**Python (`geompp_python/tests`)**\n- `TestPolygon2D`, `TestPolygon3D`, `TestPolyline2D`, `TestPolyline3D`: added `test_to_segments`.\n- `TestPolyline2D`, `TestPolyline3D`: updated `test_interpolate` — added `pytest.raises` for out-of-range `pct`.\n- `TestTriangle2D`: removed `test_location`; expanded `test_interpolate` (vertex checks, outside returns `None`).\n- `TestTriangle3D`: added `test_interpolate` (vertices, centroid, outside returns `None`).\n\n**C# (`geompp_csharp/tests`)**\n- `Vector2D`: added ~12 tests covering `AlmostEquals`, arithmetic operators, `Length`, `Dot`, `Cross`, `Normalize`, `Perp`, `IsParallel`, `IsPerpendicular`.\n- `WktParser`: added 10 tests (`Open_ValidFile_NoThrow`, `Next_Returns*` for Point2D/3D, LineSegment2D/3D, Polyline2D/3D, `Next_SkipsComments`, `FromWkt_Point2D`, `ToWkt_Point2D`); all file-using tests wrapped in `using (var parser = ...)` blocks to ensure `Dispose()` closes the `std::ifstream` before `File.Delete`.\n- `GeometryCollection2D` and `GeometryCollection3D`: added ~15 tests each covering `Add`, `Get`, `Size`, `AlmostEquals`, `ToWkt`, `FromWkt`, `ToFile`/`FromFile`.\n- `Polyline2D` / `Polyline3D`: corrected `DistanceTo_PointAboveSegment` — expected distance changed from `3.0` to `2.0`: for polyline `(0,0)→(4,0)→(4,4)` and point `(2,3)`, the nearest point is on the vertical segment at `(4,3)`, distance 2.\n\n**Python (`geompp_python/tests`)**\n- `TestPolyline2D` / `TestPolyline3D`: corrected `test_project_onto` — expected `project_onto(Point(2,3))` updated to `Point(3,3)` (nearest, distance 1) from `Point(2,0)` (distance 3).\n\n---",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.04.15.48.06/geompp.0.6.0.json#repository",
+    "type": "git",
+    "url": "https://github.com/amastrobera/geompp"
+  },
+  "requireLicenseAcceptance": false,
+  "verbatimVersion": "0.6.0",
+  "version": "0.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.04.15.48.06/geompp.0.6.0.json#dependencygroup/net10.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.04.15.48.06/geompp.0.6.0.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.04.15.48.06/geompp.0.6.0.json#GeomPP.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3236,
+      "fullName": "GeomPP.nuspec",
+      "length": 8735,
+      "name": "GeomPP.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.04.15.48.06/geompp.0.6.0.json#lib/net10.0-windows7.0/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 327539,
+      "fullName": "lib/net10.0-windows7.0/GeomPP.dll",
+      "length": 939008,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.04.15.48.06/geompp.0.6.0.json#lib/net48/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 318307,
+      "fullName": "lib/net48/GeomPP.dll",
+      "length": 924160,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.04.15.48.06/geompp.0.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12987,
+      "fullName": ".signature.p7s",
+      "length": 12987,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "geometry",
+    "3d",
+    "2d",
+    "computational-geometry",
+    "gis",
+    "math",
+    "csharp",
+    "dotnet"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

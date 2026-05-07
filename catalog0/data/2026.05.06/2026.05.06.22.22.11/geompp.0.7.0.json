@@ -1,0 +1,145 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Angelo Mastro",
+  "catalog:commitId": "a3536380-68fd-463b-a155-917a8b235317",
+  "catalog:commitTimeStamp": "2026-05-06T22:22:11.8490802Z",
+  "created": "2026-05-06T22:18:53.833Z",
+  "description": "C# bindings for geompp, a C++20 geometry library.\n      Provides Point2D/3D, Vector2D/3D, Line2D/3D, Ray2D/3D, LineSegment2D/3D,\n      Polyline2D/3D, Triangle2D/3D, Polygon2D/3D, BBox2D/3D, Plane — with full\n      operator support, intersection queries, WKT serialization, and file I/O.\n      Built with C++/CLI for Windows x64. Targets both .NET 10 and .NET Framework 4.8.",
+  "id": "GeomPP",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-06T22:22:02.407Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "OeRPGRNniVfaQOLpqj1nQueEZh1R6icddCjU0q/p7t8Uk/louIlOR2YbH4ZUdfbnYVdf+OCyiVr1jydoNiWW9g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 669122,
+  "projectUrl": "https://github.com/amastrobera/geompp",
+  "published": "2026-05-06T22:18:53.833Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "> C++ library — tagged `v0.7.0` · C# / NuGet — tagged `csharp-v0.7.0` · Python / PyPI — tagged `python-v0.7.0`\n\n> Touches `Triangle2D`, `Triangle3D`, `Polygon2D`, `Polygon3D`.\n\n### Added\n\n**C++ core**\n- `Triangle2D::Location(Point2D const&)` → `std::optional<std::tuple<double, double>>` — returns barycentric coordinates `(s, t)` where `P = P0 + s·(P1−P0) + t·(P2−P0)`, if the point is inside or on the boundary; `nullopt` if outside. Inverse of `Interpolate`. Implemented via 2D perpendicular dot products (`u.Perp()` / `v.Perp()`).\n- `Triangle3D::Location(Point3D const&)` → `std::optional<std::tuple<double, double>>` — same semantics; returns `nullopt` also when the point is off the triangle's plane. Implemented via 3D cross-product isolating each barycentric coordinate without any 2D projection.\n- `Polygon2D::IsOnBoundary(Point2D const&) const` — returns `true` if the point lies exactly on an edge (outer ring or any hole boundary); uses `LineSegment2D::Contains` per edge, which tolerates floating-point rounding up to `DECIMAL_PRECISION` digits.\n- `Polygon3D::IsOnBoundary(Point3D const&) const` — same semantics; rejects off-plane points immediately, then projects to 2D and delegates to `Polygon2D::IsOnBoundary`.\n\n**Python / PyPI**\n- `Triangle2D.location(point)` → `tuple[float, float] | None` — Python binding for the new `Location` method.\n- `Triangle3D.location(point)` → `tuple[float, float] | None` — Python binding for the new `Location` method.\n- `Polygon2D.is_on_boundary(point)` → `bool` — Python binding for the new method.\n- `Polygon3D.is_on_boundary(point)` → `bool` — Python binding for the new method.\n\n**C# / NuGet**\n- `Triangle2D.Location(Point2D^ point)` → `Tuple<double, double>^` (or `null` if outside) — C# binding for the new `Location` method.\n- `Triangle3D.Location(Point3D^ point)` → `Tuple<double, double>^` (or `null` if off-plane or outside) — C# binding for the new `Location` method.\n- `Polygon2D.IsOnBoundary(Point2D^ point)` → `bool` — C# binding for the new method.\n- `Polygon3D.IsOnBoundary(Point3D^ point)` → `bool` — C# binding for the new method.\n\n### Changed\n\n**C++ core**\n- `Triangle2D::Contains(Point2D const&)` — rewritten to delegate entirely to `Location(point).has_value()`. Behavior is unchanged; implementation is now consistent and symmetric with `Interpolate`.\n- `Triangle3D::Contains(Point3D const&)` — was an unimplemented stub (`throw std::runtime_error(\"not implemented\")`); now fully implemented. Rejects off-plane points via `BBox3D` and plane check, then delegates to `Location(point).has_value()`. No 2D projection is performed.\n- `Polygon2D::Contains(Point2D const&)` — was an unimplemented stub; now implemented using a winding-number algorithm with boundary-inclusive semantics: calls `IsOnBoundary` first, then falls back to winding number for strictly interior points.\n- `Polygon3D::Contains(Point3D const&)` — was an unimplemented stub; now implemented. Returns `false` immediately for off-plane points; projects to 2D and applies the winding-number algorithm for in-plane points.\n\n### Fixed\n\n**C++ core**\n- `Polygon2D::Contains(Point2D const&)` — fixed inverted boundary logic: `IsOnBoundary` is called first and short-circuits to `true`; previously the order was reversed, causing interior points to return `false`.\n- `Polygon2D::FromWkt` / `Polygon3D::FromWkt` — were throwing for valid WKT strings in C++ tests (leftover `EXPECT_ANY_THROW` from when the function was a stub); tests updated to expect successful parse and verify vertex count and first point.\n- `Triangle3DTest::Contains_OnBoundary` — off-plane assertion changed from `z=0.001` to `z=0.01`; with `DECIMAL_PRECISION=3` the epsilon is exactly `0.001`, so the old value was within tolerance and the point was classified as on-plane.\n\n### Tests\n\n**C++ (`geompp_tests`)**\n- `test_triangle2d.cpp`: `Location` test rewritten — `check_inside` / `check_outside` lambdas that assert `Location` value AND `Contains` status together; round-trip A (`Interpolate(Location(p)) == p`) and round-trip B (`Location(Interpolate(s,t)) == (s,t)`).\n- `test_triangle3d.cpp`: `Location` test added — same `check_inside` / `check_outside` / round-trip structure; off-plane point asserts both `Location == nullopt` and `Contains == false`.\n- `test_triangle3d.cpp`: `Contains_OnBoundary` — off-plane assertion fixed to `z=0.01`.\n- `test_polygon2d.cpp`: `Contains` test completed — interior, near-corner, exterior, and polygon-with-hole cases. `Contains_OnBoundary` — vertices, edge midpoints, and hole boundary. `IsOnBoundary_True` / `IsOnBoundary_False` — explicit standalone tests. `Wkt` and `FromFile` updated to verify successful round-trip.\n- `test_polygon3d.cpp`: same coverage as 2D plus off-plane and YZ-plane cases.\n\n**Python (`geompp_python/tests`)**\n- `TestTriangle2D.test_location`: rewritten with `check_inside`/`check_outside` helpers and both round-trips.\n- `TestTriangle3D.test_location`: added — same structure, including off-plane case.\n- `TestPolygon2D.test_contains`: completed — interior, near-corner, exterior, polygon-with-hole, and boundary cases.\n- `TestPolygon3D.test_contains`: completed — same plus off-plane assertion.\n- `TestPolygon2D.test_is_on_boundary`: vertices, edge midpoints, interior/exterior false cases, hole boundary true and false cases.\n- `TestPolygon3D.test_is_on_boundary`: same in 3D plus off-plane false case.\n\n**C# (`geompp_csharp/tests`)**\n- `Triangle2D` — `Location_Vertices_ReturnExpectedCoords_2D`, `Location_Centroid_OneThirdEach_2D`, `Location_NullImpliesNotContained_2D`, `Location_RoundTrip_A_And_B_2D`: each asserts `Location` value AND paired `Contains` call; round-trips A and B included.\n- `Triangle3D` — `Location_Vertices_ReturnExpectedCoords`, `Location_Centroid_OneThirdEach`, `Location_NullImpliesNotContained`, `Location_RoundTrip_A_And_B`: same relationship-focused structure.\n- `Polygon2D` — `Contains_Interior_True`, `Contains_Exterior_False`, `Contains_WithHole`, `Contains_OnBoundary_True`, `IsOnBoundary_OnEdge_True`, `IsOnBoundary_Interior_False` added.\n- `Polygon3D` — `Contains_Interior_True`, `Contains_OffPlane_False`, `Contains_WithHole`, `Contains_OnBoundary_True`, `IsOnBoundary_OnEdge_True`, `IsOnBoundary_Interior_False` added.\n- `Triangle3D` — `Contains_Interior_True`, `Contains_OffPlane_False` added (delegating to `Location`).\n\n---",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json#repository",
+    "type": "git",
+    "url": "https://github.com/amastrobera/geompp"
+  },
+  "requireLicenseAcceptance": false,
+  "verbatimVersion": "0.7.0",
+  "version": "0.7.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json#dependencygroup/net10.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json#GeomPP.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2758,
+      "fullName": "GeomPP.nuspec",
+      "length": 7880,
+      "name": "GeomPP.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2139,
+      "fullName": "README.md",
+      "length": 5825,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json#lib/net10.0-windows7.0/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 328646,
+      "fullName": "lib/net10.0-windows7.0/GeomPP.dll",
+      "length": 942080,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json#lib/net48/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 320461,
+      "fullName": "lib/net48/GeomPP.dll",
+      "length": 928256,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.06.22.22.11/geompp.0.7.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12987,
+      "fullName": ".signature.p7s",
+      "length": 12987,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "geometry",
+    "3d",
+    "2d",
+    "computational-geometry",
+    "gis",
+    "math",
+    "csharp",
+    "dotnet"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,258 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Troy Willmot",
+  "catalog:commitId": "42caa833-166f-4ba0-b0eb-a38ec2959eed",
+  "catalog:commitTimeStamp": "2026-05-10T10:18:50.2075662Z",
+  "copyright": "Copyright (c) Troy Willmot",
+  "created": "2026-05-10T10:16:03.47Z",
+  "description": "Cross-platform installer for the Winix CLI tool suite.",
+  "iconFile": "Winix.png",
+  "id": "Winix.Winix",
+  "isPrerelease": true,
+  "lastEdited": "2026-05-10T10:18:46.893Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "dpVoZlST7TW5BaT+DmgL++5PIke3ZkREtFkEGLeOx/2Q6lWpV9x45u7pyxpOI5HGU7g81abPM1Gu29jHCN2tuA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 342074,
+  "projectUrl": "https://github.com/Yortw/winix",
+  "published": "2026-05-10T10:16:03.47Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## [0.3.0] - 2026-05-10\n\n### Changed\n- `winix list --json` and `winix status --json` now emit to **stdout** (was stderr) per suite convention. Pipe-friendly for `jq`; matches `files`, `treex`, `whoholds`, `man`.\n- `winix uninstall` is now idempotent — tools that are not installed are reported as `○ {tool} — not installed (no action)` and contribute exit 0, instead of failing with `✗` and exit 1. Re-running `winix uninstall` after a partial run is now safe.\n- `winix install` no longer annotates \"not in manifest\" errors with a misleading `(via X)` package-manager hint. The annotation made the error look like a `--via` mismatch when the real cause was that the requested tool is not part of the suite manifest at all.\n\n### Fixed\n- `winix list` and `winix install` now see the canonical 22-tool manifest that ships with the binary, instead of whatever the most recently *published* GitHub release advertised. Pre-fix the loader fetched `https://github.com/Yortw/winix/releases/latest/download/winix-manifest.json` on every invocation; while v0.3 was unshipped that asset described only 11 tools, so `winix install` could see only half of the tools the user's binary supported. The fix bundles the canonical manifest beside the binary at `share/winix/winix-manifest.json` and prefers it over the network round-trip.\n- `winix list` / `winix status` / `winix list --json` no longer report wrong installed versions for packages that have an upgrade pending. Pre-fix `WingetAdapter` parsed the version cell as the last whitespace-separated token on the row, which became the source name (`winix`) or the available version whenever winget emitted the 5-column \"Name Id Version Available Source\" shape. The parser now anchors on the Id column (right-to-left scan) and returns the next token, robust against multi-word names and the optional Available/Source columns.\n- `EnsureBucket` (scoop) and `EnsureTap` (brew) now throw on a non-zero exit from the underlying `bucket add` / `tap add` invocation. Pre-fix the result was discarded and the methods unconditionally returned `true`, so `winix install` emitted a misleading \"registered scoop bucket\" / \"registered brew tap\" stderr line even when the underlying command failed (network down, git missing from PATH, repo unreachable). Failures now surface a \"could not register …\" warning via the caller's existing catch.\n- Manifest cache no longer hangs the whole tool when the on-disk JSON is corrupt or has a future-dated mtime. A typed corrupt-cache fallback discards the bad cache and falls back to the bundled manifest with a stderr warning naming the corrupt source; an mtime sanity bound rejects future timestamps so a misconfigured clock or a copied-back file can't poison subsequent runs.\n- `winix install`'s PATH-probe (`IsOnPath`) no longer spawns each candidate executable with `--version` and immediately kills it. The replacement is a PATHEXT-aware PATH walk that resolves `.exe` / `.cmd` / `.bat` extensions on Windows by directory listing only. Drops the spurious \"killed process\" diagnostic noise that appeared in some terminals during install runs.\n- Top-level catch sites that previously piped framework `ex.Message` to user output now narrow to `ex.GetType().Name`. Under `InvariantGlobalization=true` (the AOT default) framework messages can be SR resource keys (`Arg_ParamName_Name`, `IO_PathNotFound_Path`) rather than English text — the leak class documented in `feedback_invariant_globalization_resource_keys.md`.\n- Exit codes 126 (PM unavailable) and 127 (unknown subcommand / unsupported PM in `--via`) are now emitted as documented. Pre-fix all error paths collapsed to exit 1, defeating the documented POSIX-style exit-code contract that scripts and CI consumers rely on.\n- `--version` output no longer carries the `+gitsha` SourceLink suffix. Users see plain `winix 0.3.0`, matching the suite-wide convention.\n\n### Added\n- `winix-manifest.json` is now bundled beside the binary at `share/winix/winix-manifest.json`. `winix --version`, `winix list`, and `winix status` work fully offline against the bundled manifest with no network round-trip — measured `winix --version` startup drops from ~104 ms to ~28 ms after the network round-trip is removed from the cold path, and the corresponding correctness fix above (canonical manifest beats whatever the latest published release advertised) is the more important effect.\n- Per-user network manifest cache at `%LOCALAPPDATA%/winix/` (Windows) or `$XDG_CACHE_HOME/winix/` (Unix). When network refresh succeeds, the result is persisted; subsequent loads pick `max(cache, bundle)` by mtime so users see between-release manifest updates without waiting for the next binary release. Cache is self-healing on corruption and bounded against future mtimes.\n- `winix list` and `winix uninstall` now emit a `winix: querying <pm>…` progress line on stderr immediately before each package manager's bulk query, so users on slow PMs (winget) see that work is in progress. Suppressed under `--json`.\n\n### Changed (perf)\n- `winix list`, `winix status`, and `winix uninstall` now use a single bulk subprocess per package manager (`winget list`, `scoop list`, `brew list --versions`, `dotnet tool list -g`) instead of one filtered subprocess per tool. On real winget this drops wall-time from **5-7 minutes to ~8 seconds** for the 22-tool manifest. The previous implementation issued up to 88 filtered subprocess calls (22 tools × 2 PMs × `IsInstalled` + `GetInstalledVersion`); each `winget list --id X --exact` was measured at 7-19 seconds.\n\n### Internal\n- `Cli.RunAsync` library seam extracted (Program.cs is now a one-line forwarder). Orchestration contracts (`--via` whitelist, exit-code routing 126/127, `--json` to stdout, `(via X)` annotation drop on `not in manifest` errors, idempotent uninstall) are now testable without process spawning.\n\n### Documentation\n- `winix.1` regenerated; README + agent-guide synchronised. Notable additions: `--color` and `--json` flags now documented in OPTIONS (were previously omitted from the man page); `winix uninstall` correctly classified as state-mutating (was mis-listed as read-only alongside `list`/`status`); new \"Manifest Sources\" section explaining the bundled-manifest + cache + network-refresh precedence; first-run notice that `EnsureBucket` / `EnsureTap` may register a scoop bucket or brew tap on the user's behalf during `winix install`.\n\nSee full changelog at https://github.com/Yortw/winix/blob/main/src/winix/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#repository",
+    "commit": "832ac5692cc60fe5f8f9c0269989d1f1f36cbe59",
+    "type": "git",
+    "url": "https://github.com/Yortw/winix"
+  },
+  "verbatimVersion": "0.3.0-rc2",
+  "version": "0.3.0-rc2",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#Winix.Winix.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3575,
+      "fullName": "Winix.Winix.nuspec",
+      "length": 7675,
+      "name": "Winix.Winix.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2099,
+      "fullName": "README.md",
+      "length": 4805,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#Winix.png",
+      "@type": "PackageEntry",
+      "compressedLength": 227385,
+      "fullName": "Winix.png",
+      "length": 272615,
+      "name": "Winix.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#content/man/man1/winix.1",
+      "@type": "PackageEntry",
+      "compressedLength": 1177,
+      "fullName": "content/man/man1/winix.1",
+      "length": 2759,
+      "name": "winix.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#content/winix-manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1594,
+      "fullName": "content/winix-manifest.json",
+      "length": 6434,
+      "name": "winix-manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#contentFiles/any/net10.0/man/man1/winix.1",
+      "@type": "PackageEntry",
+      "compressedLength": 1177,
+      "fullName": "contentFiles/any/net10.0/man/man1/winix.1",
+      "length": 2759,
+      "name": "winix.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#contentFiles/any/net10.0/winix-manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1594,
+      "fullName": "contentFiles/any/net10.0/winix-manifest.json",
+      "length": 6434,
+      "name": "winix-manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 181,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/Winix.Winix.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25676,
+      "fullName": "tools/net10.0/any/Winix.Winix.dll",
+      "length": 58880,
+      "name": "Winix.Winix.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/Winix.Winix.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 14855,
+      "fullName": "tools/net10.0/any/Winix.Winix.pdb",
+      "length": 26360,
+      "name": "Winix.Winix.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/Yort.ShellKit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18098,
+      "fullName": "tools/net10.0/any/Yort.ShellKit.dll",
+      "length": 38912,
+      "name": "Yort.ShellKit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/Yort.ShellKit.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 13752,
+      "fullName": "tools/net10.0/any/Yort.ShellKit.pdb",
+      "length": 23540,
+      "name": "Yort.ShellKit.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/share/man/man1/winix.1",
+      "@type": "PackageEntry",
+      "compressedLength": 1177,
+      "fullName": "tools/net10.0/any/share/man/man1/winix.1",
+      "length": 2759,
+      "name": "winix.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/share/winix/winix-manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1594,
+      "fullName": "tools/net10.0/any/share/winix/winix-manifest.json",
+      "length": 6434,
+      "name": "winix-manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/winix.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 359,
+      "fullName": "tools/net10.0/any/winix.deps.json",
+      "length": 1895,
+      "name": "winix.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/winix.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3229,
+      "fullName": "tools/net10.0/any/winix.dll",
+      "length": 7168,
+      "name": "winix.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/winix.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 7284,
+      "fullName": "tools/net10.0/any/winix.pdb",
+      "length": 12016,
+      "name": "winix.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#tools/net10.0/any/winix.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 300,
+      "fullName": "tools/net10.0/any/winix.runtimeconfig.json",
+      "length": 581,
+      "name": "winix.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.10.10.18.50/winix.winix.0.3.0-rc2.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "cli",
+    "command-line",
+    "cross-platform",
+    "windows",
+    "macos",
+    "linux",
+    "aot",
+    "dotnet-tool",
+    "winix",
+    "installer",
+    "suite",
+    "package-manager"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

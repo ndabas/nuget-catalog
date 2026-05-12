@@ -1,0 +1,1035 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Microsoft",
+  "catalog:commitId": "65f62e9c-8651-4a6f-a627-046dfcc29b4e",
+  "catalog:commitTimeStamp": "2026-05-11T22:46:05.6558263Z",
+  "copyright": "© Microsoft Corporation. All rights reserved.",
+  "created": "2026-05-11T22:42:46.83Z",
+  "description": "CLI tool for Microsoft Agents 365 development",
+  "id": "Microsoft.Agents.A365.DevTools.Cli",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-11T22:45:52.727Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "xEtwkQ513vXCBh0fz6oZ0dLEHJKVpIssWV0CzhiCkfgDhUpKIWslgmXiJDEeuo+9FdJYaxuq9+/prBQpNaB+7g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 34192694,
+  "projectUrl": "https://github.com/microsoft/Agent365-devTools",
+  "published": "2026-05-11T22:42:46.83Z",
+  "releaseNotes": "### Upgrade Notes\n\n#### Existing agents: grant Observability API permissions\n\nAgents provisioned before this release need `Agent365.Observability.OtelWrite` granted as both a **delegated** and an **application** permission on the blueprint app. Requires Global Administrator.\n\n**Option A — Entra portal** (no config files required):\n\n1. [Entra portal](https://entra.microsoft.com) > **App registrations** > select your **Blueprint** app > **API permissions**\n2. **Add a permission** > **APIs my organization uses** > search `9b975845-388f-4429-889e-eab1ef63949c`\n3. **Delegated permissions** > select `Agent365.Observability.OtelWrite` > **Add permissions**\n4. Repeat step 2 > **Application permissions** > select `Agent365.Observability.OtelWrite` > **Add permissions**\n5. **Grant admin consent for \\<tenant\\>** > confirm\n\n**Option B — CLI** (`a365 setup admin`) has been removed in this release. Use Option A above, or copy the PowerShell instructions printed in the `a365 setup all` summary output.\n\n### Added\n- `logs export [command] [--output <dir>]` — exports a redacted copy of a CLI diagnostic log safe to share with Microsoft support. Redacts JWT tokens, email addresses, OS-path usernames, and tenant-specific GUIDs; replaces identical values with consistent aliases so log correlation is preserved. Preserves diagnostic IDs that aren't sensitive but are useful for debugging — `TraceId`, `CorrelationId`, Microsoft Graph `request-id` and `client-request-id` values, and well-known public Microsoft / Agent 365 resource appIds (such as the Microsoft Graph appId `00000003-0000-0000-c000-000000000000`). Omit `[command]` to export all available logs at once.\n- `setup blueprint --show-secret` — displays the blueprint client secret stored in `a365.generated.config.json` in plaintext without re-running any setup steps. On Windows, decryption requires the same machine and user account that ran setup (DPAPI). When no secret is found, the command prints instructions to run `a365 setup blueprint --agent-name <name>`.\n- Blueprint client secret is now printed to the terminal at creation time with a \"copy this value now\" warning. Use `a365 setup blueprint --show-secret` to retrieve it afterwards.\n- Version check: stable-channel users now see an informational notice when a newer preview release exists above the current stable version, without triggering the update-required banner.\n- `setup requirements` Global Administrator path: when the well-known CLI client app is not found in a new tenant, Global Admins are prompted to create the app and grant admin consent automatically (enter an app ID or type `C` to create).\n- `--authmode obo|s2s|both` option on `setup all` — controls how the agent identity service principal receives permissions:\n  - `obo` (default): principal-scoped delegated grants (`consentType: \"Principal\"`); no Global Administrator required.\n  - `s2s`: application role assignments on the agent identity SP; attempted programmatically, falls back to printed PowerShell instructions if the caller lacks Global Administrator.\n  - `both`: applies both OBO delegated grants and S2S app role assignments.\n  - Inheritable permissions (Phase 2a) and AllPrincipals grants (Phase 2b) are always skipped for non-DW agents regardless of `authMode`, to avoid requiring a Global Administrator role.\n  - `authMode` can be persisted in `a365.config.json` to apply on every run without the flag.\n- `--project-path <path>` option on `develop list-configured`, `develop add-mcp-servers`, and `develop remove-mcp-servers` — specify the manifest location without requiring `a365.config.json`.\n- `setup requirements` runs without `a365.config.json` — system checks (PowerShell modules, Frontier enrollment) always run; client app checks run when a config file or Azure CLI session is available.\n- `--agent-name` and `--tenant-id` options added to `setup blueprint`, `setup permissions` (all subcommands), `create-instance`, `publish`, and `query-entra` — all commands can now resolve configuration from Entra ID without requiring `a365.config.json`.\n- `setup permissions custom --resource-app-id <guid> --scopes <scopes>` — apply inline custom API permissions to the agent blueprint without editing `a365.config.json`.\n- `--m365` opt-in flag on `a365 setup blueprint`, `a365 cleanup blueprint`, and `a365 setup all` — when set, the CLI registers or clears the agent blueprint's messaging endpoint via the Teams Graph backend configuration endpoint on MCP Platform. Default is **off**: without `--m365`, endpoint registration is skipped and the CLI points users at the Teams Developer Portal (https://learn.microsoft.com/en-us/microsoft-agent-365/developer/create-instance#1-configure-agent-in-teams-developer-portal) for manual configuration. Intended for M365 agents; opt-in because the Teams Graph rollout on MCP Platform is ongoing.\n- Messaging endpoint row added to `a365 setup all` summary output, with \"registered\"/\"reused\"/\"skipped (non-M365)\"/\"manual config required\"/\"failed\" states. When registration can't complete, the summary surfaces an \"Action Required\" entry with the Teams Developer Portal URL so the user knows exactly what to do next.\n- Defensive fallback when the server rejects the new request with a known contract-mismatch signature — the CLI logs `\"Automated messaging endpoint registration is not available for this tenant yet. You'll need to configure it manually.\"` and directs the user to the Teams Developer Portal. Same user-facing path is reused when registration fails because the signed-in user is not a blueprint owner.\n- `--yes` / `-y` option on `cleanup blueprint`, `cleanup azure`, and `cleanup instance` — skips confirmation prompts.\n- `--dry-run` option on top-level `a365 cleanup` — previews resources that would be deleted across blueprint, Azure, and instance steps without making changes.\n\n### Changed\n- Agent identity creation now uses Blueprint app-only credentials (`AgentIdentity.CreateAsManager`, auto-granted to all Blueprint apps). The custom CLI app no longer requires `AgentIdentity.Create.All` or `DelegatedPermissionGrant.ReadWrite.All`. Administrators can remove these permissions from the CLI app registration. See [Custom client app registration](https://learn.microsoft.com/microsoft-agent-365/developer/custom-client-app-registration) for the updated permission list.\n- `setup all` now retries agent identity creation and blueprint token acquisition with exponential back-off (delay doubles up to a 60-second cap; agent identity retries up to 5 times, blueprint token up to 12 times — worst case is several minutes per call when Entra replication lag is severe) when Entra replication lag causes transient 401/AADSTS errors on fresh blueprint setups. Retry progress is logged at `Debug` level only.\n- `setup blueprint --m365` now prints a note when passed alone — the flag only takes effect with `--endpoint-only` or `--update-endpoint`; otherwise use `setup all --m365`.\n- Graph error bodies in `[DBG]` logs compressed to `{code}: {message}` instead of the full JSON envelope.\n\n### Fixed\n- `setup blueprint` / `setup all` on macOS: `agentBlueprintClientSecret` was written to the wrong file when symlinks were present in the working directory path. `Environment.CurrentDirectory` (getcwd, symlink-resolved) diverged from `config.DirectoryName` (unresolved), causing the secret save to target a different file than `LoadAsync` reads back — resulting in `agentBlueprintClientSecret: null` on subsequent runs. Fixed by threading the resolved `generatedConfigPath` explicitly through `CreateBlueprintClientSecretAsync`.\n- CLI log file now captures `[DBG]` messages by default. Previously `SetMinimumLevel` was applied globally, preventing Debug-level messages from reaching the file logger even though `FileLoggerProvider` was configured to accept Trace and above.\n- `setup all` with `--authmode obo --aiteammate` no longer exits with an error. `obo` is the default for AI Teammate agents and is accepted with a warning; `--authmode s2s` and `--authmode both` remain incompatible with `--aiteammate`.\n- `setup all` summary now shows **Messaging endpoint — not configured** (with a link to the Teams Developer Portal to register the endpoint manually) instead of **failed — see Action Required** when the messaging endpoint URL is absent from config. Real failures (bad URL, contract mismatch) continue to show the error path.\n- `setup blueprint` no longer silently loses the blueprint client secret on re-runs when `agentBlueprintClientSecret` was previously `null` in `a365.generated.config.json`. Null dynamic properties are now omitted from the generated config file instead of being written as explicit nulls (fixes macOS secret-loss regression introduced in the issue #408 fix).\n- Error messages for commands run without required configuration no longer expose internal file paths. `setup all`, `cleanup`, and `create-instance` without `--agent-name` now show actionable guidance with the exact command to run. `develop addpermissions` and `develop gettoken` without `--app-id` now prompt for the application ID directly.\n- `setup all` no longer inherits stale resource IDs when the user switches tenants between runs (`az logout` + `az login` to a different tenant). The CLI detects the tenant change before loading configuration, silently backs up files from the previous run, and prompts the user to re-run with `--agent-name` for a clean setup in the new tenant.\n- `setup permissions bot` no longer emits \"Bot API permissions configured successfully\" when any S2S app-role assignment fails; shows a warning with retry instructions instead.\n- Consent-required message \"You are running as a non-admin user and cannot grant admin consent\" replaced with \"An administrator must grant tenant-wide consent to proceed\" — the message fires when tenant-wide consent for S2S scopes has not yet been granted, not when the caller lacks admin rights.\n- `setup all --agent-name` re-runs no longer create a duplicate agent registration: the CLI now reads `agentRegistrationId` from `a365.generated.config.json` (when present) and checks for an existing registration before posting a new one.\n- `setup all` now skips agent registration with a clear warning when the agent identity ID is not available, instead of silently sending an invalid request. Retry with `a365 setup all --agent-registration-only` once the identity is ready.\n- `setup permissions bot` now returns a non-zero exit code when an S2S app role assignment fails, so callers and scripts can detect the failure.\n- `setup all --agent-registration-only` reliability fixes: stored IDs are now correctly read in bootstrap (`--agent-name`) mode; falls back to a Graph API lookup when `agenticAppId` is missing; skips identity, permission, and project-settings steps that don't apply.\n- `setup permissions bot` help text and final \"Next step\" log no longer suggest the non-existent `a365 deploy` command; both now point at `a365 publish` (the actual next command in the workflow).\n- `setup permissions mcp/bot/custom` now print the admin consent URL when tenant-wide consent is missing.\n- `setup permissions custom --resource-app-id <guid> --scopes <scopes>` exits 1 with admin-consent guidance on 403 instead of logging the raw Graph error and exiting silently.\n- `query-entra instance-scopes` no longer claims \"admin consent has not been granted\" when `oauth2PermissionGrants` is unreadable by the caller; redirects to the Entra portal instead.\n- \"Grant admin consent now?\" prompt in `setup all` (non-DW) is skipped for non-admin developers; admin consent URL is printed for hand-off.\n- `JsonDocument` returned by `GraphGetWithResponseAsync` is now disposed on every path in `setup blueprint` SP-propagation retry and `ClientAppValidator.GetConsentedPermissionsAsync`.\n- `logs export` header `# Original:` line now redacts emails, GUIDs, and JWT tokens (not just usernames).\n- `cleanup --agent-name <typo>` no longer silently deletes via a stale local generated config; the CLI errors with clear guidance when the Entra-resolved blueprint doesn't match the local `a365.generated.config.json`.\n- `setup permissions custom --resource-app-id <guid> --scopes <scopes>` now validates the inline arguments before loading config — a bad GUID or empty scopes produces a precise error instead of the confusing \"Agent name required\" from the resolver.\n\n### Removed\n- `a365 config` command family (`config init`, `config display`, `config permissions`) — replaced by `a365 setup all --agent-name` and `a365 setup permissions custom`.\n\n### Breaking Changes\n- **`a365 config init` removed** — replace with `a365 setup all --agent-name <name>`. This creates the agent blueprint, configures permissions, and registers the messaging endpoint in one step without requiring a pre-existing config file.\n- **`a365 config display` removed** — use `a365 query-entra blueprint-scopes` to inspect live blueprint permissions and consent state.\n- **`a365 config permissions` removed** — replace with `a365 setup permissions custom --resource-app-id <guid> --scopes <scopes>`.\n- **`--config`/`-c` option removed from all commands** — config file is now always resolved from the current directory (`a365.config.json`). Scripts passing `--config <path>` will receive a parse error; change directory before running the CLI instead.\n- **`--agent-instance-only` renamed to `--agent-registration-only`** on `a365 setup all` — update any scripts using the old flag name.\n- **`setup permissions custom --resource-app-id --scopes` applies permissions directly to Entra ID** — unlike the former `a365 config permissions` which only wrote to `a365.config.json`, this inline mode immediately mutates the live blueprint in Entra and cannot be undone by editing a config file.\n- `a365 setup` now writes the `Agent365Observability` placeholder section (`AgentId`, `AgentBlueprintId`, `TenantId`, `AgentName`, `AgentDescription`) and `EnableAgent365Exporter: false` to `appsettings.json` (.NET) and `ENABLE_A365_OBSERVABILITY_EXPORTER=false` to `.env` (Python/Node.js), so observability configuration is pre-populated for all three platforms after running setup\n- Re-enabled `a365 create-instance` command (previously deprecated) — creates agent identity, agent user, and assigns licenses in a single command. The custom client app now requires the `User.ReadWrite.All` delegated permission for user creation and license assignment; existing users may need to update admin consent on their client app.\n- `Agent365.Observability.OtelWrite` granted to all provisioned agent identities on the Observability API as both a **delegated** permission (OAuth2 grant) and an **application** permission (S2S app role assignment), enabling agents to write OpenTelemetry data to the Agent 365 observability service\n- S2S app role assignment support in `a365 setup permissions` and `a365 setup admin` — the CLI now automatically grants application-type (`appRoleAssignments`) permissions on the blueprint service principal when a `ResourcePermissionSpec` defines `AppRoleScopes`. Global Administrator is required for S2S grants; non-admin users receive actionable PowerShell fallback instructions\n- `ChannelMessage.Read.All` and `ChannelMessage.Send` added to default blueprint Microsoft Graph delegated scopes (`agentIdentityScopes`)\n- `Files.ReadWrite.All`, `ChannelMessage.Read.All`, and `ChannelMessage.Send` added to default blueprint Microsoft Graph application scopes (`agentApplicationScopes`)\n- Server-driven notice system: security advisories and critical upgrade prompts are displayed at startup when a maintainer updates `notices.json`. Notices are suppressed once the user upgrades past the specified `minimumVersion`. Results are cached locally for 4 hours to avoid network calls on every invocation.\n- `a365 cleanup azure --dry-run` — preview resources that would be deleted without making any changes or requiring Azure authentication\n- `AppServiceAuthRequirementCheck` — validates App Service deployment token before `a365 deploy` begins, catching revoked grants (AADSTS50173) early\n- `a365 setup admin` — new command for Global Administrators to complete tenant-wide AllPrincipals OAuth2 permission grants after `a365 setup all` has been run by an Agent ID Admin\n- `setup all --agent-name <name>` — config-free non-DW setup. No `a365.config.json` required. TenantId is auto-detected from `az account show`; ClientAppId resolved by finding an Entra app registration named `\"Agent 365 CLI\"` in the tenant.\n- `setup all --tenant-id <id>` — override tenant auto-detection when using `--agent-name`.\n- `cleanup --agent-name <name>` — config-free cleanup. No `a365.config.json` required. Loads resource IDs from the global generated config written by bootstrap setup. Tenant ID is auto-detected from `az account show` or overridden with `--tenant-id`.\n- MCP V1/V2 migration support — `a365 setup permissions mcp` and `a365 setup blueprint` now handle mixed manifests containing both V1 (`McpServers.*.All` / ATG audience) and V2 (`Tools.ListInvoke.All` / per-server audience) entries; scopes are written additively to the blueprint so agents on either SDK version continue to work\n- `--remove-legacy-scopes` flag for `a365 setup permissions mcp` — removes shared ATG audience scopes from the blueprint once V2 SDK is confirmed live across all agents\n- `a365 develop get-token` now acquires one token per audience when using manifest-based scope resolution — V2 entries receive a token scoped to their specific server AppId, V1 entries continue to use the shared ATG AppId\n- `a365 develop get-token` now writes per-server bearer tokens to `.env` (Python/Node.js) and `launchSettings.json` (.NET) — V2 servers are written as `BEARER_TOKEN_<SERVER_NAME>` (e.g. `BEARER_TOKEN_MCP_WORDSERVER`), V1 shared-audience token continues to be written as `BEARER_TOKEN` for backward compatibility; local dev samples can now run correctly with V2 multi-audience manifests without needing agentic auth\n- `a365 setup permissions mcp --remove-legacy-scopes --dry-run` now shows both what would be removed (shared ATG audience entries) and what would remain after removal, instead of only showing what would be configured\n\n### Changed\n- Blueprint messaging endpoint registration migrated from Azure Bot Service (ABS) to Teams Graph backend configuration. The CLI now sends `{ agentIdentityBlueprintId, callbackUri, tenantId }` to MCP Platform instead of the ABS-shaped payload. `BotConfigurator` / `IBotConfigurator` are replaced by `TeamsGraphBackendConfigurator` / `ITeamsGraphBackendConfigurator`. Callers must pass `--m365` to opt in; see Added notes above.\n- `setup all --dry-run` output is now column-aligned for readability\n- `setup infrastructure` now defaults `deploymentProjectPath` to the current directory when not specified in config\n- `setup all` now defaults to the blueprint agent flow. Use `--aiteammate` (no value required) to run the AI Teammate agent setup flow.\n- `a365 setup blueprint` now sets `managerApplications` on the blueprint application to enable platform manageability. After May 1, blueprints without `managerApplications` will no longer be accepted, and must be recreated (delete and re-run `a365 setup blueprint`) or manually patched via Graph API to include this value.\n- `New-Agent365ToolsServicePrincipalProdPublic.ps1` updated to support MCP V1 and V2 provisioning — adds `-Mode` (`V1`/`V2`/`All`, default `All`), `-ManifestPath` (auto-extracts V2 per-server AppIds from `ToolingManifest.json`), and `-V2AppIds` (explicit list) parameters; script is now idempotent across all AppIds (re-run safe) and covers the migration period where V1 and V2 servers coexist in the same tenant\n- `a365 publish` updates manifest IDs, creates `manifest.zip`, and prints concise upload instructions for Microsoft 365 Admin Center (Agents > All agents > Upload custom agent). Interactive prompts only occur in interactive terminals; redirect stdin to suppress them in scripts.\n- `a365 develop list-available` resolves MCP server catalog from the live V2 discover endpoint; `--version` column in `a365 develop list-configured` shows `V1` or `V2` based on scope pattern\n- `develop list-available` no longer requires `a365.config.json`; reads environment from the `A365_ENVIRONMENT` env var (defaults to `prod`).\n- `ToolingManifest.json` duplicate server detection now falls back to `mcpServerName` when `mcpServerUniqueName` is absent, preventing false duplicate errors for older manifest entries\n\n### Fixed\n- `setup all` dry-run with `--agent-name` no longer runs az CLI tenant detection — tenant ID is not shown in the plan, so the subprocess was unnecessary\n- `setup all` live summary incorrectly showed `Inheritable Permissions: configured` for non-AI Teammate agents — now shows `skipped (permissions set directly on agent identity)`\n- `AgentBlueprintService.SetInheritablePermissionsAsync` no longer crashes when the Graph PATCH call throws a transient exception (#366) — the exception is caught, logged, and surfaced as a structured error result\n- `cleanup` now returns exit code 1 when no config file and no `--agent-name` are provided, instead of silently reporting success.\n- `AgentBlueprintService.SetInheritablePermissionsAsync` now correctly propagates `OperationCanceledException` when the user cancels (Ctrl+C), instead of masking cancellation as a generic error\n- `A365CreateInstanceRunner` sponsor handling: sponsor is now required (Graph API rejects requests without one) — removed fallback that silently stripped the sponsor on retry, which caused `BadRequest` errors\n- Intermittent `ConnectionResetError (10054)` failures on corporate networks with TLS inspection proxies (Zscaler, Netskope) — Graph and ARM API calls now use direct MSAL.NET token acquisition instead of `az account get-access-token` subprocesses, bypassing the Python HTTP stack that triggered proxy resets (#321)\n- `a365 cleanup` blueprint deletion now succeeds for Global Administrators even when the blueprint was created by a different user\n- Admin consent URL for the Observability API used the non-existent scope `Maven.ReadWrite.All` (AADSTS650053) — replaced with the correct delegated scope `Agent365.Observability.OtelWrite`\n- `AppRoleAssignment.ReadWrite.All` (admin-only) was incorrectly included in `RequiredPermissionGrantScopes`, causing it to be requested on non-admin paths (`a365 deploy`, `setup permissions`) — moved to a dedicated `RequiredS2SGrantScopes` constant used only on Global Administrator paths\n- `a365 setup all` no longer times out for non-admin users — the CLI immediately surfaces a consent URL to share with an administrator instead of waiting for a browser prompt\n- `a365 setup all` requests admin consent once for all resources instead of prompting once per resource\n- Browser and WAM authentication blocked by Conditional Access Policy (AADSTS53003, AADSTS53000) now automatically falls back to device code flow (#294)\n- macOS/Linux: device code fallback when browser authentication is unavailable (#309)\n- Linux: MSAL fallback when PowerShell `Connect-MgGraph` fails in non-TTY environments (#309)\n- Admin consent polling no longer times out after 180s — blueprint service principal now resolved with correct MSAL token (#309)\n- `a365 cleanup --agent-name` no longer stalls — interactive browser auth failure in embedded terminals now automatically falls back to device code flow (same as Conditional Access fallback)\n- `ConfigFileNotFoundException` now derives from `FileNotFoundException` so existing catch sites continue to work (#309)\n- `a365 develop list-available` no longer displays `Required Scope: null` for servers that return a `\"null\"` string scope from the V2 catalog endpoint\n- `a365 develop add-mcp-servers` no longer writes the literal string `\"null\"` as a scope value in `ToolingManifest.json` when the V2 catalog returns `\"scope\": \"null\"` — the field is omitted, allowing correct fallback to name-based scope mapping\n- `a365 develop get-token` no longer requests a token with scope `\"null\"` when a manifest entry has a null scope from the V2 catalog\n- `a365 setup permissions mcp` no longer passes a literal `\"default\"` string as an AAD resourceAppId — Dataverse custom servers (`McpServers.DataverseCustom.All`, `McpServers.Dataverse.All`) with `\"audience\": \"default\"` are now bucketed under the shared ATG AppId, the same as missing or `api://` legacy audiences\n- `a365 setup blueprint` (non-DW) blueprint service principal creation no longer returns 403 — the CLI now uses `POST /v1.0/serviceprincipals/graph.agentIdentityBlueprintPrincipal` (Agent ID-specific endpoint) instead of the generic `/v1.0/servicePrincipals`, which required `Application.ReadWrite.All`\n- `a365 setup all` (non-DW) agent identity idempotency pre-check no longer returns 403 — uses `AgentIdentity.Read.All` scope for `GET /beta/servicePrincipals/microsoft.graph.agentIdentity?$filter=agentIdentityBlueprintId eq '...'`\n- Agent registration endpoint promoted from `/stagingbeta/copilot/agentRegistrations` to `/beta/copilot/agentRegistrations`\n\n### Removed\n- `a365 create-instance` command — temporarily removed due to differences in instance creation via Teams and CLI.\n- `a365 deploy` command (`deploy app`, `deploy mcp`) — Azure App Service hosting is no longer managed by the CLI. Provide a `messagingEndpoint` in `a365.config.json` pointing to your externally hosted agent.\n- `a365 setup infrastructure` subcommand — Azure App Service and App Service Plan provisioning has been removed. Hosting infrastructure must be provisioned externally before running `a365 setup all`.\n- Config properties `subscriptionId`, `resourceGroup`, `appServicePlanName`, `appServicePlanSku`, `webAppName`, `needDeployment`, `location` — removed from `a365.config.json`. Generated config properties `deploymentLastTimestamp`, `deploymentLastStatus`, `deploymentLastCommitHash`, `deploymentLastBuildId` have also been removed.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#repository",
+    "commit": "b76c9639a3c93a969e755ee59ae4ffdba1d47738",
+    "type": "git",
+    "url": "https://github.com/microsoft/Agent365-devTools"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "1.1.178",
+  "version": "1.1.178",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#Microsoft.Agents.A365.DevTools.Cli.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9884,
+      "fullName": "Microsoft.Agents.A365.DevTools.Cli.nuspec",
+      "length": 27246,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#lib/net8.0/Microsoft.Agents.A365.DevTools.Cli.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 246,
+      "fullName": "lib/net8.0/Microsoft.Agents.A365.DevTools.Cli.runtimeconfig.json",
+      "length": 484,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#lib/net8.0/Microsoft.Agents.A365.DevTools.Cli.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 443081,
+      "fullName": "lib/net8.0/Microsoft.Agents.A365.DevTools.Cli.dll",
+      "length": 1435448,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#lib/net8.0/Microsoft.Agents.A365.DevTools.Cli.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 73596,
+      "fullName": "lib/net8.0/Microsoft.Agents.A365.DevTools.Cli.xml",
+      "length": 474958,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 164,
+      "fullName": "tools/net8.0/any/DotnetToolSettings.xml",
+      "length": 214,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.exe",
+      "@type": "PackageEntry",
+      "compressedLength": 75523,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.exe",
+      "length": 162104,
+      "name": "Microsoft.Agents.A365.DevTools.MockToolingServer.exe"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 246,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.runtimeconfig.json",
+      "length": 488,
+      "name": "Microsoft.Agents.A365.DevTools.MockToolingServer.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/appsettings.json",
+      "@type": "PackageEntry",
+      "compressedLength": 66,
+      "fullName": "tools/net8.0/any/appsettings.json",
+      "length": 85,
+      "name": "appsettings.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 443081,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.dll",
+      "length": 1435448,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 246,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.runtimeconfig.json",
+      "length": 484,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 124493,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.pdb",
+      "length": 273528,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Azure.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 185972,
+      "fullName": "tools/net8.0/any/Azure.Core.dll",
+      "length": 437304,
+      "name": "Azure.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Azure.Identity.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 135148,
+      "fullName": "tools/net8.0/any/Azure.Identity.dll",
+      "length": 348704,
+      "name": "Azure.Identity.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Azure.ResourceManager.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 387115,
+      "fullName": "tools/net8.0/any/Azure.ResourceManager.dll",
+      "length": 1419824,
+      "name": "Azure.ResourceManager.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Azure.ResourceManager.AppService.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1659463,
+      "fullName": "tools/net8.0/any/Azure.ResourceManager.AppService.dll",
+      "length": 7215664,
+      "name": "Azure.ResourceManager.AppService.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Bcl.AsyncInterfaces.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11091,
+      "fullName": "tools/net8.0/any/Microsoft.Bcl.AsyncInterfaces.dll",
+      "length": 19104,
+      "name": "Microsoft.Bcl.AsyncInterfaces.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.AI.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 151795,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.AI.Abstractions.dll",
+      "length": 417848,
+      "name": "Microsoft.Extensions.AI.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22901,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Configuration.dll",
+      "length": 44304,
+      "name": "Microsoft.Extensions.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15604,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "length": 28456,
+      "name": "Microsoft.Extensions.Configuration.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Configuration.Binder.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21943,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Configuration.Binder.dll",
+      "length": 43816,
+      "name": "Microsoft.Extensions.Configuration.Binder.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Configuration.CommandLine.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14230,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Configuration.CommandLine.dll",
+      "length": 25384,
+      "name": "Microsoft.Extensions.Configuration.CommandLine.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Configuration.EnvironmentVariables.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12240,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Configuration.EnvironmentVariables.dll",
+      "length": 21264,
+      "name": "Microsoft.Extensions.Configuration.EnvironmentVariables.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Configuration.FileExtensions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15450,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Configuration.FileExtensions.dll",
+      "length": 28424,
+      "name": "Microsoft.Extensions.Configuration.FileExtensions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Configuration.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15273,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Configuration.Json.dll",
+      "length": 27448,
+      "name": "Microsoft.Extensions.Configuration.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Configuration.UserSecrets.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14271,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Configuration.UserSecrets.dll",
+      "length": 25904,
+      "name": "Microsoft.Extensions.Configuration.UserSecrets.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 43360,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.DependencyInjection.dll",
+      "length": 92472,
+      "name": "Microsoft.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29147,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "length": 65320,
+      "name": "Microsoft.Extensions.DependencyInjection.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Diagnostics.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19881,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Diagnostics.dll",
+      "length": 36136,
+      "name": "Microsoft.Extensions.Diagnostics.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Diagnostics.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16118,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Diagnostics.Abstractions.dll",
+      "length": 31008,
+      "name": "Microsoft.Extensions.Diagnostics.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.FileProviders.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12727,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.FileProviders.Abstractions.dll",
+      "length": 22824,
+      "name": "Microsoft.Extensions.FileProviders.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.FileProviders.Physical.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24245,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.FileProviders.Physical.dll",
+      "length": 45352,
+      "name": "Microsoft.Extensions.FileProviders.Physical.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.FileSystemGlobbing.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23684,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.FileSystemGlobbing.dll",
+      "length": 45864,
+      "name": "Microsoft.Extensions.FileSystemGlobbing.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33560,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Hosting.dll",
+      "length": 71432,
+      "name": "Microsoft.Extensions.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Hosting.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22882,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Hosting.Abstractions.dll",
+      "length": 52520,
+      "name": "Microsoft.Extensions.Hosting.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Http.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 41797,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Http.dll",
+      "length": 91912,
+      "name": "Microsoft.Extensions.Http.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26289,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Logging.dll",
+      "length": 51464,
+      "name": "Microsoft.Extensions.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32220,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "length": 66360,
+      "name": "Microsoft.Extensions.Logging.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Logging.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15594,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Logging.Configuration.dll",
+      "length": 27936,
+      "name": "Microsoft.Extensions.Logging.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Logging.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 37111,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Logging.Console.dll",
+      "length": 74552,
+      "name": "Microsoft.Extensions.Logging.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Logging.Debug.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11993,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Logging.Debug.dll",
+      "length": 20280,
+      "name": "Microsoft.Extensions.Logging.Debug.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Logging.EventLog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15053,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Logging.EventLog.dll",
+      "length": 25888,
+      "name": "Microsoft.Extensions.Logging.EventLog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Logging.EventSource.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18598,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Logging.EventSource.dll",
+      "length": 35632,
+      "name": "Microsoft.Extensions.Logging.EventSource.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Options.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31217,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Options.dll",
+      "length": 65336,
+      "name": "Microsoft.Extensions.Options.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13105,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+      "length": 22840,
+      "name": "Microsoft.Extensions.Options.ConfigurationExtensions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Extensions.Primitives.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22693,
+      "fullName": "tools/net8.0/any/Microsoft.Extensions.Primitives.dll",
+      "length": 44328,
+      "name": "Microsoft.Extensions.Primitives.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Graph.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7509982,
+      "fullName": "tools/net8.0/any/Microsoft.Graph.dll",
+      "length": 33877424,
+      "name": "Microsoft.Graph.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Graph.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 61670,
+      "fullName": "tools/net8.0/any/Microsoft.Graph.Core.dll",
+      "length": 134176,
+      "name": "Microsoft.Graph.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Identity.Client.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 341628,
+      "fullName": "tools/net8.0/any/Microsoft.Identity.Client.dll",
+      "length": 1026592,
+      "name": "Microsoft.Identity.Client.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Identity.Client.Broker.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29474,
+      "fullName": "tools/net8.0/any/Microsoft.Identity.Client.Broker.dll",
+      "length": 73248,
+      "name": "Microsoft.Identity.Client.Broker.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Identity.Client.Extensions.Msal.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30718,
+      "fullName": "tools/net8.0/any/Microsoft.Identity.Client.Extensions.Msal.dll",
+      "length": 66592,
+      "name": "Microsoft.Identity.Client.Extensions.Msal.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Identity.Client.NativeInterop.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 37493,
+      "fullName": "tools/net8.0/any/Microsoft.Identity.Client.NativeInterop.dll",
+      "length": 92728,
+      "name": "Microsoft.Identity.Client.NativeInterop.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.IdentityModel.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11282,
+      "fullName": "tools/net8.0/any/Microsoft.IdentityModel.Abstractions.dll",
+      "length": 19528,
+      "name": "Microsoft.IdentityModel.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.IdentityModel.JsonWebTokens.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 46717,
+      "fullName": "tools/net8.0/any/Microsoft.IdentityModel.JsonWebTokens.dll",
+      "length": 123432,
+      "name": "Microsoft.IdentityModel.JsonWebTokens.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.IdentityModel.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17827,
+      "fullName": "tools/net8.0/any/Microsoft.IdentityModel.Logging.dll",
+      "length": 36904,
+      "name": "Microsoft.IdentityModel.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.IdentityModel.Protocols.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20131,
+      "fullName": "tools/net8.0/any/Microsoft.IdentityModel.Protocols.dll",
+      "length": 40488,
+      "name": "Microsoft.IdentityModel.Protocols.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 42545,
+      "fullName": "tools/net8.0/any/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll",
+      "length": 119840,
+      "name": "Microsoft.IdentityModel.Protocols.OpenIdConnect.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.IdentityModel.Tokens.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95787,
+      "fullName": "tools/net8.0/any/Microsoft.IdentityModel.Tokens.dll",
+      "length": 284192,
+      "name": "Microsoft.IdentityModel.Tokens.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Kiota.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 35420,
+      "fullName": "tools/net8.0/any/Microsoft.Kiota.Abstractions.dll",
+      "length": 72752,
+      "name": "Microsoft.Kiota.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Kiota.Authentication.Azure.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12923,
+      "fullName": "tools/net8.0/any/Microsoft.Kiota.Authentication.Azure.dll",
+      "length": 22048,
+      "name": "Microsoft.Kiota.Authentication.Azure.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Kiota.Http.HttpClientLibrary.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 42551,
+      "fullName": "tools/net8.0/any/Microsoft.Kiota.Http.HttpClientLibrary.dll",
+      "length": 93104,
+      "name": "Microsoft.Kiota.Http.HttpClientLibrary.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Kiota.Serialization.Form.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19522,
+      "fullName": "tools/net8.0/any/Microsoft.Kiota.Serialization.Form.dll",
+      "length": 37296,
+      "name": "Microsoft.Kiota.Serialization.Form.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Kiota.Serialization.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20301,
+      "fullName": "tools/net8.0/any/Microsoft.Kiota.Serialization.Json.dll",
+      "length": 39360,
+      "name": "Microsoft.Kiota.Serialization.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Kiota.Serialization.Multipart.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11901,
+      "fullName": "tools/net8.0/any/Microsoft.Kiota.Serialization.Multipart.dll",
+      "length": 21024,
+      "name": "Microsoft.Kiota.Serialization.Multipart.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Kiota.Serialization.Text.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13898,
+      "fullName": "tools/net8.0/any/Microsoft.Kiota.Serialization.Text.dll",
+      "length": 25536,
+      "name": "Microsoft.Kiota.Serialization.Text.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/ModelContextProtocol.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14382,
+      "fullName": "tools/net8.0/any/ModelContextProtocol.dll",
+      "length": 36352,
+      "name": "ModelContextProtocol.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/ModelContextProtocol.AspNetCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 46318,
+      "fullName": "tools/net8.0/any/ModelContextProtocol.AspNetCore.dll",
+      "length": 114688,
+      "name": "ModelContextProtocol.AspNetCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/ModelContextProtocol.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 270134,
+      "fullName": "tools/net8.0/any/ModelContextProtocol.Core.dll",
+      "length": 847360,
+      "name": "ModelContextProtocol.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Std.UriTemplate.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 5725,
+      "fullName": "tools/net8.0/any/Std.UriTemplate.dll",
+      "length": 11776,
+      "name": "Std.UriTemplate.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.ClientModel.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78290,
+      "fullName": "tools/net8.0/any/System.ClientModel.dll",
+      "length": 175664,
+      "name": "System.ClientModel.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.CommandLine.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 91963,
+      "fullName": "tools/net8.0/any/System.CommandLine.dll",
+      "length": 205216,
+      "name": "System.CommandLine.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.Diagnostics.DiagnosticSource.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78543,
+      "fullName": "tools/net8.0/any/System.Diagnostics.DiagnosticSource.dll",
+      "length": 173352,
+      "name": "System.Diagnostics.DiagnosticSource.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.Diagnostics.EventLog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23800,
+      "fullName": "tools/net8.0/any/System.Diagnostics.EventLog.dll",
+      "length": 52496,
+      "name": "System.Diagnostics.EventLog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.IdentityModel.Tokens.Jwt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 35116,
+      "fullName": "tools/net8.0/any/System.IdentityModel.Tokens.Jwt.dll",
+      "length": 81952,
+      "name": "System.IdentityModel.Tokens.Jwt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.IO.Pipelines.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 38353,
+      "fullName": "tools/net8.0/any/System.IO.Pipelines.dll",
+      "length": 77608,
+      "name": "System.IO.Pipelines.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.Memory.Data.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17251,
+      "fullName": "tools/net8.0/any/System.Memory.Data.dll",
+      "length": 30472,
+      "name": "System.Memory.Data.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.Net.ServerSentEvents.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22637,
+      "fullName": "tools/net8.0/any/System.Net.ServerSentEvents.dll",
+      "length": 41752,
+      "name": "System.Net.ServerSentEvents.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14214,
+      "fullName": "tools/net8.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "length": 25232,
+      "name": "System.Security.Cryptography.ProtectedData.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.Text.Encodings.Web.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31616,
+      "fullName": "tools/net8.0/any/System.Text.Encodings.Web.dll",
+      "length": 70952,
+      "name": "System.Text.Encodings.Web.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/System.Text.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 237627,
+      "fullName": "tools/net8.0/any/System.Text.Json.dll",
+      "length": 643856,
+      "name": "System.Text.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31389,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.dll",
+      "length": 67384,
+      "name": "Microsoft.Agents.A365.DevTools.MockToolingServer.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 15944,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.pdb",
+      "length": 29580,
+      "name": "Microsoft.Agents.A365.DevTools.MockToolingServer.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 722,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.MockToolingServer.xml",
+      "length": 3097,
+      "name": "Microsoft.Agents.A365.DevTools.MockToolingServer.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 73596,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.xml",
+      "length": 474958,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 11535,
+      "fullName": "tools/net8.0/any/Microsoft.Agents.A365.DevTools.Cli.deps.json",
+      "length": 71085,
+      "name": "Microsoft.Agents.A365.DevTools.Cli.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/mocks/mcp_CalendarTools.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3207,
+      "fullName": "tools/net8.0/any/mocks/mcp_CalendarTools.json",
+      "length": 23721,
+      "name": "mcp_CalendarTools.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/mocks/mcp_KnowledgeTools.json",
+      "@type": "PackageEntry",
+      "compressedLength": 844,
+      "fullName": "tools/net8.0/any/mocks/mcp_KnowledgeTools.json",
+      "length": 5124,
+      "name": "mcp_KnowledgeTools.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/mocks/mcp_MailTools.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2838,
+      "fullName": "tools/net8.0/any/mocks/mcp_MailTools.json",
+      "length": 28370,
+      "name": "mcp_MailTools.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/mocks/mcp_MeServer.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1517,
+      "fullName": "tools/net8.0/any/mocks/mcp_MeServer.json",
+      "length": 6667,
+      "name": "mcp_MeServer.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/snapshots/mcp_CalendarTools.snapshot.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2834,
+      "fullName": "tools/net8.0/any/snapshots/mcp_CalendarTools.snapshot.json",
+      "length": 21618,
+      "name": "mcp_CalendarTools.snapshot.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/snapshots/mcp_KnowledgeTools.snapshot.json",
+      "@type": "PackageEntry",
+      "compressedLength": 782,
+      "fullName": "tools/net8.0/any/snapshots/mcp_KnowledgeTools.snapshot.json",
+      "length": 4508,
+      "name": "mcp_KnowledgeTools.snapshot.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/snapshots/mcp_MailTools.snapshot.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2605,
+      "fullName": "tools/net8.0/any/snapshots/mcp_MailTools.snapshot.json",
+      "length": 28154,
+      "name": "mcp_MailTools.snapshot.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/snapshots/mcp_MeServer.snapshot.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1226,
+      "fullName": "tools/net8.0/any/snapshots/mcp_MeServer.snapshot.json",
+      "length": 4962,
+      "name": "mcp_MeServer.snapshot.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/cs/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10854,
+      "fullName": "tools/net8.0/any/cs/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/de/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10865,
+      "fullName": "tools/net8.0/any/de/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/es/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10862,
+      "fullName": "tools/net8.0/any/es/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/fr/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10861,
+      "fullName": "tools/net8.0/any/fr/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/it/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10858,
+      "fullName": "tools/net8.0/any/it/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/ja/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10877,
+      "fullName": "tools/net8.0/any/ja/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/ko/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10867,
+      "fullName": "tools/net8.0/any/ko/System.CommandLine.resources.dll",
+      "length": 19344,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/pl/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10857,
+      "fullName": "tools/net8.0/any/pl/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/pt-BR/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10882,
+      "fullName": "tools/net8.0/any/pt-BR/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/ru/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10873,
+      "fullName": "tools/net8.0/any/ru/System.CommandLine.resources.dll",
+      "length": 19344,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/tr/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10856,
+      "fullName": "tools/net8.0/any/tr/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/zh-Hans/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10861,
+      "fullName": "tools/net8.0/any/zh-Hans/System.CommandLine.resources.dll",
+      "length": 19360,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/zh-Hant/System.CommandLine.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10877,
+      "fullName": "tools/net8.0/any/zh-Hant/System.CommandLine.resources.dll",
+      "length": 19344,
+      "name": "System.CommandLine.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/linux-x64/native/libmsalruntime.so",
+      "@type": "PackageEntry",
+      "compressedLength": 12058479,
+      "fullName": "tools/net8.0/any/runtimes/linux-x64/native/libmsalruntime.so",
+      "length": 35133032,
+      "name": "libmsalruntime.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/osx-arm64/native/msalruntime_arm64.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 2137967,
+      "fullName": "tools/net8.0/any/runtimes/osx-arm64/native/msalruntime_arm64.dylib",
+      "length": 7351760,
+      "name": "msalruntime_arm64.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/osx-x64/native/msalruntime.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 2330475,
+      "fullName": "tools/net8.0/any/runtimes/osx-x64/native/msalruntime.dylib",
+      "length": 7615504,
+      "name": "msalruntime.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/win-arm64/native/msalruntime_arm64.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1177189,
+      "fullName": "tools/net8.0/any/runtimes/win-arm64/native/msalruntime_arm64.dll",
+      "length": 3102792,
+      "name": "msalruntime_arm64.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/win-x64/native/msalruntime.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1215025,
+      "fullName": "tools/net8.0/any/runtimes/win-x64/native/msalruntime.dll",
+      "length": 2920992,
+      "name": "msalruntime.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/win-x86/native/msalruntime_x86.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1062977,
+      "fullName": "tools/net8.0/any/runtimes/win-x86/native/msalruntime_x86.dll",
+      "length": 2565176,
+      "name": "msalruntime_x86.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/win/lib/net8.0/System.Diagnostics.EventLog.Messages.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11502,
+      "fullName": "tools/net8.0/any/runtimes/win/lib/net8.0/System.Diagnostics.EventLog.Messages.dll",
+      "length": 801072,
+      "name": "System.Diagnostics.EventLog.Messages.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/win/lib/net8.0/System.Diagnostics.EventLog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 74151,
+      "fullName": "tools/net8.0/any/runtimes/win/lib/net8.0/System.Diagnostics.EventLog.dll",
+      "length": 173864,
+      "name": "System.Diagnostics.EventLog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/win/lib/netstandard2.0/System.Security.Cryptography.ProtectedData.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18465,
+      "fullName": "tools/net8.0/any/runtimes/win/lib/netstandard2.0/System.Security.Cryptography.ProtectedData.dll",
+      "length": 32912,
+      "name": "System.Security.Cryptography.ProtectedData.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#tools/net8.0/any/runtimes/browser/lib/net8.0/System.Text.Encodings.Web.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31708,
+      "fullName": "tools/net8.0/any/runtimes/browser/lib/net8.0/System.Text.Encodings.Web.dll",
+      "length": 70960,
+      "name": "System.Text.Encodings.Web.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1087,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2689,
+      "fullName": "README.md",
+      "length": 7007,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 25739,
+      "fullName": ".signature.p7s",
+      "length": 25739,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.11.22.46.05/microsoft.agents.a365.devtools.cli.1.1.178.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

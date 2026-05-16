@@ -1,0 +1,186 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Media2A",
+  "catalog:commitId": "3ebf4404-9d00-4231-a729-8308d2bdbd8c",
+  "catalog:commitTimeStamp": "2026-05-15T16:37:07.7092546Z",
+  "copyright": "Copyright © 2026 Media2A",
+  "created": "2026-05-15T16:33:34.513Z",
+  "description": "MySQL with typed LINQ, SQL aggregation, projection pushdown, compiled materializers, covering indexes, retention, and a working cache.",
+  "id": "CodeLogic.MySQL2",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-15T16:36:42.25Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "tCf55EEExXJt7KBS8BEr1tqmx28AAeO+LoUFHESjPsWzFXtKaJ+UdHSoabhxkDwQO8/bq8DqlIWosvwyrVe4Pg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 173233,
+  "projectUrl": "https://github.com/Media2A/CodeLogic.Libs",
+  "published": "2026-05-15T16:33:34.513Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.MySQL2 — Changelog\n\nAll notable changes to **CodeLogic.MySQL2** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/). The version listed here matches the\nNuGet package version of `CodeLogic.MySQL2`.\n\n## [4.2.1] — 2026-05-15\n\n### Fixed\n\n- **Failure Results no longer poison the cache.** Previously, a query that\n  failed (e.g. transient connection error during a cold warm-up) had its\n  `Result<T>.Failure` value cached just like a successful one — subsequent\n  reads served the failure until the entry's TTL expired or a pool refresh\n  overwrote it. Now `QueryCache.GetOrSetAsync` skips writing failure Results,\n  evicts any pre-existing failure entry on read, and `SetDirectAsync` (the\n  smart-cache pool's refresh path) refuses to write failures too. Empty\n  server lists / leaderboards on first request after a deploy are gone.\n\n## [4.2.0] — 2026-05-15\n\n### Added\n\n- **Smart-cache pool warm-up on registration.** `RegisterCachePool` now\n  accepts an optional `warmUp: Func<Task>` callback that fires as a\n  fire-and-forget task right after the pool starts. The callback just\n  calls the queries that should be warm — they auto-register with the\n  pool via their normal `.SmartCache(name)` decoration — so the cache\n  is hot before the first user request hits it. Exceptions are caught\n  and logged; the pool stays lazy if warm-up fails.\n- `SmartCachePool.WarmUp(Func<Task>)` — public method exposing the same\n  behaviour for callers that want to warm a pool independently of\n  registration.\n\n## [4.1.2] — 2026-05-15\n\n### Added\n\n- **Smart cache pools** — named groups of cached queries kept warm by a\n  background timer (`mysql.RegisterCachePool(\"dashboard\", refreshEvery: 30s)`,\n  opt in per-query with `.SmartCache(\"dashboard\")`). Reads after the first\n  populate the cache never block on the DB — the pool's timer re-runs every\n  registered query in the background and overwrites the entry.\n- `SmartCachePool.RefreshNowAsync()` — out-of-schedule refresh, useful right\n  after a deploy to prime the cache before the first user hits the page.\n- `MySQL2Library.GetCachePoolStats()` — diagnostic snapshot per pool\n  (entry count, ticks fired, ticks failed, last tick UTC).\n- `QueryCache.SetDirectAsync(...)` — internal cache write API used by pools.\n\n### Notes\n\n- Smart cache is mutually exclusive with `.WithCache(TimeSpan)` — if both are\n  set, the pool wins and the TTL comes from `refreshEvery * 2`.\n- Unknown pool name on `.SmartCache(name)` logs a warning and falls back to\n  non-cached execution (no exception).\n- Per-pool eviction policy: an entry that has not been read for\n  `MaxIdleFires` (default 3) consecutive ticks is dropped from the refresh\n  list. Bounds cardinality on parameterized queries.\n- Smart cache is disabled inside a transaction scope (same as `.WithCache`).\n- Single-node only in v4.2. Multi-node coordination is on the roadmap.\n\n## [4.1.1] — 2026-04-17\n\n### Fixed\n\n- Qualify LHS columns in upsert SET clauses so `UpsertAsync` no longer\n  generates ambiguous column references when the table has columns whose\n  names clash with parameter placeholders.\n\n## [4.1.0] — 2026-04-17\n\n### Added\n\n- **Typed upsert** — `UpsertAsync` + `UpsertWithIncrementsAsync` on the\n  repository. Compiles to `INSERT ... ON DUPLICATE KEY UPDATE ...` with\n  full LINQ-shaped value/increment expressions on the update side.\n\n### Changed\n\n- `LibraryManifest.Version` now reads from the assembly's `AssemblyVersion`\n  attribute at runtime instead of being a hard-coded string. Keeps the\n  manifest honest across rebuilds.\n\n## [4.0.4] — 2026-04-16\n\n### Changed\n\n- README + manifest refresh across every CodeLogic library for the v4 baseline.\n- No functional changes vs 4.0.3.\n\n## [4.0.1] — 2026-04-09\n\n### Fixed\n\n- Drop the `Expression.Compile().DynamicInvoke()` fast-path inside the SQL\n  expression visitor — it broke on closures over generic types. The visitor\n  now always walks the tree.\n\n## [4.0.0] — 2026-04-09\n\nMajor rewrite. Breaking.\n\n### Added\n\n- **Projection pushdown** — `.Select<TResult>(x => new { ... })` emits a\n  real `SELECT col1, col2, ...` column list instead of `SELECT *`. Combined\n  with compiled materializers this often cuts row-transfer bandwidth by 80%+.\n- **SQL-side aggregation** — `.GroupBy(...).Select(g => new { g.Key,\n  g.Sum(...), g.Average(...), ... })` translates to real `GROUP BY` +\n  aggregate functions. No client-side row materialization.\n- **`SqlFn` helpers** — server-side function markers (`SqlFn.DayOfWeek`,\n  `SqlFn.Hour`, `SqlFn.BucketUtc`, `SqlFn.Coalesce`, `SqlFn.Round`, etc.)\n  recognized by the translator — mirrors EF's `EF.Functions` pattern.\n- **`[Index]` attribute** — declare named, unique, and covering indexes\n  (with `Include = new[] { ... }`) at the column level.\n- **`[RetainDays]` attribute** — opt entities into a daily background purge\n  worker that runs batched `DELETE` until drained.\n- **Working result cache** — `.WithCache(TimeSpan)` with two correctness\n  fixes from prior versions:\n  - DateTime closures near `UtcNow` are time-quantized to a configurable\n    window (default 60s) so `.Where(x => x.At >= UtcNow.AddDays(-30))`\n    stops producing a unique cache key per call.\n  - Mutations bump a per-table version that participates in the cache\n    key — invalidation is free (old keys become un-hittable, no eviction\n    loop).\n- **`EntityMetadata<T>` + compiled `Materializer<T>`** — reflection runs\n  once per entity at first use; subsequent reads use a compiled\n  reader-to-entity function.\n- **Observability events** — `QueryExecutedEvent`, `SlowQueryEvent`,\n  `CacheHitEvent`, `CacheMissEvent`, `N1QueryDetectedEvent`,\n  `TableSyncedEvent` publish to the CodeLogic event bus.\n- **`MaxBatchInsertSize`, `MaxInClauseValues`, `PreparedStatementCacheSize`,\n  `N1DetectorThreshold`, `CaptureExplainOnSlowQuery`, `DefaultStringSize`,\n  `CacheEnabledOverride`** — per-database config knobs.\n- **`CacheConfiguration`** — global cache settings (`Enabled`,\n  `MaxEntries`, `DefaultTtlSeconds`, `TimeQuantizeSeconds`,\n  `PublishEvents`).\n\n### Changed\n\n- Republished as v4.0.0 to reset the version line with the new package shape.\n- All public APIs refreshed under the v4 baseline.\n\n## Earlier releases\n\nPre-4.0 history is retained in the\n[git log](https://github.com/Media2A/CodeLogic.Libs/commits/main/CL.MySQL2)\nbut is not documented in detail here — the library shape changed\nsignificantly in the v4 rewrite.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#repository",
+    "commit": "38d1db06120ad411302a9ecc94a939529552c48e",
+    "type": "git",
+    "url": "https://github.com/Media2A/CodeLogic.Libs"
+  },
+  "verbatimVersion": "4.2.1",
+  "version": "4.2.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#dependencygroup/net10.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[3.2.0, 5.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#dependencygroup/net10.0/mysqlconnector",
+          "@type": "PackageDependency",
+          "id": "MySqlConnector",
+          "range": "[2.5.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#lib/net10.0/CL.MySQL2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 125416,
+      "fullName": "lib/net10.0/CL.MySQL2.dll",
+      "length": 329728,
+      "name": "CL.MySQL2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#lib/net10.0/CL.MySQL2.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20186,
+      "fullName": "lib/net10.0/CL.MySQL2.xml",
+      "length": 100255,
+      "name": "CL.MySQL2.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3144,
+      "fullName": "CHANGELOG.md",
+      "length": 6485,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#CodeLogic.MySQL2.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3665,
+      "fullName": "CodeLogic.MySQL2.nuspec",
+      "length": 7706,
+      "name": "CodeLogic.MySQL2.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 627,
+      "fullName": "LICENSE",
+      "length": 1064,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5133,
+      "fullName": "README.md",
+      "length": 11546,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.15.16.37.07/codelogic.mysql2.4.2.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "mysql",
+    "database",
+    "orm",
+    "linq",
+    "query-builder",
+    "aggregation",
+    "cache"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

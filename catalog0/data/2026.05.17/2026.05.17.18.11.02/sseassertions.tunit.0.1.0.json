@@ -1,0 +1,208 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "cc670be6-b67d-4455-8498-f3822bb8818e",
+  "catalog:commitTimeStamp": "2026-05-17T18:11:02.1281146Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-05-17T18:07:36.69Z",
+  "description": "TUnit-native Server-Sent Events (SSE) assertions for .NET tests. HasSseEvent(eventName) chain on the string receiver with WithData / AtLeast / AtMost / Exactly terminators; flat HasSseEvent(eventName, minCount, ...) on Stream and HttpResponseMessage with cancellation-bounded partial-buffer reads and default-on Content-Type: text/event-stream validation. Builds on the SseAssertions framework-agnostic core. AOT-compatible, trimmable, no runtime reflection in the assertion path.",
+  "id": "SseAssertions.TUnit",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-17T18:10:48.483Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "ngJ9L+5axlE93oLbo4H/g1mnk2YR0Kbkt7rrGe/+5bgY3DbYhyOdbQQhOrhseOCM5Oc4Db/OHeUoQrN8YiXk6A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 49145,
+  "projectUrl": "https://github.com/JohnVerheij/SseAssertions.TUnit",
+  "published": "2026-05-17T18:07:36.69Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/SseAssertions.TUnit/releases/tag/v0.1.0\n\nMinor release. Lifts the package from skeleton to functional: the WHATWG / W3C SSE wire-format frame parser ships, with `HasSseEvent` fluent entry points on `string`, `Stream`, and `HttpResponseMessage` receivers, plus a public `SseFailureMessage` factory surface for consumer-authored typed assertions.\n\n### Added\n\n- `SseFrameParser.Parse(string)` returns `IReadOnlyList<SseEvent>` for a WHATWG / W3C SSE wire-format body. Handles all three line terminators (`\\n`, `\\r\\n`, `\\r`), strips a single leading UTF-8 BOM at offset 0, ignores comment lines (lines starting with `:`), accumulates multi-line `data:` fields joined with `\\n`, parses `retry:` as a non-negative integer (non-numeric values ignored per spec), tolerates unknown fields, and dispatches the trailing frame when the body lacks a final blank line. Per-event `Id` and `RetryMillis` semantics (a small deliberate deviation from the browser stream-wide model) so consumers can assert directly on the wire-format directives observed in each frame.\n- `SseFailureMessage` public extension point with eight factory methods: `ParseFailure`, `EventNotFound`, `EventCountMismatch`, `DataPredicateNotMatched`, `DataDeserializationFailed`, `RetryMillisPredicateNotMatched`, `UnexpectedContentType`, `CancellationCutRead`. Truncation rules pinned across the family: per-event `Data` at 80 characters, body excerpts at 256 characters, U+2026 ellipsis as suffix.\n- `SseCountComparison` public enum (`AtLeast`, `AtMost`, `Exactly`) backing the chain's count terminators and the typed comparison label in `SseFailureMessage.EventCountMismatch`.\n- `HasSseEvent(string eventName)` chain entry point on the `string` receiver, via `[AssertionExtension(\"HasSseEvent\")]`. Returns `SseHasEventAssertion`. Chain methods: `WithData(Func<string, bool>)` (narrow to frames whose `Data` satisfies the predicate), `AtLeast(int)`, `AtMost(int)`, `Exactly(int)`.\n- `HasSseEvent(string eventName, int minCount = 1, CancellationToken ct = default)` flat entry point on the `Stream` receiver via `[GenerateAssertion]`. Returns `Task<AssertionResult>`. Reads the stream into a buffer via `ArrayPool`-backed `ReadAsync`; on `OperationCanceledException`, the partial buffer is parsed as best-effort SSE and asserted against. On chain pass the assertion passes; on chain fail the failure renders the `CancellationCutRead` diagnostic.\n- `HasSseEvent(string eventName, int minCount = 1, bool strictContentType = true, CancellationToken ct = default)` flat entry point on the `HttpResponseMessage` receiver via `[GenerateAssertion]`. Validates `Content-Type: text/event-stream` by default (case-insensitive per RFC 9110 section 8.3.2); opt-out with `strictContentType: false` for test mocks that serve SSE without the canonical header. Body read uses `Content.ReadAsStreamAsync` plus the same partial-buffer cancellation pattern as the `Stream` receiver, with encoding resolved from the response's `Content-Type` charset (UTF-8 fallback per WHATWG default).\n\n### Changed\n\n- **BREAKING:** `SseEvent` record reshaped. v0.0.1 declared `SseEvent(string? EventName, string? Id, int? RetryMillis, string Data)`; v0.1.0 declares `SseEvent(string EventName, string Data, string? Id = null, int? RetryMillis = null)`. `EventName` is now non-nullable and the parser fills in `\"message\"` per the WHATWG default when no `event:` directive appears in the frame. Constructor parameter order shifts to put non-nullable fields first (`EventName`, `Data`) before nullable ones (`Id`, `RetryMillis`). The deliberate baseline break is recorded in `CompatibilitySuppressions.xml`. Migration note for v0.0.1 consumers: if your code matched `evt is SseEvent { EventName: null }` (the v0.0.1 idiom for \"this frame had no `event:` directive\"), the branch is dead at v0.1.0 because the parser populates `\"message\"` per the spec; switch the pattern to `evt is SseEvent { EventName: \"message\" }`. Named-argument constructor calls (`new SseEvent(EventName: ..., Data: ...)`) continue to compile; positional calls need to swap argument order to match the new shape.\n- Pinned `PackageValidationBaselineVersion` to `0.0.1` on both packages; ApiCompat strict-mode now validates v0.1.0 against the v0.0.1 baseline at pack time.\n- Updated `README.md` to the family-canonical structure (Table of contents, Why, Install, Package layout, Namespaces, Quick start, Wire-format syntax, Entry points, Failure diagnostics, Cookbook, Out of scope, Design notes, Stability intent, Roadmap, Family, Contributing, License).\n- Refreshed the per-package READMEs (`src/SseAssertions/README.md`, `src/SseAssertions.TUnit/README.md`, packed into the nupkgs) for the v0.1.0 surface.\n- Updated `CONVENTIONS.md` to v0.7.\n- Added a per-package strict-scope policy section to `CONVENTIONS.md` with explicit scope statements for all six family packages.\n- Added a core+adapter packaging rule section to `CONVENTIONS.md`: five of six family packages ship core+adapter; `JsonAssertions.TUnit` is the sole single-package member.\n- Synchronised `CONVENTIONS.md` across all six family repos (the file is copied identically).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#repository",
+    "commit": "57718f5c7f9f93e12fc303718e6bbdec2d6b4e60",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/SseAssertions.TUnit"
+  },
+  "verbatimVersion": "0.1.0",
+  "version": "0.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#dependencygroup/net10.0/sseassertions",
+          "@type": "PackageDependency",
+          "id": "SseAssertions",
+          "range": "[0.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#dependencygroup/net10.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.44.39, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#dependencygroup/net10.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.44.39, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#SseAssertions.TUnit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3071,
+      "fullName": "SseAssertions.TUnit.nuspec",
+      "length": 7077,
+      "name": "SseAssertions.TUnit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1420,
+      "fullName": "README.md",
+      "length": 3118,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#content/SseAssertions.TUnit.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 2212,
+      "fullName": "content/SseAssertions.TUnit.csproj",
+      "length": 5559,
+      "name": "SseAssertions.TUnit.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#lib/net10.0/SseAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2688,
+      "fullName": "lib/net10.0/SseAssertions.TUnit.xml",
+      "length": 12977,
+      "name": "SseAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#lib/net10.0/SseAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11155,
+      "fullName": "lib/net10.0/SseAssertions.TUnit.dll",
+      "length": 24064,
+      "name": "SseAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#content/obj/SseAssertions.TUnit.csproj.nuget.g.props",
+      "@type": "PackageEntry",
+      "compressedLength": 1013,
+      "fullName": "content/obj/SseAssertions.TUnit.csproj.nuget.g.props",
+      "length": 5245,
+      "name": "SseAssertions.TUnit.csproj.nuget.g.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 8042,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 62185,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#contentFiles/any/net10.0/SseAssertions.TUnit.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 2212,
+      "fullName": "contentFiles/any/net10.0/SseAssertions.TUnit.csproj",
+      "length": 5559,
+      "name": "SseAssertions.TUnit.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#contentFiles/any/net10.0/obj/SseAssertions.TUnit.csproj.nuget.g.props",
+      "@type": "PackageEntry",
+      "compressedLength": 1013,
+      "fullName": "contentFiles/any/net10.0/obj/SseAssertions.TUnit.csproj.nuget.g.props",
+      "length": 5245,
+      "name": "SseAssertions.TUnit.csproj.nuget.g.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.17.18.11.02/sseassertions.tunit.0.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tunit",
+    "sse",
+    "server-sent-events",
+    "testing",
+    "assertions",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

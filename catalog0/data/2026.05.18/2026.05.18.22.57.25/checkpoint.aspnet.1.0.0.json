@@ -1,0 +1,165 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "KYA-OS",
+  "catalog:commitId": "c8e6f935-9340-4e93-861a-1d94dda9f82b",
+  "catalog:commitTimeStamp": "2026-05-18T22:57:25.7938473Z",
+  "created": "2026-05-18T22:54:40.603Z",
+  "description": "ASP.NET (System.Web) HTTP module for AI agent detection and policy enforcement. Drop-in IHttpModule that detects AI agents using the same Rust-compiled WASM engine as AgentShield's Next.js, Express, and .NET Core packages — classic ASP.NET / MVC 5 / Web API 2 / Web Forms consumers get identical detection behavior to modern .NET consumers. Register via Web.config; zero code changes required.",
+  "frameworkAssemblyGroup": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#frameworkassemblygroup/.netframework4.6.2",
+    "assembly": [
+      "System.Configuration",
+      "System.Web"
+    ],
+    "targetFramework": ".NETFramework4.6.2"
+  },
+  "id": "Checkpoint.AspNet",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-18T22:57:21.753Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "0WC7X9lqzXDsqXcJYQ2NCJKNhtlTFM+c8bxN3H8/ZEQ0NrYB2/T4P0U/6HukuIg+PddqyAJtL2TA8d+ji3Bgig==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 38463,
+  "published": "2026-05-18T22:54:40.603Z",
+  "releaseNotes": "1.0.0 — Engine refresh: kya-os-engine replaces agentshield-core\n\nThe embedded WASM detection engine migrated from the legacy\nagentshield-core / agentshield-wasi crates (last refreshed at v0.1.1)\nto kya-os-engine — the same engine shipping in\n@kya-os/checkpoint-wasm-runtime@1.4.x for Next.js + Express middleware\ncustomers. .NET joins as the third host runtime on the unified engine.\n\nThe WASM binary, produced by rust/scripts/build-engine-wasi.sh from the\nnew kya-os-engine-wasi wrapper crate, drops from 7.2 MB (legacy) to\n1.31 MB post wasm-opt — a 5.5× shrink. Lockstep upgrades for .NET\ncustomers preserve every public API (IAgentDetector, DetectionResult,\nCheckpointOptions, CheckpointModule) so existing customer code recompiles\nunchanged.\n\nWhat .NET customers gain:\n\n  - Tier 2 vendor IP + UA cross-match (16 vendor bots — Perplexity,\n    OpenAI x3, Anthropic x3, Google x3, Apple, Bing, DuckDuckGo x2,\n    Common Crawl). Surfaces via the new DetectionResult.VerifiedTier /\n    VerifiedVendor / VerifiedProtocol attribution fields.\n  - Tier 3 calibrated per-pattern confidence (replaces the legacy\n    single-knob ConfidenceThreshold misconfiguration footgun).\n  - Monitor-default Tier 3 behaviour: the engine classifies but does\n    NOT short-circuit a Block on a Tier-3 UA match. Tenant policy\n    decides enforcement. Opt-in to engine-default blocking via the new\n    CheckpointOptions.Tier3Action knob.\n\nThe .NET package's existing C# Tier 1 verifiers (ChatGptSignatureVerifier\nRFC 9421, KyaAgentVerifier MCP-I JWS) are unchanged and continue to\npre-empt the WASM dispatcher for signed traffic.\n\nAdded:\n\n  - CheckpointOptions.Tier3Action (Monitor / Block / Challenge — default\n    Monitor)\n  - DetectionResult.VerifiedTier / VerifiedVendor / VerifiedProtocol\n  - kya-os-engine.wasm replaces agentshield-detect.wasm as the embedded\n    resource. Build via rust/scripts/build-engine-wasi.sh + commit the\n    refreshed bytes alongside the SHA pin update in\n    Checkpoint.Core.Tests/Detection/EmbeddedWasmDriftTests.cs.\n\nMigration from 0.4.0:\n\n  - Existing CheckpointOptions configurations work unchanged.\n  - Empty-policy customers behave identically to 0.4.0 (Permit by default\n    on known agents — no breaking change).\n  - Customers wanting engine-level Tier 3 blocking explicitly set\n    Tier3Action.Block on CheckpointOptions.\n\nBreaking changes: none at the public API surface. The embedded WASM is\nreplaced but the host code preserves the IAgentDetector + DetectionResult\n+ CheckpointOptions contracts. The legacy wire format (detect action with\nDetectionInput { headers, ip, method, url, tlsFingerprint }) is gone;\nthis is internal to WasmAgentDetector and not customer-observable.\n\n0.4.0 — Normalize HTTP headers to KYA- convention\n\nAll custom response headers renamed from X-Checkpoint-* to KYA-*\nper RFC 6648 (deprecated X- prefix) and the KYA-OS rebrand:\n\n  X-Checkpoint-Detected    → KYA-Detected\n  X-Checkpoint-Confidence  → KYA-Confidence\n  X-Checkpoint-Class       → KYA-Class\n  X-Checkpoint-Agent       → KYA-Agent\n  X-Checkpoint-Verification→ KYA-Verification\n  X-Checkpoint-Session     → KYA-Session\n\nMCP-I instruct response headers also renamed:\n  X-MCP-I-Required   → KYA-Auth-Required\n  X-MCP-I-Authorize  → KYA-Auth-Url\n  X-MCP-I-Project    → KYA-Project\n  X-AgentShield-Action→ KYA-Action\n  rel=\"mcp-i-authorize\" → rel=\"kya-authorize\"\n\nThis is a BREAKING CHANGE for any consumer reading these headers\nby name. No functional behavior changes.\n\n0.3.3 — Remove legacy bouncer/sessions fallback + log log-detection failures\n\nThe 0.3.2 and earlier releases fell back from POST /api/v1/log-detection to\nPOST /api/v1/bouncer/sessions whenever the log-detection call returned\nnon-2xx. That fallback was semantically wrong: bouncer/sessions is the\nMCP-I session registration endpoint and requires a real agent DID. The\nfallback fabricated a synthetic \"did:web:detected:{AgentType ?? unknown}\"\nDID per detection, which inserted junk rows into bouncer_sessions for\nevery crawler hit (Googlebot, aranhabot, Applebot, etc.) and emitted a\n\"[McpiConfigService] agentDid mismatch\" warning on every row because the\nsynthetic DID collided with the project's real configured agentDid in\nmcpiServerConfig.identity.\n\nProduction evidence from one project on 2026-04-21 showed ~17 junk\nsessions/minute over a 70-second window (20 rows, 65% from \"aranhabot\"),\nprojecting to ~25k/day of pollution per active .NET middleware project.\n\nChanges:\n\n* CheckpointApiClient.ReportDetectionAsync no longer falls back to\n  bouncer/sessions. Non-2xx responses from log-detection are logged at\n  Warning with status code, reason phrase, project ID, and a bounded\n  512-char prefix of the response body, then dropped. Detection events\n  and MCP-I session registrations are distinct concerns and must not\n  be conflated.\n* TryReportToLegacyAsync and its synthetic-DID payload construction\n  are deleted. ICheckpointApiClient.ReportDetectionAsync doc comment\n  updated to point at log-detection as the sole endpoint.\n* New private helper SafeReadTruncatedBodyAsync reads at most 512 chars\n  of the failed response body and never throws, so high-volume failure\n  loops do not flood logs or leak large payloads.\n\nNo behavioural change when log-detection returns 2xx. Callers that were\nrelying on the legacy endpoint to persist detections should be on\nCheckpoint.* >= 0.2.9 where log-detection is the documented path.\n\nOperational follow-up (not in this release): after deploying 0.3.3,\nclean up the existing junk rows with\nDELETE FROM bouncer_sessions WHERE agent_did LIKE 'did:web:detected:%';\n\n0.3.2 — Send detectionClass with log-detection payload\n\nPre-0.3.2 middleware submitted detection events to\nPOST /api/v1/log-detection without a detectionClass field. The server\nfalls back to isAgent ? \"ai_agent\" : \"human\", which mis-stamped every\nGooglebot, GPTBot, ClaudeBot, SemrushBot, etc. hit as an interactive\nAI agent. One hardwareworld.com test window produced 325,056 such\nmis-classified rows under source=\"middleware\" in 72 hours.\n\nThe detector already produces the correct class in\nDetectionResult.DetectionClass. The gap was purely transport — the\nDetectionEvent DTO and log-detection payload both dropped the field.\nThis release closes the gap:\n\n* DetectionEvent gains a nullable DetectionClass property\n  (Checkpoint.Core). Nullable preserves binary compat for any caller\n  that constructs the DTO manually.\n* CheckpointApiClient.TryReportToLogDetectionAsync now emits\n  detectionClass in the JSON payload via a wire mapping:\n  Human -> \"human\", AiAgent -> \"ai_agent\", Bot -> \"bot\",\n  IncompleteData/Unknown -> \"incomplete_data\". Null omits the field so\n  the server's UA-pattern fallback still applies for older callers.\n* Both middlewares pass result.DetectionClass through to the\n  DetectionEvent — CheckpointMiddleware (AspNetCore, net8.0) and\n  CheckpointModule (AspNet, net462) share the same wiring.\n\nCovers all four packages — Checkpoint.Core, Checkpoint.AspNet,\nCheckpoint.AspNetCore, and the KyaOs.Checkpoint umbrella.\n\n9 new tests:\n* Checkpoint.Core.Tests/Api/CheckpointApiClientPayloadTests (7) —\n  per-enum wire assertions + null-omitted + endpoint URL.\n* Checkpoint.AspNetCore.Tests/Middleware (2) — bot and AI-agent\n  DetectionClass pass-through from detector to DetectionEvent.\n\nFollow-up (out of this release): harden the server fallback at\napps/web/app/api/v1/log-detection/route.ts so older clients that still\nomit the field are classified via UA pattern instead of defaulted to\nai_agent.\n\n0.3.1 — Block/Instruct response no longer leaks bad McpServerUrl\n\nFollow-up to 0.3.0. The redirect branches in 0.3.0 correctly refused to\n302 to a relative or non-http(s) McpServerUrl, but the block-response\nbody (PlainText \"MCP Server: /connect/x\" line, JSON \"mcp_server\" field)\nand Instruct response still propagated the bad URL to the agent. An LLM\nfetcher would relay the broken instructions to the user verbatim.\n\nChanges:\n* WritePlainTextResponseAsync (AspNetCore): McpServerUrl is gated through\n  UrlHelpers.IsAbsoluteHttpUrl — relative / non-http values are dropped\n  from the body and the agent gets the \"contact site owner\" fallback.\n* WriteJsonResponseAsync (AspNetCore) + WriteBlockedJsonResponse (AspNet):\n  the \"mcp_server\" / \"mcpServer\" field is omitted (along with the\n  \"instructions\" sentence) when McpServerUrl is not an absolute http(s)\n  URL.\n* WriteJsonResponseAsync + WriteInstructResponseAsync (AspNetCore):\n  switched from WriteAsJsonAsync to JsonSerializer.Serialize +\n  response.WriteAsync. The streaming serializer requires the response\n  body PipeWriter to implement UnflushedBytes, which TestServer's pipe\n  writer doesn't — every JSON-mode test in the AspNetCore suite was\n  silently throwing into FailOpen and falling through to the route\n  handler. Buffering matches what the AspNet adapter already does, and\n  resolves the four pre-existing test failures inherited from earlier\n  releases.\n\n7 new tests in CheckpointMiddlewareTests covering Json/PlainText\nMcpServerUrl omission across path-relative, schemeless, protocol-relative,\njavascript:, and ftp:// inputs. AspNetCore suite now 20/20 green\n(was 9/13).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#repository",
+    "commit": "080d71a186659e6bd6e3835f443506176d81cfb0",
+    "type": "git",
+    "url": "https://github.com/know-that-ai/agent-shield"
+  },
+  "verbatimVersion": "1.0.0",
+  "version": "1.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#dependencygroup/.netframework4.6.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#dependencygroup/.netframework4.6.2/checkpoint.core",
+          "@type": "PackageDependency",
+          "id": "Checkpoint.Core",
+          "range": "[1.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6.2"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#Checkpoint.AspNet.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4779,
+      "fullName": "Checkpoint.AspNet.nuspec",
+      "length": 10823,
+      "name": "Checkpoint.AspNet.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#lib/net462/Checkpoint.AspNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12798,
+      "fullName": "lib/net462/Checkpoint.AspNet.dll",
+      "length": 28672,
+      "name": "Checkpoint.AspNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#lib/net462/Checkpoint.AspNet.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2612,
+      "fullName": "lib/net462/Checkpoint.AspNet.xml",
+      "length": 8867,
+      "name": "Checkpoint.AspNet.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#content/web.config.install.xdt",
+      "@type": "PackageEntry",
+      "compressedLength": 1433,
+      "fullName": "content/web.config.install.xdt",
+      "length": 20326,
+      "name": "web.config.install.xdt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#contentFiles/any/net462/web.config.install.xdt",
+      "@type": "PackageEntry",
+      "compressedLength": 1433,
+      "fullName": "contentFiles/any/net462/web.config.install.xdt",
+      "length": 20326,
+      "name": "web.config.install.xdt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.18.22.57.25/checkpoint.aspnet.1.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspnet",
+    "system.web",
+    "iis",
+    "httpmodule",
+    "ai",
+    "agent",
+    "detection",
+    "security",
+    "bot",
+    "checkpoint",
+    "agentshield"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

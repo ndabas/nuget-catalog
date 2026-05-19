@@ -1,0 +1,547 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Devon Burriss",
+  "catalog:commitId": "6fe1e685-4b5f-4a94-aac5-5b2219d313dc",
+  "catalog:commitTimeStamp": "2026-05-19T12:15:14.0658928Z",
+  "copyright": "Copyright © 2025 Devon Burriss",
+  "created": "2026-05-19T12:11:23.253Z",
+  "description": "A CLI tool for managing GitHub Projects and Copilot-assigned issues in bulk. Define your project in a YAML file and let orcai create issues, assign them to Copilot, and clean up when done.",
+  "id": "OrcAI.Tool",
+  "isPrerelease": true,
+  "lastEdited": "2026-05-19T12:14:40.21Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "ACIXb3Z7XtIoRx3ASR16yn0D9BnKDGrmp+aIhLUx73G/AtBndcI4aiUEVBP9f+V2qBOhwIvDO+up9IFZYh0TkQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 3146544,
+  "projectUrl": "https://github.com/dburriss/orca",
+  "published": "2026-05-19T12:11:23.253Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "`orcai notify` command — posts a templated comment to issues and/or PRs recorded in the lock file. Supports the same `{assignee}`, `{job.owner}`, and `{repo.codeowners}` template tokens as `nudge.comment`.\n`--target issues|prs|both` — which lock file items to notify (default: `issues`).\n`--state open|closed|all` — filter by current GitHub state before commenting (default: `open`); `closed` matches both closed and merged PRs; `all` skips the live state check entirely.\n`--dry-run` — preview which items would be notified without posting any comments.\n`--verbose` — print per-item progress to stderr.\n`--template <string>` — inline comment template supplied directly on the CLI; overrides `notify.comment` from YAML/config.\n`--data key=value` — inject an extra template variable (repeatable). E.g. `--data sprint=42`.\n`--json-data <json>` — inject extra template variables as a JSON object string. Merged with `--data`; `--data` takes precedence on key conflicts. User-supplied values override built-in tokens (`{assignee}` etc.) when the same key is used.\n`notify` block in YAML job config and global/local JSON config — configures the comment template for `orcai notify`.\n`notify.comment` — comment body template. Supports the same `{assignee}`, `{job.owner}`, and `{repo.codeowners}` tokens as `nudge.comment`.\n`orcai run` records repos that were skipped because they are archived in a new `skippedRepos` field in the lock file. The run summary and `--json` output include a `skippedArchived` count and status.\n`orcai run` detects when the lock file points to a deleted or transferred issue and recreates the issue in place instead of failing. New `staleIssueRecreated` count/status in the summary and `--json` output; the lock file is rewritten with the new issue numbers.\nComment-building logic (template variable resolution + `PostComment`) extracted from `RunCommand` and `NudgeCommand` into a shared internal `Comments` module, used by all three comment-posting paths.\n`orcai run` now automatically updates issue bodies when the Markdown template changes. A `templateHash` field is stored in the lock file alongside the existing `yamlHash`, allowing the tool to detect which changed:\nOnly `.md` changed → updates issue bodies only (`gh issue edit` per repo); no project, label, or assignment calls made.\nOnly `.yml` changed → structural re-run as before; no redundant body edits.\nBoth changed → structural re-run, then issue bodies updated for any repos that already had issues.\nNeither changed → fast path, zero network calls (unchanged from before).\nOld lock files without `templateHash` are treated as changed, triggering a one-time body sync on next run.\n`assign` block in YAML job config and global/local JSON config — configures who receives the issue and how they are triggered. Applies to both `orcai run` and `orcai nudge`.\n`assign.to` — assignee handle (default: `@copilot`). Accepts any GitHub user, bot, or GitHub App bot handle. Note: assigning `@copilot` requires a PAT (`ORCAI_PAT`) regardless of primary auth method, as GitHub Copilot can only be assigned via a user-level token.\n`assign.via` — trigger method: `assign` (default), `comment`, or `comment-and-assign`. Use `comment` for agents triggered by slash commands (e.g. OpenCode's `/opencode`).\n`assign.comment` — comment body posted when `via` includes `comment`. Supports template tokens (see below).\n`nudge` block in YAML job config and global/local JSON config — configures how `orcai nudge` re-triggers the assignee on stale issues.\n`nudge.mode` — `reassign` (default), `comment-only`, or `comment-and-reassign`.\n`nudge.comment` — comment body posted on nudge. Supports template tokens (see below).\nDynamic template tokens in `assign.comment` and `nudge.comment` — placeholders resolved at runtime:\n`{assignee}` — the configured `assign.to` handle.\n`{job.owner}` — who owns the orcai job. Resolved from `job.owner` in the YAML (highest priority), then the catch-all `*` owner from a `CODEOWNERS` file in the current repository (checked at `CODEOWNERS`, `.github/CODEOWNERS`, `docs/CODEOWNERS`). Left unreplaced if neither is found.\n`{repo.codeowners}` — the catch-all `*` owner from the target repository's `CODEOWNERS` file (fetched from GitHub). Left unreplaced if no `CODEOWNERS` is present or it has no `*` rule.\n`job.owner` field in the YAML `job` block — statically sets the job owner for use in comment templates via `{job.owner}`. Overrides any CODEOWNERS-based discovery.\n`orcai nudge` command now documented in the CLI reference.\nGenerated YAML scaffold now includes commented-out `assign:` and `nudge:` example blocks instead of the unused `copilot:` block.\nThe `copilot:` block previously scaffolded by `orcai generate` has been removed. It was never parsed and is superseded by the `assign:` block.\n`--skip-copilot` is superseded by `assign.via: comment` (skips assignment while still allowing a trigger comment). The flag remains supported for backwards compatibility.\n`ORCAI_LOG_LEVEL` environment variable — controls log verbosity. Accepts any `Microsoft.Extensions.Logging.LogLevel` name (`Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`, `None`). Defaults to `Warning`.\nLock file schema: new `skippedRepos: string[]` field. Old lock files without this field still load (treated as empty); the field is populated on the next run.\n`orcai run` no longer creates a duplicate issue when the GitHub API lookup itself fails. Transient `gh` errors during open- or closed-issue lookup (rate limits, network resets, exhausted retries) are now surfaced as a per-repo error instead of being silently treated as \"no matching issue\". This also restores `--on-closed-issue` semantics on lookup failures — the configured action (`reopen` / `skip` / `fail`) is no longer bypassed when the closed-issue query errors.\nAssignment via GitHub App auth now only requires a PAT (`ORCAI_PAT`) when the assignee is `@copilot`. Assigning human users or other bots with a GitHub App (which has `issues: write` permission) no longer warns or skips — the PAT constraint was previously applied to all assignees, not just Copilot.\n`orcai cleanup` no longer fails when a project, issue, or PR has already been deleted — the operation is treated as success and a warning is emitted instead.\nIssue lookup now uses GitHub's title search (`in:title`) with a 100-result limit, preventing missed matches on repos with more than 30 open or closed issues.\nPR lookup for an issue now queries GitHub's GraphQL API (`Issue.closingPullRequests`) instead of listing all PRs in the repo and filtering in memory — fixes silent data loss on repos with more than 30 PRs.\n`orcai run` no longer errors out on archived repositories. Each repo is pre-checked with `gh repo view --json isArchived`; archived repos are skipped with a single informational line instead of cascading `Repository was archived so is read-only` errors from label and issue writes.\n`orcai run --auto-create-labels` no longer produces spurious errors when a label already exists. Two fixes: (1) `gh label list` now uses `--limit 1000` so labels past page 1 are detected by the pre-check, and (2) `CreateLabel` is idempotent — a GitHub \"already exists\" / \"already been taken\" response is downgraded to success with a warning log.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#repository",
+    "commit": "2b9dc288fb798529d46c026869c99b4016c00b61",
+    "type": "git",
+    "url": "https://github.com/dburriss/orca"
+  },
+  "title": "orcai",
+  "verbatimVersion": "0.7.3-beta4",
+  "version": "0.7.3-beta4",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#OrcAI.Tool.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3589,
+      "fullName": "OrcAI.Tool.nuspec",
+      "length": 8395,
+      "name": "OrcAI.Tool.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2208,
+      "fullName": "README.md",
+      "length": 4865,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Argu.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 159430,
+      "fullName": "tools/net10.0/any/Argu.dll",
+      "length": 380416,
+      "name": "Argu.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 181,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/FSharp.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1155916,
+      "fullName": "tools/net10.0/any/FSharp.Core.dll",
+      "length": 2407208,
+      "name": "FSharp.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15928,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "length": 28984,
+      "name": "Microsoft.Extensions.Configuration.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Configuration.Binder.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22063,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.Binder.dll",
+      "length": 43792,
+      "name": "Microsoft.Extensions.Configuration.Binder.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23318,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.dll",
+      "length": 45320,
+      "name": "Microsoft.Extensions.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29613,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "length": 66312,
+      "name": "Microsoft.Extensions.DependencyInjection.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 44907,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.DependencyInjection.dll",
+      "length": 96008,
+      "name": "Microsoft.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.FileSystemGlobbing.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24721,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.FileSystemGlobbing.dll",
+      "length": 48400,
+      "name": "Microsoft.Extensions.FileSystemGlobbing.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32666,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "length": 67344,
+      "name": "Microsoft.Extensions.Logging.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Logging.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16035,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Configuration.dll",
+      "length": 28976,
+      "name": "Microsoft.Extensions.Logging.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Logging.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 37833,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Console.dll",
+      "length": 76560,
+      "name": "Microsoft.Extensions.Logging.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26506,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.dll",
+      "length": 52016,
+      "name": "Microsoft.Extensions.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12734,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+      "length": 22280,
+      "name": "Microsoft.Extensions.Options.ConfigurationExtensions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Options.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31531,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Options.dll",
+      "length": 65848,
+      "name": "Microsoft.Extensions.Options.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.Extensions.Primitives.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23138,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Primitives.dll",
+      "length": 45328,
+      "name": "Microsoft.Extensions.Primitives.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.IdentityModel.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11267,
+      "fullName": "tools/net10.0/any/Microsoft.IdentityModel.Abstractions.dll",
+      "length": 19496,
+      "name": "Microsoft.IdentityModel.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.IdentityModel.JsonWebTokens.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 62511,
+      "fullName": "tools/net10.0/any/Microsoft.IdentityModel.JsonWebTokens.dll",
+      "length": 167976,
+      "name": "Microsoft.IdentityModel.JsonWebTokens.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.IdentityModel.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17783,
+      "fullName": "tools/net10.0/any/Microsoft.IdentityModel.Logging.dll",
+      "length": 36888,
+      "name": "Microsoft.IdentityModel.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Microsoft.IdentityModel.Tokens.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121544,
+      "fullName": "tools/net10.0/any/Microsoft.IdentityModel.Tokens.dll",
+      "length": 370200,
+      "name": "Microsoft.IdentityModel.Tokens.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/OrcAI.Auth.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32242,
+      "fullName": "tools/net10.0/any/OrcAI.Auth.dll",
+      "length": 66560,
+      "name": "OrcAI.Auth.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/OrcAI.Auth.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 6538,
+      "fullName": "tools/net10.0/any/OrcAI.Auth.pdb",
+      "length": 15960,
+      "name": "OrcAI.Auth.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/OrcAI.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 132199,
+      "fullName": "tools/net10.0/any/OrcAI.Core.dll",
+      "length": 306688,
+      "name": "OrcAI.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/OrcAI.Core.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 22251,
+      "fullName": "tools/net10.0/any/OrcAI.Core.pdb",
+      "length": 71648,
+      "name": "OrcAI.Core.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/OrcAI.GitHub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30392,
+      "fullName": "tools/net10.0/any/OrcAI.GitHub.dll",
+      "length": 73728,
+      "name": "OrcAI.GitHub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/OrcAI.GitHub.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 6236,
+      "fullName": "tools/net10.0/any/OrcAI.GitHub.pdb",
+      "length": 16792,
+      "name": "OrcAI.GitHub.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/SimpleExec.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19396,
+      "fullName": "tools/net10.0/any/SimpleExec.dll",
+      "length": 30208,
+      "name": "SimpleExec.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Spectre.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 313514,
+      "fullName": "tools/net10.0/any/Spectre.Console.dll",
+      "length": 719872,
+      "name": "Spectre.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/System.Configuration.ConfigurationManager.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 155171,
+      "fullName": "tools/net10.0/any/System.Configuration.ConfigurationManager.dll",
+      "length": 380360,
+      "name": "System.Configuration.ConfigurationManager.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/System.IdentityModel.Tokens.Jwt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 38761,
+      "fullName": "tools/net10.0/any/System.IdentityModel.Tokens.Jwt.dll",
+      "length": 91648,
+      "name": "System.IdentityModel.Tokens.Jwt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14012,
+      "fullName": "tools/net10.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "length": 24880,
+      "name": "System.Security.Cryptography.ProtectedData.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Testably.Abstractions.FileSystem.Interface.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11088,
+      "fullName": "tools/net10.0/any/Testably.Abstractions.FileSystem.Interface.dll",
+      "length": 28160,
+      "name": "Testably.Abstractions.FileSystem.Interface.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Testably.Abstractions.Interface.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 5330,
+      "fullName": "tools/net10.0/any/Testably.Abstractions.Interface.dll",
+      "length": 12800,
+      "name": "Testably.Abstractions.Interface.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/Testably.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19916,
+      "fullName": "tools/net10.0/any/Testably.Abstractions.dll",
+      "length": 47104,
+      "name": "Testably.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 119159,
+      "fullName": "tools/net10.0/any/YamlDotNet.dll",
+      "length": 293376,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/cs/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16267,
+      "fullName": "tools/net10.0/any/cs/FSharp.Core.resources.dll",
+      "length": 34088,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/de/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16380,
+      "fullName": "tools/net10.0/any/de/FSharp.Core.resources.dll",
+      "length": 35152,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/es/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15987,
+      "fullName": "tools/net10.0/any/es/FSharp.Core.resources.dll",
+      "length": 34088,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/fr/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16038,
+      "fullName": "tools/net10.0/any/fr/FSharp.Core.resources.dll",
+      "length": 34600,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/it/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15951,
+      "fullName": "tools/net10.0/any/it/FSharp.Core.resources.dll",
+      "length": 34088,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/ja/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16195,
+      "fullName": "tools/net10.0/any/ja/FSharp.Core.resources.dll",
+      "length": 36648,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/ko/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15963,
+      "fullName": "tools/net10.0/any/ko/FSharp.Core.resources.dll",
+      "length": 35624,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/orcai.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3966,
+      "fullName": "tools/net10.0/any/orcai.deps.json",
+      "length": 24235,
+      "name": "orcai.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/orcai.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 75727,
+      "fullName": "tools/net10.0/any/orcai.dll",
+      "length": 191488,
+      "name": "orcai.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/orcai.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 13507,
+      "fullName": "tools/net10.0/any/orcai.pdb",
+      "length": 38576,
+      "name": "orcai.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/orcai.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 208,
+      "fullName": "tools/net10.0/any/orcai.runtimeconfig.json",
+      "length": 330,
+      "name": "orcai.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/pl/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16382,
+      "fullName": "tools/net10.0/any/pl/FSharp.Core.resources.dll",
+      "length": 35152,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/pt-BR/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15863,
+      "fullName": "tools/net10.0/any/pt-BR/FSharp.Core.resources.dll",
+      "length": 33576,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/ru/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17006,
+      "fullName": "tools/net10.0/any/ru/FSharp.Core.resources.dll",
+      "length": 41296,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/runtimes/win/lib/netstandard2.0/System.Security.Cryptography.ProtectedData.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17994,
+      "fullName": "tools/net10.0/any/runtimes/win/lib/netstandard2.0/System.Security.Cryptography.ProtectedData.dll",
+      "length": 31688,
+      "name": "System.Security.Cryptography.ProtectedData.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/tr/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15893,
+      "fullName": "tools/net10.0/any/tr/FSharp.Core.resources.dll",
+      "length": 33616,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/zh-Hans/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15849,
+      "fullName": "tools/net10.0/any/zh-Hans/FSharp.Core.resources.dll",
+      "length": 32080,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#tools/net10.0/any/zh-Hant/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15805,
+      "fullName": "tools/net10.0/any/zh-Hant/FSharp.Core.resources.dll",
+      "length": 31528,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.19.12.15.14/orcai.tool.0.7.3-beta4.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "github",
+    "copilot",
+    "cli",
+    "project-management",
+    "automation"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "oceanic_tree",
+  "catalog:commitId": "a13ac278-d4ce-463a-a181-3f248b36432f",
+  "catalog:commitTimeStamp": "2026-05-20T00:15:30.8442105Z",
+  "created": "2026-04-21T04:43:33.61Z",
+  "deprecation": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#deprecation",
+    "alternatePackage": {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#deprecation/alternatePackage",
+      "id": "DisPipe",
+      "range": "[1.2.2, )"
+    },
+    "message": "Bug at registration time. I'm sorry. Versions above (1.2.2 and 1.3.0) have that problem fixed.",
+    "reasons": [
+      "CriticalBugs"
+    ]
+  },
+  "description": "Lightweight operation dispatcher that automatically pairs IOperation callers with their IOperationHandler implementations via a pipeline pattern.",
+  "id": "DisPipe",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-20T00:14:55.45Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "oXvLBsUE8LP9GgKDgT+oRBRqLpLWrHhDrbVt8gkiijsOWlcmoI6VDj36BfhUPL/KCzCeenl04eWsqQ/CZkBVMw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 35777,
+  "published": "2026-04-21T04:43:33.61Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Changelog v1.2.0\n\n**Summary:** Two additions since v1.1.0 — a new `AddDisPipeMediatorPattern` extension method and an `IPipelineConfigurator` interface. No breaking changes, no removals. This is a pure DX improvement: users no longer manually wire `CallDispatcher`; they call one extension method from startup.\n\n---\n\n## New Features\n\n**`ServiceCollectionExtensions.AddDisPipeMediatorPattern`**\n\nReplaces the manual `CallDispatcher` construction + `Register` + `AddSingleton` boilerplate with a single `services.AddDisPipeMediatorPattern(assemblies)` call. Before this, users had to instantiate `CallDispatcher` themselves, call `Register`, and register `IPipeDispatcher` manually. Now all three steps collapse into one.\n\nParameters beyond `assemblies` are all optional:\n- `configurePipelines` — fluent callback for attaching before/after behaviors at startup\n- `assemblyValidator` — predicate to filter which assemblies are scanned (useful when passing broad assemblies)\n- `logger` — startup diagnostics\n- `startupCancellationToken` — cancel the assembly-scan phase\n\n**`IPipelineConfigurator`**\n\nNew public interface exposing `AddPipeline()` — the pipeline-behavior configuration surface. `CallDispatcher` already implemented pipeline config internally; this interface extracts it as the public type passed to the `configurePipelines` callback. Users interact with it only inside that callback.\n\n## Internal Changes\n\n**`IPipeDispatcherServiceRegister`**\n\nNow `internal` and extends `IPipelineConfigurator`. Previously public — this is technically a **breaking change** for anyone who referenced `IPipeDispatcherServiceRegister` directly, but given it was an infrastructure-internal interface with no meaningful public contract, the practical impact is near zero.\n\n---\n\n## Upgrade\n\nReplace manual `CallDispatcher` wiring with `services.AddDisPipeMediatorPattern(assemblies)`. No handler code changes needed.\n\n\n---\n\n<br/>\n<br/>\n<br/>\n<br/>\n\n# Changelog v1.1.0\n\n## Overview\n\nDisPipe added a complete pipeline system for middleware-style before/after handler execution, implemented 5 critical security fixes (reflection, assembly validation, cancellation handling, type confusion, debug logging), and refactored `CallDispatcher` into partial classes for maintainability. One breaking change: interface rename.\n\n## Breaking Changes\n\n### IOperationsServiceRegister → IPipeDispatcherServiceRegister \n\nInterface renamed; signature unchanged. Update your DI registration code if you reference this type directly.\n\n### CallDispatcher Constructor\n\nNew optional `Func<Assembly, bool> assemblyValidator` parameter added. Existing constructors still work (backward-compatible), but you can now validate which assemblies load handlers at startup.\n\n### Pipeline Context in Dispatch Flow\n\nHandler invocation now executes within before/after pipeline. If you inspected dispatch internals (reflection, method invocation), that path changed. Most users unaffected.\n\n## New Features\n\n### Pipeline System\n\n- **IBeforeBehavior / IAfterBehavior** — Middleware-style hooks around handler execution. Register via `IBeforeBuilder` / `IAfterBuilder` (fluent API).\n- **IPipelineContext** — Shared context passed through pipeline stages. Behaviors can pass data and control flow (commit/cancel pipeline).\n- **ErrorStrategy enum** — Handle errors in pipeline: `Throw`, `Log`, `Ignore`.\n\n**Use case:** Logging, validation, metrics, cross-cutting concerns without handler modification.\n\n### Assembly Validation\n\nPass `assemblyValidator` to `CallDispatcher` constructor to define which assemblies are trusted. Prevents loading untrusted handlers. Raises `UntrustedAssemblyException` if validation fails.\n\n## Security Fixes\n\n### Unsafe Reflection in Handler Invocation\n\nReplaced `MethodInfo.Invoke()` with pre-compiled delegates (cached at startup). Eliminates reflection overhead and method invocation vulnerabilities.\n\n### Uncontrolled Assembly Loading\n\nAdded optional assembly validator. You now control which assemblies are trusted, preventing unauthorized handler injection.\n\n### Type Confusion via Generic Matching\n\nStricter validation prevents duplicate handler registration for same operation. New `DuplicateHandlerException` on startup if misconfigured.\n\n### OperationCanceledException Swallowing\n\nExplicit cancellation handling. Cancellation tokens now respected; exceptions no longer silently caught.\n\n### Information Disclosure via Debug Logging\n\nDebug logs now use `Type.Name` instead of `Type.FullName`, reducing namespace exposure in logs.\n\n## Internal Changes\n\n### CallDispatcher Split\n\nNow 3 partial classes: core dispatch logic, assembly scanning/pairing, DI registration. Cleaner, more maintainable.\n\n### New Exceptions\n\n- `DuplicateHandlerException` — Multiple handlers for same operation\n- `PipelineCancelledException` — Pipeline execution was cancelled\n- `PipelineConfigurationException` — Pipeline misconfiguration\n- `UntrustedAssemblyException` — Assembly failed validation\n\n### Result Mutability Warning\n\n`Result<T>.Value` returns original reference. Treat as read-only; mutations after creation not supported.\n\n## Tests\n\n**PipelineTests** (304 lines) — Covers pipeline behavior, context passing, cancellation, error strategies, and builder fluent API.\n\n## Upgrade Path\n\nUpdate interface references (`IOperationsServiceRegister`). Optional: add assembly validator and pipeline behaviors. No code changes required for basic use.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#repository",
+    "commit": "d92902174acf16f654d66d8393309caa378c4d41",
+    "type": "git"
+  },
+  "verbatimVersion": "1.2.0",
+  "version": "1.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#DisPipe.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2804,
+      "fullName": "DisPipe.nuspec",
+      "length": 6536,
+      "name": "DisPipe.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2946,
+      "fullName": "README.md",
+      "length": 8160,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#lib/net10.0/DisPipe.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15200,
+      "fullName": "lib/net10.0/DisPipe.dll",
+      "length": 33792,
+      "name": "DisPipe.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.20.00.15.30/dispipe.1.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "dispatcher",
+    "pipeline",
+    "mediator",
+    "cqrs",
+    "operations"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

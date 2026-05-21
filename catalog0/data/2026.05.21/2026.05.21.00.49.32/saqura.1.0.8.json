@@ -1,0 +1,156 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Christopher Batsch",
+  "catalog:commitId": "cd40b2b3-4696-4c0b-809b-6e6a76358476",
+  "catalog:commitTimeStamp": "2026-05-21T00:49:32.1117078Z",
+  "copyright": "©2025 KyotoTech LLC",
+  "created": "2026-05-21T00:45:05.15Z",
+  "description": "Enterprise-grade cryptography library with AES, RSA and Quantum-safe encryption.",
+  "iconFile": "icon.png",
+  "id": "SaQura",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-21T00:49:13.393Z",
+  "licenseFile": "LICENSE.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "3To4IQZSh3WDCqXpML87g29h5LA0rvj/YRVCpyeyAWLNcBLP4R9WqH/vCyzO+9WbrOEVUheOgHIHCvZqiViH9Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 233070,
+  "projectUrl": "https://kyototech.co.jp/products/saqura",
+  "published": "2026-05-21T00:45:05.15Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v1.0.8.0 - Cross-Platform Wire-Format Alignment + Defense-in-Depth + Online Activation Fix\nOnline license activation fix:\n- ApiLicense.ActivateLicenseAsync(licenseKey) now correctly parses the\n  license-server's wrapped response { success, errorMessage, license,\n  signature } that the previous code path deserialized as a flat\n  LicenseInfo (always failed signature verification, fell back to\n  \"Use license file for offline activation\"). Online activation has\n  been broken since at least v1.0.0.2; .lic-file activation\n  (ActivateLicenseFileAsync / ActivateLicenseFromJsonAsync) was the\n  workaround and continues to work unchanged.\n- License-server request serialization switched to System.Text.Json\n  source-generation. Faster than reflection, AOT-ready, no public-API\n  change.\n\nObfuscation hardening:\n- Multi-stage obfuscation pipeline strengthened. Method bodies are no\n  longer trivially decompilable to readable IL, and plaintext occurrences\n  of sensitive symbols are eliminated (UTF-8 + UTF-16LE verified).\n- No public-API or behaviour change for consumers.\n\nCross-platform interop with Swift + Kotlin SaQura libraries:\n- AES-256-GCM byte[] APIs: removed legacy base64 inner-wrap from the\n  byte[] encrypt/decrypt path. New wire format [Nonce:12][CT:N][Tag:16]\n  is byte-identical to Swift's Data.encryptWithAES + Kotlin's\n  AESCryptographyHelper.encrypt(ByteArray, key). String-API path is\n  unchanged. (See Migration note.)\n- RSA-4096 hybrid encryption: canonical wire format\n  [KeyLen:4 LE = 512][EncKey:512][Nonce:12][Tag:16][CT:N] now matches\n  the cross-platform Swift + Kotlin output. No behaviour change for\n  .NET-only callers; the .NET wire format itself was already canonical.\n- PBKDF2-SHA512 password hashes: JSON key names aligned to the long-key\n  form (algorithm/version/parameters/createdUtc + inner hashAlgorithm/\n  iterations/outputLength/saltLength). createdUtc timestamps emit as\n  yyyy-MM-ddTHH:mm:ssZ (no fractional seconds) for cross-platform\n  ISO-8601 compatibility. Dual-shape DeserializeDualShape reader still\n  verifies legacy short-key hashes from v1.0.0.2..v1.0.7 — existing\n  user hashes continue to verify after the lib update.\n- Quantum Generation 6 with Medium strength: encrypt path now uses\n  the actual encapsulated-secret length (was a stale lookup table\n  hardcoded to 9720 bytes, only correct for Standard strength). All\n  15 gen×strength combos now round-trip cleanly.\n\nDefense-in-Depth on Quantum API:\n- Quantum APIs (EncryptWithQuantumAsync, EncryptWithQuantumToBytesAsync,\n  DecryptWithQuantumAsync, Quantum.GenerateKeyPair) now reject null,\n  empty, and all-zero byte buffers passed as keys or encapsulated\n  secrets. Throws ArgumentException with a clear \"caller likely zero-\n  wiped the array\" message — surfaces consumer bugs that previously\n  presented as silent (null, null) tuples downstream.\n- Output sanity-net: if an internal helper returns a null or empty\n  buffer despite the v1.0.5 typed-exception fix, the wrapping API now\n  raises the appropriate QuantumOperationException subtype with an\n  InvalidOperationException inner.\n\nAES byte[] migration helper:\n- New `byte[].MigrateLegacyAESByteCiphertextAsync(string key)` extension\n  recovers original plaintext from pre-1.0.8 stored byte[] AES\n  ciphertext (SaQura ≤ 1.0.7 output). In-place upgrade:\n      byte[] raw = await old.MigrateLegacyAESByteCiphertextAsync(key);\n      byte[] new = await raw.EncryptWithAESAsync(key);  // cross-platform\n  Verified against all historical AES byte[] outputs from v1.0.0.2\n  through v1.0.7.\n\nMigration:\n- AES byte[] data from v1.0.7 or earlier: use the new\n  MigrateLegacyAESByteCiphertextAsync helper, then re-encrypt.\n  String-API AES data is unaffected.\n- RSA hybrid + PBKDF2 + Quantum data round-trips unchanged.\n\nv1.0.6.0 - Security Hardening\n- Internal license-gate diagnostics removed from Release builds.\n- No behavioural change for licensed customers. If you previously\n  relied on undocumented internal diagnostic flags, contact support.\n\nv1.0.5.0 - Diagnostic Exceptions for Quantum Operations\n- Quantum key generation, encryption and decryption now raise typed\n  exceptions (QuantumOperationException + three subtypes) on failure\n  instead of returning silent null/empty values.\n- Authentication failures during decryption (wrong key or tampered\n  ciphertext) continue to return string.Empty.\n- Behavioural change: callers that relied on null-on-failure should\n  catch QuantumOperationException (or System.Security.Cryptography\n  .CryptographicException, which it inherits from).\n\nv1.0.4.7 - Security Hardening\n- Prevents license activation timeout\n\nv1.0.4.4 - iOS Mobile Platform Fix\n- Improved mobile platform detection\n- Prevents license activation timeout on iOS devices\n\nv1.0.4.2 - Maintenance Release\n- Documentation improvements\n\nv1.0.3.2 - Server Rejection Handling\n- Background server registration\n- Improved error messages from server\n\nv1.0.2.2 - iOS/macOS AES Fix\n- Fixed PlatformNotSupportedException on Apple platforms\n\nv1.0.1.0 - Distribution Licenses\n- Added Distribution License type for App Store/Play Store apps\n- No hardware binding, unlimited activations",
+  "title": "SaQura Library",
+  "verbatimVersion": "1.0.8",
+  "version": "1.0.8",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json#dependencygroup/net8.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json#SaQura.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2973,
+      "fullName": "SaQura.nuspec",
+      "length": 6151,
+      "name": "SaQura.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json#lib/net8.0/SaQura.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 203983,
+      "fullName": "lib/net8.0/SaQura.dll",
+      "length": 379904,
+      "name": "SaQura.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json#LICENSE.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 733,
+      "fullName": "LICENSE.txt",
+      "length": 1410,
+      "name": "LICENSE.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1112,
+      "fullName": "README.md",
+      "length": 2098,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 9245,
+      "fullName": "icon.png",
+      "length": 9842,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.21.00.49.32/saqura.1.0.8.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Cryptography",
+    "Security",
+    "Encryption",
+    "AES",
+    "RSA",
+    "Quantum",
+    "PostQuantum",
+    "MAUI",
+    "Mobile",
+    "iOS",
+    "Android"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

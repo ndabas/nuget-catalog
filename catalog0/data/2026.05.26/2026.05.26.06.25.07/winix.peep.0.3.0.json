@@ -1,0 +1,243 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Troy Willmot",
+  "catalog:commitId": "b6c2d8d5-70e5-41aa-a49d-acba0566bb60",
+  "catalog:commitTimeStamp": "2026-05-26T06:25:07.2161988Z",
+  "copyright": "Copyright (c) Troy Willmot",
+  "created": "2026-05-26T06:22:03.103Z",
+  "description": "Run a command repeatedly and display output on a refreshing screen. A cross-platform 'watch' + 'entr' replacement.",
+  "iconFile": "Winix.png",
+  "id": "Winix.Peep",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-26T06:24:46.337Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "qrPa+gvffsEYke5KflY4nkmvUO/GiTtGDhC/gmB6/ar5NZbiBebuDIkXA6vEnIbaTpzhfA9YOZmrXVkNo6i0gA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 372611,
+  "projectUrl": "https://github.com/Yortw/winix",
+  "published": "2026-05-26T06:22:03.103Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## [0.3.0] - 2026-05-10\n\n### Changed\n- `--json` / `--json-output` envelopes now reach every exit path, including parser errors, missing-command, regex-parse errors, and unexpected runtime exceptions in once-mode. Pre-fix, several validation early-returns and the once-mode catch list emitted bare stderr lines, breaking JSON-aware automation that decided \"envelope or not\" by inspecting `--json-output`.\n- JSON `last_output` field is now trimmed of trailing newlines to match `bash $(cmd)` command-substitution semantics. Internal newlines are preserved unchanged; the captured `PeepResult.Output` stays byte-faithful for stdout / `--exit-on-match` / history-diff consumers.\n- Captured child output is normalised to `\\n` line endings at the API boundary, so JSON envelopes and `--exit-on-match` regexes behave identically across Windows and POSIX (pre-fix, `dotnet --version` produced `\"10.0.200\\r\\n\"` on Windows but `\"10.0.200\\n\"` on Linux).\n- `--exit-on-match` and `--exit-on-change` now return exit code 0 for the auto-exit success case, matching the documented \"0 = Auto-exit condition met\" contract. Pre-fix the child's last exit code (often non-zero on the run that triggered the match) was passed through.\n- Once-mode JSON envelope now emits `history_retained: 0` so the field is always present, matching `--describe`'s declared `int|null` schema.\n\n### Fixed\n- `peep <command>` no longer crashes with an SR resource-key exception (`InvalidOperationException: InvalidOperation_ConsoleKeyAvailableOnFile`) when stdin is redirected (pipes, `/dev/null`, CI, parent-process `RedirectStandardInput=true`). The redraw loop now probes `Console.IsInputRedirected` once at entry and skips the keyboard branch on every tick when stdin is not a terminal.\n- Two related stream-merge bugs fixed: child stdout and stderr are now merged line-atomically rather than in 4096-char chunks (a chunk from one stream could land mid-line of the other, producing output like `\"this naCould not execute...me could not be found\"`), and the line buffer enforces the 64 MB output cap mid-stream so a child writing without `\\n` (binary dumps, unfolded base64, large `curl` payloads) can no longer bypass the OOM bound.\n- File-change triggers are no longer silently dropped while a child is running. The previous `Interlocked.CompareExchange` ordering consumed the trigger flag before checking whether a child was already running, so saves during a long `dotnet test` were silently lost.\n- ANSI-strip regex now also matches OSC sequences (`ESC ] ... BEL` and `ESC ] ... ESC \\`) used by modern shells, fish, oh-my-posh, gcc, and OSC-8 hyperlinks. Pre-fix `--exit-on-match` patterns failed against lines carrying a leading title-set escape, and `--json-output last_output` leaked raw escape bytes into the JSON envelope.\n- `RegexMatchTimeoutException` from `--exit-on-match` against a pathological pattern is now caught (treated as non-match) with a one-shot stderr warning per pattern. Pre-fix the timeout was silently swallowed and the user's auto-exit condition never fired with no diagnostic.\n- Captured child output is bounded by a 64 MB cap with a single trailing truncation marker; readers continue draining after the cap so the child sees clean EOF rather than wedging on a full pipe. A runaway child can no longer OOM peep itself.\n- `GitIgnoreChecker` no longer leaks orphan `git` processes when `git rev-parse` / `check-ignore` hangs (credential helper prompts, network FS, antivirus scanning `.pack` files). Hung calls are killed on timeout, gitignore filtering is process-wide-disabled with a one-shot stderr warning, and subsequent calls short-circuit. `git` subprocesses now also redirect and immediately close stdin so an interactive credential helper can't hold the parent process hostage.\n- `peep --once` now respects Ctrl+C (exits 130 with a complete JSON envelope under `--json` / `--json-output`), handles `CommandStreamException`, and has a last-resort catch-all so any unexpected exception escaping `CommandExecutor.RunAsync` produces a typed envelope rather than an unhandled-exception stack trace. `OutOfMemoryException` and `StackOverflowException` deliberately remain uncaught.\n- Interactive Ctrl+C handler no longer races against handler-unregister: `cts.Cancel()` is wrapped in `try/catch (ObjectDisposedException)` so a Ctrl+C arriving just before unregister can no longer crash the cancel-key thread.\n- `process.StandardInput.Close()` no longer throws `IOException` when a fast-exiting child has already disconnected the pipe. Closing a pipe that's already gone is the success state.\n- `Process.Start` exception coverage extended beyond `Win32Exception` to also catch `FileNotFoundException` (.NET 5+ may surface missing executables directly) → `command_not_found` (127) and `InvalidOperationException` / `PlatformNotSupportedException` / `ArgumentException` → `command_not_executable` (126), per the `--describe` contract.\n- Alternate-screen-buffer enter / exit now swallows `IOException` and `ObjectDisposedException` from the underlying writer, so an I/O error at teardown can no longer leave the user's terminal stuck in alt-buffer mode with a hidden cursor for the rest of the shell session.\n- File-watcher monitor task now has a strictly-weaker last-resort catch with a stderr warning (`file-change monitor crashed; file-change triggering disabled`). Pre-fix an unexpected crash silently disabled file-change triggering and peep kept polling on interval-only with no diagnostic.\n- `--version` output no longer carries the `+gitsha` SourceLink suffix the .NET SDK appends by default. Users see plain `peep 0.3.0`, matching the suite-wide convention.\n\n### Internal\n- Library seam `SessionHelpers` extracted from `InteractiveSession` and `Program`: `WarnOnceForRegexTimeout`, `TryGetAutoExit`, `ResolveExitCode`, `RequestCancellationSilently`, and `ShouldDispatch` are now testable as named static methods rather than buried inside event-loop lambdas.\n- `CommandExecutor.MaxOutputChars` changed from a process-global mutable static test seam (caused parallel-test flakiness and leaked test-overridden caps into user-facing truncation markers) to an optional per-call parameter.\n- UTF-8 console adoption via `ConsoleEnv.UseUtf8Streams` so `--describe` em-dashes and any non-ASCII pipe output round-trip cleanly through Windows `cmd.exe`.\n- Standard `<PackageTags>` set on the NuGet package so peep appears in nuget.org filtered searches (previously discoverable only by exact-name lookup).\n- Platform-skipped tests migrated to `SkippableFact + Skip.IfNot` so non-applicable tests report Skipped rather than Passed on the wrong platform.\n\nSee full changelog at https://github.com/Yortw/winix/blob/main/src/peep/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#repository",
+    "commit": "832ac5692cc60fe5f8f9c0269989d1f1f36cbe59",
+    "type": "git",
+    "url": "https://github.com/Yortw/winix"
+  },
+  "verbatimVersion": "0.3.0",
+  "version": "0.3.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#Winix.Peep.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3765,
+      "fullName": "Winix.Peep.nuspec",
+      "length": 7882,
+      "name": "Winix.Peep.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1935,
+      "fullName": "README.md",
+      "length": 4366,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#Winix.png",
+      "@type": "PackageEntry",
+      "compressedLength": 227385,
+      "fullName": "Winix.png",
+      "length": 272615,
+      "name": "Winix.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#content/man/man1/peep.1",
+      "@type": "PackageEntry",
+      "compressedLength": 1595,
+      "fullName": "content/man/man1/peep.1",
+      "length": 3737,
+      "name": "peep.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#contentFiles/any/net10.0/man/man1/peep.1",
+      "@type": "PackageEntry",
+      "compressedLength": 1595,
+      "fullName": "contentFiles/any/net10.0/man/man1/peep.1",
+      "length": 3737,
+      "name": "peep.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 179,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/Microsoft.Extensions.FileSystemGlobbing.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24414,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.FileSystemGlobbing.dll",
+      "length": 47952,
+      "name": "Microsoft.Extensions.FileSystemGlobbing.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/Winix.Peep.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26771,
+      "fullName": "tools/net10.0/any/Winix.Peep.dll",
+      "length": 57344,
+      "name": "Winix.Peep.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/Winix.Peep.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 17278,
+      "fullName": "tools/net10.0/any/Winix.Peep.pdb",
+      "length": 28200,
+      "name": "Winix.Peep.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/Yort.ShellKit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18093,
+      "fullName": "tools/net10.0/any/Yort.ShellKit.dll",
+      "length": 38912,
+      "name": "Yort.ShellKit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/Yort.ShellKit.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 13769,
+      "fullName": "tools/net10.0/any/Yort.ShellKit.pdb",
+      "length": 23536,
+      "name": "Yort.ShellKit.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/peep.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 580,
+      "fullName": "tools/net10.0/any/peep.deps.json",
+      "length": 2557,
+      "name": "peep.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/peep.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8489,
+      "fullName": "tools/net10.0/any/peep.dll",
+      "length": 19968,
+      "name": "peep.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/peep.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8146,
+      "fullName": "tools/net10.0/any/peep.pdb",
+      "length": 13384,
+      "name": "peep.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/peep.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 300,
+      "fullName": "tools/net10.0/any/peep.runtimeconfig.json",
+      "length": 581,
+      "name": "peep.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#tools/net10.0/any/share/man/man1/peep.1",
+      "@type": "PackageEntry",
+      "compressedLength": 1595,
+      "fullName": "tools/net10.0/any/share/man/man1/peep.1",
+      "length": 3737,
+      "name": "peep.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.26.06.25.07/winix.peep.0.3.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "cli",
+    "command-line",
+    "cross-platform",
+    "windows",
+    "macos",
+    "linux",
+    "aot",
+    "dotnet-tool",
+    "winix",
+    "watch",
+    "file-watcher",
+    "entr",
+    "monitoring"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "ClickHouse",
+  "catalog:commitId": "ab608c37-e449-4048-a0c0-6ba2300aa52f",
+  "catalog:commitTimeStamp": "2026-05-27T10:43:55.8135722Z",
+  "created": "2026-05-27T10:36:07.117Z",
+  "description": "Official Entity Framework Core provider for ClickHouse.",
+  "iconFile": "icon.png",
+  "id": "ClickHouse.EntityFrameworkCore",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-27T10:43:29.7Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "/+uxtAj558BJrwHsvpnDiQ1q0b/DDEyjgtoOszKNQFKs7oxSytJo5sHqI08KOJLfKtqq9DUbWhtl6Bc5J1cOww==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 109578,
+  "projectUrl": "https://github.com/ClickHouse/ClickHouse.EntityFrameworkCore",
+  "published": "2026-05-27T10:36:07.117Z",
+  "readmeFile": "README.nuget.md",
+  "releaseNotes": "v0.3.0\n---\n### Advanced queries\n* **Native JSON navigation**: support for `JsonNode` indexing (`Data[\"key\"]`, `Data[index]`) and member access.\n  The provider handles ClickHouse 1-based indexing for arrays automatically and supports deep nesting and explicit casting/`.GetValue<T>()`. (Thanks to @HappyEntity!)\n* **SimpleJSON functions**: support for `simpleJSONExtract*` and `simpleJSONHas` via `EF.Functions`. (Thanks to @HappyEntity!)\n* **Array-column helpers on mapped `Array(T)` columns** translate to native ClickHouse array functions via the new `ClickHouseArrayMethodTranslator`. Search items are aligned to the column's element type mapping (Int64 vs Int32, FixedString(N) vs String, Enum8 vs String, …) so parameters serialize with the correct ClickHouse store type. Only mapped array columns are routed through these translations; LINQ over local in-memory collections continues to flow through the inline-`SELECT … UNION ALL …` path.\n  * `Enumerable.Contains` / `Queryable.Contains` / instance `List<T>.Contains` (plus the `ICollection<>`/`IList<>`/`IReadOnlyList<>`/`IReadOnlyCollection<>` interfaces) → `has(array, value)`. (Thanks to @moxplod!)\n  * `Array.Length` / `List<T>.Count` member access / `Enumerable.Count()` / `Queryable.Count()` → `length(array)` (`int`); `LongCount()` → `length(array)` (`long`).\n  * `Enumerable.Any()` / `Queryable.Any()` → `notEmpty(array)`. Note that EF Core normalizes `arr.Count > 0` / `arr.Count() > 0` (and similar) into `Any()` *before* the provider sees them, so those expressions emit `notEmpty(...)` rather than `length(...) > 0`. Use `Count == N` (with `N > 0`) when you want `length(...)` for a row-shape assertion.\n  * `Any(x => f(x))` / `Count(x => f(x))` / `LongCount(x => f(x))` predicate overloads → `arrayExists(x -> f(x), array)` / `arrayCount(x -> f(x), array)`. The predicate body is translated through the existing scalar translator chain, just like `Select(...).Contains(...)`.\n  * `arr.Select(x => f(x)).Contains(value)` → `has(arrayMap(x -> f(x), array), value)`. The inner lambda body is translated through the existing scalar translator chain, so e.g. `x => x.ToLower()` becomes `lowerUTF8(x)` (the shape Gridify's `CaseInsensitiveFiltering` produces for string-array properties).\n  * **Element access** — `First()` / `FirstOrDefault()` → `arrayElement(array, 1)`; `Last()` / `LastOrDefault()` → `arrayElement(array, -1)`; `ElementAt(i)` / `ElementAtOrDefault(i)` → `arrayElement(array, i + 1)` (the `+ 1` is computed in Int64 so `int.MaxValue` doesn't wrap). ClickHouse returns the element type's default on empty / out-of-bounds rather than throwing; LINQ-side negative indices map to ClickHouse from-end addressing once `+ 1` is applied (so `ElementAt(-1)` is OOB → default, but `ElementAt(-2)` returns the last element) — divergences from .NET LINQ that preserve ClickHouse semantics.\n  * **Slicing** — `Skip(n)` → `arraySlice(array, n + 1)`; `Take(m)` → `arraySlice(array, 1, m)`. Both produce mapped `Array(T)` results, so chained downstream helpers (`arr.Skip(1).Contains(x)`, `arr.Skip(n).Take(m).FirstOrDefault()`) compose without further configuration.\n  * **Ordering / reversal / deduplication** — `Reverse()` → `arrayReverse(array)`; `Distinct()` → `arrayDistinct(array)`; `OrderBy(x => x)` / `OrderByDescending(x => x)` → `arraySort(array)` / `arrayReverseSort(array)`. Non-identity key selectors emit the higher-order form `arraySort(x -> f(x), array)`.\n  * **Scope** — Tier 3 helpers fire when their result is consumed by a scalar follow-up (`First()`, `Count()`, `Contains(x)`, …) or another array-producing helper. Projecting a slice/reverse/sort result directly as a collection (`Select(e => e.Arr.Skip(1).ToArray())`) is not yet supported.\n* **`Nullable(T)` elements in composite types** now round-trip end-to-end for `Array(Nullable(T))`, `Tuple(Nullable(T), …)`, `Map(K, Nullable(V))`, and `Variant(Nullable(T), …)`. Previously the resolver stripped the `Nullable(...)` wrapper and built composites whose CLR type used `T` instead of `Nullable<T>` for value-type elements, breaking `int?[]` / `(int?, string)` / `Dictionary<string, int?>` materialization. Element nullability also flows through `arrayElement` so `Where(e => e.NullableInts.First() == null)` filters correctly.\n\n### Bug fixes\n* `HasColumnType(\"Enum8(...)\")`, `HasColumnType(\"AggregateFunction(...)\")`, and similar parameterized or aliased store types are now preserved verbatim in generated migration DDL. Previously these silently emitted `String` because the resolver canonicalized to a generic fallback mapping. ([#24](https://github.com/ClickHouse/ClickHouse.EntityFrameworkCore/issues/24)) (Thanks to @Felixzed!)\n\nv0.2.0\n---\n### Table engine and DDL\n* **Table engine configuration** via fluent API: MergeTree, ReplacingMergeTree, SummingMergeTree, AggregatingMergeTree, CollapsingMergeTree, VersionedCollapsingMergeTree, GraphiteMergeTree, plus simple engines (Log, TinyLog, StripeLog, Memory).\n* **Engine clauses**: ORDER BY, PARTITION BY, PRIMARY KEY, SAMPLE BY, TTL, SETTINGS — all configurable per-entity.\n* **Column-level DDL features**: CODEC, TTL, COMMENT, DEFAULT values.\n* **Data-skipping indexes**: configurable type, granularity, and parameters.\n* **Migrations support**: `dotnet ef migrations add` / `database update` with full DDL generation (CREATE TABLE, ALTER TABLE ADD/DROP/MODIFY/RENAME COLUMN, RENAME TABLE, CREATE/DROP DATABASE).\n* **Model validation**: engine parameter columns checked for existence and correct store types (Int8 for sign, UInt8 for isDeleted). Foreign key warnings.\n* **Default engine convention**: MergeTree with ORDER BY derived from primary key when no explicit engine is configured.\n* Lambda-based overloads for engine configuration (e.g. `HasReplacingMergeTreeEngine<T>(e => e.Version)`).\n* `ListToArrayConverter` handles null → empty array for ClickHouse `Array(T)` columns.\n* Nullable wrapping correctly skips container types (Array, Map, Tuple, Variant, Dynamic, Json).\n\n### Advanced queries\n* **JOINs**: INNER JOIN, LEFT JOIN, and CROSS JOIN (via `SelectMany`). LEFT JOIN now returns real `null` for non-matching rows — the provider injects `set_join_use_nulls=1` automatically on every connection path (`UseClickHouse(string)`, `UseClickHouse(DbConnection)`, `UseClickHouse(DbDataSource)`).\n* **Correlated subqueries**: `Contains` / `In`, `Any` / `EXISTS`, `All`, and scalar subqueries in projections.\n* **Set operations**: `Concat` (→ `UNION ALL`), `Union` (→ `UNION DISTINCT`), `Intersect`, `Except`, and chained combinations. Bare `UNION` is rejected by ClickHouse, so the provider always emits explicit `ALL` / `DISTINCT`.\n* **Inline local collections in queries**: LINQ joins and `Contains` against in-memory collections (`int[]`, `List<T>`, etc.) now translate through a ClickHouse-compatible `SELECT … UNION ALL …` rewrite of EF Core's `ValuesExpression`.\n* **Expanded collection property support**: `IEnumerable<T>`, `IList<T>`, `ICollection<T>`, `IReadOnlyList<T>`, and `IReadOnlyCollection<T>` now round-trip end-to-end as entity properties (via the new `EnumerableToArrayConverter<TCollection, T>`), joining the already-supported `T[]` and `List<T>`.\n* **`DisableJoinNullSemantics()` option** on `ClickHouseDbContextOptionsBuilder` — opts out of the automatic `join_use_nulls=1` injection for environments where the server forbids changing the setting (e.g. `readonly=1` profiles). LEFT JOIN then returns ClickHouse defaults (0, \"\") instead of NULL.\n* `COUNT(...)` results are cast to `Int32`/`Int64` in SQL so that set operations involving counts find a common supertype (ClickHouse `COUNT` returns `UInt64`).\n* Scalar subqueries that project `COUNT` or `SUM` (or EF Core's `COALESCE(COUNT|SUM, 0)` wrap) are automatically wrapped with `ifNull(..., 0)` — ClickHouse scalar subqueries return NULL for empty input even for aggregates that standard SQL guarantees non-null.\n* `ORDER BY` on nullable columns emits explicit `NULLS FIRST`/`NULLS LAST` to match .NET/standard-SQL null ordering. Non-nullable columns are left alone so `NaN` ordering on floats isn't disturbed.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "3ee090238f111a37071cfd8c7a5476476ee58531",
+    "type": "git",
+    "url": "https://github.com/ClickHouse/ClickHouse.EntityFrameworkCore"
+  },
+  "verbatimVersion": "0.3.0",
+  "version": "0.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#dependencygroup/net10.0/clickhouse.driver",
+          "@type": "PackageDependency",
+          "id": "ClickHouse.Driver",
+          "range": "[1.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#dependencygroup/net10.0/microsoft.entityframeworkcore.relational",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.Relational",
+          "range": "[10.0.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#ClickHouse.EntityFrameworkCore.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4156,
+      "fullName": "ClickHouse.EntityFrameworkCore.nuspec",
+      "length": 9574,
+      "name": "ClickHouse.EntityFrameworkCore.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#README.nuget.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1584,
+      "fullName": "README.nuget.md",
+      "length": 3212,
+      "name": "README.nuget.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 901,
+      "fullName": "icon.png",
+      "length": 996,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#lib/net10.0/ClickHouse.EntityFrameworkCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 74746,
+      "fullName": "lib/net10.0/ClickHouse.EntityFrameworkCore.dll",
+      "length": 190976,
+      "name": "ClickHouse.EntityFrameworkCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#lib/net10.0/ClickHouse.EntityFrameworkCore.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 236,
+      "fullName": "lib/net10.0/ClickHouse.EntityFrameworkCore.runtimeconfig.json",
+      "length": 411,
+      "name": "ClickHouse.EntityFrameworkCore.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.27.10.43.55/clickhouse.entityframeworkcore.0.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 25716,
+      "fullName": ".signature.p7s",
+      "length": 25716,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "clickhouse",
+    "entity-framework-core",
+    "efcore",
+    "database",
+    "orm",
+    "linq"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

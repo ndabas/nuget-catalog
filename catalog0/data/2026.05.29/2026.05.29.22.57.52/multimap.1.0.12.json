@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "TigoS",
+  "catalog:commitId": "9c927d9f-5ea8-40ee-a535-1c66e2aec880",
+  "catalog:commitTimeStamp": "2026-05-29T22:57:52.3136045Z",
+  "copyright": "© 2026 TigoS",
+  "created": "2026-05-29T22:54:45.86Z",
+  "description": "A .NET library providing multiple multimap implementations — collections that associate each key with one or more values. Includes list-based, set-based, sorted, concurrent, reader-writer locked, and async variants with set-like extension methods. Targets .NET 10, .NET 8, and .NET Standard 2.0.",
+  "iconFile": "icons8-nuget-48.png",
+  "id": "MultiMap",
+  "isPrerelease": false,
+  "lastEdited": "2026-05-29T22:57:22.957Z",
+  "licenseFile": "LICENSE.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "crWZtsBMzjMGlMK2T/dcsjl91cwH0jLsPW+ouk9f92eMjnMGGCAN/CpfrV6ujlE/qeNXduHr9wodLxLnrM8JSQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 170681,
+  "published": "2026-05-29T22:54:45.86Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.12\n\nAdded\n\n- `MultiMapBase.ValuesCollection.cs` and `MultiMapBase.ValuesEnumerator.cs` — partial class files that host the nested `ValuesCollection` and `ValuesEnumerator` struct, extracted from `MultiMapBase.cs` for better code organization\n- `MultiMapAsync.Core.cs` — partial class file containing the private helper and core async path logic extracted from `MultiMapAsync.cs`, separating the public API surface from internal implementation details\n- `MultiMapSet(IEqualityComparer<TKey>?, IEqualityComparer<TValue>?)` constructor overload — fills the gap between the separate key-only and value-only overloads, completing `MultiMapSet` to a full 8-overload family\n- `ConcurrentMultiMap(IEqualityComparer<TKey>?)` and `ConcurrentMultiMap(IEqualityComparer<TKey>?, IEqualityComparer<TValue>?)` constructor overloads — bring `ConcurrentMultiMap` to a full 8-overload family on par with the other implementations\n- `SimpleMultiMap.Count` property — returns the total number of key–value pairs across all keys (sum of all per-key value set sizes)\n- `SimpleMultiMap.Equals(IReadOnlySimpleMultiMap<TKey, TValue>? other)` — typed equality against the read-only interface; compares total pair count, then per-key value-set contents\n- Additional benchmarks covering `Values`/`GetValuesAsync`, `KeyCount`/`GetKeyCountAsync`, `GetValuesCount`/`GetValuesCountAsync`, set operations, `SimpleMultiMap` operations, and the new `SimpleMultiMap.Count` / `SimpleMultiMap.Equals` members in `BenchmarkSuite`\n- 75 `SimpleMultiMapTests` — full coverage of all `SimpleMultiMap` public members, including `Count`, typed equality, null-key guards, and `GetOrDefault` edge cases\n- 217 new unit tests across all test files to close branch/line coverage gaps: null-guard paths for `MultiMapLock`, `MultiMapBase` (shared across all 3 subclass fixtures), `MultiMapHelper` (sync and async extension methods), generic-interface equality path for `MultiMapAsync`, and `ValuesEnumerator.Reset`/`Dispose` branches\n\nChanged\n\n- `ISimpleMultiMap.Flatten()` marked `[Obsolete]` — the method is redundant because `ISimpleMultiMap<TKey, TValue>` already implements `IEnumerable<KeyValuePair<TKey, TValue>>`; enumerating the map directly with `foreach`, `ToList()`, or LINQ produces the same sequence. Existing call sites continue to compile and run (soft deprecation, compiler warning `CS0618`). The method will be removed in a future version. Internal usages in `MultiMapHelper` and `MultiMap.Demo` have been updated to enumerate directly\n- `ISimpleMultiMap.Clear(TKey)` renamed to `ISimpleMultiMap.RemoveKey(TKey)` — aligns naming with `IMultiMap.RemoveKey(TKey)` for API consistency. For backward compatibility, `Clear(TKey)` is retained as an `[Obsolete]` alias that forwards to `RemoveKey(TKey)` (soft deprecation, compiler warning `CS0618`). Migrate call sites to `RemoveKey(key)` before the next major version\n- `ISimpleMultiMap.Remove(TKey, TValue)` now returns `bool` (previously `void`) — consistent with `IMultiMap.Remove(TKey, TValue)`.\n- `ConcurrentMultiMap` is now fully lock-free: internal storage changed from `ConcurrentDictionary<TKey, HashSet<TValue>>` with per-key `lock`/`ReaderWriterLockSlim` and an `Interlocked` counter to `ConcurrentDictionary<TKey, ConcurrentDictionary<TValue, byte>>`. All per-key operations are lock-free; `Count` is O(n) (sum of inner dictionary sizes)\n- `MultiMapAsync.Equals(IReadOnlyMultiMapAsync<TKey, TValue>? other)` reworked with a deadlock-safe dual-semaphore strategy: when comparing two `MultiMapAsync` instances, both semaphores are acquired in a stable `RuntimeHelpers.GetHashCode`-ordered sequence; `Equals(object?)` additionally throws `InvalidOperationException` when called under a `SynchronizationContext` — callers in `async` contexts must use `EqualsAsync` instead\n- `MultiMapList.AddRange(IEnumerable<KeyValuePair<TKey, TValue>>)` overrides the base-class implementation on .NET 6+ and uses `CollectionsMarshal.GetValueRefOrAddDefault`, eliminating per-item virtual dispatch and matching the existing `Add` / `AddRange(key, values)` fast paths\n- `MultiMapBase.Values`, `MultiMapLock.Values`, and `MultiMapAsync.GetValuesAsync()` now use a custom zero-allocation struct enumerator instead of `SelectMany` LINQ iterators, eliminating per-access heap allocations on read-heavy paths\n- All 7 concrete implementations (`MultiMapList`, `MultiMapSet`, `SortedMultiMap`, `ConcurrentMultiMap`, `MultiMapLock`, `MultiMapAsync`, `SimpleMultiMap`) are now declared `sealed`, enabling JIT devirtualization on hot paths such as `Add` and `Remove`\n- `SymmetricExceptWith` for `IMultiMap` now caches per-key lookups in a local dictionary (matching the existing `ISimpleMultiMap` strategy), eliminating redundant dictionary lookups and, for locked implementations, redundant lock acquisitions when multiple values share the same key\n- Test count increased from 1,354 tests to 1,683 tests × 2 target frameworks = 3,366 total test executions\n- Code coverage updated: 99.51% line coverage (2,250/2,261 lines), 96.38% branch coverage (906/940 branches)\n- README updated with corrected API descriptions (`ConcurrentMultiMap` lock-free design and full constructor set, `MultiMapSet` full constructor set, `ISimpleMultiMap.Remove` return type, `ISimpleMultiMap.RemoveKey` rename with backward-compatible `Clear(key)` alias, `ISimpleMultiMap.Flatten` deprecation, `SimpleMultiMap.Count` and `SimpleMultiMap.Equals`, project structure including partial files, package installation version)\n\nFixed\n\n- `SimpleMultiMap.Equals(IReadOnlySimpleMultiMap<TKey, TValue>? other)` — was incorrectly comparing `_dictionary.Count` (key count) against `other.Count` (total pair count); fixed to compare `Count` (total pairs) against `other.Count` for semantically correct equality\n- `MultiMapList.Equals(object?)` used `SequenceEqual`, which is order-dependent; replaced with content-based set equality so two lists with the same values in a different insertion order compare equal\n- Null-value guard added to `AddRange` on list-backed collections — prevents `null` values from silently entering a `List<TValue>` and violating the `TValue: notnull` constraint at runtime\n\nSee full Release Notes history: https://github.com/TigoS/MultiMap/blob/master/ReleaseNotes.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#repository",
+    "commit": "9f6b205b4c60fc85c8759c66fabcb68ebc44e93f",
+    "type": "git",
+    "url": "https://github.com/TigoS/MultiMap"
+  },
+  "requireLicenseAcceptance": true,
+  "title": "Collections that maps each key to one or more values",
+  "verbatimVersion": "1.0.12",
+  "version": "1.0.12",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#dependencygroup/.netstandard2.0/microsoft.bcl.asyncinterfaces",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.AsyncInterfaces",
+          "range": "[9.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#dependencygroup/.netstandard2.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#MultiMap.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3222,
+      "fullName": "MultiMap.nuspec",
+      "length": 7994,
+      "name": "MultiMap.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#LICENSE.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 665,
+      "fullName": "LICENSE.txt",
+      "length": 1110,
+      "name": "LICENSE.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 17558,
+      "fullName": "README.md",
+      "length": 66163,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#icons8-nuget-48.png",
+      "@type": "PackageEntry",
+      "compressedLength": 1221,
+      "fullName": "icons8-nuget-48.png",
+      "length": 1216,
+      "name": "icons8-nuget-48.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#lib/net10.0/MultiMap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33407,
+      "fullName": "lib/net10.0/MultiMap.dll",
+      "length": 87040,
+      "name": "MultiMap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#lib/net10.0/MultiMap.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10725,
+      "fullName": "lib/net10.0/MultiMap.xml",
+      "length": 122764,
+      "name": "MultiMap.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#lib/net8.0/MultiMap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33408,
+      "fullName": "lib/net8.0/MultiMap.dll",
+      "length": 87040,
+      "name": "MultiMap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#lib/net8.0/MultiMap.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10725,
+      "fullName": "lib/net8.0/MultiMap.xml",
+      "length": 122764,
+      "name": "MultiMap.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#lib/netstandard2.0/MultiMap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33230,
+      "fullName": "lib/netstandard2.0/MultiMap.dll",
+      "length": 86528,
+      "name": "MultiMap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#lib/netstandard2.0/MultiMap.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10712,
+      "fullName": "lib/netstandard2.0/MultiMap.xml",
+      "length": 122167,
+      "name": "MultiMap.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.05.29.22.57.52/multimap.1.0.12.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "multimap",
+    "dictionary",
+    "collection",
+    "concurrent",
+    "async",
+    "sorted",
+    "data-structures"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

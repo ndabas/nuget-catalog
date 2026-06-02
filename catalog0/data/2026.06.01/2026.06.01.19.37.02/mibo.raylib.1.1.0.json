@@ -1,0 +1,199 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Mibo.Raylib",
+  "catalog:commitId": "8614ca7c-4e56-4949-bfb3-beadd8eeb333",
+  "catalog:commitTimeStamp": "2026-06-01T19:37:02.1347269Z",
+  "created": "2026-06-01T19:32:40.23Z",
+  "description": "Package Description",
+  "id": "Mibo.Raylib",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-01T19:35:48.417Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "E5JF4i3xsLqB8+qMlhJrVq+vm7+XOXo0d2vZm0Pp+oiLQPeUIyVxWzjF76o22Ko+EkiPUoTGRoqExYGfgRv9gA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 718174,
+  "projectUrl": "https://angelmunoz.github.io/Mibo.Raylib",
+  "published": "2026-06-01T19:32:40.23Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Added\n\n- `ShadowDepthResources` struct bundling shadow shader + material + uniform locations.\n- `ShadowPassHelpers` module with `collectShadowCasters`, `createDirectionalShadowCamera`, `renderShadowRegion`, `collectMeshDraws` helpers.\n- `PipelineFunctions` module with `preScan`, `clearLights`, `warmMaterial`, `handleDrawMesh`, `handleDrawModel`, `handleDrawSkinnedMesh`, `handleDrawMeshInstanced`, `handleDrawBillboard`, `handleDrawBillboardBatch`, `handleLightCommand`, `applyCameraConfig` helpers.\n- 2D normal map support: `SpriteState.NormalMap` field for per-pixel lighting on lit sprites. `LightContext2D` manages two shader variants (standard and normal-mapped) and switches between them via `BeginShaderMode`. The normal-map shader uses a 2D-compatible Half-Lambert lighting model (`NdotL = max(1.0 + dot(normal.xy, L), 0)`) for correct visual results with 2D light directions.\n- `LightDraw.litAnimatedSprite` helper for animated sprites with automatic flip handling.\n- `SpriteState` promoted to top-level type with builder DSL (`create`, `withNormalMap`, `withLayer`, etc.).\n- `Animation3DClips` type for loading and querying 3D skeletal animation clips from `ModelAnimation[]`. Supports name-based and index-based lookup.\n- `Animation3DState` struct for per-entity 3D animation playback with `play`, `playByIndex`, `playIfNot`, `blendTo`, `blendToByIndex`, `update`, and `applyToModel`. Uses `UpdateModelAnimation` for single-clip playback and `UpdateModelAnimationEx` for crossfade blending.\n- `AnimatedMesh` type for shared GPU skinning data — extracts mesh and inverse bind pose from a `Model`. `computeBoneMatrices` performs pure keyframe interpolation (lerp/slerp) and inverse-bind-pose multiplication without mutating the model.\n- GPU skinning vertex shaders (`forwardVertexSkinned`, `depthShadowVertexSkinned`) using raylib's `vertexBoneIndices`/`vertexBoneWeights` attributes and `boneMatrices[128]` uniform.\n- `ForwardPbrPipeline.DrawSkinnedMesh` now uploads bone matrices and uses the GPU skinning shader (was a CPU skinning placeholder).\n- `IAssets.ModelAnimations: path: string -> ModelAnimation[]` for loading skeletal animations from glb/gltf/iqm files.\n- 42 unit tests for `Animation3DClips` and `Animation3DState` covering creation, playback, update, blending, and edge cases.\n- ThreeDSample: Player character (`character-oobi.glb`) now animates with idle/walk/jump animations and 0.15s crossfade transitions.\n\n### Changed\n\n- **Breaking:** `ForwardPbrPipeline` refactored — original monolithic class (2167 LOC, 3× duplicated shader variants) replaced with parameterized implementation using `ShaderVariant` structs, self-contained command handlers, and decomposed helpers. Internal `PipelineContext` class eliminated. `MaterialKey.fromMaterial3D` now computed once per draw instead of 3×. Public API (`ForwardPbrPipeline` constructor and `IRenderPipeline3D` interface) is unchanged; consumers using the pipeline via `Renderer3D.create (ForwardPbrPipeline()) view` should see no behavioral difference. Consumers referencing internal types from the old implementation (e.g., `PipelineContext`) will need to update.\n- **Breaking:** `LitSprite` command signature changed — now carries `LightContext2D * SpriteState` instead of 8 individual fields. Consumers must update pattern matches and `LightDraw.litSprite` call sites to use the new `SpriteState` type.\n- **Breaking:** `IRenderPipeline3D.Execute` signature changed from curried (`gameCtx -> buffer -> rtPool -> unit`) to tupled (`gameCtx * buffer * rtPool -> unit`). All implementations and call sites must update.\n- `SpriteState` moved from `Command2D` module to top-level `Mibo.Elmish.Graphics2D` namespace.\n- `Renderer2D` refactored: extracted command dispatch into `module private CommandHandlers` with `RendererState` struct threaded `byref`. Post-processing extracted into `PostProcess2D` module. Class reduced from ~530 LOC to ~60 LOC of orchestration.\n- `RenderBuffer2D.Sort` optimized: layer keys are now precomputed during `Add` (O(n) pattern matches) and sort uses `Array.Sort(keys, items, ...)` with primitive int comparisons, eliminating O(n log n) repeated pattern matching over the 37-case `Command2D` union. Sort is now stable — same-layer commands preserve insertion order via packed `int64` keys (layer in high 32 bits, insertion index in low 32 bits).\n- Shadow rendering: `collectMeshDraws` now partitions draws (non-skinned first, skinned second) to minimize shader switches in the shadow pass.\n- Shadow rendering: `renderShadowRegion` skips `computeNormalMatrix` and `SetShaderValueMatrix` when consecutive meshes share the same transform.\n- Removed `lightsDirty` class field from `ForwardPbrPipeline`; handlers now check only `ShaderVariant.LightsDirty`. `handleLightCommand` sets all three variants' dirty flags directly.\n\n### Fixed\n\n- Shadow depth shader uniform locations were sourced from the forward skinned shader instead of the actual shadow depth shaders, causing incorrect shadow transforms.\n- `BeginShaderMode` was missing for non-skinned meshes in the shadow depth pass — normal matrix was uploaded to whatever shader happened to be active.\n- `lightsDirty` was never cleared after the first light upload, causing redundant light uniform uploads every draw call.\n- Shadow caster loop bound used `shadowLocs.CasterCount` (a uniform location ID) instead of `atlasCfg.MaxCasters`.\n- `uploadShadowUniforms` used a fragile `cameraPos <> Unchecked.defaultof<Vector3>` guard that failed when camera was at world origin.\n- Material uniforms were always uploaded even when the same material was used consecutively; re-introduced material cache check via `LastMaterialKey`/`HasLastMaterial` on `ShaderVariant`.\n- Duplicate `<summary>` XML doc block on `ForwardPbrPipeline` type.\n- `preScan` test cases used `let` instead of `use` for `RenderBuffer3D`, leaking rented arrays from `ArrayPool`.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#repository",
+    "commit": "fc96175680ae34254150062788740fda0835844b",
+    "type": "git",
+    "url": "https://github.com/AngelMunoz/Mibo.Raylib"
+  },
+  "verbatimVersion": "1.1.0",
+  "version": "1.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#dependencygroup/net10.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.1.300, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#dependencygroup/net10.0/fsharp.umx",
+          "@type": "PackageDependency",
+          "id": "FSharp.UMX",
+          "range": "[1.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#dependencygroup/net10.0/raylib-cs",
+          "@type": "PackageDependency",
+          "id": "Raylib-cs",
+          "range": "[8.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#dependencygroup/net8.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.1.300, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#dependencygroup/net8.0/fsharp.umx",
+          "@type": "PackageDependency",
+          "id": "FSharp.UMX",
+          "range": "[1.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#dependencygroup/net8.0/raylib-cs",
+          "@type": "PackageDependency",
+          "id": "Raylib-cs",
+          "range": "[8.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#Mibo.Raylib.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3129,
+      "fullName": "Mibo.Raylib.nuspec",
+      "length": 7245,
+      "name": "Mibo.Raylib.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 447,
+      "fullName": "LICENSE",
+      "length": 845,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1645,
+      "fullName": "README.md",
+      "length": 3293,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#lib/net10.0/Mibo.Raylib.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 318877,
+      "fullName": "lib/net10.0/Mibo.Raylib.dll",
+      "length": 629760,
+      "name": "Mibo.Raylib.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#lib/net10.0/Mibo.Raylib.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 29936,
+      "fullName": "lib/net10.0/Mibo.Raylib.xml",
+      "length": 156050,
+      "name": "Mibo.Raylib.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#lib/net8.0/Mibo.Raylib.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 318949,
+      "fullName": "lib/net8.0/Mibo.Raylib.dll",
+      "length": 629760,
+      "name": "Mibo.Raylib.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#lib/net8.0/Mibo.Raylib.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 29936,
+      "fullName": "lib/net8.0/Mibo.Raylib.xml",
+      "length": 156050,
+      "name": "Mibo.Raylib.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.01.19.37.02/mibo.raylib.1.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

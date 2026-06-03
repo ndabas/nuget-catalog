@@ -1,0 +1,201 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "f83a0036-0fd4-4664-b29a-ad4719997f36",
+  "catalog:commitTimeStamp": "2026-06-02T18:30:55.0258787Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-05-17T10:47:34.873Z",
+  "description": "TUnit-native JSON assertions for .NET tests. Fluent .Method(...) entry points (generated via TUnit's [GenerateAssertion]) for asserting paths, values, and shapes against a JSON string, a System.Text.Json JsonElement, or an HttpResponseMessage. Supports nested property navigation, zero-based array indices (items[0].id), and the JSONPath root reference ($, $.user, $[0]); ships value-at-path, kind, array-shape, non-empty-string, boolean, predicate, one-of, and IParsable<T>-via-string assertions. AOT-compatible, trimmable, no runtime reflection.",
+  "id": "JsonAssertions.TUnit",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-02T18:30:52.88Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": false,
+  "packageHash": "wFiKpcFFEMjJzT0gETgbiAfYXbmv7td/QDhlKsOM7BCx2N+gWmYXnNbzJ0p6vdtqlGXNXfSBHS3j6pg14054Fw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 88756,
+  "projectUrl": "https://github.com/JohnVerheij/JsonAssertions.TUnit",
+  "published": "1900-01-01T00:00:00Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/JsonAssertions.TUnit/releases/tag/v0.3.0\n\n### Added\n\n- Added **`RoundtripsCleanlyVia<T>(this T value, JsonTypeInfo<T> jsonTypeInfo)`** as an extension method on any value `T`, asserting the value serializes via the supplied `JsonTypeInfo<T>`, deserializes back, and re-serializes to a byte-identical JSON string. Catches the common \"added a property and forgot to update the `JsonSerializerContext`\" regression class at CI time. AOT-clean; failure messages render both serialized strings side-by-side for diagnosis.\n- Added **`HasJsonTypeInfoFor<T>()` and the `AsJsonContext()` bridge** on `IAssertionSource<TContext>` where `TContext : JsonSerializerContext`. The leaf assertion asserts the underlying context registers a `JsonTypeInfo<T>` for `T`, catching the \"added a domain type but forgot the `[JsonSerializable(typeof(NewType))]`\" regression class. The educational-demand AOT-moat companion to `RoundtripsCleanlyVia`: where that assertion verifies a value round-trips cleanly through a typed context, `HasJsonTypeInfoFor` verifies the context knows about the type at all. The bridge extension `AsJsonContext()` produces an `IJsonContextAssertionSource` with the context viewed at the `JsonSerializerContext` base, keeping the call site to a single explicit type argument despite the receiver's concrete subtype (`await Assert.That(MyContext.Default).AsJsonContext().HasJsonTypeInfoFor<MyDto>()`). The pattern works around the C# partial-generic-inference limit via an internal upcast adapter; AOT-clean (one O(1) lookup against the context's type registry; no reflection).\n- Added **`HasJsonResponse<T>(HttpStatusCode, JsonTypeInfo<T>, T expected, CancellationToken)`** on `HttpResponseMessage`, combining HTTP status + AOT-clean deserialization + structural-equality in one chain. Collapses the common `response.EnsureSuccessStatusCode() + body-read + Deserialize + AreEqual` 4-6-line pattern into a single fluent call. The supplied `JsonTypeInfo<T>` is the source-generated entry from the consumer's `JsonSerializerContext`; no runtime reflection. Failure messages include the response body (truncated at 256 chars) so the diagnostic surfaces the structured-error shape for non-200 responses and the actual JSON shape for deserialization failures. Status-only and predicate overloads deferred pending consumer demand.\n- Added **`MatchesProblemDetails(int status, string? title, string? detail, string? type, string? instance, CancellationToken)`** on `HttpResponseMessage`, asserting the response is a valid RFC 7807 ProblemDetails (Content-Type `application/problem+json`, deserializable shape) and that each specified field matches. Unspecified fields skip (pass `null`). Deserializes via an internal `ProblemDetailsMirror` so the production package stays MIT-clean (no `Microsoft.AspNetCore.Mvc.Abstractions` Apache 2.0 dep) and AOT-clean via STJ source-gen. Mismatched fields report in a single failure message with expected-vs-got pairs. RFC 7807 §3.2 extension members are captured by the mirror's `[JsonExtensionData]` dictionary so they survive deserialization; a future `WithExtension(name, value)` chain method may expose the assertion surface.\n- Added **`MatchesValidationProblemDetails(int status, IReadOnlyDictionary<string, string[]> errors, string? title, string? detail, string? type, string? instance, CancellationToken)`** on `HttpResponseMessage`. Same shape as `MatchesProblemDetails` plus the ASP.NET Core ValidationProblemDetails `errors` dictionary mapping field names to validation messages. Every key in the supplied `errors` dictionary must appear in the response with matching values.\n- Added **`JsonRenderers.ReformatJson<T>(JsonTypeInfo<T>)`** in the `JsonAssertions` core namespace as a static factory returning `Func<string, string>` that canonicalises a JSON string via the consumer's `JsonSerializerContext` (deserialize then re-serialize through the supplied `JsonTypeInfo<T>`). Composes with `SnapshotAssertions.TUnit`'s `MatchesSnapshot(Func<>)` overload at the consumer's call site without coupling the packages (per CONVENTIONS.md v0.6 cross-package references rule). Two-step composition for HTTP responses: async read body in test, then sync canonicalise + snapshot. AOT-clean by construction.\n- Promoted **`JsonFailureMessage` static class** in the `JsonAssertions` core namespace from `internal` to `public`. Exposes a curated subset of failure-message factory methods as the v0.3.0+ extension point for consumer-authored typed JSON assertions: `ParseFailure(JsonException)`, `PropertyNotFound(string path, JsonPathResolution)`, `PropertyShouldNotExist(string path, JsonPathResolution)`, `ValueMismatch(string path, JsonPathResolution, string expectedDescription)`, `ShapeMismatch(string path, JsonPathResolution, string expectedDescription)`. Consumers writing their own typed assertions can compose these factories to produce failure messages that match the package's diagnostic style. Mirrors the `MathAssertions.MathFailureMessage` pattern in the sibling package. HTTP-response, ProblemDetails, and roundtrip-specific factories remain `internal` — context-bound to their specific assertions, no extension value.\n\n### Changed\n\n- Updated **`CONVENTIONS.md` to v0.6**, adding the family-wide **Cross-package references rule** (no sibling family package may appear as a `PackageReference` in another sibling's production `.csproj`; composition happens at the consumer's call site via standard delegates) and the **Naming invariant** (no sibling-package-name prefix — `Snapshot*`, `Log*`, `Math*`, `Time*`, `Json*` — may appear in another sibling's public API surface, including typenames, method names, and extension method names). Both invariants are pack-time-enforced from v0.3.0 onward; `JsonAssertions.TUnit` ships the enforcement infrastructure (NuGet dependency-list scan + PublicAPI prefix scan) in this version. The 4 sibling repos adopt the same `CONVENTIONS.md` v0.6 in separate PRs after v0.3.0 merges.\n- Set **`PackageValidationBaselineVersion`** to `0.2.0`. ApiCompat now validates the additive v0.3.0 surface against the v0.2.0 baseline; `CompatibilitySuppressions.xml` is regenerated to capture the accepted additive differences (the new HTTP-response, AOT-context, renderer, and bridge surfaces, plus `JsonFailureMessage`'s internal-to-public promotion).\n- Changed **`RoundtripsCleanlyVia<T>`** to accept `null` payloads. A null value legitimately survives the round-trip through STJ (`null` → `\"null\"` → `null`); the previous early-rejection branch was removed. A non-null value that deserializes back to null (serializer corruption) still fails via the dedicated diagnostic.\n\n### Fixed\n\n- Fixed **`MatchesProblemDetails`** and **`MatchesValidationProblemDetails`** content-type comparison to be case-insensitive (RFC 9110 §8.3.2 media-type tokens). A response with `Application/Problem+Json` or any other case variant now correctly satisfies the RFC 7807 content-type check, where the previous ordinal comparison required exact `application/problem+json`.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#repository",
+    "commit": "6d6d00b483e21cda2596c32643fcdf0423575c9f",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/JsonAssertions.TUnit"
+  },
+  "verbatimVersion": "0.3.0",
+  "version": "0.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#dependencygroup/net10.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.44.39, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#dependencygroup/net10.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.44.39, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#JsonAssertions.TUnit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3699,
+      "fullName": "JsonAssertions.TUnit.nuspec",
+      "length": 9047,
+      "name": "JsonAssertions.TUnit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2611,
+      "fullName": "README.md",
+      "length": 6686,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#content/JsonAssertions.TUnit.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 2098,
+      "fullName": "content/JsonAssertions.TUnit.csproj",
+      "length": 5219,
+      "name": "JsonAssertions.TUnit.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#lib/net10.0/JsonAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 40224,
+      "fullName": "lib/net10.0/JsonAssertions.TUnit.dll",
+      "length": 117248,
+      "name": "JsonAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#lib/net10.0/JsonAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 16370,
+      "fullName": "lib/net10.0/JsonAssertions.TUnit.xml",
+      "length": 125154,
+      "name": "JsonAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#content/obj/JsonAssertions.TUnit.csproj.nuget.g.props",
+      "@type": "PackageEntry",
+      "compressedLength": 1013,
+      "fullName": "content/obj/JsonAssertions.TUnit.csproj.nuget.g.props",
+      "length": 5245,
+      "name": "JsonAssertions.TUnit.csproj.nuget.g.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#_manifest/spdx_2.2/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3249,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json",
+      "length": 23398,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#contentFiles/any/net10.0/JsonAssertions.TUnit.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 2098,
+      "fullName": "contentFiles/any/net10.0/JsonAssertions.TUnit.csproj",
+      "length": 5219,
+      "name": "JsonAssertions.TUnit.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#contentFiles/any/net10.0/obj/JsonAssertions.TUnit.csproj.nuget.g.props",
+      "@type": "PackageEntry",
+      "compressedLength": 1013,
+      "fullName": "contentFiles/any/net10.0/obj/JsonAssertions.TUnit.csproj.nuget.g.props",
+      "length": 5245,
+      "name": "JsonAssertions.TUnit.csproj.nuget.g.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.02.18.30.55/jsonassertions.tunit.0.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "assertions",
+    "json",
+    "tunit",
+    "testing",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

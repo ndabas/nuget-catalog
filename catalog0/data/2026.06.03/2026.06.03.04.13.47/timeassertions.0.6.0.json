@@ -1,0 +1,155 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "d00810d2-72f6-4e9d-9e57-d7d962f59459",
+  "catalog:commitTimeStamp": "2026-06-03T04:13:47.1995656Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-06-03T04:10:24.73Z",
+  "description": "Framework-agnostic core for assertion-level timing budgets. Provides duration formatting and rendering helpers for failure-message context, plus ObservableTimeProvider, a TimeProvider decorator that tracks undisposed timers for leak detection in hosted-service tests. Test-framework-specific entry points live in adapter packages (TimeAssertions.TUnit ships today; xUnit, NUnit, MSTest adapters are possible if there is demand).",
+  "id": "TimeAssertions",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-03T04:13:33.68Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "+4MwIk7tsCLMXeP82vvfGO/KPdCEzNoveO7SJfWzshJFAk3+0jirDFhx2jrtFyjXySIOdxHW9cMUMB7f7EBOMw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 42331,
+  "projectUrl": "https://github.com/JohnVerheij/TimeAssertions.TUnit",
+  "published": "2026-06-03T04:10:24.73Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/TimeAssertions.TUnit/releases/tag/v0.6.0\n\nMinor release. Adds the family's first timer-leak assertions: `HasNoActiveTimers()` and `HasActiveTimerCount(int)` over a new framework-agnostic `ObservableTimeProvider` decorator, filling the gap `FakeTimeProvider` leaves open for hosted-service timer-disposal tests, plus pending-timer due-time assertions (`HasNextTimerDueApproximately()` / `HasPendingTimerDueWithin()`) that inspect a scheduled timer's due time without advancing the clock. Also folds in the dependency-automation switch to `Renovate` and the GitHub Actions supply-chain hardening that had accumulated on the unreleased line, and starts merging core + adapter coverage in CI so the gate measures the core suite directly.\n\n### Added\n\n- **`TimeAssertions.ObservableTimeProvider`** (framework-agnostic core) is a `TimeProvider` decorator that tracks the `ITimer` instances created against it, exposing `ActiveTimerCount` and an `ActiveTimers` snapshot. Wrap any inner provider (typically a `FakeTimeProvider`) to detect timers that a `BackgroundService` / `IHostedService` started but did not dispose. Fills the gap [dotnet/extensions#7515](https://github.com/dotnet/extensions/issues/7515) leaves open (`FakeTimeProvider` does not surface its own timers). Reflection-free, AOT-compatible, and thread-safe.\n- **`Assert.That(provider).HasNoActiveTimers()`** (TUnit adapter) is the canonical timer-leak check after a hosted service stops. On failure it names each surviving timer by the schedule it carries (`[dueTime=..., period=...]`; a one-shot timer renders as `period=one-shot`) with a grep-friendly `(count=N)` trailer, instead of reporting a bare integer. Source-generated via `[GenerateAssertion]`.\n- **`Assert.That(provider).HasActiveTimerCount(int)`** (TUnit adapter) asserts the exact number of active timers, for the registration half of a disposal test. On mismatch it renders the expected and actual counts plus each active timer's schedule, with an `(expected=N, actual=M)` trailer. For an asynchronous disposal race, poll the upstream primitive instead: `await Assert.That(() => provider.ActiveTimerCount).Eventually(c => c == 0, timeout)`.\n- **`TimeAssertions.ActiveTimerInfo`** (framework-agnostic core) is a readonly record struct describing a tracked timer's schedule (`DueTime`, `Period`), returned by `ObservableTimeProvider.ActiveTimers`.\n- **`TimeAssertions.TimeRenderingHelpers.FormatActiveTimerLeak(...)` and `FormatActiveTimerCountMismatch(...)`** (framework-agnostic core) render the two failure messages above, ordering survivors deterministically (by due time, then period) so the messages are snapshot-stable.\n- **`Assert.That(provider).HasNextTimerDueApproximately(TimeSpan expected, TimeSpan tolerance)`** (TUnit adapter) asserts that the next pending timer's due time is within `tolerance` of `expected`. The \"next\" timer is the one with the smallest due time among the enabled (non-infinite) active timers. The schedule is read from the timer without advancing the clock. On failure it names the expected and observed due times and the delta, or notes that no enabled timer was pending, with a grep-friendly `(expected=Xms, tolerance=Yms, actual=Zms, delta=Wms)` trailer. Source-generated via `[GenerateAssertion]`.\n- **`Assert.That(provider).HasPendingTimerDueWithin(TimeSpan min, TimeSpan max)`** (TUnit adapter) asserts that the next pending timer's due time falls within the inclusive range `[min, max]`. Shares the same pending-timer capability as `HasNextTimerDueApproximately`; useful when a bound rather than a point estimate is the natural expectation. On failure it renders the range and observed due time, or notes that no enabled timer was pending, with a `(min=Xms, max=Yms, actual=Zms)` trailer.\n- **`TimeAssertions.ObservableTimeProvider.NextTimerDueTime`** (framework-agnostic core) is a `TimeSpan?` read-only property exposing the smallest due time among the enabled active timers, or `null` when no enabled timer is pending. Timers whose due time is `Timeout.InfiniteTimeSpan` (disabled until re-armed) are excluded. Computed under the internal lock, so it is a consistent snapshot under concurrent timer activity. Reflection-free, AOT-compatible.\n- **`TimeAssertions.TimeRenderingHelpers.FormatNextTimerDueMismatch(...)` and `FormatNextTimerDueOutOfRange(...)`** (framework-agnostic core) render the two failure messages above, including the no-pending-timer case.\n\n### Changed\n\n- CI collects code coverage from both the adapter and the framework-agnostic core test suites and merges the two cobertura reports (`ReportGenerator`) before the threshold gate, in place of measuring the adapter suite alone. The core suite exercises core types such as `ObservableTimeProvider`'s clock delegation and timer `Change` / `DisposeAsync` that no assertion chain reaches, so merging keeps the 90% line / 90% branch gate honest as the core grows. CI-only; no effect on shipped packages.\n- Removed `paths-ignore` from `.github/workflows/ci.yml` so the `Build, test & pack` required check always reports a status. Without the fix, docs-only PRs stuck in `Expected - Waiting for status to be reported` and could not satisfy branch protection. Cross-family sweep: identical fix applied to the other five family repos as part of their open `chore/infra-family-consistency-sweep` PRs (TimeAssertions has no open sweep PR, hence the dedicated PR for this repo).\n- Adopted `Renovate` (`.github/renovate.json`) for dependency updates and version-literal sync in place of the prior `Dependabot` + `SyncVersionRefs` MSBuild pipeline. `Renovate` bumps `Directory.Packages.props` and the four files that carry the TUnit version literal (`README.md`, `src/TimeAssertions.TUnit/README.md`, `.github/ISSUE_TEMPLATE/bug_report.yml`, and `tests/TimeAssertions.TUnit.SmokeTest/TimeAssertions.TUnit.SmokeTest.csproj`) in a single PR via `customManagers`. Patch- and minor-bump auto-merge is preserved through Renovate's `platformAutomerge: true` once CI passes; major bumps stay manual. No effect on shipped packages.\n- Extended the Renovate auto-merge `packageRule` to cover `digest`, `pin`, `pinDigest`, and `lockFileMaintenance` updateTypes alongside `minor` and `patch`. Closes a gap where SHA-pinned GitHub Actions digest bumps (Renovate's `updateType: \"digest\"`) would sit open with green CI but no auto-merge enabled.\n- Added a Renovate `packageRule` grouping the three TUnit packages (`TUnit`, `TUnit.Assertions`, `TUnit.Core`) into a single PR per release. They share a source repo and bump in lockstep; the default Renovate behavior of one PR per package wastes CI runs and risks partially-applied bumps if one merges before the others.\n- Added GitHub Actions workflow security scanning. `.github/workflows/zizmor.yml` runs `zizmor` (blocking, with findings shown as inline annotations) on every workflow change; `.github/workflows/codeql.yml` now analyzes the `actions` language alongside `csharp`; `.github/workflows/scorecard.yml` (OpenSSF Scorecard) and `.github/workflows/dependency-review.yml` (fails a PR that adds a high-severity-vulnerable dependency) are new. Added the Renovate `helpers:pinGitHubActionDigestsToSemver` preset so any newly-introduced action is auto-pinned to a commit SHA. CI-only; no effect on shipped packages.\n\n### Removed\n\n- `.github/workflows/sync-version-refs.yml` and the `SyncVersionRefs` MSBuild target in `Directory.Build.targets`. The template/render duplication (the `*.template.*` siblings of the four version-bearing files) is replaced by the `Renovate` `customManagers` regex described above; the rendered files are now the only files.\n- `.github/dependabot.yml` and `.github/workflows/dependabot-auto-merge.yml`. `Renovate` covers the same NuGet and GitHub Actions ecosystems; running both would produce duplicate PRs.\n\n### Fixed\n\n- `README.md`: the table-of-contents entry for the cookbook section now points to `#cookbook-common-patterns`. GitHub's slugger drops the colon from `Cookbook: common patterns` to produce a single-hyphen anchor; the previous `#cookbook--common-patterns` was a broken link.\n- `README.md`: the \"Since TUnit X.Y.Z\" reference in the cookbook section that documents the upstream `Eventually` / `WaitsFor` `CancellationToken` overload now correctly cites `1.45.0` (the version that shipped the feature) rather than `1.45.8` (the package's current TUnit pin at the time the section was written; the prior `SyncVersionRefs` target was substituting the current version into a historical reference).\n\n### Security\n\n- Closed an arbitrary-code-execution vector in the now-removed `sync-version-refs` workflow. The workflow ran under `pull_request_target` with `contents: write` and executed `dotnet restore` / `dotnet build` against the PR head, which would have allowed any non-Dependabot PR author to execute code with a write-scoped repository token (via custom MSBuild tasks, `.targets` files, or analyzers in the PR). The workflow shipped only in this unreleased line and the vulnerability does not affect any released package.\n- Set `persist-credentials: false` on every `actions/checkout` (`ci.yml`, `codeql.yml`, `release.yml`) so the job's repository token is not written into `.git/config`, where an artifact upload or later step could exfiltrate it, and moved the coverage-report path in `ci.yml` from inline `${{ }}` expansion into an `env:` variable to remove a shell template-injection vector. Both were surfaced by the new `zizmor` audit; CI-only, no released package is affected.\n- Tightened GitHub Actions token permissions to least privilege. The `codeql` and `release` workflows now declare their write scopes (`security-events` for code-scanning upload; `contents` / `id-token` / `packages` / `attestations` for publishing) at the job level with a read-only workflow-level default, rather than granting those scopes for the whole workflow run. No functional change; it narrows the token blast radius and satisfies the OpenSSF Scorecard Token-Permissions check.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#repository",
+    "commit": "415da72dd368d450ebbda18f71c5102a54e10ec9",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/TimeAssertions.TUnit"
+  },
+  "verbatimVersion": "0.6.0",
+  "version": "0.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#TimeAssertions.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4662,
+      "fullName": "TimeAssertions.nuspec",
+      "length": 11367,
+      "name": "TimeAssertions.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1315,
+      "fullName": "README.md",
+      "length": 2888,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#lib/net10.0/TimeAssertions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8405,
+      "fullName": "lib/net10.0/TimeAssertions.dll",
+      "length": 18432,
+      "name": "TimeAssertions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#lib/net10.0/TimeAssertions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5640,
+      "fullName": "lib/net10.0/TimeAssertions.xml",
+      "length": 26214,
+      "name": "TimeAssertions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 6807,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 49750,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 50,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.03.04.13.47/timeassertions.0.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "timing",
+    "testing",
+    "assertions",
+    "timespan",
+    "timeprovider",
+    "duration"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

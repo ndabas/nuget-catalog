@@ -1,0 +1,148 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Lumoin and contributors",
+  "catalog:commitId": "3f774db4-8b41-48ff-b80e-6f913a0e8b8f",
+  "catalog:commitTimeStamp": "2026-06-11T08:03:15.7782607Z",
+  "copyright": "Lumoin",
+  "created": "2026-06-11T08:00:32.997Z",
+  "description": "Core primitives for Lumoin.Verisync: replica identity, causal contexts, version vectors, dot stores, and base CRDT shapes.",
+  "iconFile": "resources/lumoin-verisync-nuget-logo.png",
+  "id": "Lumoin.Verisync.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-11T08:03:14.143Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "qyUK6VVl8JBdpCfwuPc0LG9BWhiq5+PfHARucwNu+LooDp+i1XNpvTVPpWLL31VKqYCXPICcaUXkmJV2n679JQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 160958,
+  "projectUrl": "https://github.com/lumoin/Lumoin.Verisync/",
+  "published": "2026-06-11T08:00:32.997Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Changes since version 0.1.0\n\nChanged:\n- `CheckpointedSequence.Promote` proposes a `CheckpointCommitment` — the digest of the snapshot's\n  canonical bytes — through the CASPaxos register instead of the snapshot itself. Consensus payloads\n  stay metadata-sized regardless of sequence length; the content stays local and travels the CRDT\n  plane, verifiable against the agreed commitment. `Create` takes the canonicalize and digest\n  delegates; the register type is `CasPaxosRegister<CheckpointCommitment>`.\n- `ConsensusNode.RunAsync` takes the reply sink as the named `SendReplyDelegate<TValue>` instead of\n  a naked `Func`, matching the named-seam convention. Source-compatible: lambdas and method groups\n  at existing call sites convert unchanged.\n\nFixed:\n- Fast CASPaxos acceptor safety: accepting now raises the promise to the accepted ballot, so a stale\n  lower-ballot accept can no longer regress acceptor state past a possibly-chosen value; fast ballots\n  are accepted only while they equal the acceptor's promise and prepares are classic-only, so only the\n  pre-promised initial fast round is blind-writable. Retry a contended fast write with the same fast\n  ballot and value, or complete it through classic recovery.\n- `Rga` insert identities are assigned Lamport-style (`VectorClock.IncrementPastAll`), restoring\n  intention preservation: an insert-after now lands immediately after its predecessor instead of\n  potentially behind older sibling subtrees observed from other replicas. Sibling orders involving\n  pre-existing concurrent inserts may differ from earlier versions.\n\nSecurity:\n- Counter and clock arithmetic is checked: `GCounter.Increment`, `VectorClock.Increment`, and\n  `VectorClock.IncrementPastAll` throw `OverflowException` instead of wrapping (a wrapped counter is\n  silently rejected by max-merge forever); classic `Ballot` validates its round at construction.\n  `FromState` rejects what no honest history produces: negative counts (counters, clocks), zero-count\n  entries are filtered (restoring `Equals`/`GetHashCode` consistency), dotted-version-vector-set dots\n  must sit within their causal context, and RGA states with missing predecessors or predecessor\n  cycles are rejected rather than silently dropping vertices from traversal. Tombstones for absent\n  dots remain accepted and documented.\n- The JSON channel deserializer is strict: a payload that is the JSON literal `null` and any payload\n  with trailing data after the message are rejected with `JsonException` — many-bytes-to-one-message\n  laxity breaks canonical-bytes assumptions near digest-relevant content.\n- `TaggedMemory` equality members fail closed after dispose; the memory pool validates slab sizing\n  before allocation (no more wrapped products), disposes its rental activity on a throwing rent,\n  makes owner double-dispose idempotent, and keeps the active-rentals gauge paired across pool\n  shutdown races.\n- `MessageChannelReader` rejects frames whose declared payload exceeds a configurable maximum\n  (16 MiB default) instead of buffering toward a hostile four-byte length prefix;\n  `MessageChannelWriter` fails fast on oversized payloads. The reader completes its pipe even when\n  deserialization throws.\n- The JSON CRDT-state deserializers validate untrusted input: replica ids must decode to exactly\n  `ReplicaId.Size` bytes, replica counters cannot be negative, and dot counters start at one.\n\nAdded:\n- `OffsetAnchoredSequence<TValue>` and `OffsetAnchor`, registered as `verisync.sequence.offset.v1`:\n  the checkpoint-offset sequence strategy — collaborative edits over an immutable, consensus-agreed\n  base snapshot, with anchors as stable base offsets or live dot identities and the same Lamport\n  intention-preservation rule as the RGA strategy. Merging is generation-aligned and fails closed\n  across differing bases. Passes the full shared law harness.\n- Waterline compaction for the checkpoint-offset strategy: `OffsetAnchoredSequence<TValue>.Compact`\n  collapses stable visible vertices into the next base generation against an agreed\n  (frontier, checkpoint) pair and fails closed on a misaligned pair. Stable tombstones with surviving\n  descendants persist as position ghosts and removed base entries are always carried, so visible\n  order survives compaction; every survivor outside a surviving subtree re-anchors at its gap anchor\n  (the nearest preceding new-base entry), which the Lamport counter invariant keeps order-preserving\n  and replica-independent. `TranslateAnchor` serves previous-generation anchors from dot- and\n  offset-translation maps that compose across generations, so dot anchors stay translatable\n  indefinitely while base anchors serve exactly the one-generation window the stability rule permits.\n  The shared law harness gains the two remaining compaction laws — compact/merge commutation at or\n  above the frontier and anchor servability across compaction — and the\n  `TranslateAnchorDelegate` now receives the sequence, since translation maps are strategy state.\n- `verisync.sequence.rga-rle.v1` (`WellKnownSequenceStrategies.CreateRgaRle`): the compactable RGA\n  strategy — identical RGA semantics and identifiers, plus ghost-based waterline compaction with no\n  re-anchoring of any kind. A stable tombstone persists as a ghost while any descendant survives;\n  only recursively childless stable tombstones drop (head-anchored ones never do, since no element\n  exists to translate to), so the visible order provably never changes. `Rga<TValue>.Compact`\n  verifies the agreed checkpoint against the stable visible content fail-closed, and\n  `TranslateAnchor` serves dropped dots from a translation map that composes across generations.\n  `ToRunState`/`FromRunState` add the run-length serialized state — maximal same-replica\n  predecessor-chained vertex runs, per-replica tombstone spans, and translation entries, validated\n  fail-closed on reconstruction — while `ToState` now refuses to serialize an instance carrying\n  translations rather than silently dropping them. Both compaction strategies pass the same four\n  shared compaction laws.\n- Serialization for both compaction strategies: `OffsetAnchoredSequence<TValue>.ToState`/`FromState`\n  with the `OffsetAnchoredSequenceState` record family (vertices with anchors, removed offsets, and\n  both translation maps; deterministic replica-major output; reconstruction validates anchors,\n  ranges, duplicates, and anchor-graph acyclicity fail-closed), and `CrdtStateJson` codecs for\n  `OffsetAnchoredSequenceState` and `RgaRunState` — hand-written and AOT-safe like the existing\n  state codecs, with codec-level shape validation (`JsonException`) layered under the state-level\n  relational validation (`ArgumentException`).\n- Fast CASPaxos next-ballot piggybacking: a successful accept may carry the next fast ballot, raising\n  the acceptor's promise to it and establishing the next fast round coordinator-free — recurring\n  one-round-trip fast commits, as in the original design. All reject rules ignore the piggyback, the\n  promise only ever rises, and an acceptor that never saw the piggyback keeps rejecting that fast\n  round via the equality rule, so blind writes at un-established rounds remain impossible. The wire\n  encoding's `next` field is optional and back-compatible.\n- The Raft production story around the safety core: `RaftNode.ToState`/`FromState` with\n  `RaftNodeState` (the Figure 2 durable triple, validated fail-closed on restore; a restored node is\n  a follower at commit zero rediscovering the volatile commit index), `RaftRunner` — a\n  single-consumer message-driven loop preserving the node's single-threaded contract with the\n  universal handle → persist → apply → send sequencing, named seams\n  (`SendRaftEnvelopeDelegate`, `PersistRaftStateDelegate`, `ApplyCommittedDelegate`), host-triggered\n  elections and heartbeats (still no timers or entropy in the library), propose with a faulting task\n  on non-leaders, and self-quiescing follower catch-up off append replies — plus `RaftJson` wire\n  codecs for the envelope and the durable state, mirroring the consensus message codecs' strictness.\n  Apply is exactly-once per process lifetime and at-least-once across restarts, documented on the\n  seam. Proven over real localhost sockets: election, replication, identical applied sequences on\n  every node, and a follower restarted from its persisted state converging after reconnect.\n- A naive, safety-correct, in-memory Raft node (`RaftNode<TCommand>` and its message records): the\n  complete Figure 2 safety core — election restriction, log matching with conflict truncation and\n  idempotent re-delivery, and the current-term commit rule — with liveness explicitly external\n  (host-triggered elections, no timers). The within-trust-domain log-replication primitive\n  complementing the register (metadata-grade anchors) and the CRDT plane (no ordering). The test\n  suite was authored blind against the same specification and includes the Figure 8 scenario.\n- `StabilityFrontier`, `CompactSequenceDelegate`, `TranslateAnchorDelegate`, and a `Compact` step on\n  `CheckpointedSequence`: the waterline seams — the frontier (element-wise group minimum, in-library\n  because a silent member must pin the floor) is the WHEN of compaction, the agreed checkpoint the\n  WHAT; the first two compaction laws wait in the shared harness for the first compacting strategy.\n- A shared sequence-strategy law harness in the test suite: every registered strategy inherits the\n  join-semilattice laws, merge-order convergence, and local intention preservation as property tests\n  exercised through the strategy context — the contract future strategies (including the compaction\n  strategies) are built against. The RGA strategy is the first registration.\n- `PersistAcceptorDelegate<TValue>` and an optional durability hook on `ConsensusNode.RunAsync`:\n  when supplied, the acceptor state is made durable after every state-changing request and before the\n  matching reply is sent, so an unpersisted promise is never observable — the documented crash-safety\n  contract is now a seam instead of a caller obligation. A throwing hook fail-closes the reply.\n- `SequenceCrdtContext<TSequence, TValue, TAnchor>` with named operation delegates and\n  `WellKnownSequenceStrategies`: the sequence CRDT behind `CheckpointedSequence` is now pluggable.\n  A strategy (addressing model, merge, ordering) is injected as a delegate bundle and named by a\n  stable identifier that is part of the document's replication contract — merging containers carrying\n  different strategy identifiers fails closed, since mismatched strategies silently diverge.\n  `CheckpointedSequence<TValue>` became `CheckpointedSequence<TSequence, TValue, TAnchor>` created\n  via `Create(context)`; the RGA-backed strategy (`verisync.sequence.rga.v1`) is the first\n  registration and preserves the previous behavior exactly.\n- `FramePadding`: opt-in padded framing for the message channel. Frames are padded up to size\n  buckets (powers-of-two or fixed ladders) with an inner real-length prefix, so a network observer\n  cannot distinguish message types or content sizes within a bucket — a metadata-privacy measure\n  from the sealed-segments design. The unpadded wire format is unchanged byte for byte; both\n  endpoints must share the policy, and the attacker-influenced inner length is never trusted past\n  the frame bounds.\n- `LogCommitmentJson`: hand-written AOT-safe JSON codecs for `LogHead`, `MerkleInclusionProof`,\n  `MerkleConsistencyProof`, and `SegmentSeal<TProof>`, so heads, proofs, and seals can cross a\n  message channel. The seal deserializer re-derives the canonical bytes and digest through\n  `SegmentSeal.Create` and fails closed on a digest mismatch, so a tampered seal is rejected at the\n  codec.\n- `MerkleFrontier`: the bounded-state companion to `MerkleLogTree` — an append-only root tracker\n  holding only the O(log n) frontier peaks, producing roots byte-identical to the full tree (verified\n  by an exhaustive size sweep against it). Proofs still come from `MerkleLogTree` over archived\n  leaves; the frontier is how a live replica tracks its root without holding history.\n- `LogHead` and `LogHeadConsistency`: the log-plane anti-equivocation exchange. A head claims a tree\n  size and root; `LogHeadConsistency.Verify` binds a `MerkleConsistencyProof` to exactly the two\n  heads before trusting it and reduces a failure between authentic heads to portable fork evidence.\n  In the single-tree composition a `SegmentSeal` whose commitment is the tree root at its boundary is\n  an attested head, so consecutive seals prove their own consistency.\n- `SegmentSeal<TProof>` with `AttestSealDelegate` and `VerifySealAttestationDelegate`: sealed log\n  segments — a versioned, byte-for-byte pinned commitment to a contiguous entry range, chained by seal\n  digest with in-library link verification (digest linkage, index continuity, genesis rules).\n  Attestation evidence covers the seal digest and rides outside the digested bytes. Combined with an\n  `AuthenticatedRegister` whose accumulator is a `MerkleLogTree` folding entry digests, sealing a\n  segment is reading the accumulator root, and per-entry membership in a sealed segment is provable\n  with a `MerkleInclusionProof` alone.\n- `MerkleLogTree`, `MerkleInclusionProof`, and `MerkleConsistencyProof`: an RFC 9162 (Certificate\n  Transparency v2) append-only Merkle log tree with inclusion and consistency proofs, hash-agnostic\n  through `ComputeDigestDelegate` with structural `0x00`/`0x01` domain separation. The documented\n  byte layout is a cross-stack contract; the test suite pins the canonical RFC 6962 SHA-256 vectors.\n  This is the foundation for sealed log segments and bounded logs.\n- `VectorClock.IncrementPastAll`: a Lamport-style advance whose new counter exceeds every observed\n  counter.\n- Documented contracts: `ConsensusNode` durability obligations across restarts, the CASPaxos\n  \"a failed change may still be chosen\" retry caveat on `ChangeOutcome`, the full verification\n  obligations of `VerifyChainIntegrityDelegate`, and the non-associativity of the\n  `DottedVersionVector` dot component.\n\nSee full changelog at https://github.com/lumoin/Verisync/blob/main/CHANGELOG.md.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#repository",
+    "commit": "7521a5dbbebf664f9bb6b434cfea6c3ed96b6026",
+    "type": "git",
+    "url": "https://github.com/lumoin/Lumoin.Verisync"
+  },
+  "verbatimVersion": "0.0.2",
+  "version": "0.0.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3300,
+      "fullName": "README.md",
+      "length": 7650,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#Lumoin.Verisync.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6433,
+      "fullName": "Lumoin.Verisync.Core.nuspec",
+      "length": 15325,
+      "name": "Lumoin.Verisync.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#resources/lumoin-verisync-nuget-logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26617,
+      "fullName": "resources/lumoin-verisync-nuget-logo.png",
+      "length": 26635,
+      "name": "lumoin-verisync-nuget-logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#_manifest/spdx_2.2/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3258,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json",
+      "length": 27068,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#lib/net10.0/Lumoin.Verisync.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 105980,
+      "fullName": "lib/net10.0/Lumoin.Verisync.Core.dll",
+      "length": 262144,
+      "name": "Lumoin.Verisync.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.11.08.03.15/lumoin.verisync.core.0.0.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

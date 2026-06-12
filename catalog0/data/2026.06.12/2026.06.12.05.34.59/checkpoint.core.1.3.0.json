@@ -1,0 +1,251 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "KYA-OS",
+  "catalog:commitId": "c7b4717f-09a4-48e3-9b64-794d7dcb5777",
+  "catalog:commitTimeStamp": "2026-06-12T05:34:59.5196822Z",
+  "created": "2026-06-12T05:31:00.717Z",
+  "description": "Core AI agent detection engine for .NET. Detects AI agents (Claude, ChatGPT, Gemini, etc.) via user-agent patterns, header analysis, and behavioral signals. Platform-agnostic — use with any .NET HTTP server, including ASP.NET Core (via Checkpoint.AspNetCore) and classic .NET Framework 4.6.2+ (via Checkpoint.AspNet).",
+  "id": "Checkpoint.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-12T05:34:45.73Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "A/P2RTA7V7/CA6yyWQqoB2gYnVbAlho7jYlG21yMtqYytsZPAPfuM7Uw8xBh23+q8PMx1H0sh225jCFRZMwHBQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 6792599,
+  "published": "2026-06-12T05:31:00.717Z",
+  "releaseNotes": "1.3.0 — Delegation challenge wire (draft-kya-http-02 §8.1, opt-in)\n\nAdds the spec §8.1 Delegation challenge as an opt-in, version-gated wire for\na composed-policy `challenge` verdict, replacing the legacy `200 + KYA-Action:\nchallenge` MCP-I step-up. Breaking wire change — OFF by default for one cycle.\n\n  - New shared `Checkpoint.Core.Http.DelegationChallengeBuilder` emits the\n    byte-exact wire (401, `WWW-Authenticate: Delegation` with frozen param\n    order + companion RFC 9728 `Bearer` for `kind=delegation`, `Retry-After`,\n    `Cache-Control`, and the `kyaos` JSON body + four-element `instructions`),\n    validated against the H2.0 golden fixtures. The net462 adapter and the\n    net8 middleware (#3250) share it so they cannot drift.\n  - `Checkpoint.AspNet.CheckpointModule` emits the new wire when\n    `CheckpointOptions.EnableDelegationChallengeWire` is set (web.config:\n    `Checkpoint:EnableDelegationChallengeWire`). New `AuthorizationHost`\n    option (`Checkpoint:AuthorizationHost`) sets the consent/pickup origin;\n    falls back to the request host.\n  - `sid` and `challenge_proof` are placeholders pending live bouncer/sessions\n    anchor registration (#3246); today's emit is the minimal-shaped challenge.\n\n1.2.3 — Cold-start fail-open hardening (.NET)\n\nCloses the post-deploy window in which the first agent requests after an\napp-pool recycle could be served un-enforced (and, in the observed CI\nfailure, as a header-less bare 200 with no KYA-* signal). Three behavioral\nchanges (four new public members); additive and opt-in — default behavior\nis preserved.\n\n  - Eager startup warm-up of the WASM runtime (WasmAgentDetector.WarmupAsync)\n    + policy cache, off the request hot path — CheckpointModule.Init() and a\n    CheckpointWarmupService hosted service for the net8 adapter. The runtime\n    previously initialized lazily on the first AnalyzeAsync; warming at\n    startup drives the cold window toward zero.\n  - Observable fail-open: the fail-open catch now always stamps a\n    `KYA-Failopen: true` response header, so a fail-open is never an\n    invisible bare 200 (operators + the post-deploy smoke gate can see it).\n    A detection-unavailable result also stamps `KYA-Detection: unavailable`.\n  - OnDetectionUnavailable posture (default Allow): when detection itself\n    can't run, hosts may opt into Baseline to apply the configured\n    OnAgentDetected action instead of allowing the request through.\n    DetectionResult.DetectionUnavailable surfaces the WASM cold-start\n    failure that previously masqueraded as a silent \"Human\".\n\nMigration: zero customer code changes required. The new public surface\n(CheckpointOptions.OnDetectionUnavailable, DetectionUnavailableBehavior,\nDetectionResult.DetectionUnavailable, WasmAgentDetector.WarmupAsync) is\nadditive and defaults to today's behavior. To fully close the agent-slip\ngap on an enforcing site, set OnDetectionUnavailable = Baseline.\n\n1.2.2 — Scope-gated challenge: forward granted_scopes + render Challenge\n\nTwo changes that let a composed /policy-compose bundle scope-gate a CHALLENGE\n(\"challenge a known agent unless the user delegated scope S for this route\"):\n\n- The SDK now FORWARDS the engine-verified delegation scopes\n  (VerifyResult.detectionDetail.grantedScopes, embedded engine #3187) into\n  AuthorizeInput.grantedScopes, so a `unless { context.granted_scopes.contains\n  (\"S\") }` carve-out enforces in-process. Empty/no-delegation posture omits the\n  key (byte-shape parity with the TS projection); a forged delegation forwards\n  nothing.\n\n- A composed-Cedar Challenge decision now RENDERS an MCP-I step-up: 200 +\n  KYA-Action: challenge + X-Checkpoint-Decision: challenge whose JSON body\n  points the agent at the bouncer/authorize URL (mirroring the Instruct writer\n  via the shared McpInstructBuilder), on BOTH adapters (net8 + net462), instead\n  of collapsing to Block. The engine's Challenge params (nonce/audience/...)\n  arrive empty in-process, so the writer keys off the authorize URL.\n\nMigration: zero customer code changes. Affects only projects whose composed\nbundle scope-gates or emits Challenge (generated Cedar predominantly emits\nPermit/Block).\n\n1.2.1 — Web.config policy-cache TTL knob (classic ASP.NET)\n\nAdds a `Checkpoint:PolicyCacheTtlMinutes` Web.config appSetting so classic\nASP.NET / IIS (Checkpoint.AspNet) hosts can shorten the policy-cache window\n(default 5 min) — e.g. set it to 1 for rapid dashboard rollout. The SDK is\npull-only with no server-push invalidation, so this is the only lever a\nWeb.config-configured host has to speed up picking up a deployed policy /\ncomposed-Cedar change short of an app restart. Must be a positive integer;\nignored otherwise. (.NET Core hosts already set PolicyCacheTtlMinutes via\nIOptions<CheckpointOptions>.)\n\nAlso refreshes stale doc comments that still described composed Cedar as\n\"inert on .NET Framework\" — it has ENFORCED on net462 since 1.2.0 (the\nNativeCedarCompiler P/Invoke path). No behavior change from the doc edits.\n\nZero customer code changes to adopt.\n\n1.2.0 — Composed-policy enforcement goes live (net8 AND net462) + engine refresh\n\nThree things ship here that 1.1.0 staged but did not publish:\n\n1. Composed /policy-compose Cedar enforcement is now WIRED INTO the\n   net8 request path (CheckpointMiddleware step 5b, #3143). It stays\n   shadow-first + fail-open: a project's bundle only REPLACES the\n   structured decision when its engineEnforcementEnabled gate is acting;\n   otherwise it shadows and the structured decision stands, and any\n   compile / authorize fault falls open. 1.1.0 shipped the evaluator as\n   \"foundation only\" (not wired); this release activates it.\n\n2. The .NET Framework (netstandard2.0 / net462) cedar path now ENFORCES\n   too, via NativeCedarCompiler — the hand-rolled wasmtime.dll P/Invoke\n   peer of the net8 CedarCompiler, driving the same embedded cedar engine\n   with the same single-instance + handle model and the same shadow-first\n   + fail-open posture. Classic ASP.NET / IIS (Web Forms, Web API 2) hosts\n   now get composed-policy enforcement at parity with net8 (#3076). A host\n   without a usable wasmtime.dll degrades to detection-only.\n\n3. Embedded detection WASM refreshed from current kya-os-engine main —\n   now includes the #2869 \"KYA-OS HTTP Binding\" engine verification path,\n   which the 1.0.2-pinned binary in 1.1.0 predated. Cross-runtime parity\n   (rust + node-wasm + edge-wasm + dotnet-wasi) stays CI-gated and green.\n\nEmbedded WASM SHA-256:\n  adf369ea61565f1d13b17a698c97791ce62dabcc94942644d4731d2eb26b04db\n  (was 55e072f3ef71a2d548f935a292a07f8ab983eb4afa7ba5323f750b38845de33f\n  in 1.0.2 / 1.1.0; pinned in Checkpoint.Core.Tests/Detection/\n  EmbeddedWasmDriftTests.cs#ExpectedSha)\n\nMigration: zero customer code changes. Enforcement remains opt-in per\nproject (deploy a bundle + enable engineEnforcementEnabled); consumers\nwho do neither are byte-identical to 1.1.0 behavior.\n\n────────────────────────────────────────────────────────────────────\n\n1.1.0 — Cedar composed-policy foundation (.NET)\n\nBrings the .NET adapters onto the shared composed-policy SSOT, alongside\nthe Express / Next.js / gateway runtimes: a project's deployed\n/policy-compose Cedar bundle can be evaluated in-process via the embedded\nengine. Cross-runtime parity with the TS runtimes is CI-gated\n(AuthorizeInputProjectionParityTests).\n\nShadow-first + fail-open: composed enforcement is opt-in\n(engineEnforcementEnabled defaults false), so existing consumers are\nbyte-identical until they deploy + enable a bundle, and any compile /\nauthorize fault falls open to the structured decision.\n\n  - ComposedPolicyEvaluator + AuthorizeInputProjection: fact ->\n    AuthorizeInput projection and compile-once / authorize-many\n    evaluation of a tenant's Cedar bundle (#3111, #3113).\n  - DetectionResult.EngineBlocked: the engine's RAW block verdict,\n    preserved before structured policy so the mcp_i_handshake optimistic\n    override keys off the engine's verification result, not a post-policy\n    allow-list — a forged handshake the engine blocked can no longer\n    reach Cedar as a verified delegation (#3113).\n\nFoundation only: the evaluator is not yet wired into CheckpointMiddleware\n(net8) / CheckpointModule (net462) — composed-policy enforcement\nactivates in a follow-up. Composed Cedar requires the net8 engine path;\nthe netstandard2.0 / net462 path short-circuits to no-policy until the\nFramework cedar path lands.\n\nMigration: zero customer code changes required. The new public types\n(ComposedPolicyEvaluator, AuthorizeInputProjection, ICedarCompiler,\nDetectionResult.EngineBlocked) are additive; existing behavior is\nunchanged.\n\n1.0.3 — Surface true enforcement outcomes on the dashboard\n\nThe .NET counterpart of the JS reporter fix shipped in\n@kya-os/checkpoint-express + @kya-os/checkpoint-nextjs 1.4.0 (#2843).\nBefore 1.0.3 the .NET adapters posted detections to\n/api/v1/log-detection without an `enforcement` block, so every\nredirect / instruct / block applied by CheckpointModule (net462) or\nCheckpointMiddleware (net8) landed in the dashboard as \"unknown\" on\nthe OutcomesBar / chart series — the operator could see traffic but\nnot what their middleware actually did with it.\n\nHardware World was the visible failure: with OnAgentDetected=Redirect\nconfigured, ChatGPT/Claude hits 302'd to the connect page but the\ndashboard never showed a redirect bar.\n\nFix: the adapters now thread the applied action into\n`DetectionEvent.EnforcementAction` (+ optional Reason) at every\nshort-circuit and on the generic pass-through:\n\n  - Policy short-circuit:  instruct | redirect | block\n  - Local config Block:    \"block\" (+ result.BlockReason on policy block)\n  - Local config Instruct: \"instruct\"\n  - Local config Redirect: \"redirect\"\n  - Local config Redirect with non-absolute McpServerUrl: falls through\n    to \"block\" — the reported action reflects what HAPPENED (block),\n    not what was configured (redirect), so the chart doesn't show a\n    redirect that never occurred.\n  - Pass-through (Log / Allow): \"log\" in observe-mode (OnAgentDetected\n    = Log), \"allow\" otherwise. Mirrors the JS reporter's\n    `extractEnforcement()` Permit branch.\n\nCanonical wire-action strings live in the new\n`Checkpoint.Core.Configuration.EnforcementActions` static class so\nboth adapters report identical values — a typo would silently mis-\nbucket as \"unknown\" rather than surface as the true outcome.\n\nMigration: zero customer code changes required. The public API\n(IAgentDetector, DetectionResult, CheckpointOptions, CheckpointModule,\nCheckpointMiddleware) is unchanged. Bump the package version in\nyour csproj or packages.config; on the next request the dashboard\nstarts showing real redirect / instruct / block bars instead of\ncollapsing everything into \"unknown\".\n\n8 new middleware tests + 6 new payload tests assert the action /\nreason mapping for every branch (Block / Instruct / Redirect /\nRedirect-fallthrough / Log / Allow / Policy-Redirect / Policy-Block).\n\n1.0.2 — P0 latency hotfix: reactor-style WASM (Hardware-World-Hotfix-1)\n\nCRITICAL FIX. Customer-reported regression on production deployment:\nHardware World (.NET Framework 4.8 + IIS + Web Forms) saw 22× median\nslowdown and 50-second worst-case TTFB after installing 1.0.1.\n\nRoot cause: the embedded WASM shipped in 1.0.0–1.0.1 was a WASI\ncommand-style module (`_start` entry point with stdin/stdout file\npiping). Every HTTP request rebuilt the wasmtime Store/Linker/Instance,\ndid 6 filesystem operations, and — most importantly — re-ran every\n`once_cell::Lazy` static in the Rust engine. With 123 `Regex::new`\ncalls in the pattern tables alone, per-call cost was ~84ms on the\nfastest configuration (Apple Silicon + .NET 8 + SSD). On Windows + IIS\n+ .NET Framework with NativeWasmtimeRuntime's P/Invoke layer, the\nfloor rose to 150-300ms and under concurrent load .NET Framework's\nthreadpool injection rate (~1-2 new workers/sec) cascaded into the\n50s tail the customer observed.\n\nFix: the embedded WASM is now a reactor cdylib with three callable\nexports — `engine_alloc`, `engine_dealloc`, `engine_verify_json`. The\nhost (both WasmtimeDotnetRuntime on net6.0+ and NativeWasmtimeRuntime\non netstandard2.0) instantiates ONCE and marshals JSON in/out via\nlinear memory. The engine's `Lazy` statics initialise once per WASM\ninstance and stay alive across calls.\n\nBench numbers (PerfBench harness, macOS .NET 8):\n\n  Metric                       1.0.1       1.0.2     Improvement\n  ----------------------------------------------------------------\n  Sequential median            84.1 ms     0.1 ms        840×\n  Sequential max               96.2 ms     0.5 ms        192×\n  Concurrent max (50 workers) 1842 ms    144   ms         13×\n  Throughput                  12 c/s    6623 c/s         552×\n\nProduction on Windows + .NET Framework will see proportionally larger\nwins because the contention amplification this avoids was higher\nthere.\n\nThreading model: wasmtime Stores are not thread-safe. Both runtimes\nkeep one Store + Instance per thread via ThreadLocal<T>. First\ncall on each thread pays the lazy-init cost (~80ms); every subsequent\ncall on the same thread is <5ms. Under steady IIS load the\nthreadpool converges to a stable working set.\n\nOther changes:\n  - Dropped Task.Run wrapper in WasmAgentDetector.AnalyzeAsync — the\n    per-call work is now CPU-bound and tiny; the threadpool detour\n    cost more than it saved.\n  - Dropped temp-file WASI stdin/stdout (no longer needed).\n\nMigration: zero customer code changes required. The public API\n(IAgentDetector, DetectionResult, CheckpointOptions, CheckpointModule)\nis unchanged. Upgrade from 1.0.1 → 1.0.2 by bumping the package\nversion in your csproj or packages.config; no Web.config changes,\nno Program.cs changes, no Web Forms code changes.\n\nEmbedded WASM SHA-256:\n  55e072f3ef71a2d548f935a292a07f8ab983eb4afa7ba5323f750b38845de33f\n  (was 800a314eb719bad54e94ee2fc94261110b7810be461adf83d4e6ea41eaf882ec\n  in 1.0.1; bump pinned in Checkpoint.Core.Tests/Detection/\n  EmbeddedWasmDriftTests.cs#ExpectedSha)\n\n1.0.1 — Embedded engine refresh: post-#2685 TS-canonical pattern names\n\nThe embedded kya-os-engine.wasm shipped in 1.0.0 was built before\nthe Engine-Pattern-Codegen-Retirement-1 work (#2685) landed on main.\nThat work made the TS pattern registry the single source of truth and\ncodegen'd the Rust pattern table from it, which renamed several\ncanonical pattern IDs to match the TS convention:\n\n  GPTBot     → \"Openai Gptbot\"\n  ClaudeBot  → \"Anthropic ClaudeBot\"\n  (and similar vendor-prefixed forms across the AI crawler tier)\n\nThese names surface inside DetectionResult.DetectedAgent.Name,\nDetectionResult.AgentType, and inside the detection signals + reasons\narrays consumed by the dashboard. The 1.0.0 .NET cohort was emitting\nthe pre-#2685 names; the Next.js + Express cohort (on\ncheckpoint-wasm-runtime@1.5.x) was emitting the post-#2685 names. The\ndelta showed up as detection-label drift between the two cohorts in\nthe dashboard.\n\n1.0.1 re-bakes the embedded WASM from current main (kya-os-engine post\n#2685) so every .NET deployment surface emits the same canonical\npattern names as the rest of the workspace. No public API change; no\nnew config knobs; no behavior change beyond the label correction.\n\nValidation: this release is the first checkpoint-dotnet build covered\nby the cross-runtime parity gate (#2708 / Cross-Runtime-Parity-Dotnet-\nCoverage-1). The 4-runtime assert (rust + node-wasm + edge-wasm +\ndotnet-wasi) catches exactly this class of stale-embedded-engine drift\nbefore publish, so future .NET releases stay in lockstep automatically.\n\nEmbedded WASM SHA-256:\n  800a314eb719bad54e94ee2fc94261110b7810be461adf83d4e6ea41eaf882ec\n  (was 1626006e01b24a71de0f7476cb90349f06f80c0b52436a34e9dfdce470aa50d1\n  in 1.0.0; bump pinned in Checkpoint.Core.Tests/Detection/\n  EmbeddedWasmDriftTests.cs#ExpectedSha)\n\n1.0.0 — Engine refresh: kya-os-engine replaces agentshield-core\n\nThe embedded WASM detection engine migrated from the legacy\nagentshield-core / agentshield-wasi crates (last refreshed at v0.1.1)\nto kya-os-engine — the same engine shipping in\n@kya-os/checkpoint-wasm-runtime@1.4.x for Next.js + Express middleware\ncustomers. .NET joins as the third host runtime on the unified engine.\n\nThe WASM binary, produced by rust/scripts/build-engine-wasi.sh from the\nnew kya-os-engine-wasi wrapper crate, drops from 7.2 MB (legacy) to\n1.31 MB post wasm-opt — a 5.5× shrink. Lockstep upgrades for .NET\ncustomers preserve every public API (IAgentDetector, DetectionResult,\nCheckpointOptions, CheckpointModule) so existing customer code recompiles\nunchanged.\n\nWhat .NET customers gain:\n\n  - Tier 2 vendor IP + UA cross-match (16 vendor bots — Perplexity,\n    OpenAI x3, Anthropic x3, Google x3, Apple, Bing, DuckDuckGo x2,\n    Common Crawl). Surfaces via the new DetectionResult.VerifiedTier /\n    VerifiedVendor / VerifiedProtocol attribution fields.\n  - Tier 3 calibrated per-pattern confidence (replaces the legacy\n    single-knob ConfidenceThreshold misconfiguration footgun).\n  - Monitor-default Tier 3 behaviour: the engine classifies but does\n    NOT short-circuit a Block on a Tier-3 UA match. Tenant policy\n    decides enforcement. Opt-in to engine-default blocking via the new\n    CheckpointOptions.Tier3Action knob.\n\nThe .NET package's existing C# Tier 1 verifiers (ChatGptSignatureVerifier\nRFC 9421, KyaAgentVerifier MCP-I JWS) are unchanged and continue to\npre-empt the WASM dispatcher for signed traffic.\n\nAdded:\n\n  - CheckpointOptions.Tier3Action (Monitor / Block / Challenge — default\n    Monitor)\n  - DetectionResult.VerifiedTier / VerifiedVendor / VerifiedProtocol\n  - kya-os-engine.wasm replaces agentshield-detect.wasm as the embedded\n    resource. Build via rust/scripts/build-engine-wasi.sh + commit the\n    refreshed bytes alongside the SHA pin update in\n    Checkpoint.Core.Tests/Detection/EmbeddedWasmDriftTests.cs.\n\nMigration from 0.4.0:\n\n  - Existing CheckpointOptions configurations work unchanged.\n  - Empty-policy customers behave identically to 0.4.0 (Permit by default\n    on known agents — no breaking change).\n  - Customers wanting engine-level Tier 3 blocking explicitly set\n    Tier3Action.Block on CheckpointOptions.\n\nBreaking changes: none at the public API surface. The embedded WASM is\nreplaced but the host code preserves the IAgentDetector + DetectionResult\n+ CheckpointOptions contracts. The legacy wire format (detect action with\nDetectionInput { headers, ip, method, url, tlsFingerprint }) is gone;\nthis is internal to WasmAgentDetector and not customer-observable.\n\n0.4.0 — Normalize HTTP headers to KYA- convention\n\nAll custom response headers renamed from X-Checkpoint-* to KYA-*\nper RFC 6648 (deprecated X- prefix) and the KYA-OS rebrand:\n\n  X-Checkpoint-Detected    → KYA-Detected\n  X-Checkpoint-Confidence  → KYA-Confidence\n  X-Checkpoint-Class       → KYA-Class\n  X-Checkpoint-Agent       → KYA-Agent\n  X-Checkpoint-Verification→ KYA-Verification\n  X-Checkpoint-Session     → KYA-Session\n\nMCP-I instruct response headers also renamed:\n  X-MCP-I-Required   → KYA-Auth-Required\n  X-MCP-I-Authorize  → KYA-Auth-Url\n  X-MCP-I-Project    → KYA-Project\n  X-AgentShield-Action→ KYA-Action\n  rel=\"mcp-i-authorize\" → rel=\"kya-authorize\"\n\nThis is a BREAKING CHANGE for any consumer reading these headers\nby name. No functional behavior changes.\n\n0.3.3 — Remove legacy bouncer/sessions fallback + log log-detection failures\n\nThe 0.3.2 and earlier releases fell back from POST /api/v1/log-detection to\nPOST /api/v1/bouncer/sessions whenever the log-detection call returned\nnon-2xx. That fallback was semantically wrong: bouncer/sessions is the\nMCP-I session registration endpoint and requires a real agent DID. The\nfallback fabricated a synthetic \"did:web:detected:{AgentType ?? unknown}\"\nDID per detection, which inserted junk rows into bouncer_sessions for\nevery crawler hit (Googlebot, aranhabot, Applebot, etc.) and emitted a\n\"[McpiConfigService] agentDid mismatch\" warning on every row because the\nsynthetic DID collided with the project's real configured agentDid in\nmcpiServerConfig.identity.\n\nProduction evidence from one project on 2026-04-21 showed ~17 junk\nsessions/minute over a 70-second window (20 rows, 65% from \"aranhabot\"),\nprojecting to ~25k/day of pollution per active .NET middleware project.\n\nChanges:\n\n* CheckpointApiClient.ReportDetectionAsync no longer falls back to\n  bouncer/sessions. Non-2xx responses from log-detection are logged at\n  Warning with status code, reason phrase, project ID, and a bounded\n  512-char prefix of the response body, then dropped. Detection events\n  and MCP-I session registrations are distinct concerns and must not\n  be conflated.\n* TryReportToLegacyAsync and its synthetic-DID payload construction\n  are deleted. ICheckpointApiClient.ReportDetectionAsync doc comment\n  updated to point at log-detection as the sole endpoint.\n* New private helper SafeReadTruncatedBodyAsync reads at most 512 chars\n  of the failed response body and never throws, so high-volume failure\n  loops do not flood logs or leak large payloads.\n\nNo behavioural change when log-detection returns 2xx. Callers that were\nrelying on the legacy endpoint to persist detections should be on\nCheckpoint.* >= 0.2.9 where log-detection is the documented path.\n\nOperational follow-up (not in this release): after deploying 0.3.3,\nclean up the existing junk rows with\nDELETE FROM bouncer_sessions WHERE agent_did LIKE 'did:web:detected:%';\n\n0.3.2 — Send detectionClass with log-detection payload\n\nPre-0.3.2 middleware submitted detection events to\nPOST /api/v1/log-detection without a detectionClass field. The server\nfalls back to isAgent ? \"ai_agent\" : \"human\", which mis-stamped every\nGooglebot, GPTBot, ClaudeBot, SemrushBot, etc. hit as an interactive\nAI agent. One hardwareworld.com test window produced 325,056 such\nmis-classified rows under source=\"middleware\" in 72 hours.\n\nThe detector already produces the correct class in\nDetectionResult.DetectionClass. The gap was purely transport — the\nDetectionEvent DTO and log-detection payload both dropped the field.\nThis release closes the gap:\n\n* DetectionEvent gains a nullable DetectionClass property\n  (Checkpoint.Core). Nullable preserves binary compat for any caller\n  that constructs the DTO manually.\n* CheckpointApiClient.TryReportToLogDetectionAsync now emits\n  detectionClass in the JSON payload via a wire mapping:\n  Human -> \"human\", AiAgent -> \"ai_agent\", Bot -> \"bot\",\n  IncompleteData/Unknown -> \"incomplete_data\". Null omits the field so\n  the server's UA-pattern fallback still applies for older callers.\n* Both middlewares pass result.DetectionClass through to the\n  DetectionEvent — CheckpointMiddleware (AspNetCore, net8.0) and\n  CheckpointModule (AspNet, net462) share the same wiring.\n\nCovers all four packages — Checkpoint.Core, Checkpoint.AspNet,\nCheckpoint.AspNetCore, and the KyaOs.Checkpoint umbrella.\n\n9 new tests:\n* Checkpoint.Core.Tests/Api/CheckpointApiClientPayloadTests (7) —\n  per-enum wire assertions + null-omitted + endpoint URL.\n* Checkpoint.AspNetCore.Tests/Middleware (2) — bot and AI-agent\n  DetectionClass pass-through from detector to DetectionEvent.\n\nFollow-up (out of this release): harden the server fallback at\napps/web/app/api/v1/log-detection/route.ts so older clients that still\nomit the field are classified via UA pattern instead of defaulted to\nai_agent.\n\n0.3.1 — Block/Instruct response no longer leaks bad McpServerUrl\n\nFollow-up to 0.3.0. The redirect branches in 0.3.0 correctly refused to\n302 to a relative or non-http(s) McpServerUrl, but the block-response\nbody (PlainText \"MCP Server: /connect/x\" line, JSON \"mcp_server\" field)\nand Instruct response still propagated the bad URL to the agent. An LLM\nfetcher would relay the broken instructions to the user verbatim.\n\nChanges:\n* WritePlainTextResponseAsync (AspNetCore): McpServerUrl is gated through\n  UrlHelpers.IsAbsoluteHttpUrl — relative / non-http values are dropped\n  from the body and the agent gets the \"contact site owner\" fallback.\n* WriteJsonResponseAsync (AspNetCore) + WriteBlockedJsonResponse (AspNet):\n  the \"mcp_server\" / \"mcpServer\" field is omitted (along with the\n  \"instructions\" sentence) when McpServerUrl is not an absolute http(s)\n  URL.\n* WriteJsonResponseAsync + WriteInstructResponseAsync (AspNetCore):\n  switched from WriteAsJsonAsync to JsonSerializer.Serialize +\n  response.WriteAsync. The streaming serializer requires the response\n  body PipeWriter to implement UnflushedBytes, which TestServer's pipe\n  writer doesn't — every JSON-mode test in the AspNetCore suite was\n  silently throwing into FailOpen and falling through to the route\n  handler. Buffering matches what the AspNet adapter already does, and\n  resolves the four pre-existing test failures inherited from earlier\n  releases.\n\n7 new tests in CheckpointMiddlewareTests covering Json/PlainText\nMcpServerUrl omission across path-relative, schemeless, protocol-relative,\njavascript:, and ftp:// inputs. AspNetCore suite now 20/20 green\n(was 9/13).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#repository",
+    "commit": "be223caf5c2167652dc0c48f2c000617677afed4",
+    "type": "git",
+    "url": "https://github.com/know-that-ai/agent-shield"
+  },
+  "verbatimVersion": "1.3.0",
+  "version": "1.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/net8.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/net8.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[8.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/net8.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/net8.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[8.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/net8.0/wasmtime",
+          "@type": "PackageDependency",
+          "id": "Wasmtime",
+          "range": "[22.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/.netstandard2.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/.netstandard2.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[8.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/.netstandard2.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/.netstandard2.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/.netstandard2.0/system.net.http.json",
+          "@type": "PackageDependency",
+          "id": "System.Net.Http.Json",
+          "range": "[8.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#dependencygroup/.netstandard2.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[8.0.5, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#Checkpoint.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 10959,
+      "fullName": "Checkpoint.Core.nuspec",
+      "length": 27539,
+      "name": "Checkpoint.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#lib/net8.0/Checkpoint.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1316826,
+      "fullName": "lib/net8.0/Checkpoint.Core.dll",
+      "length": 3396608,
+      "name": "Checkpoint.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#lib/netstandard2.0/Checkpoint.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1322558,
+      "fullName": "lib/netstandard2.0/Checkpoint.Core.dll",
+      "length": 3412480,
+      "name": "Checkpoint.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#runtimes/win-x64/native/wasmtime.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4122777,
+      "fullName": "runtimes/win-x64/native/wasmtime.dll",
+      "length": 10439680,
+      "name": "wasmtime.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#build/Checkpoint.Core.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 892,
+      "fullName": "build/Checkpoint.Core.targets",
+      "length": 1704,
+      "name": "Checkpoint.Core.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#buildTransitive/Checkpoint.Core.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 892,
+      "fullName": "buildTransitive/Checkpoint.Core.targets",
+      "length": 1704,
+      "name": "Checkpoint.Core.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#build/net462/Checkpoint.Core.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 952,
+      "fullName": "build/net462/Checkpoint.Core.targets",
+      "length": 1914,
+      "name": "Checkpoint.Core.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#buildTransitive/net462/Checkpoint.Core.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 952,
+      "fullName": "buildTransitive/net462/Checkpoint.Core.targets",
+      "length": 1914,
+      "name": "Checkpoint.Core.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.05.34.59/checkpoint.core.1.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "ai",
+    "agent",
+    "detection",
+    "security",
+    "bot",
+    "middleware",
+    "checkpoint",
+    "agentshield"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

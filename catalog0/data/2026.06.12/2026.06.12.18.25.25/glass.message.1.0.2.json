@@ -1,0 +1,220 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Gehan Fernando",
+  "catalog:commitId": "9cd5fd8f-f2af-44be-969c-dfe2f1efb4b9",
+  "catalog:commitTimeStamp": "2026-06-12T18:25:25.6451265Z",
+  "copyright": "Copyright © 2026 Gehan Fernando",
+  "created": "2026-06-12T18:22:07.477Z",
+  "description": "Next-level modern replacement for MessageBox on Windows — Mica/Acrylic backdrop, auto dark/light theme, animations, toast notifications, async API, inline input, countdown, expandable detail, progress bar, RTL, and more. Drop-in compatible: GlassMessage.Show(...) compiles as-is.",
+  "frameworkAssemblyGroup": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#frameworkassemblygroup/.netframework4.8.1",
+    "assembly": [
+      "System.Core",
+      "System",
+      "System.Drawing",
+      "System.Windows.Forms"
+    ],
+    "targetFramework": ".NETFramework4.8.1"
+  },
+  "id": "Glass.Message",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-12T18:25:17.457Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "wi85xupVqND+llU3crGW8+qK+MYFAvSKMe972QZWyd2F1IQ9NEkBkGBrBdyGmsY4Kkm7Y5ffyEDbr/gY5qgTKQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 184336,
+  "projectUrl": "https://github.com/gcfernando/glass",
+  "published": "2026-06-12T18:22:07.477Z",
+  "readmeFile": "README.nuget.md",
+  "releaseNotes": "### Added\n\n- **`showCapsLockHint` parameter on `InputPassword()`** — opt out of the Caps Lock\n  badge per dialog with `.InputPassword(\"placeholder\", showCapsLockHint: false)`.\n  The hint stays on by default; suppress it for PIN entry, kiosk flows, or anywhere\n  uppercase input is intentional. Showcased by the new **Password — Caps Lock Hint\n  Off** demo (`Demo_PasswordNoCapsLock`).\n\n### Fixed\n\n#### Thread safety & concurrency\n- **Volatile static properties** — `DefaultTheme`, `UseRoundedCorners`, and\n  `PlaySystemSounds` in `GlassMessage` now use `volatile` backing fields, ensuring\n  writes from any thread are immediately visible on all architectures including ARM64.\n- **CancellationToken callback crash** (C1) — the `ct.Register` callback in\n  `ShowModeless` now wraps `BeginInvoke` in a `try/catch` for\n  `InvalidOperationException` / `ObjectDisposedException`, preventing an unhandled\n  exception that could crash the process when the dialog's handle is destroyed\n  concurrently with cancellation.\n- **Hanging async tasks on shutdown** (C2, C7) — `GlassMessage.ShowModeless` and\n  `GlassToast.ShowAsync` now subscribe to the form's `Disposed` event and call\n  `TrySetResult` as a safety net, guaranteeing that every awaited task completes even\n  when `Application.Exit` disposes forms without firing `FormClosed`.\n- **Concurrent GDI+ bitmap access** (C5) — system icons loaded from\n  `SystemIcons`/`MessageBoxIcon` are now cloned per-dialog via a new `ResolveIcon`\n  helper. The `_ownsIconBitmap` flag ensures clones are disposed while shared bitmaps\n  are left alone.\n- **Toast options mutation** — `GlassToast.Show/ShowAsync` resolved the theme into a\n  local variable instead of writing back into the caller's `GlassToastOptions`, so\n  the same options object can be reused safely.\n- **Toast race: form added to active list before handlers registered** — `FormClosed`\n  and `Disposed` are now registered before `_active.Add`, eliminating the window\n  where a fast OS `WM_CLOSE` could leave a ghost entry in the stack.\n- **Toast `OnClick` exception suppressing dismiss** — wrapped in `try/finally` so a\n  throwing callback never prevents the toast from closing.\n\n#### Animation & DPI\n- **Scale animation close-button hit-test** (#5) — `_closeBtnBounds` is now\n  recalculated after every scale frame in `ApplyAnimationFrame`, so the × button\n  remains clickable throughout the opening/closing animation.\n- **DPI change corrupting animation state** (#7) — `Rebuild()` now resets all\n  animation flags (`_scaleActive`, `_slideActive`, `_fadingOut`) and disposes the\n  fade timer before rebuilding, preventing leftover state from corrupting the next\n  animation cycle.\n- **Wrong initial DPI scale** — the dialog now reads the DPI of the monitor under\n  the cursor at construction time via `GetDpiForMonitor` + `MonitorFromPoint`\n  P/Invokes instead of using the primary monitor's device context.\n- **Width cap using primary monitor** — `MeasureForm` now accepts a `targetScreen`\n  parameter and caps width against the target screen's working area, not the primary.\n\n#### GDI+ resource management\n- **Per-frame pen allocation** (#11) — the input border pen is now pre-allocated\n  once in the constructor as `_inputBorderPen` and disposed in `Dispose()`, avoiding\n  GDI+ handle churn on every `OnPaint` call.\n- **Preset theme double-instantiation** (#18) — `GlassTheme.Dark` is now the same\n  object reference as `GlassTheme.Default`, halving font allocations for the default\n  case and making equality checks (`Dark == Default`) correct.\n\n#### Drag behaviour\n- **Dialog draggable off-screen** (#3) — `OnMouseMove` now calls `ClampToScreen`\n  after each drag update, keeping the title bar (and drag handle) always reachable.\n\n#### API correctness\n- **`GlassResult` null implicit conversion** (#19) — the `implicit operator\n  DialogResult` now uses `r?.Button ?? DialogResult.None` instead of `r.Button`,\n  preventing a `NullReferenceException` when the result is assigned from `null`.\n- **`InputDropdown` null argument crash** (#1) — a `null` `items` enumerable no\n  longer throws; an empty dropdown is created instead.\n- **`EM_SETCUEBANNER` wParam** — the `wParam` for the `EM_SETCUEBANNER` message in\n  `PlaceholderTextBox` is now `1u` (redraw even if focused), matching the MSDN spec\n  and ensuring placeholder text renders reliably.\n- **`GlassDialogConfig` property access modifiers** (#17) — all properties on the\n  already-`internal` `GlassDialogConfig` class are now explicitly `internal`,\n  removing misleading `public` modifiers that had no external effect but implied\n  wider accessibility than intended.\n\n#### Docs & XML\n- **`Buttons(params string[])` XML doc** (#4) — updated to document the 3-label\n  maximum and explain that labels beyond the third are silently ignored.\n\n#### Tests\n- Added `[CollectionDefinition(\"GlassStaticState\")]` and applied\n  `[Collection(\"GlassStaticState\")]` to `GlassBuilderTests` and\n  `GlassMessageStaticTests`, serialising the classes that mutate global static state\n  so they cannot interfere with each other under xUnit parallel execution.\n- Added `CalcToastLocationTests` — pure coordinate-math tests for all six\n  `ToastPosition` values plus stack-offset assertions.\n- Added `V102RegressionTests` — targeted regression tests for the `GlassResult` null\n  conversion, `Dark == Default` identity, and `InputDropdown(null)` safety.\n- Updated xUnit packages: `xunit` and `xunit.runner.visualstudio` → **2.9.3**,\n  `Microsoft.NET.Test.Sdk` → **17.12.0**.\n\n#### Progress controller\n- Documented the intentional fire-and-forget design of `BeginInvoke` in\n  `GlassProgressController.Marshal` — `SetValue`/`SetMessage` are best-effort UI\n  refreshes that must not block worker threads; `Completion` remains the correct\n  await point.\n\n#### Marquee timer\n- Halved marquee progress timer pressure: interval 16 ms → 33 ms (≈ 30 fps),\n  phase step scaled proportionally so visual speed is unchanged.\n\n---",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#repository",
+    "commit": "e1af94dbd1689ca2d9083b724b89e1ba218bccd8",
+    "type": "git",
+    "url": "https://github.com/gcfernando/glass"
+  },
+  "title": "Glass.Message",
+  "verbatimVersion": "1.0.2",
+  "version": "1.0.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#dependencygroup/net10.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#dependencygroup/.netframework4.8.1",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#dependencygroup/net8.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#dependencygroup/net9.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0-windows7.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#Glass.Message.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3732,
+      "fullName": "Glass.Message.nuspec",
+      "length": 8524,
+      "name": "Glass.Message.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#README.nuget.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3360,
+      "fullName": "README.nuget.md",
+      "length": 8345,
+      "name": "README.nuget.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#lib/net10.0-windows7.0/Glass.Message.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34614,
+      "fullName": "lib/net10.0-windows7.0/Glass.Message.dll",
+      "length": 74752,
+      "name": "Glass.Message.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#lib/net10.0-windows7.0/Glass.Message.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5877,
+      "fullName": "lib/net10.0-windows7.0/Glass.Message.xml",
+      "length": 27111,
+      "name": "Glass.Message.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#lib/net481/Glass.Message.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34106,
+      "fullName": "lib/net481/Glass.Message.dll",
+      "length": 73216,
+      "name": "Glass.Message.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#lib/net481/Glass.Message.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5877,
+      "fullName": "lib/net481/Glass.Message.xml",
+      "length": 27111,
+      "name": "Glass.Message.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#lib/net8.0-windows7.0/Glass.Message.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34282,
+      "fullName": "lib/net8.0-windows7.0/Glass.Message.dll",
+      "length": 73728,
+      "name": "Glass.Message.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#lib/net8.0-windows7.0/Glass.Message.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5877,
+      "fullName": "lib/net8.0-windows7.0/Glass.Message.xml",
+      "length": 27111,
+      "name": "Glass.Message.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#lib/net9.0-windows7.0/Glass.Message.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34652,
+      "fullName": "lib/net9.0-windows7.0/Glass.Message.dll",
+      "length": 74752,
+      "name": "Glass.Message.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#lib/net9.0-windows7.0/Glass.Message.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5877,
+      "fullName": "lib/net9.0-windows7.0/Glass.Message.xml",
+      "length": 27111,
+      "name": "Glass.Message.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.12.18.25.25/glass.message.1.0.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "messagebox",
+    "dialog",
+    "winforms",
+    "windows11",
+    "windows10",
+    "fluent",
+    "glass",
+    "mica",
+    "acrylic",
+    "toast",
+    "notification",
+    "dark-mode",
+    "dpi-aware"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

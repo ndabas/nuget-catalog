@@ -1,0 +1,224 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Gehan Fernando",
+  "catalog:commitId": "27abc298-0700-4258-99e1-384e2a57bf5c",
+  "catalog:commitTimeStamp": "2026-06-15T16:15:01.6719915Z",
+  "copyright": "Copyright © Gehan Fernando",
+  "created": "2026-06-15T16:11:05.627Z",
+  "description": "Zero-allocation, high-performance logging extensions for Microsoft.Extensions.Logging. Strongly-typed overloads that eliminate the params object[] allocation and allocate nothing when a level is disabled.",
+  "id": "Nilog",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-15T16:14:44.167Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "HRqhkjiKVDHbQJk4myZmctMcgNHbJYYvpd9X9StzKHOEEsRPh/gMuSYXar7ZchL+IumeLSF5lnI/WV9xOP3BXA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 83529,
+  "projectUrl": "https://github.com/gcfernando/Nilog",
+  "published": "2026-06-15T16:11:05.627Z",
+  "readmeFile": "README.nuget.md",
+  "releaseNotes": "### Added\n\n- **Typed four-argument overloads** (`WriteTrace`, `WriteDebug`, `WriteInformation`,\n  `WriteWarning`, `WriteError`, `WriteCritical`, and `Nilogger.Log` — all now accept a\n  `<T0, T1, T2, T3>` form). The zero-array, zero-boxing disabled path now covers **0–4 typed\n  arguments**, not just 0–3. A disabled call with four args is **479× faster** than the\n  equivalent Microsoft call and allocates **0 bytes**; an enabled call is **41% faster** with\n  **29% less allocation**.\n\n  Internally this required:\n  - A new `LogState<T0, T1, T2, T3>` readonly struct implementing\n    `IReadOnlyList<KeyValuePair<string, object?>>` (indices 0–3 = arguments, index 4 =\n    `{OriginalFormat}`), mirroring the existing 1–3-arg structs.\n  - A new `TemplateFormatter.Format(object, object, object, object)` overload.\n  - A private `Emit<T0,T1,T2,T3>` helper that boxes arguments only on the enabled path.\n\n- **Typed no-exception overloads for `WriteError` and `WriteCritical`** (1–4 arguments).\n  `logger.WriteError(\"Validation failed for {UserId}\", userId)` now resolves to a\n  zero-allocation strongly-typed overload instead of falling back to `params object[]`.\n  Same applies to `WriteCritical`.\n\n  Overload resolution is controlled with C# 13's `[OverloadResolutionPriority]` attribute:\n\n  | Overload | Priority |\n  |---|---|\n  | `WriteError(message, Exception)` and with-exception typed variants | 0 (default) |\n  | `WriteError<T0>(message, T0)` — typed no-exception | -1 |\n  | `WriteError(message, params object[])` — params fallback | -2 |\n\n  A polyfill for `OverloadResolutionPriorityAttribute` is included for .NET 8 targets\n  (the C# 13 compiler recognises it by full name regardless of assembly).\n\n- **`Nilogger.MaxTemplateCacheEntries`** — a configurable ceiling on the number of parsed\n  templates held in the `ConcurrentDictionary` cache (default: 10,000). Once the limit is\n  reached, new templates are still parsed correctly on every call but are **not stored**, so\n  callers who accidentally log interpolated strings (e.g. `$\"User {id} logged in\"`) can no\n  longer grow the cache without bound. A one-time `Debug.WriteLine` warning fires on the\n  first overflow. The overflow check happens before `GetOrAdd`, so no dictionary entry is\n  created and immediately evicted.\n\n  ```csharp\n  // Tighten the limit for memory-constrained environments (optional):\n  Nilogger.MaxTemplateCacheEntries = 1_000;\n  ```\n\n- **`FourArgTests.cs`** — 12 new xUnit tests covering: render correctness for all six levels\n  at four arguments, disabled-path zero-allocation CI regression guard\n  (`GC.GetAllocatedBytesForCurrentThread` over 10,000 calls), structured property names and\n  `{OriginalFormat}` for the 4-arg path, exception attachment for `WriteError` /\n  `WriteCritical` with and without an exception, and `MaxTemplateCacheEntries` overflow\n  behaviour (still renders correctly beyond the limit).\n\n### Fixed\n\n- **No-arg enabled path was 4.8× slower than Microsoft** (`WriteInformation(\"text\")` and all\n  zero-argument overloads). Root cause: all no-arg log calls were routed through\n  `LoggerMessage.Define<string>(level, id, \"{Message}\")` which internally called\n  `string.Format(\"{Message}\", message)` on every enabled call — copying the string for no\n  reason and allocating 56 B each time. Replaced with the identity formatter\n  `static (s, _) => s` — the same approach Microsoft uses internally. No intermediate string\n  copy, no allocation.\n\n- **Exception formatter called `GetType()` twice per exception line.** Both\n  `FormatExceptionMessageInternal` and `AppendInnerExceptionDetails` evaluated\n  `ex.GetType().FullName ?? ex.GetType().Name` in a single expression, firing two virtual\n  dispatches when `FullName` was non-null. Cached to a local `Type` variable in both methods.\n\n- **`ScopeWrapper.ToString()` and `SmallScopeWrapper.ToString()` allocated a fresh\n  `StringBuilder` on every call.** Text sinks invoke `ToString()` on each scope per log entry;\n  both classes were doing `new StringBuilder(…)` each time. Both now borrow from the\n  process-wide `_sbPool` (`ObjectPool<StringBuilder>`) in a try/finally block.\n\n### Changed\n\n- **`FlushAsync` simplified to a true no-op.** The method now returns `Task.CompletedTask`\n  directly — no `async` keyword, no state machine, no `Task.Yield`, no cancellation check.\n  Since there is no buffered sink today there is nothing to flush, and the overhead of\n  `Task.Yield` was misleading. Measured cost: **~0.01 ns / 0 B** (below BDN noise floor).\n  `FlushAsyncCore` was removed. Any code that awaited `FlushAsync()` at shutdown continues\n  to work identically; it simply returns synchronously.\n\n- **Typed no-exception `WriteError` / `WriteCritical` params fallbacks** annotated\n  `[OverloadResolutionPriority(-2)]` so they are only selected when no typed overload applies.\n  Existing callers with 5+ arguments are unaffected.\n\n- **Benchmark suite updated** — class 5 renamed to `FourArgBenchmarks` (4-arg typed path),\n  new class 5b `ParamsPathBenchmarks` (5-arg true params fallback), class 6\n  `DisabledAllArgsBenchmarks` extended with 4-arg typed and 5-arg params rows, class 10\n  `RuntimeLevelBenchmarks` extended with `Log<T0,T1,T2,T3>` enabled/disabled cases, class 11\n  `FlushBenchmarks` simplified to non-async `Task`-returning methods with a `Baseline`,\n  class 14 `AllocationStressBenchmarks` extended with 4-arg disabled (0 B) and enabled rows.\n\n- **README** updated with expert-reviewed improvements: `## ⚠️ Limitations` section (honest\n  accounting of where allocation-freedom stops), `## 🏭 Production readiness` table, ASCII bar\n  chart updated with the 4-arg row, stress-test table extended, conservative benchmark wording\n  (\"in this benchmark, X was Y× faster\"), FlushAsync description updated to \"returns\n  `Task.CompletedTask` directly\", Best Practices table updated to ≤ 4 named holes, API reference\n  extended with 4-arg overloads and `MaxTemplateCacheEntries`, Roadmap updated.\n\n- **NuGet README** (`README.nuget.md`) rewritten with all new benchmark figures, `Limitations`\n  section, `Production readiness` table, and 4-arg overload documentation.\n\n- **Test suite expanded to 132 tests** (was 120) across net8.0, net9.0, and net10.0.\n\n### Performance\n\nBenchmarks run on .NET 10.0.8, Intel Core i7-13850HX @ 2.10 GHz, BenchmarkDotNet v0.15.8\n(ShortRun: 3 warmup + 3 measurement iterations, Server GC):\n\n| Path | v1.0.0 | v1.0.1 | Δ |\n|------|--------|--------|---|\n| No-arg enabled — `WriteInformation(\"text\")` | 29 ns / 56 B | **4.14 ns / 0 B** | **7× faster, zero alloc** |\n| Feature C — `WriteError(\"msg\", ex)` no args | 36 ns / 72 B | **3.95 ns / 0 B** | **9× faster, zero alloc** |\n| `Nilogger.Log(…)` 0-arg enabled | 27 ns / 40 B | **4.46 ns / 0 B** | **6× faster, zero alloc** |\n| `FlushAsync()` | 1,280 ns / 328 B | **~0.01 ns / 0 B** | **>100,000× faster, zero alloc** |\n| `WriteErrorException(ex)` basic report | 182 ns / 992 B | **99.5 ns / 496 B** | **1.8× faster, 50% less alloc** |\n| **4-arg disabled — `WriteInformation(\"{A}{B}{C}{D}\", …)`** | n/a (params, 113 ns / 192 B) | **0.24 ns / 0 B** | **479× faster vs Microsoft** |\n| **4-arg enabled — `WriteInformation(\"{A}{B}{C}{D}\", …)`** | n/a (params, 122 ns / 192 B) | **71.8 ns / 136 B** | **41% faster, 29% less alloc** |\n\nThe 1–3-arg disabled and enabled paths are unchanged from v1.0.0 (they were already correct).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#repository",
+    "commit": "17b80892f9a516b26f6efcaccf622e67df68f0f0",
+    "type": "git",
+    "url": "https://github.com/gcfernando/Nilog"
+  },
+  "verbatimVersion": "1.0.1",
+  "version": "1.0.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.9, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net10.0/microsoft.extensions.objectpool",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ObjectPool",
+          "range": "[10.0.9, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net8.0/microsoft.extensions.objectpool",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ObjectPool",
+          "range": "[8.0.28, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net9.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[9.0.17, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#dependencygroup/net9.0/microsoft.extensions.objectpool",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ObjectPool",
+          "range": "[9.0.17, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#Nilog.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3994,
+      "fullName": "Nilog.nuspec",
+      "length": 9342,
+      "name": "Nilog.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#README.nuget.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5420,
+      "fullName": "README.nuget.md",
+      "length": 14826,
+      "name": "README.nuget.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#lib/net10.0/Nilog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14841,
+      "fullName": "lib/net10.0/Nilog.dll",
+      "length": 34816,
+      "name": "Nilog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#lib/net10.0/Nilog.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4724,
+      "fullName": "lib/net10.0/Nilog.xml",
+      "length": 61376,
+      "name": "Nilog.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#lib/net8.0/Nilog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14725,
+      "fullName": "lib/net8.0/Nilog.dll",
+      "length": 34816,
+      "name": "Nilog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#lib/net8.0/Nilog.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4724,
+      "fullName": "lib/net8.0/Nilog.xml",
+      "length": 61376,
+      "name": "Nilog.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#lib/net9.0/Nilog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14908,
+      "fullName": "lib/net9.0/Nilog.dll",
+      "length": 34816,
+      "name": "Nilog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#lib/net9.0/Nilog.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4724,
+      "fullName": "lib/net9.0/Nilog.xml",
+      "length": 61376,
+      "name": "Nilog.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.16.15.01/nilog.1.0.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "logging",
+    "performance",
+    "high-performance",
+    "zero-allocation",
+    "ilogger",
+    "structured-logging",
+    "loggermessage"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

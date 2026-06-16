@@ -1,0 +1,162 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Lumoin and contributors",
+  "catalog:commitId": "22e3623d-b17f-4a36-a748-1ff976e1a9dd",
+  "catalog:commitTimeStamp": "2026-06-15T22:31:04.3262957Z",
+  "copyright": "Lumoin",
+  "created": "2026-06-15T22:25:44.11Z",
+  "description": "System.Text.Json serialization adapters for Lumoin.Verisync message channels. AOT-safe via source-generated JsonTypeInfo.",
+  "iconFile": "resources/lumoin-verisync-nuget-logo.png",
+  "id": "Lumoin.Verisync.Json",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-15T22:30:38.623Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "hLmEU+pN7xPYNoWRTftT79WBhUnDZp3Y7yCYi5FL4IOqG+/Fl96ejKoXEtvW6KD3GRH1vd73T2iIKsoERWHglQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 79123,
+  "projectUrl": "https://github.com/lumoin/Lumoin.Verisync/",
+  "published": "2026-06-15T22:25:44.11Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Changes since version 0.0.2\n\nChanged:\n- Deserialization fails closed under one type across encodings: every `DeserializeMessageDelegate` the\n  JSON and CBOR codecs build now throws a single new `MessageDeserializationException` (in\n  `Lumoin.Verisync.Core`, documented on the delegate), with the encoding-native cause — a `JsonException`,\n  a `CborContentException`, a wrapped argument exception — preserved as its inner exception, so a channel\n  consumer catches one type whether the wire is JSON or CBOR instead of an encoding-specific exception. The\n  conversion is a per-assembly guard wrapping every deserializer factory; serializers are unchanged and\n  still throw their native exceptions, and a factory's argument-null guard stays at construction time. This\n  supersedes the surfaced exception type in the `JsonException` entries below — those now describe the inner\n  cause a handler can still read off `InnerException`.\n- The reconciliation decoder peels in near-linear time. The previous decode re-scanned the whole\n  decoded set on every absorbed symbol and re-scanned all cells to a fixpoint on every absorb —\n  Θ(d²) in the difference size, so throughput collapsed as differences grew. It now applies\n  already-decoded items to incoming cells through an incremental cursor heap (mirroring the encoder)\n  and finds newly pure cells through a work-list seeded by each modified cell. The decoded set, the\n  completion point, the soundness rules (peel only pure cells, stall on an already-decoded sum, never\n  un-decode), and the wire format are unchanged — verified against the full law and vector suites and\n  an independent adversarial model. Measured on the throughput soak: a 16,384-item difference that\n  took ~54 s now reconciles in ~0.2 s, and per-symbol throughput rises with the difference instead of\n  falling.\n- The encoder and decoder store coded symbols in a single flat, contiguous `ReconciliationCellBuffer`\n  rather than parallel lists of per-cell arrays, so the XOR fold walks contiguous memory and the\n  per-cell allocation is gone; the two duplicated content-keyed-bytes helpers are unified into one\n  `ContentAddress`. `ReconciliationSymbol` gains an additive `ReadOnlySpan<byte>` constructor so a\n  symbol can be snapshotted from a cell in a single copy. Behavior, wire format, and the pinned\n  vectors are unchanged (the full suite is the oracle); the gain is locality and modest decode\n  throughput. Steady-state per-session allocation is unchanged — it is dominated by per-item\n  encoding work, not cell storage — so a pooled cell buffer was measured and deliberately not taken.\n- The encoder and decoder reuse their walk cursors instead of reallocating one per fold. The cursors\n  that carry pending item contributions through the produce/peel priority queues were reference-type\n  records cloned with a `with` expression on every re-enqueue — an object per fold, which the\n  allocation soak identified as the dominant per-session allocation. They are now mutable structs\n  stored inline in the queue and advanced in place, and the encoder cursor carries its checksum as a\n  value re-materialized at fold time rather than a copied array. Behavior is byte-identical (the full\n  suite plus an independent adversarial verification confirm the produced symbols, decoded set, and\n  completion point are unchanged); the throughput soak shows steady-state per-session allocation down\n  about 47% (≈287 KB → ≈151 KB) with the live heap still flat.\n- The reconciliation encoder, decoder, and `AntiEntropySession` are now `IDisposable` and rent their\n  coded-cell backing from a caller-supplied `MemoryPool<byte>` — a tracked exact-size pool in\n  production — so the kernel's largest scoped buffer is accountable through the pool's rental metrics\n  rather than living in a naked array. New pool-bearing constructor overloads\n  thread the pool and a capacity hint (the session pre-sizes from its projected snapshot); a `null`\n  pool keeps the standalone, untracked heap-backed path, so direct construction is non-breaking. The\n  session disposes the encoder and decoder it owns but never the injected pool. Pooled segments are\n  cleared on rent — a pool does not zero recycled memory — preserving the all-zero-fresh-cell contract\n  the fold relies on, and the paired rent is exception-safe so a failed second rent returns the first\n  rather than leaking it. A `ReconciliationSymbol` stays an owned-copy value: the documented exception\n  for bytes that escape the kernel to callers and the wire. A new accountability test asserts the\n  rental ledger balances to zero after a full session (no leaked rentals), and a soak over two thousand\n  pooled sessions confirms it at scale.\n\nSecurity:\n- The reconciliation envelope JSON deserializer now fails closed as `JsonException` on every\n  present-but-malformed field, closing a contract-stability gap found by an adversarial audit of the\n  tier: a JSON-null hex field (which had leaked `ArgumentNullException` from the hex decode), a\n  wrong-kind value where a string or hex field was expected (`InvalidOperationException`), a\n  fractional or `Int32`-overflowing integer (`FormatException`), and a non-object/non-array carrier\n  where the shape required one. Every `JsonElement` accessor is now kind-guarded before use, so a\n  hostile or buggy peer can no longer drive the verifying deserializer to throw an exception type the\n  contract promises it never will — a handler catching `JsonException` to treat a frame as a protocol\n  fault sees the fault it expects. A structurally missing required property fails closed as well: every\n  per-field read across the JSON codecs (reconciliation, CRDT state, Raft, log commitment, consensus) now\n  goes through a `RequireProperty` guard that throws rather than leaking the framework's\n  `KeyNotFoundException`.\n\nAdded:\n- Remove-aware (dot-cloud) reconciliation atop the anti-entropy session: an `OrSet` /\n  `DottedVersionVectorSet` reconciles its observed removes as well as its adds, with reconcile-then-apply\n  proven equal to `DottedVersionVectorSet.Merge` while bytes on the wire stay proportional to the\n  divergence. The kernel, encoder, decoder, and symbol stay an unchanged generic digest-set engine;\n  remove-awareness is host-side. The session takes an optional pinned local `VectorClockState`; the\n  initiator projects present `(dot, value)` entries to digests through a new\n  `DottedReconciliationProjection`, decodes the symmetric difference, and classifies each decoded dot\n  against the peer's exchanged causal context by the merge rule — a held dot the peer's context covers is\n  a local drop, an absent dot the initiator's own pre-session context covers is pushed as a drop rather\n  than re-added (the resurrection guard). The genuinely new wire surface is a whole-context exchange\n  (`ReconciliationContext`, shipped whole and never reconciled) and a remove push (`ReconciliationDrop`,\n  dots only); a `null` local context keeps the add-only path byte-identical. Proven against the merge\n  oracle across add-only, remove-only, and mixed divergence including the resurrection case, and end to\n  end over a real localhost socket; the log-plane anti-equivocation seal chain is now proven over a socket\n  as well.\n- SIMD acceleration for the reconciliation kernel's hot loops, phase 4 of the anti-entropy tier:\n  the byte-wise XOR folds and neutrality scans behind encoding, peeling, and symbol combination\n  now route through `ReconciliationXor`, a facade over per-width vector backends\n  (`Vector128`/`Vector256`/`Vector512` with a scalar reference) selected by a dispatch that the\n  JIT folds to a direct call. The width tiers are cross-platform — they lower to SSE/AVX2/AVX-512,\n  NEON, and WASM SIMD alike — and the wire contract is provably unchanged: every backend is pinned\n  byte-identical to the scalar reference across edge lengths, and a stream-level agreement test\n  re-derives the encoder's emitted symbols from an independent scalar fold. The benchmarks project\n  gains XOR and encoder throughput benchmarks plus `--reconciliation-overhead`, a seed-pinned\n  measurement of bytes-on-wire against the information-theoretic floor and full-state/hash-list\n  anchor rows (symbols per difference converge to ~1.37x at a thousand-item divergence,\n  three orders of magnitude under either anchor at small differences).\n- `AntiEntropySession`, phase 3 of the anti-entropy tier: the host-side runner for one\n  point-to-point reconciliation session, in the `RaftRunner` production shape — all inbound work\n  flows through a single-consumer queue, so every state change and every outbound send happens on\n  one loop and transport writes are serialized by construction. A session pins one set version (the\n  item snapshot is copied and encoded at construction); the initiator decodes against its own\n  lockstep encoder, signals done, and classifies the difference through\n  `ResolveReconciliationDifferenceDelegate` into fetches and pushes; the responder streams batches\n  only on host `TriggerBatchAsync` calls (liveness stays external — no timers, no entropy), serves\n  fetches through `ServeReconciliationFetchDelegate` with exact-coverage verification, and applies\n  elements through `ApplyReconciliationElementsDelegate`. Every protocol violation — mismatched\n  offer, out-of-role frame, stream gap, partial fetch answer — fails the session closed.\n  `ReconciliationEnvelope` gains the same exactly-one-payload dispatch guard as the Raft envelope.\n  Proven in memory and over a real localhost socket: convergence of diverged observed-remove sets,\n  then quiescence on the first symbol of a second session. Element-level reconciliation is add-only at\n  this base tier; remove-aware reconciliation over dot-cloud causal contexts is added separately in this\n  release — see the dot-cloud reconciliation entry above.\n- The reconciliation wire layer, phase 2 of the anti-entropy tier: a `RaftEnvelope`-style\n  one-of-five message family (`ReconciliationEnvelope` carrying offer, symbol batch, done, fetch,\n  or elements) and `ReconciliationJson` codecs following the established fail-closed conventions.\n  The deserializer is verifying: it pins the local `ReconciliationContract` and rejects an offer\n  that does not match it — so a contract mismatch throws before any symbol is absorbed — and\n  validates every hex field's width against that contract. The offer never carries key bytes;\n  it carries a key check (a PRF tag over a fixed public input) so peers with differing checksum\n  keys abort up front instead of failing to peel. Proven end to end over a real localhost socket,\n  plain and padded framing: two observed-remove sets pin contracts both ways, stream symbol\n  batches, decode the difference, exchange the missing elements by digest, converge, and a second\n  session completes on its first symbol with nothing decoded.\n- The rateless set-reconciliation kernel, phase 1 of the anti-entropy tier: a replica encodes a set\n  of fixed-width items into an unbounded coded-symbol stream (`ReconciliationEncoder`) whose\n  symbol-wise XOR with a peer's stream is the stream of their symmetric difference, recovered by a\n  peeling decoder (`ReconciliationDecoder`) from a prefix proportional to the difference size —\n  neither side ever sizes the divergence, and an equal-set reconciliation completes on the first\n  symbol. The encoding is a group homomorphism from (sets, symmetric difference) to (streams, XOR),\n  property-tested as such alongside history erasure, decode exactness, quiescence, monotone\n  knowledge, and bit-flip soundness; the index walk and SipHash-2-4 checksum primitives are pinned\n  by byte-precise test vectors. `ReconciliationContract` pins what peers must agree on before\n  subtraction is meaningful (item domain, item width, checksum width and key — checksum width\n  bounds the masquerade probability, and a secret key turns a poisoned stream into\n  detected-and-aborted); injectivity enforcement is local-only\n  (`ReconciliationInjectivityEnforcement`), and `ProjectReconciliationItemsDelegate` is the seam\n  that projects a pinned state snapshot to reconcilable items. Wire codecs, the session runner, and\n  SIMD XOR backends are later phases.\n\nSee full changelog at https://github.com/lumoin/Verisync/blob/main/CHANGELOG.md.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#repository",
+    "commit": "beaeab84a88dd235bf45bbb244c22d55ab44279c",
+    "type": "git",
+    "url": "https://github.com/lumoin/Lumoin.Verisync"
+  },
+  "verbatimVersion": "0.0.3",
+  "version": "0.0.3",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#dependencygroup/net10.0/lumoin.verisync.core",
+          "@type": "PackageDependency",
+          "id": "Lumoin.Verisync.Core",
+          "range": "[0.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#dependencygroup/net10.0/lumoin.base",
+          "@type": "PackageDependency",
+          "id": "Lumoin.Base",
+          "range": "[0.0.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#Lumoin.Verisync.Json.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5684,
+      "fullName": "Lumoin.Verisync.Json.nuspec",
+      "length": 13518,
+      "name": "Lumoin.Verisync.Json.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3287,
+      "fullName": "README.md",
+      "length": 7627,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#resources/lumoin-verisync-nuget-logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26617,
+      "fullName": "resources/lumoin-verisync-nuget-logo.png",
+      "length": 26635,
+      "name": "lumoin-verisync-nuget-logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 52,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#_manifest/spdx_2.2/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3264,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json",
+      "length": 27068,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#lib/net10.0/Lumoin.Verisync.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24890,
+      "fullName": "lib/net10.0/Lumoin.Verisync.Json.dll",
+      "length": 64512,
+      "name": "Lumoin.Verisync.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.15.22.31.04/lumoin.verisync.json.0.0.3.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

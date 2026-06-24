@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Peter John Casasola",
+  "catalog:commitId": "cd783cd5-3ac9-401a-bf57-c8f6020d68c8",
+  "catalog:commitTimeStamp": "2026-06-23T19:38:38.9218059Z",
+  "created": "2026-06-23T19:35:55.04Z",
+  "description": "AG Grid filter and sorting payload adapter for FlexQuery.NET — translates AG Grid filterModel and sortModel into canonical FlexQuery.NET query models.",
+  "iconFile": "logo.png",
+  "id": "FlexQuery.NET.Adapters.AgGrid",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-23T19:38:32.08Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "xI2RnBoLVfP3PsH9Zy/1CyQ/dm5q8fzNlu+RSJJeLJ+VAlojVdN5No3b0KhXOTretlQ60oXoSwmv/zoG1Xozbg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 94574,
+  "projectUrl": "https://github.com/peterjohncasasola/FlexQuery.NET",
+  "published": "2026-06-23T19:35:55.04Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# FlexQuery.NET v3.0.4 Release Notes\n\n**Release date:** 2026-06-24\n\n## Overview\n\nv3.0.4 closes the default projection governance gap, fixes a SelectTree governance bypass vulnerability, adds unified grouped sort validation across all providers, and provides a governance test coverage audit.\n\n**Governance:** When no explicit `Select` is specified, the system now injects a governed default projection instead of returning all entity fields. Introduces `DefaultProjectionRule`, wildcard expansion at injection time, `GovernanceValidator` startup checks, and role-based auto-projection. **Critical fix:** SelectTree projection paths are now recursively validated against all governance rules, closing a bypass that allowed blocked fields through tree-based query entry points.\n\n**Grouped Sort Validation:** All providers now share a centralized `GroupedSortValidator` that ensures grouped queries (GroupBy + Aggregates + Sort + Paging) produce valid SQL with deterministic ordering — removing invalid sorts, resolving aggregate field names to aliases, and injecting group-key fallbacks.\n\n**Critical Security Fix — SelectTree Governance Bypass:** `FieldAccessValidator` previously validated only `options.Select` (the flat field list). The `options.SelectTree` projection path — used by `JsonParser.Parse`, all adapter parsers (AG Grid, Kendo, OData), and the JQL/DSL parsers — was never inspected. Blocked fields (`SSN`, `Orders.Total`) could survive validation when projected through SelectTree, effectively bypassing all governance rules: `BlockedFields`, `AllowedFields`, `SelectableFields`, `RoleAllowedFields`, `FieldAccessResolver`, and `MaxFieldDepth`.\n\n---\n\n## What's New\n\n### 1. Default Projection Injection\n\n**Problem:** When clients sent a query without `$select` (or equivalent), the projection builder returned all entity fields regardless of governance configuration. This meant `AllowedFields`, `BlockedFields`, and `RoleAllowedFields` were effectively ignored for unprojected queries, leaking sensitive fields by default.\n\n**Fix:** A new `DefaultProjectionRule` runs first in the validation pipeline. When no explicit projection (`Select`, `SelectTree`, or `HasProjection()`) is present, it injects a default `Select` using the following priority:\n\n| Priority | Source | Example |\n|----------|--------|---------|\n| 1 | `SelectableFields` | `{ \"Id\", \"Name\", \"Email\" }` |\n| 2 | `RoleAllowedFields` (current role) | Admin → `{ \"Id\", \"Name\", \"Salary\" }` |\n| 3 | `AllowedFields` | `{ \"Id\", \"Name\", \"Email\" }` |\n| 4 | Entity metadata minus `BlockedFields` | `{ \"Id\", \"Name\", ... all scalar props }` |\n\nIf none of the above sources are configured, the rule skips injection (preserving the existing behavior of selecting all fields).\n\n**Effect:** Unprojected queries now automatically respect field governance — blocked fields are excluded, allowed fields are whitelisted, and role-based restrictions take effect by default.\n\n### 2. Wildcard Pattern Expansion\n\n`DefaultProjectionHelper.ExpandWildcardFields` expands wildcard patterns like `Orders.*` at injection time by recursively walking navigation properties on the target entity type via reflection.\n\n**Example:**\n\n```csharp\nSelectableFields = new HashSet<string> { \"Id\", \"Name\", \"Orders.*\" }\n```\n\nExpands to something like:\n\n```\n{ \"Id\", \"Name\", \"Orders.OrderId\", \"Orders.Total\", \"Orders.Status\", \"Orders.CreatedAt\" }\n```\n\nThis ensures wildcard-based governance rules are resolved eagerly, before the projection builder receives the field list.\n\n### 3. Non-Strict Re-Apply of Default Projection\n\nIn non-strict mode (`StrictFieldValidation = false`), if an explicit `Select` is provided but every field is removed by validation (e.g., the user selected fields not in `AllowedFields`), the default projection is re-injected automatically.\n\n**Before:** An empty `Select` after non-strict validation resulted in no projection.\n**After:** The system falls back to the governed default projection, ensuring the response is never empty or broken.\n\n### 4. Role-Based Auto-Projection\n\n`RoleAllowedFields` now serves as a valid source for the default projection. When no `SelectableFields` are configured but `RoleAllowedFields` contains entries for the `CurrentRole`, those fields are used as the default projection.\n\n```csharp\nopts.CurrentRole = \"manager\";\nopts.RoleAllowedFields = new Dictionary<string, HashSet<string>>\n{\n    [\"admin\"] = new() { \"Id\", \"Name\", \"Email\", \"Salary\", \"InternalNotes\" },\n    [\"manager\"] = new() { \"Id\", \"Name\", \"Email\", \"Department\" },\n    [\"user\"] = new() { \"Id\", \"Name\", \"Email\" }\n};\n\n// When no Select is specified, manager inherits: { \"Id\", \"Name\", \"Email\", \"Department\" }\n```\n\n### 5. Paging Fallback Sort Respects Governance\n\n`QueryBuilder.ApplyPaging` now uses the first field from `options.Select` as the fallback sort key (before falling back to `Id`, then `Key`, then the first scalar property). This ensures deterministic pagination respects the governed projection.\n\n**Before:** Fallback was always `Id` → first property, regardless of projection.\n**After:** Fallback prefers the first selected field, which is governed by the default projection injection.\n\n### 6. Governance Configuration Validation\n\nNew `GovernanceValidator.ValidateConfiguration()` enables startup-time validation of governance config consistency:\n\n| Check | Validates |\n|-------|-----------|\n| `BlockedFields` ∩ `AllowedFields` | No field can be both blocked and allowed |\n| `SelectableFields` ⊆ `AllowedFields` | Selectable fields must be a subset of allowed fields |\n| `FilterableFields` ⊆ `AllowedFields` | Filterable fields must be a subset of allowed fields |\n| `SortableFields` ⊆ `AllowedFields` | Sortable fields must be a subset of allowed fields |\n| `GroupableFields` ⊆ `AllowedFields` | Groupable fields must be a subset of allowed fields |\n| `AggregatableFields` ⊆ `AllowedFields` | Aggregatable fields must be a subset of allowed fields |\n\nCall at application startup:\n\n```csharp\nGovernanceValidator.ValidateConfiguration(execOptions);\n```\n\nThrows `InvalidOperationException` with a descriptive message when configuration is inconsistent.\n\n### 7. New Test Coverage\n\n- 24 new unit tests in `FieldSecurityTests.cs` covering:\n  - `DefaultProjectionRule` priority (SelectableFields > RoleAllowedFields > AllowedFields > fallback)\n  - `DefaultProjectionRule` skips when explicit `Select` is provided\n  - `DefaultProjectionRule` skips when no governance is configured\n  - `DefaultProjectionRule` excludes `BlockedFields`\n  - `RoleAllowedFields` as default projection source\n  - `RoleAllowedFields` with `AllowedFields` intersection\n  - `DefaultProjectionRule` with grouped queries (skips injection)\n  - Wildcard expansion via `ExpandWildcardFields`\n  - Non-strict re-apply after AllowedFields removal\n  - Strict mode throws even with no explicit Select\n  - `GovernanceValidator` config validation (7 tests)\n- 7 new SelectTree governance tests in `SecurityGovernanceEfCoreIntegrationTests.cs`\n- 2 new tests in `PagingTests.cs` for fallback sort behavior\n\n### 8. Documentation Updates\n\n- Security & Governance guide updated with default projection, wildcard expansion, and config validation sections\n\n### 9. Grouped Sort Validation (Cross-Provider)\n\n**Problem:** Grouped queries (GroupBy + Aggregates + Sort + Paging) had inconsistent and broken sort behavior across the EF Core and Dapper providers:\n\n| Scenario | EF Core (before) | Dapper (before) |\n|---|---|---|\n| Sort by non-projected field (`Id` with `GroupBy=[Category]`) | Silently dropped (nondeterministic order) | Generated `ORDER BY [Id]` — column not in GROUP BY, SQL error at runtime |\n| Sort by aggregate source field (`Price` when `AVG(Price) AS priceAvg`) | Resolved to `priceAvg` (correct) | Generated `ORDER BY [Price]` — column not in GROUP BY, SQL error |\n| All sorts invalid | No ORDER BY — nondeterministic | Generated invalid SQL |\n| Paging without sort | Injected group-key sort (deterministic) | No ORDER BY — nondeterministic paging |\n\n**Fix:** A new `GroupedSortValidator` in `FlexQuery.NET.Core` centralizes grouped sort logic and is shared by both providers:\n\n1. **Valid sort fields:** Group-key fields and aggregate aliases are kept.\n2. **Aggregate field → alias resolution:** Sorting by `Price` when `AVG(Price) AS priceAvg` exists resolves to `priceAvg`.\n3. **Invalid sorts removed:** Fields not in the grouped projection (e.g., `Id` when grouping by `Category`) are silently removed.\n4. **Fallback injection:** If all sorts are invalid or empty, a deterministic fallback by the first group-key ascending is injected.\n\n**Provider changes:**\n\n- **EF Core:** Replaced inline `BuildGroupedSorts<TShape>` / `ResolveGroupedSortField` (which depended on reflection over the dynamic TShape type) with a call to `GroupedSortValidator.Validate`, removing the generic parameter dependency.\n- **Dapper:** `SqlTranslator.Translate` now validates sorts through `GroupedSortValidator.Validate` when the query has `GroupBy`, preventing invalid SQL and ensuring deterministic paging.\n\n**Behavior after fix:**\n\n| Scenario | EF Core | Dapper |\n|---|---|---|\n| Sort by group key (`Category` with `GroupBy=[Category]`) | `ORDER BY Category` | `ORDER BY \"Category\"` |\n| Sort by aggregate alias (`priceAvg` with `AVG(Price) AS priceAvg`) | `ORDER BY priceAvg` | `ORDER BY \"priceAvg\"` |\n| Sort by aggregate source field (`Price` with `AVG(Price) AS priceAvg`) | `ORDER BY priceAvg` | `ORDER BY \"priceAvg\"` |\n| Sort by non-projected field (`Id` with `GroupBy=[Category]`) | Removed, fallback to `Category` | Removed, fallback to `\"Category\"` |\n| All sorts invalid | Fallback to first group key | Fallback to first group key |\n| Paging without sort | Injects group-key sort | Injects group-key sort |\n\n### 10. Grouped Query Contract Documentation\n\nNew architecture document at `docs/architecture/grouped-query-contract.md` defining the expected behavior for grouped projections across both providers, including:\n\n- Valid vs invalid sort fields\n- Aggregate field → alias resolution\n- Silent removal of invalid sorts\n- Group-key fallback for deterministic paging\n- Provider-specific code paths and risks\n- Recommendations for future alignment\n\n### 11. New Test Coverage\n\n- 6 new grouped query behavior tests in `GroupedQueryBehaviorTests.cs` across EF Core and Dapper providers (28 total grouped query tests)\n- Covers: invalid sort removal, aggregate alias sort, aggregate field → alias resolution, group key sort, and paging without sort\n- Existing Dapper grouped SQL tests preserved for regression detection\n\n### 12. SelectTree Governance Validation\n\n**Vulnerability:** `FieldAccessValidator.Validate()` iterated `options.Select` (flat list) to check each field against governance rules, but completely ignored `options.SelectTree`. Since all JSON/DSL parser paths (`JsonParser.Parse`, `SelectTreeBuilder.ParseJsonSelect`, OData adapter, Kendo adapter, AG Grid adapter, JQL parser) populate `SelectTree` rather than the flat `Select` list, every governance rule was effectively bypassed for these entry points.\n\nThe flat `Select` path was secure — only SelectTree was vulnerable.\n\n**Fix:** Added `ValidateSelectTree()` — a recursive method that walks every node in the SelectTree, builds dot-notation field paths (e.g., `Orders.Total`), and runs the existing `CheckAccess()` pipeline against each resolved field:\n\n| Check | Applied? |\n|-------|----------|\n| `BlockedFields` | ✓ — each node path matched against blocked patterns |\n| `AllowedFields` | ✓ — each node path matched against allowed patterns |\n| `SelectableFields` | ✓ — checked with `QueryOperation.Select` |\n| `RoleAllowedFields` | ✓ — role-based match per node |\n| `FieldAccessResolver` | ✓ — custom resolver invoked per node |\n| `MaxFieldDepth` | ✓ — path depth checked per node |\n| `IncludeAllScalars` | ✓ — wildcard expands to scalar fields of the CLR type; each scalar validated individually |\n\n**Strict mode behavior:** `ValidateSelectTree` calls `CheckAccess` which throws `QueryValidationException` on the first violation, rejecting the entire query.\n\n**Non-strict mode behavior:** Violating child nodes are removed from the tree. When `IncludeAllScalars` is set and some scalars are blocked, the wildcard is expanded to explicit children (only the allowed ones). If the tree becomes empty after pruning, it is nullified and the governed default projection is injected (matching the flat `Select` behavior).\n\n**Affected entry points (all now governed):**\n\n| Entry Point | Before | After |\n|---|---|---|\n| `JsonParser.Parse(json)` | Bypass | Blocked |\n| `JsonParser.Parse(JsonElement)` | Bypass | Blocked |\n| `SelectTreeBuilder.ParseJsonSelect` | Bypass | Blocked |\n| OData `$select` via `ODataQueryOptionsParser` | Bypass | Blocked |\n| Kendo adapter `SelectTree` projection | Bypass | Blocked |\n| AG Grid adapter `SelectTree` projection | Bypass | Blocked |\n| JQL/DSL parser `SelectTree` projection | Bypass | Blocked |\n| Direct `options.SelectTree = ...` in adapter code | Bypass | Blocked |\n| Flat `options.Select = [...]` (always secure) | Already secure | Unchanged |\n\n**Files changed:**\n\n- `src/FlexQuery.NET/Validation/Rules/FieldAccessValidator.cs` — Added `ValidateSelectTree()` recursive validation method and `ResolveSelectTreeChildType()` type-resolution helper. Wired into `Validate()` after the flat `Select` block.\n- `src/FlexQuery.NET/Models/SelectionNode.cs` — Added `ClearIncludeAllScalars()` and `RemoveChild(string)` for non-strict tree mutation.\n\n**Vulnerability severity:** **High** — an authenticated client could explicitly request blocked fields through any SelectTree-based query adapter and have them projected into the response without governance enforcement. No data exfiltration was possible through the flat `Select` path.\n\n### 13. Governance Test Coverage Audit\n\nA complete governance coverage audit was performed post-fix, identifying 10 remaining gaps across the test suite:\n\n| Priority | Gap | Description |\n|---|---|---|\n| High | SelectTree + `SelectableFields` | No test verifies `SelectableFields` restricts a SelectTree projection |\n| High | SelectTree + `RoleAllowedFields` | No test for role-based field blocking in SelectTree |\n| High | SelectTree + `IncludeAllScalars` + NonStrict | Non-strict expansion to explicit children untested |\n| High | SelectTree + `FieldAccessResolver` | Custom resolver never tested via SelectTree |\n| High | SelectTree + `MaxFieldDepth` | Depth validation never tested via SelectTree |\n| Medium | SelectTree + `FieldMappings` | Field mapping translation has zero test coverage across all paths |\n| Medium | `FilterableFields` explicit validation | No test filtering by a field in/not-in FilterableFields |\n| Medium | `SortableFields` explicit sort validation | No sort-by-field-not-in-SortableFields test |\n| Low | NonStrict SelectTree deep cleanup | Only root-level removal tested, not nested child pruning |\n| Low | `RoleAllowedFields` + SelectTree + NonStrict | Non-strict role validation untested for SelectTree |\n\nThese gaps represent untested but **functional** code paths — the underlying `CheckAccess()` pipeline is shared across all validation paths, so the same governance rules apply even when not explicitly tested. The audit is a test-coverage improvement target, not a vulnerability disclosure.\n\n### 14. New Test Coverage\n\n- 7 new SelectTree governance enforcement tests in `SecurityGovernanceEfCoreIntegrationTests.cs`:\n  - `SelectTree_Blocks_BlockedField_Strict` — simple field via SelectTree\n  - `SelectTree_Blocks_NotInAllowedFields_Strict` — whitelist enforcement\n  - `SelectTree_Blocks_NestedBlockedField_Strict` — navigation child field\n  - `SelectTree_Blocks_IncludeAllScalarsWithBlocked_Strict` — wildcard expansion\n  - `FlatSelect_CorrectlyBlocks_BlockedField` — control test\n  - `SelectTree_Validation_Blocks_BlockedField_Strict` — validation-level test\n  - `SelectTree_Removes_BlockedField_NonStrict` — non-strict tree mutation\n- **Full test suite:** 773 tests passing, zero regressions\n- **Security governance suite:** 62 field security tests + 40 security governance integration tests = 102 governance-related tests\n\n---\n\n## Migration Guide\n\n### SelectTree Governance Enforcement\n\nAll `SelectTree` projection fields are now validated against governance rules. This is transparent for most users — blocked fields are rejected in strict mode and removed in non-strict mode, just like flat `Select` fields.\n\nIf you programmatically construct `options.SelectTree` with fields that conflict with governance rules, those queries will now fail in strict mode. To inspect what's allowed:\n\n```csharp\n// Before — SelectTree bypassed governance:\noptions.SelectTree = new SelectionNode();\noptions.SelectTree.GetOrAddChild(\"SSN\");\nvar result = options.Validate(typeof(Customer), execOptions);  // passed even with BlockedFields=[\"SSN\"]\n\n// After — SelectTree is validated:\noptions.SelectTree = new SelectionNode();\noptions.SelectTree.GetOrAddChild(\"SSN\");\nvar result = options.Validate(typeof(Customer), execOptions);  // throws if StrictFieldValidation=true\n```\n\n### Using Default Projection\n\nNo code changes required — the default projection is injected automatically. If you were relying on `Select` being `null` to return all fields, note that governed queries now return only the allowed fields by default (behavioral change).\n\nTo opt out of auto-projection, set an explicit `Select`:\n\n```csharp\noptions.Select = new List<string> { \"Id\", \"Name\", \"Email\", \"Description\" };\n```\n\nIf no governance is configured (`AllowedFields`, `BlockedFields`, `SelectableFields`, `RoleAllowedFields` are all empty), default projection injection is skipped entirely and the previous behavior is preserved.\n\n### Using GovernanceValidator\n\nCall during service registration:\n\n```csharp\n// At startup\nvar opts = new QueryExecutionOptions\n{\n    AllowedFields = new HashSet<string> { \"Id\", \"Name\" },\n    BlockedFields = new HashSet<string> { \"Id\" }  // ❌ Conflict!\n};\nGovernanceValidator.ValidateConfiguration(opts);  // Throws InvalidOperationException\n```\n\n### Grouped Sort Behavior (Dapper)\n\n**Dapper queries with GroupBy and invalid sorts** now automatically correct their ORDER BY instead of generating broken SQL. If you were intentionally sorting grouped queries by entity fields not in the GROUP BY, those sorts will now be silently removed and replaced with a group-key fallback.\n\n**Dapper queries with GroupBy and paging but no sort** now receive a deterministic ORDER BY (first group key ascending). Previously this generated no ORDER BY, producing nondeterministic paging. No code changes required — the fix is automatic.\n\n### EF Core Grouped Sort Resolution\n\nEF Core's grouped sort resolution is unchanged in observable behavior (invalid sorts were already silently dropped, aggregate fields already resolved to aliases). The internal implementation now uses the shared `GroupedSortValidator` instead of reflection over the dynamic projection type.\n\n---\n\n## Upgrading\n\nUpdate all relevant packages to v3.0.4:\n\n```bash\ndotnet add package FlexQuery.NET --version 3.0.4\ndotnet add package FlexQuery.NET.Adapters.AgGrid --version 3.0.4\ndotnet add package FlexQuery.NET.Dapper --version 3.0.4\n```\n\nNo breaking changes in this release. Queries with an explicit `Select` are unaffected. Unprojected queries with governance configuration will now automatically respect field-level security settings. Dapper grouped queries with invalid or missing sorts now produce valid SQL with deterministic paging. **Full test suite: 773 tests passing.**",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#repository",
+    "commit": "d94f298a245cdaea5c8a51bcf8bff8c71a6a212f",
+    "type": "git",
+    "url": "https://github.com/peterjohncasasola/FlexQuery.NET"
+  },
+  "verbatimVersion": "3.0.4",
+  "version": "3.0.4",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#dependencygroup/net10.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[3.0.4, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#dependencygroup/net6.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[3.0.4, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#dependencygroup/net8.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[3.0.4, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#FlexQuery.NET.Adapters.AgGrid.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6913,
+      "fullName": "FlexQuery.NET.Adapters.AgGrid.nuspec",
+      "length": 21069,
+      "name": "FlexQuery.NET.Adapters.AgGrid.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2656,
+      "fullName": "README.md",
+      "length": 6717,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#lib/net10.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16972,
+      "fullName": "lib/net10.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 38400,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#lib/net10.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1637,
+      "fullName": "lib/net10.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 8251,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#lib/net6.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17085,
+      "fullName": "lib/net6.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 38912,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#lib/net6.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1637,
+      "fullName": "lib/net6.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 8251,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#lib/net8.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16971,
+      "fullName": "lib/net8.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 38400,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#lib/net8.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1637,
+      "fullName": "lib/net8.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 8251,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 13187,
+      "fullName": "logo.png",
+      "length": 13213,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.23.19.38.38/flexquery.net.adapters.aggrid.3.0.4.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "flexquery",
+    "ag-grid",
+    "grid",
+    "filter",
+    "sorting",
+    "adapter",
+    "compatibility"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

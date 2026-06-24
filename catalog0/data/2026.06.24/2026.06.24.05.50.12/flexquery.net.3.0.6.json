@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Peter John Casasola",
+  "catalog:commitId": "fe0aab1e-537f-4fbe-add9-2407885aefae",
+  "catalog:commitTimeStamp": "2026-06-24T05:50:12.0739347Z",
+  "created": "2026-06-24T05:47:03.747Z",
+  "description": "Dynamic filtering, sorting, pagination for IQueryable in .NET",
+  "iconFile": "logo.png",
+  "id": "FlexQuery.NET",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-24T05:49:39.283Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "h6Bct/M7hAJJf+5ldonHTP6t5nHOtp+e0xpwH9sfmZ9oem7KdB5D1ce/ZicQa1z0Hv7ejv06EPx8JwqvgOsdxQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 338528,
+  "published": "2026-06-24T05:47:03.747Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# FlexQuery.NET v3.0.6 Release Notes\n\n**Release date:** 2026-06-24\n\n## Overview\n\nv3.0.6 focuses on correctness, reliability, and concurrency hardening across the Dapper and core query pipelines in the Dapper provider (invalid SQL Server/Oracle paging and IncludeTotalCount semantics), a thread-safety bug in `QueryOptionsParser` that affected all providers including EF Core, hardens `ExtractCountSql` against false positives in nested subqueries, and pins EF Core package dependency versions to patched releases.\n\n---\n\n## What's Fixed\n\n### 1. SQL Server / Oracle Paging Validation\n\n**Before:** `SqlTranslator.Translate()` could generate invalid SQL for SQL Server and Oracle:\n\n```sql\nSELECT [Id], [Name], [Email]\nFROM [SqlEntities] AS [SqlEntities]\nOFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY\n-- Msg 10753: OFFSET/FETCH requires ORDER BY\n```\n\nThe database would throw a runtime error with no context about which query options caused the problem.\n\n**After:** `SqlTranslator.Translate()` now validates that paging queries have an ORDER BY clause when using dialects that require it. Throws `InvalidOperationException` at translation time with a clear message:\n\n```\nPaging requires an ORDER BY clause when using the SqlServerDialect dialect.\nAdd at least one Sort field to QueryOptions.Sort, or set Paging.Disabled = true.\n```\n\n**Implementation:**\n- Added `RequiresOrderByForPaging` property to `ISqlDialect` interface\n- `SqlServerDialect` and `OracleDialect` return `true` (OFFSET/FETCH requires ORDER BY)\n- `PostgreSqlDialect`, `MySqlDialect`, `MariaDbDialect`, `SqliteDialect` return `false` (LIMIT/OFFSET does not require ORDER BY)\n- Validation guard placed in `SqlTranslator.Translate()` between sort resolution and clause building\n- Only triggers when paging is enabled, the dialect requires ORDER BY, and no sort is present (GroupedSortValidator injects a fallback sort for GroupBy queries)\n\n### 2. Dapper IncludeTotalCount Semantics\n\n**Before:** `FlexQueryAsync<T>()` with `IncludeTotalCount = false` returned `TotalCount = items.Count` (the number of records in the current page), which is semantically incorrect — the caller explicitly disabled total count calculation but still received a misleading value.\n\n**After:** `IncludeTotalCount = false` returns `TotalCount = null`. No count query is executed.\n\n```csharp\n// Before (wrong):\nvar result = await connection.FlexQueryAsync<Order>(options, new DapperQueryOptions\n{\n    IncludeTotalCount = false\n});\nresult.TotalCount; // 20 (current page size — misleading)\n\n// After (correct):\nresult.TotalCount; // null\n```\n\n### 3. Core — QueryOptionsParser Thread-Safety Fix\n\n**Affected packages:** `FlexQuery.NET` (core), `FlexQuery.NET.EntityFrameworkCore`, `FlexQuery.NET.Parsers.Jql`, `FlexQuery.NET.Parsers.MiniOData`\n\n**Before:** `QueryOptionsParser._parsers` was a `static readonly List<IQueryParser>` modified in-place by `RegisterParser()`. The `Parse()` method enumerated this list with `FirstOrDefault()` / `Last()` without synchronization. Under concurrent request processing — or parallel test execution — one thread calling `RegisterParser` could modify the list while another thread was enumerating it, throwing `InvalidOperationException: Collection was modified; enumeration operation may not execute.`\n\n```text\nSystem.InvalidOperationException : Collection was modified; enumeration operation may not execute.\n   at System.ThrowHelper.ThrowInvalidOperationException_InvalidOperation_EnumFailedVersion()\n   at System.Collections.Generic.List`1.Enumerator.MoveNext()\n   at System.Linq.Enumerable.TryGetFirst(...)\n   at FlexQuery.NET.Parsers.QueryOptionsParser.Parse(FlexQueryParameters, QuerySyntax)\n```\n\n**After:** `RegisterParser` uses copy-on-write — creates a new list, inserts at priority position 0, then atomically swaps the reference. `Parse` captures the list reference locally before enumerating, so concurrent `RegisterParser` calls never affect an in-progress parse.\n\n```csharp\n// Thread-safe: creates a new list without disturbing in-flight parses\npublic static void RegisterParser(IQueryParser parser)\n{\n    var updated = new List<IQueryParser>(_parsers);\n    updated.Insert(0, parser);\n    _parsers = updated;\n}\n```\n\n### 4. ExtractCountSql Hardening\n\n**Affected packages:** `FlexQuery.NET.Dapper`\n\n**Before:** `ExtractCountSql` used naive `IndexOf` string searching for keywords `\"ORDER BY\"`, `\"LIMIT\"`, and `\"OFFSET\"`. This could truncate the SQL at the wrong position when those keywords appeared inside subqueries, derived tables, aliases, or identifiers.\n\n```csharp\nvar keywords = new[] { \"ORDER BY\", \"LIMIT\", \"OFFSET\" };\nvar minIdx = sql.Length;\nforeach (var kw in keywords)\n{\n    var idx = sql.IndexOf(kw, StringComparison.OrdinalIgnoreCase);\n    if (idx >= 0 && idx < minIdx) minIdx = idx;\n}\n```\n\nExample of incorrect truncation — the inner `ORDER BY` would be matched instead of the outer one:\n\n```sql\nSELECT * FROM (SELECT * FROM Orders ORDER BY Id) AS sub ORDER BY Name\n--                                    ^^^^^^^^\n--                       IndexOf matches here first, truncating too early\n```\n\n**After:** Uses `\\b` word-boundary regex patterns to prevent matching inside identifiers, plus parentheses-depth tracking (`IsInsideParentheses`) to skip matches nested inside subqueries:\n\n```csharp\nvar patterns = new[] { @\"\\bORDER\\s+BY\\b\", @\"\\bLIMIT\\b\", @\"\\bOFFSET\\b\" };\n\nforeach (var pattern in patterns)\n{\n    var match = Regex.Match(sql, pattern, RegexOptions.IgnoreCase);\n    while (match.Success)\n    {\n        if (!IsInsideParentheses(sql, match.Index))\n        {\n            if (match.Index < minIdx) minIdx = match.Index;\n            break;\n        }\n        match = match.NextMatch();\n    }\n}\n```\n\nThe depth tracker scans from position 0 to the match index, counting `(` as +1 and `)` as −1. A match at depth == 0 is top-level (stripped); a match at depth > 0 is inside a subquery (preserved).\n\n### 5. EF Core Package Dependency Pinning\n\n**Affected packages:** `FlexQuery.NET.EntityFrameworkCore`\n\nUpdated the `Microsoft.EntityFrameworkCore` package version ranges from minimum-compatible versions to specific patched releases:\n\n| Target Framework | Before | After |\n|---|---|---|\n| `net6.0` | `6.0.0` | `6.0.36` |\n| `net8.0` | `8.0.0` | `8.0.13` |\n\nThis updates the minimum package versions to patched releases that include security and reliability fixes while remaining API-compatible with EF Core 6 and EF Core 8. The `net10.0` target was already at `10.0.0-preview.*` and was not changed.\n\n### 6. No-op ORDER BY Injection Rejected\n\nThe design deliberately chose fail-fast validation over silent `ORDER BY (SELECT NULL)` injection. See the design rationale:\n\n- `ORDER BY (SELECT NULL)` is a constant-expression ORDER BY — every row produces the same value\n- This makes paging non-deterministic: pages can overlap, skip records, or return duplicates\n- Silent injection hides a developer mistake that would manifest as data corruption, not a crash\n- Fail-fast validation is consistent with the existing FlexQuery.NET philosophy (the validation pipeline already throws `QueryValidationException` for invalid fields, operators, and type mismatches)\n\n---\n\n## New Test Coverage\n\n| Test | Area | Verifies |\n|------|------|----------|\n| `SqlServer_PagingWithoutSort_Throws` | Paging validation | SQL Server + paging + no sort throws `InvalidOperationException` |\n| `Oracle_PagingWithoutSort_Throws` | Paging validation | Oracle + paging + no sort throws `InvalidOperationException` |\n| `SqlServer_GroupByPaging_Succeeds` | Paging validation | GroupedSortValidator fallback sort enables paging on SQL Server |\n| `Sqlite_PagingWithoutSort_Succeeds` | Paging validation | SQLite paging works without ORDER BY |\n| `PostgreSql_PagingWithoutSort_Succeeds` | Paging validation | PostgreSQL paging works without ORDER BY |\n| `Dapper_IncludeTotalCountFalse_ReturnsNullTotalCount` | IncludeTotalCount | `false` returns `TotalCount == null` |\n| `Dapper_IncludeTotalCountTrue_ReturnsActualCount` | IncludeTotalCount | `true` returns correct total count |\n| `ExtractCountSql_TopLevelOrderBy_IsStripped` | Count SQL hardening | Top-level ORDER BY is removed |\n| `ExtractCountSql_TopLevelOrderByAndLimit_AreStripped` | Count SQL hardening | ORDER BY + LIMIT removed |\n| `ExtractCountSql_TopLevelOrderByOffsetFetch_AreStripped` | Count SQL hardening | ORDER BY + OFFSET/FETCH removed |\n| `ExtractCountSql_OrderByInsideSubquery_IsPreserved` | Count SQL hardening | ORDER BY inside subquery kept |\n| `ExtractCountSql_LimitInsideSubquery_IsPreserved` | Count SQL hardening | LIMIT inside subquery kept |\n| `ExtractCountSql_OffsetInsideSubquery_IsPreserved` | Count SQL hardening | OFFSET inside subquery kept |\n| `ExtractCountSql_NoPagingClauses_ReturnsWrappedSql` | Count SQL hardening | SQL without paging wraps correctly |\n| `ExtractCountSql_KeywordInAlias_DoesNotTriggerFalsePositive` | Count SQL hardening | Keywords in aliases not matched |\n| `ExtractCountSql_DeeplyNestedSubqueries_OnlyStripsTopLevelClauses` | Count SQL hardening | Multi-level nesting preserved |\n\n---\n\n## Migration Guide\n\n### SQL Server / Oracle Paging\n\nIf you call `SqlTranslator.Translate()` directly with paging enabled and no sort, the call will now throw `InvalidOperationException`. Fix: add a sort field or disable paging:\n\n```csharp\n// Before:\nvar command = translator.Translate(new QueryOptions\n{\n    Paging = { Page = 1, PageSize = 20 }\n});\n\n// After:\nvar command = translator.Translate(new QueryOptions\n{\n    Sort = { new SortNode { Field = \"Id\" } },\n    Paging = { Page = 1, PageSize = 20 }\n});\n```\n\nNo action required if you use `FlexQueryAsync<T>()` or go through validation (`ValidateOrThrow<T>()`) — those paths either inject default sorts or disable paging before translation.\n\n### IncludeTotalCount\n\nIf your code reads `result.TotalCount` after setting `IncludeTotalCount = false`, add a null check:\n\n```csharp\n// Before (risks NullReferenceException if called with IncludeTotalCount = false):\nvar count = result.TotalCount.Value;\n\n// After:\nvar count = result.TotalCount ?? items.Count;\n```\n\n---\n\n## Behavioral Changes\n\nThese changes correct previously incorrect behavior and may require minor code updates.\n\n| Change | Impact | Mitigation |\n|--------|--------|------------|\n| `SqlTranslator.Translate()` now throws for SQL Server/Oracle when paging is enabled without ORDER BY | Queries that would have failed at the database now fail earlier at translation time | Add a sort field or disable paging |\n| `IncludeTotalCount = false` returns `null` instead of `items.Count` | Semantically correct — callers that did not null-check `TotalCount` may get `NullReferenceException` | Add null check on `TotalCount` |\n---\n\n## Upgrading\n\n```bash\ndotnet add package FlexQuery.NET --version 3.0.6\ndotnet add package FlexQuery.NET.Dapper --version 3.0.6\ndotnet add package FlexQuery.NET.EntityFrameworkCore --version 3.0.6\ndotnet add package FlexQuery.NET.Parsers.Jql --version 3.0.6\ndotnet add package FlexQuery.NET.Parsers.MiniOData --version 3.0.6\ndotnet add package FlexQuery.NET.Adapters.AgGrid --version 3.0.6\ndotnet add package FlexQuery.NET.Adapters.Kendo --version 3.0.6\ndotnet add package FlexQuery.NET.AspNetCore --version 3.0.6\n```\n\n**Full test suite:** 843 tests passing, zero regressions. Additionally resolves a pre-existing flaky test (`FilteredIncludeTests.ToProjectedQueryResultAsync_AppliesFilteredIncludes`) caused by the concurrent parser-registration race.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#repository",
+    "commit": "21ae7ec759db566d432ff34eb64f54cbf9be09f6",
+    "type": "git",
+    "url": "https://github.com/peterjohncasasola/FlexQuery.NET"
+  },
+  "verbatimVersion": "3.0.6",
+  "version": "3.0.6",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#dependencygroup/net10.0/microsoft.extensions.primitives",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Primitives",
+          "range": "[10.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#dependencygroup/net6.0/microsoft.extensions.primitives",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Primitives",
+          "range": "[6.0.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#dependencygroup/net8.0/microsoft.extensions.primitives",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Primitives",
+          "range": "[8.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#FlexQuery.NET.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4808,
+      "fullName": "FlexQuery.NET.nuspec",
+      "length": 12793,
+      "name": "FlexQuery.NET.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2656,
+      "fullName": "README.md",
+      "length": 6717,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#lib/net10.0/FlexQuery.NET.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 80610,
+      "fullName": "lib/net10.0/FlexQuery.NET.dll",
+      "length": 188416,
+      "name": "FlexQuery.NET.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#lib/net10.0/FlexQuery.NET.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20341,
+      "fullName": "lib/net10.0/FlexQuery.NET.xml",
+      "length": 143435,
+      "name": "FlexQuery.NET.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#lib/net6.0/FlexQuery.NET.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 80343,
+      "fullName": "lib/net6.0/FlexQuery.NET.dll",
+      "length": 187904,
+      "name": "FlexQuery.NET.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#lib/net6.0/FlexQuery.NET.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20341,
+      "fullName": "lib/net6.0/FlexQuery.NET.xml",
+      "length": 143435,
+      "name": "FlexQuery.NET.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#lib/net8.0/FlexQuery.NET.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 80313,
+      "fullName": "lib/net8.0/FlexQuery.NET.dll",
+      "length": 187904,
+      "name": "FlexQuery.NET.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#lib/net8.0/FlexQuery.NET.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20341,
+      "fullName": "lib/net8.0/FlexQuery.NET.xml",
+      "length": 143435,
+      "name": "FlexQuery.NET.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 13187,
+      "fullName": "logo.png",
+      "length": 13213,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.24.05.50.12/flexquery.net.3.0.6.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "linq",
+    "iqueryable",
+    "dynamic",
+    "query",
+    "filter",
+    "sorting",
+    "pagination",
+    "odata-lite"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

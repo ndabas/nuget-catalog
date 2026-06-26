@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Peter John Casasola",
+  "catalog:commitId": "708aaeb1-0b9d-4350-b0d5-0a7b9c04ff11",
+  "catalog:commitTimeStamp": "2026-06-26T00:34:21.0639913Z",
+  "created": "2026-06-26T00:31:23.553Z",
+  "description": "AG Grid filter and sorting payload adapter for FlexQuery.NET — translates AG Grid filterModel and sortModel into canonical FlexQuery.NET query models.",
+  "iconFile": "logo.png",
+  "id": "FlexQuery.NET.Adapters.AgGrid",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-26T00:34:00.007Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "NiN/WWpL91p0oWO2SNGdAyq+PMfXyB4ovLq1Ggy95i0R9K4s1LdtUTRwir6S4QZfNL0PZvsBBgVS4d6983Q9Ow==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 96250,
+  "projectUrl": "https://github.com/peterjohncasasola/FlexQuery.NET",
+  "published": "2026-06-26T00:31:23.553Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# FlexQuery.NET v3.1.0 Release Notes\n\n**Release date:** 2026-06-25\n\n## Overview\n\nv3.1.0 introduces query execution observability, AG Grid camelCase support, HAVING query pipeline fixes, a shared projection metadata layer unifying Dapper and EF Core serialization behavior, DynamicType materialization for GroupBy/aggregate results, and a new diagnostics API. The Dapper return type is unified with EF Core (`QueryResult<object>`).\n\n---\n\n## What's New\n\n### 1. Execution Diagnostics / Observability\n\nNew `IFlexQueryExecutionListener` interface with 4 lifecycle events that let you observe the full query pipeline:\n\n| Event | When | Data |\n|-------|------|------|\n| `QueryParsed` | After parsing input parameters | `QueryOptions`, elapsed time |\n| `QueryTranslated` | After SQL generation | SQL string, parameters |\n| `QueryExecuted` | After database query returns rows | Row count, optional exception |\n| `QueryMaterialized` | After `QueryResult<object>` is built | Final result, optional exception |\n\nBoth Dapper and EF Core providers now accept an optional `configureExecution` callback on all overloads:\n\n```csharp\nvar result = await connection.FlexQueryAsync<Customer>(parameters, opts,\n    exec => exec.Listener = new MyTelemetryListener());\n```\n\nNew types:\n- `FlexQueryExecutionConfig` — config class with `Listener` property\n- `FlexQueryExecutionContext` — internal context carrying `QueryId`, `Stopwatch`, listener, and `CancellationToken`\n- `FlexQueryExecutionEvent` base class with event data types `QueryParsedEvent`, `QueryTranslatedEvent`, `QueryExecutedEvent`, `QueryMaterializedEvent`\n- `IFlexQueryExecutionListener` — 4 async methods for lifecycle hooks\n\n### 2. AG Grid SSRM camelCase Support\n\n`AgGridResponseConverter.Convert()` and `ToAgGridServerSideResponse()` extension methods accept a new `camelCase` parameter. When `true`, POCO property names in row data dictionaries are automatically converted from PascalCase to camelCase. Group metadata field names remain configurable via `AgGridResponseFieldOptions`.\n\n### 3. DynamicType for GroupBy / Aggregate Results\n\nGroupBy and aggregate queries now produce `DynamicType` instances instead of `Dictionary<string, object>`. DynamicType properties flow through ASP.NET Core's `PropertyNamingPolicy`, so camelCase serialization works automatically without manual conversion.\n\n### 4. Shared Projection Metadata Layer\n\n`ProjectionMetadataBuilder` extracted as a shared component used by both Dapper and EF Core providers. Reduces duplication and ensures consistent projection resolution (nested paths, field types, IEnumerable detection) across both pipeline implementations.\n\n### 5. Sample Web API Project\n\nNew `FlexQuery.NET.Samples.WebApi` demonstrating EF Core, Dapper, AG Grid SSRM, and Kendo UI integrations with SQLite, Swagger, and demo frontends.\n\n### 6. Benchmarks\n\n- `DapperSqlGenerationBenchmarks` — simple, complex-filter, and aggregate SQL generation against SqlServer dialect\n- `ProjectionBenchmarks` — `SelectTreeBuilder`, `DynamicTypeBuilder` cache hit/miss, `QueryCacheKeyBuilder` performance\n\n---\n\n## What's Fixed\n\n### 1. HAVING Pipeline — Parser, SQL Generation, Alias Naming\n\nThree independent bugs that caused HAVING clauses to be silently dropped or return incorrect results:\n\n**a) HavingParser regex regression:**\nThe field portion of the HAVING expression was non-optional. Input like `count:gt:20` would misinterpret `gt` as a field name and return `null` because no field was found before the colon.\n\n```csharp\n// Before: field-less aggregate HAVING parsed as null\nvar having = parser.Parse(\"count:gt:20\"); // null\n\n// After:\nvar having = parser.Parse(\"count:gt:20\"); // { Field: null, Aggregate: Count, Operator: GreaterThan, Value: 20 }\n```\n\n**b) Dapper SqlTranslator.BuildHavingClause:**\nField-less aggregates (`COUNT(*)`) emitted quoted `[*]` columns (`COUNT([*])`) and bound comparison values as strings (`'20'` instead of `20`). SQLite rejected `INTEGER > TEXT` comparisons, returning zero rows.\n\n```sql\n-- Before (broken for SQLite):\nHAVING COUNT([*]) > '20'\n\n-- After:\nHAVING COUNT(*) > @p0  -- @p0 = 20 (int)\n```\n\n**c) BuildAggregateAlias:**\nField-less aggregates produced `allCount` as the alias instead of the predictable `Count`.\n\n```sql\n-- Before:\nSELECT COUNT(*) AS [allCount]\n-- After:\nSELECT COUNT(*) AS [Count]\n```\n\n### 2. Dapper TotalCount / ResultCount Alignment with EF Core\n\n**Before:** `ResultCount` was unconditionally set to `items.Count` (the page size), even when `IncludeTotalCount` was false.\n\n**After:** `ResultCount` is only set when counts are explicitly enabled. Checks both `options.IncludeCount` (user-level) and `execOptions.IncludeTotalCount` (server-level). Both providers now return identical `QueryResult` structure for all scenarios.\n\n### 3. Dapper Connection Lifecycle\n\nDocumented that `FlexQueryAsync<T>()` auto-opens the connection if closed but never auto-closes it. Added `CancellationToken` parameter to `ExecuteQueryAsync`.\n\n---\n\n## Breaking Changes\n\n### 1. Dapper Return Type: `QueryResult<T>` → `QueryResult<object>`\n\n**Affected package:** `FlexQuery.NET.Dapper`\n\n**Before:** `FlexQueryAsync<T>()` returned `Task<QueryResult<T>>`.\n**After:** Returns `Task<QueryResult<object>>`.\n\nThis unifies the Dapper provider's return type with the EF Core provider. Required because Dapper now uses `DynamicType` for projection materialization, and the projected type is not known at compile time.\n\n**Migration:**\n```csharp\n// Before (will not compile):\nQueryResult<Customer> result = await connection.FlexQueryAsync<Customer>(...);\n\n// After:\nQueryResult<object> result = await connection.FlexQueryAsync<Customer>(...);\n// OR:\nvar result = await connection.FlexQueryAsync<Customer>(...);\n```\n\n### 2. DebugResult Namespace Change\n\n**Affected package:** `FlexQuery.NET`\n\n`DebugResult` moved from inline class in `FlexQuery.NET.Extensions` (inside `FlexQueryDebugExtensions.cs`) to `FlexQuery.NET.Models`.\n\n**Migration:** Add `using FlexQuery.NET.Models;` where `DebugResult` is referenced.\n\n---\n\n## Behavioral Changes\n\n| Change | Impact | Mitigation |\n|--------|--------|------------|\n| Dapper return type → `QueryResult<object>` | Compile break on explicit return type annotations | Use `var` or change to `QueryResult<object>` |\n| `DebugResult` → `FlexQuery.NET.Models` | Compile break if relying on `FlexQuery.NET.Extensions` | Add `using FlexQuery.NET.Models;` |\n| Dapper `ResultCount` null when count is off | Matches EF Core; previously returned `items.Count` | Add null check if needed |\n| Field-less HAVING `Count` alias | Previously `allCount` | Update any HAVING filter referencing `allCount` |\n| GroupBy/aggregate rows → `DynamicType` | Property names respect JSON naming policy; no longer `Dictionary<string, object>` | Access via properties instead of dictionary keys, or use reflection/DynamicType API |\n\n---\n\n## New Test Coverage\n\n### HAVING Pipeline (19 new tests)\n\n| Test | Area | Verifies |\n|------|------|----------|\n| `Parse_Having_FieldLessAggregate` | Parser | `count:gt:10` parses with null field |\n| `Parse_Having_ParenthesizedValue` | Parser | `(count:gt:10)` parenthesized syntax |\n| `Parse_Having_ColonSeparatedField` | Parser | Field-based HAVING with colons |\n| `Parse_Having_Count` | Parser | `count` aggregate parsed |\n| `Parse_Having_Sum` | Parser | `sum` aggregate parsed |\n| `Parse_Having_Avg` | Parser | `avg` aggregate parsed |\n| `Parse_Having_Max` | Parser | `max` aggregate parsed |\n| `Parse_Having_Min` | Parser | `min` aggregate parsed |\n| `BuildHavingClause_CountStar_NoField` | SQL generation | `COUNT(*) > @p0` without field |\n| `BuildHavingClause_SumField` | SQL generation | `SUM([Amount]) > @p0` with field |\n| `BuildHavingClause_AvgField` | SQL generation | `AVG([Amount]) > @p0` with field |\n| `BuildHavingClause_MaxField` | SQL generation | `MAX([Amount]) > @p0` with field |\n| `BuildHavingClause_MinField` | SQL generation | `MIN([Amount]) > @p0` with field |\n| `BuildAggregateAlias_FieldLessAggregate_ReturnsCount` | Alias | Field-less → `Count` |\n| `BuildAggregateAlias_FieldAggregate_ReturnsFieldFunction` | Alias | Field + function → `AmountSum` |\n| `Having_Count_Grouped_Sorted_Paged` | Integration | Full pipeline: Count HAVING + sort + paging |\n| `Having_Sum_Grouped_Sorted_Paged` | Integration | Full pipeline: Sum HAVING + sort + paging |\n| `Having_Avg_Grouped_Projected` | Integration | HAVING with projection |\n| `Having_Max_Min_Grouped_Projected` | Integration | Multiple aggregates HAVING with projection |\n\n### GroupBy / Integration (204 new test lines)\n\nAdditional GroupBy execution tests across EF Core and Dapper covering dict vs DynamicType materialization, grouping with sort/paging combinations, and aggregate result structures.\n\n### Parser (117 new test lines)\n\nAdditional parser coverage for edge cases and boundary conditions.\n\n### AgGridResponseConverter\n\nAdapted existing tests to cover the new `camelCase` parameter (both `true` and `false` paths).\n\n---\n\n## Additional Changes (post-commit)\n\n- **ToQueryOptions extension method:** New `FlexQueryParametersExtensions.ToQueryOptions()` convenience extension on `FlexQueryParameters` for direct-to-`QueryOptions` parsing without calling `QueryOptionsParser.Parse()`.\n- **Sample controllers simplified:** `DapperCustomersController` and `EfCustomersController` migrated to primary constructors and simplified to use the full FlexQueryAsync API instead of manual GroupBy handling.\n- **MiniOData assembly name fix:** `QueryOptionsParser` registration corrected from `FlexQuery.NET.MiniOData` to `FlexQuery.NET.Parsers.MiniOData`.\n- **Internal call sites updated:** `FlexQueryDapperExtensions`, `ProjectionEfCoreExtensions`, `QueryableEfCoreExtensions`, and `QueryableExtensions` all updated to use `parameters.ToQueryOptions()`.\n\n---\n\n## Migration Guide\n\n### Dapper Return Type\n\nReplace explicit `QueryResult<T>` with `QueryResult<object>` or use `var`:\n\n```csharp\n// Before:\nQueryResult<Customer> result = await connection.FlexQueryAsync<Customer>(...);\n\n// After:\nvar result = await connection.FlexQueryAsync<Customer>(...);\n```\n\n### HAVING Alias\n\nIf you reference the auto-generated alias for field-less aggregate HAVING filters, replace `allCount` with `Count`:\n\n```csharp\n// Before:\noptions.Having.Add(new HavingNode(\"allCount:gt:10\"));\n\n// After:\noptions.Having.Add(new HavingNode(\"Count:gt:10\"));\n```\n\n### DebugResult Import\n\n```csharp\n// Add this using:\nusing FlexQuery.NET.Models;\n```\n\n---\n\n## Upgrading\n\n```bash\ndotnet add package FlexQuery.NET --version 3.1.0\ndotnet add package FlexQuery.NET.Dapper --version 3.1.0\ndotnet add package FlexQuery.NET.EntityFrameworkCore --version 3.1.0\ndotnet add package FlexQuery.NET.Parsers.Jql --version 3.1.0\ndotnet add package FlexQuery.NET.Parsers.MiniOData --version 3.1.0\ndotnet add package FlexQuery.NET.Adapters.AgGrid --version 3.1.0\ndotnet add package FlexQuery.NET.Adapters.Kendo --version 3.1.0\ndotnet add package FlexQuery.NET.AspNetCore --version 3.1.0\n```",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#repository",
+    "commit": "9bf2c16528a86d67b7691d3eeb1165fa724733e3",
+    "type": "git",
+    "url": "https://github.com/peterjohncasasola/FlexQuery.NET"
+  },
+  "verbatimVersion": "3.1.0",
+  "version": "3.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#dependencygroup/net10.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[3.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#dependencygroup/net6.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[3.1.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#dependencygroup/net8.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[3.1.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#FlexQuery.NET.Adapters.AgGrid.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4486,
+      "fullName": "FlexQuery.NET.Adapters.AgGrid.nuspec",
+      "length": 12560,
+      "name": "FlexQuery.NET.Adapters.AgGrid.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1183,
+      "fullName": "README.md",
+      "length": 2800,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#lib/net10.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18623,
+      "fullName": "lib/net10.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 41984,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#lib/net10.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1843,
+      "fullName": "lib/net10.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 9382,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#lib/net6.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18739,
+      "fullName": "lib/net6.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 41984,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#lib/net6.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1843,
+      "fullName": "lib/net6.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 9382,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#lib/net8.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18625,
+      "fullName": "lib/net8.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 41984,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#lib/net8.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1843,
+      "fullName": "lib/net8.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 9382,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 13187,
+      "fullName": "logo.png",
+      "length": 13213,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.00.34.21/flexquery.net.adapters.aggrid.3.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "flexquery",
+    "ag-grid",
+    "grid",
+    "filter",
+    "sorting",
+    "adapter",
+    "compatibility"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

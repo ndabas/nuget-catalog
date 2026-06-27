@@ -1,0 +1,163 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "StyloBot",
+  "catalog:commitId": "94802350-0474-4a11-a56f-63300c3133af",
+  "catalog:commitTimeStamp": "2026-06-26T14:36:38.0015761Z",
+  "created": "2026-06-26T14:33:32.563Z",
+  "description": "Interfaces, records, and the StyloFlow signal catalog that define the StyloExtract contract. Zero runtime dependencies beyond AngleSharp and the ephemeral signal sink. Reference this package when writing a custom block classifier, signal consumer, or template index implementation.",
+  "iconFile": "icon.png",
+  "id": "Mostlylucid.StyloExtract.Abstractions",
+  "isPrerelease": true,
+  "lastEdited": "2026-06-26T14:36:12.063Z",
+  "licenseExpression": "Unlicense",
+  "licenseUrl": "https://licenses.nuget.org/Unlicense",
+  "listed": true,
+  "packageHash": "nVD4RH1956n8UpL2tHjSIeiv2swNhHpiS+c3r4CBFwws1AQKF//5DTE4QPKdH0dgi6ki8VDDhMcuA7Ba0eKkhg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 158373,
+  "projectUrl": "https://github.com/scottgal/styloextract",
+  "published": "2026-06-26T14:33:32.563Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "StyloExtract 1.8.0-alpha.12 - 2026-06-26\n=========================================\n\nDI wire-up fix for deterministic-template YAML persistence\n-----------------------------------------------------------\n\nalpha.11 introduced DeterministicTemplateYamlSink + the\nAddStyloExtractOperatorTemplates registration, but AddStyloExtract's\nLayoutExtractor construction did not pass the sink through to the\nextractor — so even when the sink was registered in DI, LayoutExtractor's\noptional ctor parameter defaulted to null and no `<host>-deterministic.yaml`\nfile was ever written.\n\nFixed by threading `sp.GetService<DeterministicTemplateYamlSink>()` to the\nLayoutExtractor constructor in AddStyloExtract. No API change; consumers\nwho already called AddStyloExtractOperatorTemplates start seeing\ndeterministic YAML files immediately after upgrading.\n\nStyloExtract 1.8.0-alpha.11 - 2026-06-26\n=========================================\n\nSequenced architecture extension: deterministic templates with\nextended classification — Title role, Sitemap profile, deterministic\nYAML persistence, and a sitemap CLI verb.\n\nTitle BlockRole\n---------------\n\nNew BlockRole.Title value distinguishes the page-level <h1> (the single\nH1 the rest of the page is \"about\") from intra-content Heading\n(H2/H3/H4 inside the body). HeuristicBlockClassifier surfaces the Title\nvia a shared PageTitleDetector helper, picking the H1 in/closest-to\n<main>/<article> and falling back to earliest-in-document with multiple\nH1s. ExtractorApplicator surfaces Title on the fast-path / applicator\nbranch too, so output stays consistent across novel and cached requests\n(matters for the response-cache ETag). LlmInducerPrompts list Title in\nthe allowed-roles set with a one-line distinction from Heading.\n\nMainContentOnly, RagFull, Wcxb, and AgentNavigation profiles all\ninclude Title in their role-set. The renderer quality gate (drop short\ntext) bypasses for Title and Heading so intentionally-terse page\ntitles (\"Home\", \"About\") still surface.\n\nSitemap ExtractionProfile\n-------------------------\n\nNew ExtractionProfile.Sitemap value emits only Title + Heading +\nPrimaryNavigation + SecondaryNavigation + Breadcrumb. For sitemap /\noutline / crawler use cases that want page titles and the site's nav\nstructure without pulling body content. The CLI's --profile flag\nrecognises `sitemap` automatically (enum binding).\n\nDeterministic YAML persistence\n------------------------------\n\nNew DeterministicTemplateYamlSink, wired automatically when\nAddStyloExtractOperatorTemplates(root) is called, writes\n<host>-deterministic.yaml alongside each heuristic-induced template's\nSQLite row. The file carries every role the heuristic detected (Title,\nMainContent, Navigation, Footer, …) — auditable, hand-editable, and\ndiffable, mirroring how LLM-induced templates have always been written\nby TemplateEnrichmentCoordinator. The SQLite store remains the\nauthoritative source at match time; YAML is best-effort and\nnon-blocking.\n\nstylo-extract sitemap CLI verb\n------------------------------\n\nNew `sitemap` subcommand: takes one or more starting URLs, extracts\neach with ExtractionProfile.Sitemap, follows internal nav links to\n--max-depth (default 3), and emits a markdown tree of titles + URLs to\nstdout or --out <file>. Safety caps: 50 pages by default\n(--max-pages), 1s between requests (--delay-ms), no off-host follow.\n\nMigration\n---------\n\nNo source change required for consumers. The new Title role is\nadditive (existing switches that handled BlockRole pattern-match\ndefaults will continue to compile and behave identically; switches\nthat exhaustively listed roles were updated). Deterministic YAML\nwriting only activates when AddStyloExtractOperatorTemplates is\ncalled, so consumers that don't use operator templates see no new\nfilesystem activity.\n\n\nStyloExtract 1.8.0-alpha.10 - 2026-06-26\n=========================================\n\nLLM classification accuracy for chrome patterns\n------------------------------------------------\n\nSymptom: induced templates were labelling language pickers, filter UI,\nlocale switchers, and pagination strips as MainContent on\nserver-rendered blogs (mostlylucid.net being the canonical reproducer).\nThe downstream RagFull renderer's role-filter — which already drops\nPrimaryNavigation / SecondaryNavigation / Form / Boilerplate — never\nsaw them as nav and so left them in the extracted markdown, producing\noutput WORSE than the deterministic heuristic.\n\nFix: expanded the induction and repair system prompts with explicit\n\"chrome pattern → role\" examples (language picker → PrimaryNavigation;\nfilter / faceted-search → Form; pagination → SecondaryNavigation;\ncookie banner → CookieBanner; newsletter signup → Form; social-share\n→ Boilerplate). Also nudged the model to prefer narrower MainContent\nselectors that don't include chrome as nested children.\n\nDomSkeletonRenderer now surfaces structural ARIA attributes (`role`,\n`aria-label`, `aria-labelledby`) alongside each element's tag / class /\nid, giving the LLM more signal for distinguishing landmark regions\n(nav / form / banner) from content. The hash-class-name filter is also\nslightly less aggressive: pure PascalCase ids (e.g. `LanguageDropDown`)\nnow survive into the skeleton so the LLM can use them as selectors,\nwhile real CSS-module hashes (mixed-case + digits, or 4+ case\ntransitions) are still dropped.\n\nThe renderer side (TypedMarkdownRenderer.ShouldEmit) is unchanged —\nit was already correctly filtering by role. The fix is entirely about\nlabel accuracy and the signal the LLM sees.\n\nMigration: no source change required for consumers; templates induced\npost-1.8.0-alpha.10 will produce cleaner output under\nExtractionProfile.RagFull and MainContentOnly. Cached templates\ninduced under earlier alphas will keep producing the old output until\nthey're refit (centroid drift triggers refit automatically; or\noperators can manually clear the template store).\n\nRegression tests: tests/StyloExtract.Core.Tests adds\nLlmInducerPromptAntiPatternTests (prompt snapshot) and\nMostlylucidLlmInductionRegressionTests (applies a synthetic bad-wide-\nwrapper template against a captured mostlylucid.net fixture, proves\nthe language-picker / filter chrome leaks; then shows a properly\nauthored RepeatedItem template excludes per-card chrome cleanly).\n\n\nStyloExtract 1.8.0-alpha.9 - 2026-06-25\n========================================\n\nApp-safe AddStyloExtract + LlmInductionFired flag\n--------------------------------------------------\n\nTwo changes that downstream desktop / CLI consumers (e.g. lucidVIEW-FULL)\nneed:\n\n1. The basic `AddStyloExtract(IServiceCollection, Action<StyloExtractOptions>?)`\n   DI extension and its companion `StyloExtractOptions` type now live in\n   `Mostlylucid.StyloExtract.Core` instead of `Mostlylucid.StyloExtract.AspNetCore`.\n   Non-AspNetCore hosts (desktop apps, CLI tools, console workers) can call:\n\n       services.AddStyloExtract(o => o.StorePath = \"templates.db\");\n\n   without pulling `Microsoft.AspNetCore.App` (~70 MB of framework runtime).\n\n   `Mostlylucid.StyloExtract.AspNetCore` keeps its `Action<ResponsePolicyBuilder>`\n   overloads (response-policy framework, markdown content negotiation\n   middleware, operator-template minimal-API endpoints) — those legitimately\n   need AspNetCore. They now delegate to the Core overload internally.\n\n   Migration: no source change for AspNetCore consumers. Desktop / CLI\n   consumers can reference `Mostlylucid.StyloExtract.Core` alone.\n\n2. `ExtractionResult.LlmInductionFired` (new bool property) signals\n   whether the LLM template inducer ran during this extraction. Downstream\n   telemetry surfaces (e.g. status bars, NDJSON exports) can now show LLM\n   utilisation per call without reflection or polling internal state.\n   Defaults to false for non-LLM hosts and heuristic-only extractions;\n   set true only when the LlmTemplateInducer (or any future ILlmTextProvider-\n   backed inducer) actually invoked the LLM.\n\nStyloExtract 1.8.0-alpha.6 - 2026-06-25\n========================================\n\nApp-safe AddStyloExtract — moved to StyloExtract.Core\n------------------------------------------------------\n\nThe basic `AddStyloExtract(IServiceCollection, Action<StyloExtractOptions>?)`\nDI extension and its companion `StyloExtractOptions` type have moved from\n`Mostlylucid.StyloExtract.AspNetCore` to `Mostlylucid.StyloExtract.Core`.\nDesktop, CLI, and any non-AspNetCore host can now call:\n\n    services.AddStyloExtract(o => o.StorePath = \"templates.db\");\n\nwithout pulling `Microsoft.AspNetCore.App` (~70 MB of framework runtime).\n\n`Mostlylucid.StyloExtract.AspNetCore` keeps its `Action<ResponsePolicyBuilder>`\noverloads (response-policy framework, markdown content negotiation\nmiddleware, operator-template minimal-API endpoints) — those legitimately\nneed AspNetCore. They now delegate to the Core overload internally.\n\nMigration: no source change required for AspNetCore consumers. Desktop /\nCLI consumers can drop direct dependencies on `Mostlylucid.StyloExtract.AspNetCore`\nand reference `Mostlylucid.StyloExtract.Core` alone.\n\nStyloExtract 1.8.0-alpha.5 - 2026-06-25\n========================================\n\nIn-process CPU LLM backend (LLamaSharp) + 13-model bench harness.\nOperators can now embed a single ~2-3 GB GGUF model in the host\nprocess — no Ollama server, no separate LLM daemon. Same\nILlmTextProvider contract as the Ollama backend, so the\nLlmTemplateInducer + production enrichment coordinator + CLI\n`template train` all work unchanged.\n\nWhat's new since 1.8.0-alpha.4\n------------------------------\n\nMostlylucid.StyloExtract.Llm.LlamaSharp\n\n    New package. ILlmTextProvider implementation backed by LLamaSharp\n    0.27 (the .NET binding for llama.cpp). Loads a GGUF model from\n    disk; the executor reads the model's chat template from GGUF\n    metadata so prompts written for Ollama work unchanged.\n\n    Wire-up:\n\n        services.AddStyloExtract(...);\n        services.AddStyloExtractLlamaSharp(o =>\n        {\n            o.ModelPath = \"/var/models/Phi-4-mini-instruct-Q4_K_M.gguf\";\n            o.ContextSize = 8192;\n            o.GpuLayerCount = 0;        // pure CPU target\n        });\n        services.AddStyloExtractLlmInducer(\"config/templates\");\n\n    Anti-prompt set covers Qwen, Phi, Llama 3+, and Gemma 4 stop\n    tokens so the generator halts at the model's natural turn boundary\n    instead of echoing the chat template structure.\n\n    Known LLamaSharp 0.27 issue documented in the package README:\n    Gemma 4 E2B / E4B's chat template metadata isn't applied cleanly\n    by StatelessExecutor — the model emits Jinja2 template source\n    instead of YAML. Phi-4-mini, Qwen 2.5 Coder, Llama 3.2 work fine.\n\nModel benchmark harness\n\n    New tests/StyloExtract.Llm.Benchmark project — runs the\n    cross-product of (models × pages) for template induction and\n    reports F1 / train-time / markdown-size matrices. Reuses WCXB\n    ground-truth shape (one HTML.gz per page id, one ground-truth\n    JSON) and the operator-template store path.\n\n    Model spec routing: `llamasharp:/path/to/file.gguf` resolves via\n    the in-process backend; anything else hits Ollama. Lets one\n    bench compare server (Ollama) and embedded (LlamaSharp) backends\n    side-by-side with identical fixtures.\n\nRecommended models (empirically validated)\n\n    For Ollama backend:\n      * qwen3.5:4b           — 3 GB, ~26 s, F1 0.805  (default, best)\n      * qwen2.5-coder:3b     — 2 GB, ~21 s, F1 0.767  (smaller-and-faster pick;\n                                                       code-trained matters for\n                                                       CSS selectors)\n      * qwen3.5:0.8b         — 1 GB,  ~5 s, F1 0.528  (tiny floor)\n\n    For LLamaSharp backend (use bartowski quants):\n      * Phi-4-mini-instruct Q4_K_M    — 2.5 GB, verified working\n      * Qwen 3.5 4B Q4_K_M            — 3 GB, verified working\n      * Qwen 2.5 Coder 3B Q4_K_M      — 2 GB, verified working\n\nOllamaTextProviderOptions default model bumped\n\n    Default tag was gemma4:e4b-it-qat; switched to qwen3.5:4b per the\n    bench. The doc-comment now lists the smaller-and-faster pick and\n    the model families to avoid (thinking-mode budget burn).\n\nTests\n\n    494 across 11 projects. New StyloExtract.Llm.LlamaSharp.Tests\n    project covers ctor validation, missing-file behaviour, and\n    SkippableFact live-GGUF integration (skipped without\n    STYLOEXTRACT_LLAMASHARP_MODEL env var pointing at a GGUF file).\n\nStyloExtract 1.8.0-alpha.4 - 2026-06-25\n========================================\n\nTiny patch alpha to fix two consumer-facing bugs found while smoke-\ninstalling alpha.3 against NuGet.\n\nWhat's new since 1.8.0-alpha.3\n------------------------------\n\nSQLite chain CVE patched (GHSA-2m69-gcr7-jv3q)\n\n    Microsoft.Data.Sqlite bumped 10.0.1 -> 10.0.9; StyloExtract.Templates\n    gains a direct PackageReference to SQLitePCLRaw.bundle_e_sqlite3 so\n    the existing 3.0.3 central pin lifts the resolved bundle off the\n    vulnerable 2.1.11 line and onto SourceGear.sqlite3 3.50.4.5.\n    `dotnet list package --vulnerable` on consumer projects now\n    returns clean.\n\nPlaywrightHtmlFetcher.Dispose() (sync path)\n\n    The fetcher previously only implemented IAsyncDisposable. When\n    registered as a DI singleton (which AddStyloExtractPlaywright()\n    does), `using var sp = services.BuildServiceProvider()` — the\n    canonical sync pattern — threw at container shutdown:\n\n      InvalidOperationException: 'PlaywrightHtmlFetcher' type only\n      implements IAsyncDisposable. Use DisposeAsync to dispose the\n      container.\n\n    Add a sync Dispose() that block-waits on the async path. Container\n    disposal happens off the request hot path so the sync wait is safe.\n\nBoth fixes are backwards-compatible drop-in patches. No code changes\nneeded in consumer projects beyond bumping the package version.\n\n492 tests across 10 projects, all green.\n\nStyloExtract 1.8.0-alpha.3 - 2026-06-25\n========================================\n\nWhat's new since 1.8.0-alpha.2\n------------------------------\n\nNext.js __NEXT_DATA__ rehydration extractor\n\n    Next.js apps embed their page state in a JSON blob inside\n    <script id=\"__NEXT_DATA__\" type=\"application/json\">. Schemas vary\n    per site (Shopify Hydrogen uses pageProps.shopifyProductsPreloadedState,\n    news sites use pageProps.initialState.article.body) so the\n    extractor walks props.pageProps recursively and collects every\n    string value that looks like prose (>= 80 chars, contains a space,\n    isn't a URL / data URI / CSS variable / serialised JSON). Conservative\n    key-exclusion list keeps URLs and build metadata out of the result.\n\n    Chains next to the JSON-LD and Discourse rehydration fallbacks.\n\nContent-role fallback gate\n\n    The chained fallback (JSON-LD -> Next.js -> Discourse -> body-text)\n    previously gated on the all-blocks text sum. That sum looked\n    healthy for pages where the heuristic emitted 3 KB of nav + footer +\n    boilerplate while finding zero MainContent — the renderer's\n    MainContentOnly / Wcxb profiles drop those roles anyway, so the\n    actual markdown is 0 chars. Switch the gate to content-role text\n    mass only. 18 catastrophic pages recovered without any new code,\n    just the gate change.\n\nPlaywright auto-fallback decorator\n\n    AddStyloExtractPlaywright() wires PlaywrightHtmlFetcher AND\n    decorates the existing ILayoutExtractor with a RenderingLayoutExtractor\n    that runs static extraction first, then re-fetches via Playwright\n    only when:\n      * the caller passed a non-null sourceUri\n      * the static result has < 200 chars of content-role text\n      * an IRenderedHtmlFetcher is wired in DI\n\n    File-only callers never trigger a render. Operators who don't want\n    the Chromium dependency simply don't add the package. Three guards\n    against wasted work: Playwright throws -> return static; rendered\n    HTML same length as static -> skip the re-extract; re-extract\n    yields no improvement -> return static.\n\n    Usage:\n\n        services.AddStyloExtract(...);\n        services.AddStyloExtractPlaywright();\n\n    492 tests across 10 projects, 6 new unit tests for the decorator\n    policy.\n\nAggregate WCXB (1495 dev pages, Wcxb profile):\n\n    | Stage                                  |     F1 | Catastrophic |\n    |----------------------------------------|-------:|-------------:|\n    | 1.8.0-alpha.2                          |  0.760 |           25 |\n    | + Next.js extractor                    |  same  |              |\n    | + content-role fallback gate           |  0.760 |           17 |\n    | + 14 LLM-trained YAMLs                 |  0.760 |           17 |\n    | (Playwright auto-fallback)             |   --   |              |\n\n    Playwright auto-fallback is wired but not exercised in the WCXB\n    benchmark by default — needs `playwright install chromium`. Real-\n    world consumers with the package added see automatic recovery for\n    JS-rendered SPAs whose content is hydrated client-side.\n\nStyloExtract 1.8.0-alpha.2 - 2026-06-25\n========================================\n\nLLM template-training loop, Discourse rehydration, plus a stack of\nheuristic + selection fixes that move the WCXB dev split from F1 0.673\n(post-1.7.1, MainContentOnly profile) to F1 0.760 (Wcxb plain-text\nprofile, with operator-trained templates + Discourse rehydration\nactive). Catastrophic extraction failures (pred_chars ≤ 5) drop from\n92 of 1495 pages to 25.\n\nBeats Readability on every page type. Closes the gap to Trafilatura by\n~40% on Article + Documentation. Above v1.5.4 baseline (0.718) by\n+0.042 — and that's keeping all the GFM markdown structure (sidebar\nTOCs, blockquotes, GFM tables) in the runtime output, not stripping\nto plain text for benchmark flattery.\n\nWhat's new since 1.8.0-alpha.1\n------------------------------\n\nLLM template training loop (`stylo-extract template train`)\n\n    Operator-driven synchronous LLM template specialisation, the\n    counterpart to the existing async enrichment coordinator. Smart-\n    routes between induce (no template yet) and repair (template\n    exists but underperforms).\n\n    Closed-selector prompt: every selector the model can choose from\n    is enumerated from the actual page DOM via DocumentSelectorCatalog\n    and handed to the LLM in the prompt. Inventing selectors fails.\n\n    Post-parse AngleSharp validation: every selector the model returns\n    is run through doc.QuerySelectorAll. Selectors that match zero\n    elements are dropped; templates whose MainContent rule has no\n    surviving selector are rejected.\n\n    Repair prompt re-angled as a diagnostic: \"why is this failing AND\n    how should it work for this page\" instead of just \"produce a\n    corrected template.\"\n\n    Hash-prefixed selectors (`#my-id`) are now properly quoted in\n    emitted YAML so they round-trip; the inducer also pre-repairs\n    unquoted hash selectors in the LLM response before parse.\n\n    OllamaTextProvider bumps NumPredict default 1024 → 4096\n    (reasoning-tagged models burn tokens on chain-of-thought before\n    the answer) and falls back to message.thinking when message.content\n    is empty.\n\n    `template repair` command + `LlmTemplateInducer.RepairFromSkeletonAsync`\n    + production coordinator dispatch (TemplateEnrichmentJob.Kind +\n    LayoutExtractor enqueue on low-output existing-template hits).\n\nDiscourse data-preloaded rehydration\n\n    Discourse renders every page as an Ember.js SPA. Static HTML ships\n    near-zero post content; the actual topic + posts live in a JSON\n    blob in <div id=\"data-preloaded\" data-preloaded=\"...JSON...\">.\n    DiscourseRehydrationExtractor parses the JSON, walks\n    topic_NNN.post_stream.posts[*].cooked, strips tags, and emits the\n    result as a synthetic MainContent fallback block — same shape as\n    the existing JSON-LD fallback. Discourse powers 5 000+ public\n    forums; one upstream extractor covers them all.\n\n    WCXB lift: 6 of 13 catastrophic forum pages go from F1=0 to\n    F1=0.83–0.99. Forum category F1 0.477 → 0.535.\n\nWcxb plain-text profile\n\n    WCXB-style word-overlap benchmarks score against plain-text gold.\n    The default MainContentOnly / RagFull output emits GFM Markdown —\n    headings, lists, sidebar TOCs, multi-paragraph blockquotes — that\n    improves AI / human readability but registers as precision noise\n    against plain-text comparison.\n\n    New ExtractionProfile.Wcxb uses MainContentOnly's role-set but\n    emits each block's plain Text instead of its Markdown. Strictly\n    a benchmark / comparison profile — runtime callers keep their\n    existing profile and continue getting structured GFM.\n\nHeuristic + selection fixes\n\n    DomCleaner: strip <select> globally so <option> text stops\n    leaking on category dropdowns. mostlylucid.net opened with 290+\n    category names dumped into the output; now opens with the actual\n    blog list.\n\n    IntraBlockCleaner: content-guard the contamination-hint substring\n    match. \"sidebar\" substring was eating WordPress / SNOFlex article\n    bodies whose class contained \"sidebar-mode-single\". 28 catastrophic\n    article pages recovered.\n\n    LayoutExtractor: body-text fallback for old-school flat HTML\n    without <main>/<article>/section wrappers. erikdemaine.org/foldcut\n    and similar plain H1/H2/P-under-body pages now extract.\n\n    LayoutExtractor: detect chrome-heavy applicator output as bug-out.\n    Stale templates applied to wrong-shape pages produced 1 char of\n    MainContent while combinedText looked fine (header + footer\n    selectors found chrome). esprit-barbecue, nike, rei collections\n    recovered.\n\n    HeuristicBlockClassifier: empty-semantic-wrapper handling and\n    body-spanning <form> fall-through. ASP.NET WebForms pages\n    (drainblasterbill, etc.) recovered.\n\n    Framework-content-class-hints: 20 new patterns — Discourse, phpBB,\n    vBulletin, PrestaShop, WooCommerce, Shopify, BigCommerce,\n    Squarespace, Webflow, Wix, Joomla, GitHub Pages, plus some misc.\n\nBenchmark harness\n\n    WCXB harness gains --operator-templates <root> for loading\n    YAML files produced by `template train`, --page-ids for fast\n    repro of individual failures.\n\nAggregate WCXB (1495 dev pages, Wcxb profile):\n\n    | System            |     F1 | Precision | Recall |\n    |-------------------|-------:|----------:|-------:|\n    | StyloExtract v1.8.0-alpha.2 | 0.760 | 0.756 | 0.849 |\n    | rs-trafilatura              | 0.859 | 0.863 | 0.890 |\n    | Trafilatura                 | 0.791 | 0.852 | 0.793 |\n    | Readability                 | 0.675 | 0.685 | 0.713 |\n\nCompatibility\n\nBackwards-compatible with 1.8.0-alpha.1. All changes are either new\ncode paths (Discourse extractor, Wcxb profile, train CLI), strictly\nbetter selection (the heuristic fixes), or schema-additive\n(TemplateEnrichmentJob gains optional Kind / BadMarkdownSample with\ndefault Induce). Existing operator templates and trained YAMLs from\nalpha.1 continue to work unchanged.\n\nSuite: 486 tests across 10 projects, all green.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#repository",
+    "commit": "6015d985131797c4b89746f852e8803fa89d465b",
+    "type": "git",
+    "url": "https://github.com/scottgal/styloextract"
+  },
+  "verbatimVersion": "1.8.0-alpha.12",
+  "version": "1.8.0-alpha.12",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#dependencygroup/net10.0/anglesharp",
+          "@type": "PackageDependency",
+          "id": "AngleSharp",
+          "range": "[1.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#dependencygroup/net10.0/mostlylucid.ephemeral",
+          "@type": "PackageDependency",
+          "id": "Mostlylucid.Ephemeral",
+          "range": "[2.6.4, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#Mostlylucid.StyloExtract.Abstractions.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9725,
+      "fullName": "Mostlylucid.StyloExtract.Abstractions.nuspec",
+      "length": 24523,
+      "name": "Mostlylucid.StyloExtract.Abstractions.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1000,
+      "fullName": "README.md",
+      "length": 2273,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#RELEASE_NOTES.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 9081,
+      "fullName": "RELEASE_NOTES.txt",
+      "length": 23010,
+      "name": "RELEASE_NOTES.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 100091,
+      "fullName": "icon.png",
+      "length": 100109,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#lib/net10.0/StyloExtract.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23202,
+      "fullName": "lib/net10.0/StyloExtract.Abstractions.dll",
+      "length": 62464,
+      "name": "StyloExtract.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.26.14.36.38/mostlylucid.styloextract.abstractions.1.8.0-alpha.12.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "styloextract",
+    "html",
+    "extraction",
+    "rag",
+    "layout-fingerprint",
+    "abstractions",
+    "interfaces",
+    "styloflow"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

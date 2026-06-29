@@ -1,0 +1,204 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "StyloBot",
+  "catalog:commitId": "b8ad171b-045b-49b0-b252-50bb50c4359d",
+  "catalog:commitTimeStamp": "2026-06-28T23:04:55.2135179Z",
+  "created": "2026-06-28T23:02:06.497Z",
+  "description": "Layout-fingerprint matching with template-keyed extractor reuse. The ILayoutExtractor.ExtractAsync entry point: parse, clean, fingerprint, fast-path LSH match, slow-path pq-gram cosine, novel template induction, refit-as-version-event. Sub-millisecond match step; AOT-compatible.",
+  "iconFile": "icon.png",
+  "id": "Mostlylucid.StyloExtract.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-28T23:04:40.463Z",
+  "licenseExpression": "Unlicense",
+  "licenseUrl": "https://licenses.nuget.org/Unlicense",
+  "listed": true,
+  "packageHash": "pQk2/rw55Ob0N/ml+sCpEU9i3ozcVNp6128s5JMNswkdDKQ20fvBnFp/pKvahPFJcAxFYv407ciwaEeR5u4bXw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 197184,
+  "projectUrl": "https://github.com/scottgal/styloextract",
+  "published": "2026-06-28T23:02:06.497Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "StyloExtract 2.0.0 - 2026-06-28\n================================\n\nFirst stable release. Closes Phase 1 + Phase 2 of the identity-claim\nrework that ran across alpha.22, alpha.23, and the in-flight code that\nnever tagged. Stable means the v2 API contracts (IdentityClaim, the\nstreaming options, the operator-template shape with Claims, the apply-\ntime quality gate) are now things consumers can build on.\n\nWhat's new since 1.8.0-alpha.21\n-------------------------------\n\nIdentity-claim primitive (Phase 1)\n\n- New `IdentityClaim` type — outermost-first ancestor chain of\n  (tag, id, classes, data-* / aria-* / role) entries, anchoring every\n  selector by stable identity rather than by CSS string.\n- `DefaultClassStabilityFilter` rejects hash-shaped class tokens\n  (Tailwind JIT names, CSS-module hashes, build-time churn) so that\n  emitted claims survive across visits.\n- Inducer is identity-aware end-to-end: cardinality-aware uniqueness\n  for repeated roles, narrow tripwires for the streaming side, no\n  CSS-string emission anywhere on the apply path.\n- Layout extractor's apply path runs on `IdentityClaimApplicator`;\n  the old CSS-string applicator is gone.\n\nStreaming gateway: exact tripwire matching + bounded memory\n\n- The streaming scanner shifted from MinHash + LSH bands to exact\n  `IdentityClaim` matching against the per-event hash data the\n  tokenizer carries on each `TagEvent` (tag-name + id + per-class\n  + per-data-attr + per-aria + role hashes). The matcher walks the\n  claim's required hashes linearly against the event's hash arrays;\n  no per-tick MinHash recompute, no sliding window.\n- `StreamingTokenizerOptions` replaces the hard `MaxBufferSize`\n  consts on `IncrementalHtmlTokenizer` and\n  `IncrementalBytePatternScanner`. Both buffers are now rented from\n  `ArrayPool<byte>.Shared` and grow on demand up to the configurable\n  ceiling (default 1 MiB per buffer). Both classes are `IDisposable`.\n- `TagAttrLimits` replaces the per-event `TagEvent.MaxClassesPerEvent`\n  (was 8) and `TagEvent.MaxAttrPairsPerEvent` (was 3). Defaults\n  bumped to 32 / 16, validated up to 256 / 128 ceilings. Real pages\n  no longer silently lose the tail.\n- Streaming-template inducer rewrite (Task 4 of Phase 1) — emits\n  `IdentityClaim`-based tripwires shared with the layout side.\n- Incremental byte-pattern scanner (Task 13) replaces the alpha.21\n  tripwire scanner with a faster exact-match path; tag-hash prefilter\n  cuts per-scan allocs ~25-30x.\n\nApply-time quality gate + auto-repair loop\n\n- New `ApplicatorBrokenCheck` lifts the apply-time bug-out signal\n  out of LayoutExtractor's local function into a unit-testable gate.\n  Three new failure modes: noisy-MainContent (link-density >= 0.5\n  inside a content block, catches the Wikipedia / mostlylucid\n  language-picker leak), image-anchor picker (many short-text\n  anchors, catches the route-variant strip), metadata-shape\n  rejection (key:value-dominated blocks, catches the MS Learn YAML\n  frontmatter leak).\n- LayoutExtractor Move 3 widens the repair-enqueue gate: drops the\n  \"hand-authored template must exist\" requirement, triggers on\n  applicatorBugOut OR thin-markdown, adds Refit to the qualifying\n  match-status set.\n- `IsDeterministic` flag on `OperatorTemplate` distinguishes the\n  heuristic inducer's deterministic YAML audit snapshots from\n  hand-authored / LLM-induced templates. Deterministic snapshots no\n  longer block LLM induction.\n- `OperatorTemplateRule.Claims` carries the identity-claim ancestor\n  chain on operator templates so the operator-template path runs on\n  the identity-claim applicator instead of the CSS-string fallback.\n\nHeuristic block classifier improvements\n\n- Tighten-on-anchor (Move 1) — after a `<main>`/`<article>` qualifies\n  as MainContent, look down one level for a div/section descendant\n  with a stable identity anchor (stable id OR >= 1 stable class) that\n  carries >= 80% of the wrapper's prose text and has link density\n  < 0.5. When exactly one descendant qualifies, prefer it. Catches\n  Wikipedia + mostlylucid leaks where the picker rides inside the\n  outer semantic element.\n- `<article>` semantic-tag exception in repeated-item link-density\n  gate — news-listing pattern where each card is a single clickable\n  `<a>` (density ~1.0) now survives the gate. The Register, Verge,\n  Ars, BBC News listings render again.\n\nTemplate enrichment coordinator\n\n- `InMemoryTemplateEnrichmentQueue` cooldown key changed from string\n  Host to (Host, EnrichmentJobKind) tuple. A first-visit Induce no\n  longer blocks a follow-up Repair on the same host.\n- New `ILlmActivityObserver` interface brackets each LLM call with\n  LlmCallStarted / LlmCallEnded(success). Wired through the DI\n  builder so consumers can show \"llm <host>...\" while CPU inference\n  is running (the lucidVIEW FULL status bar uses this).\n\nCorpus mining (Phase 2)\n\n- `SelectorDistance` metric quantifies how similar two emitted\n  selectors are for evolved-candidate ranking (Task 6).\n- `CorpusMiner` query primitives (Task 7) and evolved-selector\n  emission (Task 8) — proposes alternate selectors from the\n  template_observations table.\n- Passive evaluation of evolved candidates at apply time (Task 9):\n  evolved selectors run alongside the chosen one and contribute\n  observations for the next mining cycle.\n- Background `CorpusMiningCoordinator` (Task 10) drains the\n  template_observations table on a cadence and writes evolved\n  candidates.\n- `template_observations` SQLite table (Task 5 of Phase 1) feeds\n  the mining and evolved-candidate paths.\n\nCold-path arbitrary caps (now configurable or bumped)\n\n- `NextDataRehydrationExtractor` walker bumped from 500 strings /\n  depth 12 to 5000 / depth 32 — real Next.js __NEXT_DATA__ blobs\n  exceeded the old guards.\n- LayoutExtractor's LLM-repair sample bumped 400 -> 2000 chars\n  (more context for the LLM to see what's wrong).\n- Skeleton renderer's attr-value truncation bumped 40 -> 160 chars\n  (covers accessibility-conscious aria-label values).\n- Streaming `IncrementalHtmlTokenizer.MaxBufferSize` (was 16 KiB\n  const that threw on JSON-LD blobs) replaced by\n  `StreamingTokenizerOptions.MaxPartialTagBytes` (1 MiB default).\n\nBreaking changes you need to know about\n---------------------------------------\n\n- `IncrementalHtmlTokenizer.MaxBufferSize` and\n  `IncrementalBytePatternScanner.MaxBufferSize` public consts removed.\n  Replaced by per-instance configuration via\n  `StreamingTokenizerOptions`. The instances are now `IDisposable`;\n  long-lived consumers should wrap in `using`.\n- `TagEvent.MaxClassesPerEvent` and `TagEvent.MaxAttrPairsPerEvent`\n  internal consts removed. Caps thread through `TagAttrLimits`,\n  configured from `StreamingTokenizerOptions`. Defaults bumped\n  (8 -> 32 / 3 -> 16) so existing code that didn't override the cap\n  sees the same or wider coverage.\n- `TagAttributeParser.ExtractIdentityHashes` now takes a\n  `TagAttrLimits` parameter before the `out` arguments. Update\n  callers; pass `TagAttrLimits.Default` to keep the new defaults.\n- `MinimalHtmlTokenizer` has a new `(input, filter, attrLimits)`\n  constructor; the existing two-arg constructor delegates to\n  `TagAttrLimits.Default`.\n- `OperatorTemplate` gained `IsDeterministic` (bool) and\n  `OperatorTemplateRule` gained `Claims`\n  (`IReadOnlyList<IdentityClaim>?`). Both are init-only; existing\n  call sites compile, but the YAML round-trip writes the new fields\n  and the loader sets `IsDeterministic` from the file name.\n- Layout extractor's CSS-string applicator path is gone. Templates\n  emitted before alpha.22 that depend on string-based selectors\n  rebuild through the identity-claim path on first visit.\n- `StreamingTemplate` lost its MinHash signature shape — templates\n  persisted from alpha.16-alpha.20 re-induce on first visit (the\n  store's PRAGMA user_version gate drops stale rows).\n- Streaming `RollingSketch` / `TagAllowlistBloom` types removed\n  (alpha.21 deprecated the latter; alpha.24 dropped both with the\n  byte-pattern matcher).\n- `InMemoryTemplateEnrichmentQueue._lastEnqueuedByHost` (private)\n  changed shape; only matters if you reflected against it.\n\nTests: 850 across 12 projects, all green.\n\nMigration: most consumers don't need to change anything. The two\npatterns that DO need a change are (a) anyone who passed\n`IncrementalHtmlTokenizer.MaxBufferSize` to size their own buffer\n(use `tok.MaxPartialTagBytes` instead) and (b) anyone who called\n`TagAttributeParser.ExtractIdentityHashes` directly (add\n`TagAttrLimits.Default` as the second argument).\n\n\nStyloExtract 1.8.0-alpha.21 - 2026-06-27\n=========================================\n\nStreaming: scope fixes (no algorithm replacement)\n--------------------------------------------------\n\nTightens the alpha.19 streaming scanner without replacing the MinHash\nmatcher. The algorithm shape (MinHash + LSH bands + three fences per\ntemplate) is unchanged; what changes is its scope:\n\n1. IncrementalHtmlTokenizer.Feed no longer copies the whole chunk into\n   _buffer. Chunks are parsed inline; only the partial-tag tail (if a\n   tag straddles a chunk boundary) is retained for stitching with the\n   next chunk. PeakBufferedBytes is now bounded by O(longest tag), not\n   O(chunk size). Measured: peak = 0 B for a 200 KB body in 16 KB\n   chunks, 19 B in 1 KB chunks. MaxBufferSize lowered from 64 KiB to\n   4 KiB.\n\n2. RollingSketch shingles upgraded to Markov bigrams: each shingle is\n   (prevTagHash, currentTagHash, currentClassHash). Order-sensitive:\n   [A, B] and [B, A] now produce different signatures. The leftmost\n   shingle in any window uses prevTag = 0 so sliding-window scanners\n   match fences built from contiguous event sequences regardless of\n   what came before the window.\n\n3. Static StructuralTagAllowlist replaces per-fence TagAllowlistBloom.\n   Only structural tags (html/body/header/nav/main/article/section/\n   div/p/h1-h6/ul/ol/li/table/...) push into the sketch. meta/link/\n   script-chrome/img/span/a bypass the recompute entirely. The\n   TagAllowlistBloom JSON property is retained as a back-compat sink\n   (read-and-discarded) so persisted templates from alpha.16-alpha.20\n   round-trip cleanly.\n\n4. Depth-aware capture-end: while in Capturing, ContentEnd only matches\n   when DOM depth has returned to (or below) the depth at ContentStart.\n   Nested matches mid-content can no longer terminate capture early.\n\n5. Dead StreamingTemplate.MinContentDepth field removed (never read by\n   any scanner).\n\n6. FenceScanner and IncrementalFenceScanner now share a single static\n   StreamingTick.Step. Both scanners build a StreamingTickState from\n   their respective storage (span-backed vs heap-backed) and execute\n   literally the same code. Cross-validation tests retained as insurance.\n\n7. IStreamingTemplateStore gains version-chain APIs:\n   - GetByHostAtVersionAsync(host, version) — retrieve a specific version.\n   - ListVersionsByHostAsync(host) — enumerate all known versions.\n   UpsertAsync now APPENDS per (host, version) rather than replacing.\n   SQLite store schema migrated to PK (host, version); existing rows\n   auto-migrate to version 1 on first open.\n\nMigration notes:\n- Persisted SQLite templates from alpha.16-alpha.20 auto-migrate to\n  version 1 on first open; existing rows are preserved.\n- TemplateFence(uint[], ulong[], ulong, int) constructor removed; the\n  new shape is TemplateFence(uint[], ulong[], int). TagAllowlistBloom\n  is still readable as a property (returns 0).\n- StreamingTemplate.MinContentDepth removed — drop from any code that\n  set it in `with` expressions.\n- RollingSketch.Push signature changed to Push(prevTagHash, tagHash,\n  classHash) — direct users must track prev tag.\n\nStyloExtract 1.8.0-alpha.19 - 2026-06-26\n=========================================\n\nStreaming: sliding-window design (no full-buffer retention)\n------------------------------------------------------------\n\nRefactors alpha.18's IncrementalHtmlTokenizer + IncrementalFenceScanner\nto a TRUE sliding-window streaming design:\n\n1. Bytes: only partial-tag bytes are retained. Once a tag is emitted,\n   the bytes are dropped immediately (compact-on-emit, not compact-on-\n   next-Feed). New PeakBufferedBytes property exposes the high-watermark\n   for telemetry. Worst-case in-flight buffer is O(longest tag), not\n   O(megabytes). MaxBufferSize lowered from 1 MiB to 64 KiB and\n   repositioned as a hard safety stop that should never be hit under\n   correct input — exceeding it now means a single tag (or unclosed\n   script/style body) genuinely exceeds 64 KiB and the scan must bail.\n\n2. Events: fixed-size sliding window of the last WindowSize tag events\n   (unchanged from alpha.18). Push new, pop oldest. The window is the\n   only event-level state.\n\n3. RollingSketch: documented (in IncrementalFenceScanner XML doc) that\n   MinHash with min-pooling is NOT reversibly rollable — once an element\n   leaves the window, its contribution to min(...) can't be subtracted.\n   The sketch therefore rebuilds the signature from the current event\n   window after each accepted tag (O(WindowSize × SignatureSize) per\n   tick, gated by the Bloom allowlist filter to skip the vast majority\n   of inbound tags). The bounded-buffer property — the user's headline\n   concern — is satisfied by the tokenizer; the sketch's per-tick recompute\n   is the price MinHash charges for the LSH-band locality the matcher\n   relies on. The event-level memory remains O(WindowSize) regardless.\n\n4. IncrementalFenceScanner now exposes PeakBufferedBytes and BytesConsumed\n   passthroughs from the tokenizer so callers can prove the bounded-memory\n   property to telemetry without reaching into the tokenizer directly.\n   The duplicated tick logic (mirroring FenceScanner.Tick over heap-backed\n   sketch state) is retained — it's hard-pinned to the ref-struct path by\n   the existing cross-validation tests, which give us higher confidence\n   than refactoring to delegate would.\n\nMemory-cap proof: tests/StreamingMemoryBoundTests.cs feeds 5 MiB of\nsynthetic HTML in 4 KiB chunks and asserts PeakBufferedBytes stays\nunder 16 KiB. The streaming gateway can now scan multi-megabyte\nresponses while holding bounded memory.\n\nMigration: API is unchanged from alpha.18 — refactor is internal. The\nnew PeakBufferedBytes and BytesConsumed diagnostic properties on\nIncrementalFenceScanner are additive. MaxBufferSize is still public but\nthe new value is 64 KiB (was 1 MiB); only relevant if you were catching\nthe InvalidOperationException for pathological input.\n\nStyloExtract 1.8.0-alpha.18 - 2026-06-26\n=========================================\n\nStreaming: true chunked tokenization + refit/versioning + bench update\n-----------------------------------------------------------------------\n\n1. IncrementalHtmlTokenizer + IncrementalFenceScanner\n   Stateful tokenizer that survives chunk boundaries. A partial tag at\n   the end of one chunk is held in an internal buffer and completed when\n   the next Feed call arrives. Pairs with IncrementalFenceScanner —\n   callers Feed chunks as they arrive from the network, get a verdict\n   per chunk, bail early on Captured / Bailout.\n\n   Trade-off vs MinimalHtmlTokenizer's span path: one buffer allocation\n   per request (not per chunk). Use the span path for whole-buffer\n   scans, the incremental path for streaming gateways where bytes\n   arrive in chunks. Hard cap of 1 MiB on the internal buffer — feed\n   throws InvalidOperationException on pathological input that never\n   closes a tag, surfacing the failure rather than silently dropping\n   bytes.\n\n   Architectural note: FenceScanner stays a ref struct (zero-alloc hot\n   path); IncrementalFenceScanner is a heap-backed class that ports the\n   same tick logic. The two are kept in lockstep — any drift between\n   them is a correctness bug surface and is covered by cross-validation\n   tests that feed the same bytes both ways.\n\n2. Streaming-template refit + versioning\n   StreamingTemplate gains a Version field (defaults to 1; persists\n   across alpha.17 templates without migration). New\n   StreamingRefitOrchestrator observes captured-scan output per host\n   and kicks off-hot-path refits when either:\n     - capture-region EWMA drift exceeds 30% on N consecutive scans, OR\n     - every 10th captured scan re-induces and finds different fences\n   On refit: version bumps, store is upserted, the new\n   IStreamingTemplateVersionSink fires a StreamingTemplateRefitEvent\n   (Host, Old/New TemplateId, Old/New Version, Reason, DetectedAt).\n   Default sink is a no-op; consumers wire UI telemetry to it.\n\n3. Bench update\n   ExtractionComparisonBench gains a New_StreamingScanByHost variant so\n   the host-keyed hot-path is benchmarked alongside the original\n   GUID-keyed scan. Pre-populates the in-memory store with the\n   host=\"www.mostlylucid.net\" template that lucidview FULL hits in\n   production.\n\nMigration: additive APIs. Alpha.17 consumers using ScanByHost continue\nto work; the incremental tokenizer and the refit orchestrator are\nopt-in (use them when feeding chunks / when wiring drift telemetry).\n\nStyloExtract 1.8.0-alpha.17 - 2026-06-26\n=========================================\n\nStreaming: host-keyed templates + naive auto-induction\n-------------------------------------------------------\n\nThree changes to close the alpha.16 streaming integration loop:\n\n1. Host-keyed lookup\n   IStreamingTemplateStore gains GetByHostAsync / TryGetHotByHost /\n   UpsertAsync. StreamingTemplate gains a Host field (required). One\n   template per host (latest wins). The existing GUID-keyed methods\n   remain — Host is the lookup key for consumers; TemplateId stays for\n   stable identity / versioning.\n\n2. StreamingPathSelector.ScanByHost(host, bytes)\n   Synchronous hot-cache-only host scan. Returns NoTemplate on miss\n   so the caller can WarmByHostAsync + retry or induce.\n   WarmByHostAsync brings a host's template into the hot cache via\n   the durable tier.\n\n3. StreamingTemplateInducer\n   Naive first-pass inducer: walks HTML via MinimalHtmlTokenizer,\n   finds semantic-marker tag-sequence-pairs (<header>...</header>,\n   <p>...</p>...<p>...</p>, <footer>/</main>/</body>) and produces a\n   StreamingTemplate ready to upsert. Returns null on pages with no\n   identifiable structural fences (plain text, image-only, etc.).\n   Describe() returns a human-readable summary of the chosen markers\n   for logging.\n\nStorage migrations:\n- InMemoryStreamingTemplateStore: adds an in-memory host index.\n- SqliteStreamingTemplateStore: adds a 'host' TEXT column + index;\n  on-open ALTER TABLE migration handles pre-alpha.17 schemas\n  (existing rows get Host=\"\" — reachable only by GUID).\n\nMigration: additive APIs; alpha.16 consumers using only the\nGUID-keyed surface continue to work unchanged. The new Host field\non StreamingTemplate IS required — existing construction sites must\nset Host=\"\" if they have no host context.\n\nStyloExtract 1.8.0-alpha.16 - 2026-06-26\n=========================================\n\nMostlylucid.StyloExtract.Streaming — zero-allocation byte-stream scanner\n------------------------------------------------------------------------\n\nNew package on NuGet. Hot-path streaming fence scanner: skips page chrome\nand captures the content region as response bytes flow past, using\nMinHash-derived structural fences. Zero per-request GC-tracked\nallocations in steady state.\n\nDesigned for the gateway position — drop into a response pipeline\n(HttpClient, Stylobot's edge, ASP.NET output filters) alongside the byte\nstream and emit a verdict without buffering the full page.\n\nPublic hot-path API:\n  StreamingPathSelector.Scan(Guid templateId, ReadOnlySpan<byte> html)\n    → ScanVerdict { Continue | Captured | Bailout | NoTemplate }\n\n  // Warm a template into the hot cache:\n  await selector.WarmAsync(templateId);\n\nStorage:\n  - InMemoryStreamingTemplateStore — single-process LRU.\n  - SqliteStreamingTemplateStore — durable; same SQLite file pattern as\n    the existing ITemplateIndex but a separate table.\n\nPairs with the existing StyloExtract.Fingerprint learn path and\nITemplateIndex template store. The streaming template format is its own\nshape (TemplateFence with MinHash bloom, content-start/content-end\nfences) — not an LLM template or operator template.\n\nBench results vs LayoutExtractor on mostlylucid fixtures: see\nbench/StyloExtract.Streaming.Benchmarks/ (zero-alloc scan competitive\nwith the full extractor's path-match cost while never building a DOM).\n\nMigration: additive package; consumers add a PackageReference to\nMostlylucid.StyloExtract.Streaming if they want gateway-position\nscanning.\n\nStyloExtract 1.8.0-alpha.15 - 2026-06-26\n=========================================\n\nRenderOptions.WaitUntil — opt out of NetworkIdle for SPA routing\n-----------------------------------------------------------------\n\nPlaywrightHtmlFetcher previously hardcoded WaitUntilState.NetworkIdle\nfor the primary GotoAsync. On sites with aggressive client-side\nrouting (BBC News auto-navigates /news → /articles/<id> in the\npost-load JS phase), this means the fetcher returns the post-routing\nDOM, not the page the user requested.\n\nRenderOptions now exposes a WaitUntil property (PlaywrightWaitUntil\nenum: Load / DOMContentLoaded / NetworkIdle / Commit). Default stays\nNetworkIdle for backwards compatibility. Consumers fetching SPA-heavy\nsites should set Load to capture the initial DOM before the router\nfires.\n\nThe secondary WaitForLoadStateAsync(NetworkIdle, ...) drain remains —\nit's independently bounded by WaitForNetworkIdleTimeout and serves as\na best-effort late-XHR catch-up; safe even with the primary returning\non Load.\n\nPlaywrightWaitUntil is a small enum (not Microsoft.Playwright.WaitUntilState\ndirect) so consumers don't take a transitive dependency on\nMicrosoft.Playwright just to pick a strategy.\n\nStyloExtract 1.8.0-alpha.14 - 2026-06-26\n=========================================\n\nSitemap CLI end-to-end regression + LLM nav few-shot\n-----------------------------------------------------\n\n1. Sitemap CLI test suite\n\nThe alpha.11 stylo-extract sitemap verb has been working on real sites\nsince alpha.13 (heuristic nav-classification tightening), but nothing\ncaught regressions. Added 5 end-to-end tests in\nStyloExtract.Core.Tests/SitemapCommandTests.cs that invoke the\nSitemapCommand.CrawlAsync handler against the mostlylucid-home.html.gz\nfixture (real captured homepage, shared with the heuristics suite) plus\na stub HttpMessageHandler and assert: real nav links emitted under\n# www.mostlylucid.net, --max-depth 0 emits only the seed Title row,\noff-host links are not followed, --max-pages cap honoured exactly, and\n--delay-ms enforced with a stopwatch floor. No network access required.\n\n2. LLM induction prompt — nav-classification few-shot\n\nLlmInducerPrompts.System and SystemRepair now include a second worked\nexample: a blog homepage with header <nav>, breadcrumb,\nMainContent + RepeatedItem post cards, and footer <nav>. Mirrors the\npatterns the alpha.13 NavPreDetector heuristic correctly classifies.\nRule 6 (RepeatedItem usage) tightened with explicit guidance that\nheader/footer nav lists are PrimaryNavigation / SecondaryNavigation at\nthe parent <ul>/<nav> level, NOT RepeatedItem at the <li> level —\ncloses a known LLM confusion mode.\n\nTests: snapshot tests in StyloExtract.Core.Tests/LlmInducerPromptsTests.cs\nverify the prompt extensions land verbatim so future prompt edits don't\naccidentally regress.\n\nStyloExtract 1.8.0-alpha.13 - 2026-06-26\n=========================================\n\nHeuristic nav-classification tightening\n----------------------------------------\n\nHeuristicBlockClassifier was under-classifying real-world nav patterns\non server-rendered sites — header <nav> strips, header <ul>-of-links,\nbreadcrumb lists, role=\"navigation\" attributes, footer nav — all landed\nas Boilerplate (or weren't extracted at all). Result: the alpha.11\nSitemap profile and stylo-extract sitemap CLI verb produced a one-line\ntree even on sites with rich nav, because the classifier didn't surface\nPrimaryNavigation / SecondaryNavigation / Breadcrumb roles for them.\n\nTightened patterns now produce definite role classifications:\n  1. <header> <nav> -> PrimaryNavigation (0.9)\n  2. Top-of-document <nav> -> PrimaryNavigation (0.85)\n  3. <footer> <nav> -> SecondaryNavigation (0.9)\n  4. <nav aria-label=\"breadcrumb\"> / class~=\"breadcrumb\" -> Breadcrumb (0.95)\n  5. <* role=\"navigation\"> -> PrimaryNavigation (0.95)\n  6. Header <ul> of mostly-link <li>s -> PrimaryNavigation (0.85) at\n     the <ul> level, suppress descent (was emitting deep Boilerplate)\n  7. Footer <ul> of mostly-link <li>s -> SecondaryNavigation (0.85)\n\nImplementation: a new NavPreDetector runs after per-element classification\nand injects each detected nav container as a high-score (50000) candidate\nat the parent level, then demotes any descendant candidates so greedy\nselection picks the nav parent and stops descending into its noise.\nContainers nested inside <main>/<article> are skipped — IntraBlockCleaner\nalready strips them as intra-block contaminants; hoisting would steal\nthe article's selection win.\n\nRegression fixtures captured from mostlylucid.net + wikipedia.org under\ntests/StyloExtract.Heuristics.Tests/Fixtures so the next time a\nclassifier change regresses real-world nav detection, the bench catches\nit before it ships.\n\nDownstream impact: the Sitemap ExtractionProfile and stylo-extract\nsitemap CLI verb now produce real nav trees on these sites - see the\nlucidview FULL dogfood smoke for evidence.\n\nStyloExtract 1.8.0-alpha.12 - 2026-06-26\n=========================================\n\nDI wire-up fix for deterministic-template YAML persistence\n-----------------------------------------------------------\n\nalpha.11 introduced DeterministicTemplateYamlSink + the\nAddStyloExtractOperatorTemplates registration, but AddStyloExtract's\nLayoutExtractor construction did not pass the sink through to the\nextractor — so even when the sink was registered in DI, LayoutExtractor's\noptional ctor parameter defaulted to null and no `<host>-deterministic.yaml`\nfile was ever written.\n\nFixed by threading `sp.GetService<DeterministicTemplateYamlSink>()` to the\nLayoutExtractor constructor in AddStyloExtract. No API change; consumers\nwho already called AddStyloExtractOperatorTemplates start seeing\ndeterministic YAML files immediately after upgrading.\n\nStyloExtract 1.8.0-alpha.11 - 2026-06-26\n=========================================\n\nSequenced architecture extension: deterministic templates with\nextended classification — Title role, Sitemap profile, deterministic\nYAML persistence, and a sitemap CLI verb.\n\nTitle BlockRole\n---------------\n\nNew BlockRole.Title value distinguishes the page-level <h1> (the single\nH1 the rest of the page is \"about\") from intra-content Heading\n(H2/H3/H4 inside the body). HeuristicBlockClassifier surfaces the Title\nvia a shared PageTitleDetector helper, picking the H1 in/closest-to\n<main>/<article> and falling back to earliest-in-document with multiple\nH1s. ExtractorApplicator surfaces Title on the fast-path / applicator\nbranch too, so output stays consistent across novel and cached requests\n(matters for the response-cache ETag). LlmInducerPrompts list Title in\nthe allowed-roles set with a one-line distinction from Heading.\n\nMainContentOnly, RagFull, Wcxb, and AgentNavigation profiles all\ninclude Title in their role-set. The renderer quality gate (drop short\ntext) bypasses for Title and Heading so intentionally-terse page\ntitles (\"Home\", \"About\") still surface.\n\nSitemap ExtractionProfile\n-------------------------\n\nNew ExtractionProfile.Sitemap value emits only Title + Heading +\nPrimaryNavigation + SecondaryNavigation + Breadcrumb. For sitemap /\noutline / crawler use cases that want page titles and the site's nav\nstructure without pulling body content. The CLI's --profile flag\nrecognises `sitemap` automatically (enum binding).\n\nDeterministic YAML persistence\n------------------------------\n\nNew DeterministicTemplateYamlSink, wired automatically when\nAddStyloExtractOperatorTemplates(root) is called, writes\n<host>-deterministic.yaml alongside each heuristic-induced template's\nSQLite row. The file carries every role the heuristic detected (Title,\nMainContent, Navigation, Footer, …) — auditable, hand-editable, and\ndiffable, mirroring how LLM-induced templates have always been written\nby TemplateEnrichmentCoordinator. The SQLite store remains the\nauthoritative source at match time; YAML is best-effort and\nnon-blocking.\n\nstylo-extract sitemap CLI verb\n------------------------------\n\nNew `sitemap` subcommand: takes one or more starting URLs, extracts\neach with ExtractionProfile.Sitemap, follows internal nav links to\n--max-depth (default 3), and emits a markdown tree of titles + URLs to\nstdout or --out <file>. Safety caps: 50 pages by default\n(--max-pages), 1s between requests (--delay-ms), no off-host follow.\n\nMigration\n---------\n\nNo source change required for consumers. The new Title role is\nadditive (existing switches that handled BlockRole pattern-match\ndefaults will continue to compile and behave identically; switches\nthat exhaustively listed roles were updated). Deterministic YAML\nwriting only activates when AddStyloExtractOperatorTemplates is\ncalled, so consumers that don't use operator templates see no new\nfilesystem activity.\n\n\nStyloExtract 1.8.0-alpha.10 - 2026-06-26\n=========================================\n\nLLM classification accuracy for chrome patterns\n------------------------------------------------\n\nSymptom: induced templates were labelling language pickers, filter UI,\nlocale switchers, and pagination strips as MainContent on\nserver-rendered blogs (mostlylucid.net being the canonical reproducer).\nThe downstream RagFull renderer's role-filter — which already drops\nPrimaryNavigation / SecondaryNavigation / Form / Boilerplate — never\nsaw them as nav and so left them in the extracted markdown, producing\noutput WORSE than the deterministic heuristic.\n\nFix: expanded the induction and repair system prompts with explicit\n\"chrome pattern → role\" examples (language picker → PrimaryNavigation;\nfilter / fac\n\n[truncated — see RELEASE_NOTES.txt packaged at root for full history]",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#repository",
+    "commit": "71e0a53a2110c73774af3b09970467bb86f9ed05",
+    "type": "git",
+    "url": "https://github.com/scottgal/styloextract"
+  },
+  "verbatimVersion": "2.0.0",
+  "version": "2.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/mostlylucid.styloextract.abstractions",
+          "@type": "PackageDependency",
+          "id": "Mostlylucid.StyloExtract.Abstractions",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/mostlylucid.styloextract.fingerprint",
+          "@type": "PackageDependency",
+          "id": "Mostlylucid.StyloExtract.Fingerprint",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/mostlylucid.styloextract.heuristics",
+          "@type": "PackageDependency",
+          "id": "Mostlylucid.StyloExtract.Heuristics",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/mostlylucid.styloextract.html",
+          "@type": "PackageDependency",
+          "id": "Mostlylucid.StyloExtract.Html",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/mostlylucid.styloextract.markdown",
+          "@type": "PackageDependency",
+          "id": "Mostlylucid.StyloExtract.Markdown",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/mostlylucid.styloextract.templates",
+          "@type": "PackageDependency",
+          "id": "Mostlylucid.StyloExtract.Templates",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.5, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#Mostlylucid.StyloExtract.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 12537,
+      "fullName": "Mostlylucid.StyloExtract.Core.nuspec",
+      "length": 32604,
+      "name": "Mostlylucid.StyloExtract.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 983,
+      "fullName": "README.md",
+      "length": 1867,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#RELEASE_NOTES.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 18388,
+      "fullName": "RELEASE_NOTES.txt",
+      "length": 48499,
+      "name": "RELEASE_NOTES.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 100091,
+      "fullName": "icon.png",
+      "length": 100109,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#lib/net10.0/StyloExtract.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 49969,
+      "fullName": "lib/net10.0/StyloExtract.Core.dll",
+      "length": 144896,
+      "name": "StyloExtract.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.28.23.04.55/mostlylucid.styloextract.core.2.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "styloextract",
+    "html",
+    "extraction",
+    "rag",
+    "layout-fingerprint",
+    "markdown",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

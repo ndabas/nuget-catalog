@@ -1,0 +1,257 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Osie Brown | Miracle Chukwuemeka",
+  "catalog:commitId": "5f19b78e-4595-431f-b7f7-08785487b40e",
+  "catalog:commitTimeStamp": "2026-06-29T10:52:53.3895431Z",
+  "copyright": "© 2025 Answer Sales Calls Inc. — All Rights Reserved",
+  "created": "2026-06-29T10:49:10.7Z",
+  "description": "The only ORM and data access framework for Azure Table Storage in the .NET ecosystem.\nASCDataAccessLibrary gives .NET developers (6 through 10) an Entity-Framework-style experience — lambda expression queries, strongly-typed entities, automatic serialization, batch operations, and fluent extension methods — on top of the most cost-effective NoSQL cloud database available.\n\nv4.3 adds a complete performance layer: a SINGLE unified result cache (one class, one Count, one Clear, one TTL model) with declarative per-entity tuning via [CachePolicy], delta-refresh for append-only data (logs, audit, events) that keeps the cache current at minimal wire cost, SingleFlight coalescing of concurrent identical fetches, paged-result caching, and IAsyncEnumerable streaming for Azure Tables (matching the blob streaming shipped in v4.0). Every existing call site in your codebase gets faster the moment you upgrade — no consumer code change required.\n\nWrite idiomatic C# against Azure Table Storage and Azure Blob Storage without touching the raw SDK:\n  • var customer = await new Customer().LoadAsync(x => x.CompanyId == id)\n  • await customer.SaveAsync()\n  • await customers.DeleteAsync()\n  • [CachePolicy(\"5m\")] on the entity → process-wide caching with write-through invalidation\n  • await foreach (var row in da.StreamCollectionAsync(predicate)) → progressive-render UIs\n\nKey features:\n  • Lambda expression queries with automatic hybrid server-side / client-side OData splitting\n  • Strongly-typed entities with transparent decimal precision, large string chunking, and enum serialization\n  • Dynamic entities (DynamicEntity) for schema-free, runtime-defined data — telemetry, ETL, multi-tenant config\n  • Batch insert / update / delete up to any size — auto-chunked at Azure's 100-entity limit\n  • Cursor-based pagination with continuation tokens\n  • IAsyncEnumerable streaming for Azure Tables — StreamCollectionAsync yields rows as the SDK pages them (NEW in v4.3)\n  • Result caching with [CachePolicy] — attribute-driven, TTL-based, write-through invalidation (NEW in v4.3)\n  • Zero-config request memoization — auto-creates an AsyncLocal scope on first DAL touch (NEW in v4.3)\n  • SingleFlight coalescing — concurrent identical fetches share one Azure round-trip (NEW in v4.3)\n  • Azure Blob Storage with IAsyncEnumerable streaming, lambda tag filtering, and FFmpeg video compression\n  • Persistent resumable work queues (QueueData<T> + StateList<T>) with crash recovery and position tracking\n  • Azure Table Storage session management for ASP.NET Core, desktop, console, and background service apps\n  • First-class ILogger provider — standard .NET structured logging backed by Azure Table Storage\n  • TableStorage.Configure() once in Program.cs — credentials resolved automatically across the entire app\n\nBuilt and maintained by Answer Sales Calls Inc. (ASC). Targets Azure.Data.Tables SDK v12 (no legacy Cosmos.Table dependency). Ships as net9.0 — compatible with .NET 9 and .NET 10 SDK builds. .NET 6, 7, and 8 consumers install via NuGet TFM fallback.\n\nTags: Azure Table Storage ORM, NoSQL database .NET, Entity Framework alternative Azure, Lambda query Azure Storage, Azure data access library, cloud database C#, Azure Blob Storage .NET, result caching .NET, request-scoped memoization, IAsyncEnumerable streaming, SingleFlight coalescing, session management Azure, structured logging Azure Table, queue management .NET, DynamicEntity schema-free storage",
+  "id": "ASCDataAccessLibrary",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-29T10:52:18.42Z",
+  "licenseFile": "mit_license.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "qUDkl39GFcvj0Y8SUA+BOmPsZT6y7RYctQ+7LjBJk60d3G3IcEzAxDBNEIUVPEnX3fptxyEYy/MXMWl7H6n4OQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 548614,
+  "projectUrl": "https://www.answersalescalls.com/",
+  "published": "2026-06-29T10:49:10.7Z",
+  "readmeFile": "getting-started-guide-43.md",
+  "releaseNotes": "## Release Notes — ASCDataAccessLibrary v4.3.0 — Performance Layer + Bug Fix Release\n\n### Headline: complete performance layer added in v4.3\n\nv4.3 ships the largest performance upgrade in the library's history. Four new capabilities,\nall transparent at the call site, all opt-in or zero-config — no breaking changes, no\nconsumer code rewrites required.\n\n**1. ONE unified result cache (DataAccessCache)**\nv4.3 ships a SINGLE cache class. One dictionary, one Count, one Clear, one TTL model.\nEvery DAL read path funnels through it automatically — GetRowObjectAsync (every overload,\nincluding the PK+RK shortcut), GetCollectionAsync (every overload), GetCollectionByFilterAsync,\nGetAllTableDataAsync, and GetPagedCollectionAsync (each page cached by continuation token).\nStreamCollectionAsync bypasses the cache by design (streaming consumers want live data).\n\nEvery entity is cached by default — entities without [CachePolicy] use DataAccessCache.\nDefaultTtlSeconds (120s by default, set by PollerHost.EnsureStarted on startup). Set to 0\nto opt non-policy entities out entirely.\n\n[CachePolicy(\"5m\")] overrides per entity. [CachePolicy(\"5m\", AppendOnly = true)] enables\ndelta-refresh — on TTL expiry the cache fires a delta query (filter AND Timestamp gt\nCachedAt), merges new and updated rows into the existing cached list by RowKey, and bumps\nthe entry's CachedAt. Append-only tables stay current at minimal wire cost (a few new rows\nper refresh instead of the full set). Ideal for AppLoggingData, ErrorLogData, and event-shaped\ntables.\n\n[CachePolicy(..., InvalidateOnWrite = false)] disables write-through invalidation for\nhigh-write-rate tables where eviction would defeat the TTL (ShadowPartition uses this).\n\n**2. SingleFlight coalescing of concurrent identical fetches**\nWhen N callers ask for the same query within milliseconds of each other (cold cache, burst\ntraffic, hot dashboard refresh), the first caller drives the Azure round-trip and the rest\npiggyback on the same Task — one Azure round-trip instead of N. Applies to every entity,\nwith or without [CachePolicy].\n\n**3. Per-table policy registry for DynamicEntity-backed queries**\nDataAccessCache.RegisterTablePolicy(tableName, ttl, appendOnly, invalidateOnWrite) sets a\nper-table cache policy for queries that can't carry the attribute on the type — DynamicEntity-\nbacked reads, ETL pipelines, multi-tenant schema-free config. The CCL's HtmlReport widget\ncalls this against the user's selected table with 5m + AppendOnly so reports are\nperformant and live new rows surface within each refresh cycle.\n\n**4. IAsyncEnumerable streaming for Azure Tables (StreamCollectionAsync)**\nThe streaming read surface that has been available for Azure Blobs since v4.0 now exists\nfor Azure Tables. Three overloads — StreamCollectionAsync(filter), StreamCollectionAsync(\npredicate), StreamCollectionByPartitionAsync(partitionKey) — yield rows as the SDK pages\nthem from the wire. Time-to-first-row becomes one HTTP round-trip instead of the full\nmaterialization wait. All three overloads accept a CancellationToken.\n\n**5. Automatic alias-to-key query rewriting (NEW in v4.3 final)**\nProperties whose getters alias PartitionKey or RowKey (the standard CompanyId / CustomerId /\nEmail-as-RowKey pattern) are auto-detected at first touch and every query against them is\ntransparently rewritten to target the indexed column. Lambda predicates, structured DBQueryItem\nlists, and the field/comparison/value triple all consult the same resolver\n(TableEntityTypeCache.ResolveFieldNameForType) so the rewrite is identical across query styles.\nResult: identical consumer code, dramatically faster queries (full-table scans become point\nreads or partition-bounded scans). Zero risk to non-aliased properties — they emit unchanged.\n\n**BREAKING CHANGE: AppShadowPartitions must be deleted on upgrade**\nThe shadow catalog used by Any Reporting Tools you wrote and any DataAccess<ShadowPartition> consumer is\nrepartitioned in v4.3 final: PartitionKey changes from \"{tableName}\" to \"{tableName}:{fieldName}\"\nso per-field catalog reads hit a small partition instead of one giant table-wide partition.\n**Action on upgrade: delete AppShadowPartitions in every storage account.** The catalog\nrebuilds automatically as DAL writes resume. Application log/audit tables with reporting\ndependencies on the shadow catalog may also need to be wiped + repopulated; CRUD-only consumers\nare unaffected. See section 27 of the getting-started guide.\n\n**Caveat: external writes**\nAzure Table Storage has no change feed. Writes that happen outside this process — Azure\nportal edits, AzCopy, sibling app instances, manual SQL — are not seen by the cache.\nThe TTL is the staleness ceiling (default 120s) for those mutations. AppendOnly entities\nextend this ceiling for externally-deleted or externally-moved-out rows beyond the TTL\n(documented tradeoff). Manual flush: DataAccessCache.Clear() or DataAccessCache.InvalidateTable(name).\n\n**Migration impact: zero.** Every existing call site keeps working. The early-beta\nDataAccessRequestCache class was removed — if your code referenced it, see §26 of the\ngetting-started guide for the one-table mapping to DataAccessCache.\n\nSee sections 24 and 25 of the getting-started guide for full coverage including AppendOnly\nsemantics, per-table registry, worked examples, and the external-write caveat.\n\n### Bug fix — identifier double-quoting in lambda method handlers (CRITICAL on Azure Tables)\n\nEvery QueryExtensions method handler — `In`, `Between`, `IsToday`, `IsThisWeek`, `IsThisMonth`,\n`IsThisYear`, `InDateRange`, and the OData `StartsWith` branch — plus the standard\n`IEnumerable.Contains(x.Prop)` membership test, was emitting property names wrapped in\ndouble quotes (e.g. `\"CompanyID\" eq 'value'`). Azure Table Storage OData v2 rejects this\nwith `InvalidInput — Syntax error: character '\"' is not valid at position …` because\nOData property names are bare identifiers. Ordinary `==` / `!=` / `>` / `<` comparisons\nwere unaffected because they ran through `VisitMember` → `_memberStrategies`, which\ncorrectly emits bare identifiers.\n\nNet effect of the bug in v4.2 and earlier: any lambda using one of the affected methods\nthrew `Azure.RequestFailedException` (HTTP 400) at query time on Azure Tables. The\ndocumentation claimed these operators were server-side and \"Good\" performance; in\npractice they failed entirely on the primary backend.\n\nThe fix introduces a single `RenderFieldName(MemberExpression)` helper inside\n`UnifiedFilterGenerator` that routes every method handler through the same\n`_memberStrategies` chain that powers `VisitMember`. Identifiers are now emitted\nidentically across every code path — bare for OData, and whatever the active strategies\ndictate for SQL-style backends (Blob Index Tags continue to receive their legitimate\ndouble-quoted form via the dedicated `Tags[\"key\"]` indexer path, which is unchanged).\n\nNo public API changes. No behavior changes for `==`, `!=`, `>`, `<`, `>=`, `<=`,\n`string.IsNullOrEmpty()`, `&&`, `||`, `!`. The fix unlocks correct server-side\nexecution of the affected operators on Azure Tables — consumers calling\n`.In(...)`, `.Between(...)`, `.IsToday()`, etc. immediately start getting results\ninstead of 400 errors after upgrading.\n\n### v4.2 highlights (for adopters upgrading from older releases)\n\n**Shadow Partition cataloguing — automatic distinct-value awareness**\nEvery entity write now silently catalogues the unique field values it observes into a\ndedicated AppShadowPartitions table. This gives the library — and your application —\nthe ability to answer \"what values exist for this field?\" without scanning the data table.\nAzure Table Storage has no SELECT DISTINCT or GROUP BY. Shadow Partitions fill that gap.\n\nKey properties of the shadow write path:\n  - Fire-and-forget: decoupled from the primary write via Task.Run — zero latency impact\n  - Idempotent: process-lifetime ConcurrentDictionary cache means each unique\n    (table, field, value) triple hits Azure Storage exactly once per process run\n  - O(1) existence checks: deterministic RowKey (MD5 hash of field + value) means\n    the cold-path storage check is always GetEntityIfExistsAsync(pk, rk) — never a scan\n  - Recursion-safe: ShadowPartition entities are never self-catalogued\n  - Filtered by type: string, int, long, double, and enum fields only;\n    Guid fields excluded (high-cardinality, not useful as filter catalog);\n    string values over 200 characters skipped (free-text, not categorical)\n\nNew public API:\n  - ShadowPartition entity in ASCTableStorage.Models — query AppShadowPartitions directly\n  - DataAccess<T>.GetRowObjectAsync(string partitionKey, string rowKey) — true O(1)\n    point read using GetEntityIfExistsAsync; use whenever both keys are known\n\n**Updated getting started guide**\nComplete v4.2 documentation included as package readme. Section 23 covers:\n  - Shadow Partition architecture and performance characteristics\n  - Dynamic filter dropdown population\n  - Schema discovery without reading entity data\n  - Data quality monitoring for controlled-value fields\n  - AI-assisted natural language query context\n  - Audit and compliance reporting\n  - Multi-tenant configuration discovery\n  - Cleanup patterns for schema changes\n\n### v4.1 highlights (for new adopters)\n- Single-configure credential model: TableStorage.Configure() once in Program.cs\n- No-arg constructors on DataAccess<T>, AzureBlobs, Session, QueueData<T>\n- QueueData<T> credential-free static methods\n- net9.0 target — compatible with .NET 9 and .NET 10; TFM fallback for .NET 6–8\n\n### v4.0 highlights (for new adopters)\n- Migrated from legacy Microsoft.Azure.Cosmos.Table to Azure.Data.Tables SDK v12\n- Hybrid query engine: lambda expressions split automatically between server-side OData and client-side filtering\n- QueueData<T> + StateList<T> persistent resumable work queues\n- Azure Blob Storage with lambda tag filtering and IAsyncEnumerable streaming\n- Fail-safe protection against accidental full table scans\n\nSee getting-started-guide-43.md for full API documentation and migration guide.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#repository",
+    "commit": "fbc5ca3e500866ce1bce3c05b50e87d5957c0c64",
+    "type": "git"
+  },
+  "requireLicenseAcceptance": true,
+  "title": "ASCDataAccessLibrary — Azure Table Storage ORM for .NET",
+  "verbatimVersion": "4.3.0",
+  "version": "4.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/azure.data.tables",
+          "@type": "PackageDependency",
+          "id": "Azure.Data.Tables",
+          "range": "[12.11.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/azure.storage.blobs",
+          "@type": "PackageDependency",
+          "id": "Azure.Storage.Blobs",
+          "range": "[12.24.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/microsoft.aspnetcore.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Http",
+          "range": "[2.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/microsoft.aspnetcore.http.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Http.Abstractions",
+          "range": "[2.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/microsoft.extensions.configuration.fileextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.FileExtensions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/microsoft.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/system.configuration.configurationmanager",
+          "@type": "PackageDependency",
+          "id": "System.Configuration.ConfigurationManager",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/xabe.ffmpeg",
+          "@type": "PackageDependency",
+          "id": "Xabe.FFmpeg",
+          "range": "[6.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#dependencygroup/net9.0/xabe.ffmpeg.downloader",
+          "@type": "PackageDependency",
+          "id": "Xabe.FFmpeg.Downloader",
+          "range": "[6.0.2, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#ASCDataAccessLibrary.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6713,
+      "fullName": "ASCDataAccessLibrary.nuspec",
+      "length": 16612,
+      "name": "ASCDataAccessLibrary.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#MIT%20License.pdf",
+      "@type": "PackageEntry",
+      "compressedLength": 228550,
+      "fullName": "MIT License.pdf",
+      "length": 229417,
+      "name": "MIT License.pdf"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#getting-started-guide-43.md",
+      "@type": "PackageEntry",
+      "compressedLength": 61394,
+      "fullName": "getting-started-guide-43.md",
+      "length": 197350,
+      "name": "getting-started-guide-43.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#mit_license.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1335,
+      "fullName": "mit_license.md",
+      "length": 2771,
+      "name": "mit_license.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#lib/net9.0/ASCDataAccessLibrary.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 176285,
+      "fullName": "lib/net9.0/ASCDataAccessLibrary.dll",
+      "length": 447488,
+      "name": "ASCDataAccessLibrary.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#lib/net9.0/ASCDataAccessLibrary.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 57300,
+      "fullName": "lib/net9.0/ASCDataAccessLibrary.xml",
+      "length": 373765,
+      "name": "ASCDataAccessLibrary.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.29.10.52.53/ascdataaccesslibrary.4.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12993,
+      "fullName": ".signature.p7s",
+      "length": 12993,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "azure",
+    "table-storage",
+    "nosql",
+    "orm",
+    "entity-framework-alternative",
+    "lambda-queries",
+    "data-access",
+    "blob-storage",
+    "csharp",
+    "dotnet",
+    "net9",
+    "cloud-database",
+    "azure-sdk",
+    "session-management",
+    "structured-logging",
+    "queue-management",
+    "dynamic-entity",
+    "asc",
+    "answer-sales-calls",
+    "azure-data-tables",
+    "odata",
+    "batch-operations",
+    "pagination",
+    "iasyncenumerable",
+    "streaming",
+    "result-cache",
+    "memoization",
+    "singleflight",
+    "cache-policy",
+    "request-scoped-cache",
+    "performance-cache",
+    "ttl-cache",
+    "write-through-invalidation"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

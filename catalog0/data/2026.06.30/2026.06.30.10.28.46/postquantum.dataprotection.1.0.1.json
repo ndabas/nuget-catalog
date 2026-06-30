@@ -1,0 +1,389 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Paul Clark",
+  "catalog:commitId": "4779d629-7007-4f19-bb88-0d432b22059d",
+  "catalog:commitTimeStamp": "2026-06-30T10:28:46.0481392Z",
+  "copyright": "Copyright (c) Paul Clark",
+  "created": "2026-06-30T10:25:29.39Z",
+  "description": "Post-quantum / hybrid key wrapping for ASP.NET Core Data Protection. Plugs in as an IXmlEncryptor / IXmlDecryptor so cookie keys, antiforgery keys, session tickets, and any IDataProtector-protected payload at rest are encrypted with ML-KEM-768 (FIPS 203) and AES-256-GCM in a hybrid envelope. The classical layer reuses PostQuantum.KeyManagement (Argon2id-derived KEK + AES-256-GCM envelope) so the same passphrase-managed key ring already in your host protects the long-lived PQ secret key. Hybrid by default — break either layer and confidentiality holds. Multi-targets net8.0 / net9.0 / net10.0 with deterministic builds, SourceLink, and symbol packages. See KNOWN-GAPS.md and docs/threat-model.md for the precise, honest scope.",
+  "id": "PostQuantum.DataProtection",
+  "isPrerelease": false,
+  "lastEdited": "2026-06-30T10:28:35.99Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "N5GhwTsW3FITIacZ4KaI6uD+luHVeTzI9qiSbQKubTA4Q/ApUPz8OJD3Egwwj/Qx1NIig8LiQFNK1c6Mj5ixvg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 175030,
+  "projectUrl": "https://github.com/systemslibrarian/PostQuantum.DataProtection",
+  "published": "2026-06-30T10:25:29.39Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.1: Robustness + hygiene fixes from an external code review. No wire-format change — every 1.0.0 envelope decodes identically; drop-in over 1.0.0. (1) The decryptor now fails CLOSED uniformly: a malformed/truncated envelope (previously a leaked FormatException) and a structurally-valid-but-invalid envelope such as a wrong-sized KEM ciphertext (previously a leaked ArgumentException) now both surface as CryptographicException — the type ASP.NET Core Data Protection's key-ring loader expects so it can isolate one corrupt element instead of taking an unexpected exception to the host. (2) The encryptor now zeroes the serialized Data Protection plaintext buffer after encrypting it (it already zeroed every key/secret; this closes the one gap). (3) FilePostQuantumKeyStore handles the cold-start file-creation race (concurrent first-writers) by converging to the documented last-write-wins instead of throwing IOException. (4) Corrected an overclaiming combiner comment. Bumps the PostQuantum.KeyManagement dependency to 1.0.1. — earlier 1.0.0: First stable release — code-complete and wire-format-frozen. Depends on PostQuantum.KeyManagement 1.0.0. POTENTIALLY BREAKING since preview.7: (a) the default HybridKemMode is now XWingHybrid (was Hybrid) — the X-Wing combiner binds the ML-KEM ciphertext into the derivation; existing envelopes keep decrypting under whatever mode they were written with, only fresh encryptions change. (b) RotationInterval is now TimeSpan? (null disables; a non-null value must be strictly positive — setting it to TimeSpan.Zero now throws at registration instead of silently disabling). New: AddPostQuantumDataProtection(...) one-call entry point on IServiceCollection; ValidateOnStartup (default true) eagerly initializes the chain so misconfiguration fails fast at boot; IRotationLock abstraction with a Redis SET-NX distributed lock (PostQuantum.DataProtection.Redis) so scheduled rotation is single-leader across replicas; PostQuantum.DataProtection.Rotate trace activity; CLI gained `keys list`, `keys export`, `doctor`, and `verify`; Testing package gained a mode overload, FakePostQuantumKeyStore.CorruptSecretKey fail-closed injection, pruning support, and introspection; combiner known-answer (KAT) tests and a multi-replica rotation-lock concurrency proof. New docs: configuration reference, troubleshooting, observability, and an auditable crypto spec. DOCUMENTED LIMITATIONS (carried into 1.0, not blockers): no third-party cryptographic audit yet; the cloud-backed stores (Azure Key Vault / AWS / Redis) are tested — including a multi-replica rotation-lock concurrency proof — but not yet proven in a real production deployment. Both are on the post-1.0 roadmap. See KNOWN-GAPS.md §D. — earlier 0.1.0-preview.7: dependency hygiene. No source changes; no behaviour change. Reflects Dependabot updates already verified clean against the 112-test suite: AWSSDK.SecretsManager 3.7.500 -> 4.0.5 (major; AwsSecretsManagerPostQuantumKeyStore compiles + 4/4 tests pass against the new SDK shape), coverlet.collector 6.0.2 -> 10.0.1 (major; coverage collection still produces the cobertura XML the CI gate expects), Azure.Identity 1.13.1 -> 1.21.0, Azure.Security.KeyVault.Secrets 4.7.0 -> 4.11.0, BenchmarkDotNet 0.14.0 -> 0.15.8, plus GitHub Actions checkout v4 -> v6, setup-dotnet v4 -> v5, deploy-pages v4 -> v5 in the workflow files. — earlier 0.1.0-preview.6: polish + new companion package. Backward-compatible. (1) Extended NIST ACVP / FIPS 203 KATs (AcvpKatExtendedTests): pinned vectors for ML-KEM-512 AND ML-KEM-1024 in addition to ML-KEM-768. Standard-conformance verification across all three parameter sets on both the BC (net8/9) and BCL (net10) paths. (2) Cloud-store concurrency stress tests (CloudStoreConcurrencyTests): file store under 32-thread contention; parallel rotations that must serialise correctly and grow the keyring monotonically; PruneAsync during concurrent rotations refuses to delete the active keypair. (3) AOT smoke test sample (samples/AotSmokeTest): consumer project that publishes PublishAot=true to prove the net10 target is genuinely AOT-clean end to end. (4) Repo hygiene files: .editorconfig (file-scoped namespaces, naming conventions, line-ending rules), .gitattributes (LF normalization), global.json (SDK floor pin). (5) docs/logging.md: complete reference for every EventId the library emits (1, 2, 3, 4, 10, 11, 12, 20, 21, 22, 23) with category, severity, and alert/dashboard guidance. (6) docs/keystores.md: side-by-side comparison + decision tree for choosing among File / AzureKeyVault / Aws / Redis stores, including a disaster recovery matrix. (7) CHANGELOG.md caught up with full entries for preview.3 / .4 / .5. Companion package: PostQuantum.DataProtection.Fips 0.1.0-preview.6 — declarative FipsDeploymentMarker tripwire for FIPS 140-3 deployments. Hosts call FipsDeploymentMarker.Require(FipsPosture.FipsOnly) at startup, then EnforceFor(providerName, providerIsFipsValidated) in their health check; the marker is process-wide, one-way, and fails fast if the active ML-KEM provider doesn't satisfy the declared posture. The package does NOT embed a FIPS-validated ML-KEM implementation; that comes from the consumer (BouncyCastle FIPS, HSM SDK, or — when available — the .NET FIPS-validated provider). 112 tests passing (up from 100 in preview.5). — earlier 0.1.0-preview.5: BCL ML-KEM on net10 + AOT compatibility. Backward-compatible. (1) On the net10.0 target, ML-KEM operations now route through System.Security.Cryptography.MLKem (BCL) instead of BouncyCastle. The MlKem static class is partial across three files (MlKem.cs shared, MlKem.Bcl.cs net10 only, MlKem.BouncyCastle.cs net8/net9) selected by the NET10_0_OR_GREATER preprocessor symbol. Envelope byte format unchanged — envelopes written by a net8/9 host decode correctly on a net10 host and vice versa, verified by the NIST ACVP / FIPS 203 KAT running against the same vector on both targets. (2) The BouncyCastle.Cryptography package reference is conditional on Condition=\"'' != 'net10.0'\" so net10 consumers don't pay for a dependency they don't use. (3) IsAotCompatible=true and IsTrimmable=true on the net10.0 target. The library emits zero IL2026/IL3050 warnings under the AOT analyser. The one reflection-using public method (ProtectKeysWithPostQuantum(IConfigurationSection)) carries [RequiresUnreferencedCode] + [RequiresDynamicCode] so the warning propagates cleanly to the consumer. (4) docs/aot.md rewritten as the per-target audit. (5) 100/100 tests still pass; the KAT tests now use MlKem.GenerateKeyPairFromSeed so they're path-agnostic. (6) Roadmap items §C3 and §C4 in KNOWN-GAPS.md closed. — earlier 0.1.0-preview.4: Adoption-focused pass on top of preview.3. Backward-compatible. (1) ILogger<T> integration with structured EventIds across encryptor, decryptor, key manager, and the new rotation hosted service. (2) Actionable error messages naming the offending option, the file path, and the fix. (3) IConfigurationSection overload for ProtectKeysWithPostQuantum(...) — appsettings.json-only wiring. (4) PostQuantumRotationHostedService driven by PostQuantumDataProtectionOptions.RotationInterval; TimeSpan.Zero disables, any positive value enables. (5) New companion packages: PostQuantum.DataProtection.Aws (AWS Secrets Manager keystore), PostQuantum.DataProtection.Testing (FakePostQuantumKeyStore + AddPostQuantumDataProtectionTesting() for consumer unit tests), PostQuantum.DataProtection.OpenTelemetry (one-line AddPostQuantumDataProtectionInstrumentation()). (6) Companion CLI: PostQuantum.DataProtection.Cli (\"pq-dp\") — pq-dp inspect <key.xml> prints envelope routing fields, no secret material. (7) Migration guide for DPAPI / Azure Key Vault key / Certificate -> PQ wrap without disruption. (8) Community files: CONTRIBUTING.md, CODE_OF_CONDUCT.md, GitHub issue templates, PR template, dependabot.yml. (9) DocFX site + GitHub Pages workflow. (10) WorkerService sample demonstrating non-ASP.NET-Core hosting. Carries forward from preview.3: NIST ACVP / FIPS 203 KAT, Meter + ActivitySource telemetry, concurrency stress tests, coverage CI gate, reproducible-build verification, BenchmarkDotNet harness, AOT honesty doc, fuzz harness. — earlier 0.1.0-preview.3: Production-readiness pass on top of preview.2. Backward-compatible — every envelope and keystore file written by preview.1/preview.2 still decodes byte-for-byte. No crypto-logic changes (ML-KEM-768 encapsulation, HKDF-SHA-256 derivation, AES-256-GCM are byte-for-byte identical). (1) NIST ACVP / FIPS 203 KAT (AcvpKatTests): pins BouncyCastle's ML-KEM-768 implementation against a real NIST-aligned vector from the post-quantum-cryptography/KAT repository — d || z seed → expected pk (1184 bytes), expected sk (2400 bytes), decapsulate the NIST ct → expected ss (32 bytes). This is FIPS 203 standard-conformance verification, not \"our integration is self-consistent\" verification. (2) System.Diagnostics.Metrics integration: Meter(\"PostQuantum.DataProtection\") with counters (encryptions/decryptions/decrypt_failures/rotations), duration histograms, and an ActivitySource for distributed tracing. (3) Concurrency stress tests: 16-thread Parallel.ForEachAsync exercise of the encryptor / decryptor / RotateAsync — the documented \"thread-safe\" claim is now a tested claim. Plus a \"first-run race\" test that proves N concurrent first-callers see exactly one inaugural keypair. (4) 89.5% line / 78.6% branch code coverage measured with coverlet; CI gates at 85% line / 75% branch. (5) Reproducible-build verification: CI repacks and asserts byte-identical .nupkg SHA-256 across two independent packs. (6) AOT/trimming audit (docs/aot.md): not AOT-compatible today because BouncyCastle 2.6.x uses runtime reflection — documented honestly, IsTrimmable=false set explicitly. (7) BenchmarkDotNet harness (benchmarks/) with real numbers (docs/benchmarks.md): ML-KEM-768 keygen ~75µs, encap ~93µs, decap ~101µs; full envelope encrypt ~89µs, decrypt ~137µs on the reference host. (8) Production deployment guide (docs/deployment.md): pre-deploy checklist, multi-replica model, KEK rotation playbook, disaster recovery matrix, monitoring signal list. (9) Property-based \"fuzz-lite\" tests: 30 000 randomly-generated byte arrays driven through HybridKemEnvelope.Decode and PostQuantumKeyPair.Decode on every CI run, asserting the documented exception-type contract. Companion SharpFuzz harness in fuzz/ for AFL-driven exploration. Companion package: PostQuantum.DataProtection.AzureKeyVault 0.1.0-preview.3 — Azure Key Vault-backed IPostQuantumKeyStore with DefaultAzureCredential, narrow seam-tested implementation, in-memory fake for unit tests. 87 tests passing in the core suite (+ 6 in the AKV suite + 3 NIST ACVP KATs).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#repository",
+    "branch": "refs/heads/release/1.0.1",
+    "commit": "eb83e70bcd5d2fd992daa5497a0080e7027f013c",
+    "type": "git",
+    "url": "https://github.com/systemslibrarian/PostQuantum.DataProtection"
+  },
+  "title": "PostQuantum.DataProtection — post-quantum / hybrid key wrapping for ASP.NET Core Data Protection",
+  "verbatimVersion": "1.0.1",
+  "version": "1.0.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/microsoft.aspnetcore.dataprotection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.DataProtection.Abstractions",
+          "range": "[8.0.27, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/microsoft.aspnetcore.dataprotection.extensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.DataProtection.Extensions",
+          "range": "[8.0.27, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/microsoft.extensions.diagnostics.healthchecks",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+          "range": "[8.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[8.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/postquantum.keymanagement",
+          "@type": "PackageDependency",
+          "id": "PostQuantum.KeyManagement",
+          "range": "[1.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net10.0/system.security.cryptography.xml",
+          "@type": "PackageDependency",
+          "id": "System.Security.Cryptography.Xml",
+          "range": "[8.0.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.6.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/microsoft.aspnetcore.dataprotection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.DataProtection.Abstractions",
+          "range": "[8.0.27, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/microsoft.aspnetcore.dataprotection.extensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.DataProtection.Extensions",
+          "range": "[8.0.27, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/microsoft.extensions.diagnostics.healthchecks",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+          "range": "[8.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[8.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/postquantum.keymanagement",
+          "@type": "PackageDependency",
+          "id": "PostQuantum.KeyManagement",
+          "range": "[1.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net8.0/system.security.cryptography.xml",
+          "@type": "PackageDependency",
+          "id": "System.Security.Cryptography.Xml",
+          "range": "[8.0.3, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.6.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/microsoft.aspnetcore.dataprotection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.DataProtection.Abstractions",
+          "range": "[8.0.27, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/microsoft.aspnetcore.dataprotection.extensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.DataProtection.Extensions",
+          "range": "[8.0.27, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/microsoft.extensions.diagnostics.healthchecks",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+          "range": "[8.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[8.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/postquantum.keymanagement",
+          "@type": "PackageDependency",
+          "id": "PostQuantum.KeyManagement",
+          "range": "[1.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#dependencygroup/net9.0/system.security.cryptography.xml",
+          "@type": "PackageDependency",
+          "id": "System.Security.Cryptography.Xml",
+          "range": "[8.0.3, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#PostQuantum.DataProtection.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5960,
+      "fullName": "PostQuantum.DataProtection.nuspec",
+      "length": 16465,
+      "name": "PostQuantum.DataProtection.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6609,
+      "fullName": "README.md",
+      "length": 15935,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#lib/net10.0/PostQuantum.DataProtection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34246,
+      "fullName": "lib/net10.0/PostQuantum.DataProtection.dll",
+      "length": 83968,
+      "name": "PostQuantum.DataProtection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#lib/net10.0/PostQuantum.DataProtection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 14349,
+      "fullName": "lib/net10.0/PostQuantum.DataProtection.xml",
+      "length": 70679,
+      "name": "PostQuantum.DataProtection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#lib/net8.0/PostQuantum.DataProtection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34506,
+      "fullName": "lib/net8.0/PostQuantum.DataProtection.dll",
+      "length": 83968,
+      "name": "PostQuantum.DataProtection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#lib/net8.0/PostQuantum.DataProtection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 14349,
+      "fullName": "lib/net8.0/PostQuantum.DataProtection.xml",
+      "length": 70679,
+      "name": "PostQuantum.DataProtection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#lib/net9.0/PostQuantum.DataProtection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34514,
+      "fullName": "lib/net9.0/PostQuantum.DataProtection.dll",
+      "length": 83968,
+      "name": "PostQuantum.DataProtection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#lib/net9.0/PostQuantum.DataProtection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 14349,
+      "fullName": "lib/net9.0/PostQuantum.DataProtection.xml",
+      "length": 70679,
+      "name": "PostQuantum.DataProtection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.06.30.10.28.46/postquantum.dataprotection.1.0.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12990,
+      "fullName": ".signature.p7s",
+      "length": 12990,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "post-quantum",
+    "pqc",
+    "ml-kem",
+    "kyber",
+    "fips-203",
+    "hybrid-encryption",
+    "aes-gcm",
+    "cryptography",
+    "aspnetcore",
+    "data-protection",
+    "cookies",
+    "antiforgery",
+    "dependency-injection",
+    "security"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "alexey.petriashev,MicroElements",
+  "catalog:commitId": "cf843940-8b4f-43ee-90bd-92fb06cfb7e6",
+  "catalog:commitTimeStamp": "2026-07-12T10:25:40.7434335Z",
+  "copyright": "Alexey Petryashev 2024",
+  "created": "2026-07-12T10:22:03.05Z",
+  "description": "Adds FluentValidation rules to swagger schema.",
+  "iconFile": "icon.png",
+  "id": "MicroElements.NSwag.FluentValidation",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-12T10:25:16.873Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "tk2g1epiDUmOxxzSSgR3pSJNH5g/5ALMOM4cjRNz7xAulLoq79Tt++2fJNSJRcKDmI4qQsTwU1ynZq1323vpgg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 84214,
+  "projectUrl": "https://github.com/micro-elements/MicroElements.Swashbuckle.FluentValidation",
+  "published": "2026-07-12T10:22:03.05Z",
+  "releaseNotes": "$# Changes in 7.1.10\n- Fixed: the same `[FromQuery]`/`[AsParameters]` DTO shared by more than one endpoint lost its FluentValidation rules on every endpoint after the first (Issue #223)\n  - `FluentValidationOperationFilter` runs once per operation. The Issue #180 cleanup removes the temporary container schema from `SchemaRepository.Schemas`, but Swashbuckle keeps the type in its internal reserved-ids map, which the cleanup does not touch. For the 2nd+ endpoint, `GetSchemaForType` → `GenerateSchema` then returns a bare `$ref` (no `Properties`) and the schema is no longer in `Schemas`, so the \"has properties\" guard was skipped and no rules were applied. Only reproduces with the default `RemoveUnusedQuerySchemas = true`\n  - Fix: in `SwashbuckleSchemaProvider.GetSchemaForType`, when the returned schema has no properties and the id is absent from the shared repository (the reserved-but-removed state), the concrete schema is recovered by generating it into a throwaway `SchemaRepository`. Fully isolated — it never mutates the shared repository or its reserved-id state — so the Issue #180 cleanup and all other `OperationFilter` behavior (required marking #209, nested `[FromQuery]` #211/#213, request bodies, #216) are preserved\n\n# Changes in 7.1.9\n- Fixed: numeric bounds from `short`/`byte`/`ushort`/`uint`/`ulong`/`sbyte`-typed rules were silently dropped (Issue #222)\n  - `IsNumeric` in the shared core (`MicroElements.OpenApi.FluentValidation`) only recognized `int`/`long`/`float`/`double`/`decimal`/`BigInteger`, so a `Between`/`Comparison` rule whose bound was a small integer type (e.g. `InclusiveBetween((short)1, (short)99)`) matched but produced no `minimum`/`maximum` — even though the generator emits `\"type\": \"integer\"` for the property. This could not be worked around at the validator definition site because those rule overloads only accept bounds of the property's own type\n  - Fix: `IsNumeric` now recognizes all integer primitives (`sbyte`/`byte`/`short`/`ushort`/`int`/`uint`/`long`/`ulong`) in addition to the floating/decimal/`BigInteger` types; `NumericToDecimal` already converted them all. One change in the shared core fixes all three providers (Swashbuckle, NSwag, and the native `Microsoft.AspNetCore.OpenApi` transformer)\n\n# Changes in 7.1.8\n- Security (Issue #220): closed a transitive high-severity advisory in the published package. `Swashbuckle.AspNetCore.SwaggerGen` on the net10.0 target was bumped `10.0.0` → `10.2.1`, which resolves `Microsoft.OpenApi` to the patched `2.7.5` (was `2.3.0`). This clears **GHSA-v5pm-xwqc-g5wc / CVE-2026-49451** (CWE-674 uncontrolled recursion — a circular `$ref` schema could stack-overflow the OpenAPI reader). The net8.0/net9.0 targets use Swashbuckle 8.1.1 → Microsoft.OpenApi v1 and were never in the advisory range\n- Media type & file size validation for `IFormFile` uploads (Issue #216): stable rollup of everything in `7.1.8-beta.1` and `7.1.8-beta.2` below (new File-level rules `.FileContentType()`, `.MaxFileSize()`, `.MinFileSize()`, `.FileSizeBetween()`; Swashbuckle / NSwag / Microsoft.AspNetCore.OpenApi emit multipart `encoding.contentType` and description annotations)\n\n# Changes in 7.1.8-beta.2\n- All of `7.1.8-beta.1` below, plus: **Microsoft.AspNetCore.OpenApi** now also emits `encoding.contentType` for the file part (Issue #216) — the `FluentValidationOperationTransformer` writes `requestBody.content[\"multipart/form-data\"].encoding.<part>.contentType` so UIs like Scalar/Swagger UI can show the accepted media types, not just the description. Works on net9.0 (inline form schema) and net10.0 (resolves the whole-body `$ref` component to find the part name)\n\n# Changes in 7.1.8-beta.1\n- Added: media type (content type) and file size validation for `IFormFile` uploads (Issue #216)\n  - New File-level FluentValidation rules in `MicroElements.OpenApi.FluentValidation` (namespace `MicroElements.OpenApi.FluentValidation.FileUpload`): `.FileContentType(params string[])`, `.MaxFileSize(long)`, `.MinFileSize(long)`, `.FileSizeBetween(long, long)` on `IRuleBuilder<T, IFormFile>`. They both enforce validation at runtime and surface metadata for OpenAPI generation\n  - Root cause: rules on nested `IFormFile` members (`RuleFor(x => x.File.Length)` / `RuleFor(x => x.File.ContentType)`) are named `File.Length` / `File.ContentType` and never match the flat schema property `File`, so they were silently dropped; and `Must(...)` is opaque so allowed content types could not be reflected. Use the new File-level rules instead\n  - **Swashbuckle**: emits `requestBody.content[\"multipart/form-data\"].encoding.<part>.contentType` (comma-joined allowed types) and appends the allowed types and size limits to the file property `description`. File size is never emitted as `maxLength` (which counts characters, not bytes). Works on net8.0/net9.0 (Microsoft.OpenApi v1, OpenAPI 3.0) and net10.0 (Microsoft.OpenApi v2, OpenAPI 3.1)\n  - **NSwag**: a new `FluentValidationOperationProcessor` (`IOperationProcessor`) emits multipart encoding for file parts; the allowed types and size limits are also appended to the file part `description`. Register it alongside the schema processor: `settings.OperationProcessors.Add(serviceProvider.GetService<FluentValidationOperationProcessor>())`. Known NSwag limitation: `OpenApiEncoding.EncodingType` serializes as `encodingType` rather than the OpenAPI-spec `contentType` (through at least NSwag 14.7.x), so the `description` is the guaranteed-visible carrier\n  - **Microsoft.AspNetCore.OpenApi**: the allowed types and size limits are appended to the file property `description`, and (since `7.1.8-beta.2`) the allowed types are also emitted as `encoding.contentType` on the multipart media type\n  - Purely additive / opt-in: behavior only changes when the new rules are used; no existing document output changes\n  - File size has no standard OpenAPI/JSON-Schema byte keyword, so it is documented in the `description` (annotation only; enforcement stays server-side via FluentValidation)\n\n\nFull release notes can be found at: https://github.com/micro-elements/MicroElements.Swashbuckle.FluentValidation/blob/master/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#repository",
+    "commit": "55c62b0588a90f2b8fa9eb364e989e1ceec0e3f8",
+    "type": "git",
+    "url": "git://github.com/micro-elements/MicroElements.Swashbuckle.FluentValidation"
+  },
+  "requireLicenseAcceptance": false,
+  "verbatimVersion": "7.1.10",
+  "version": "7.1.10",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#dependencygroup/.netframework8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#dependencygroup/.netframework8.0/microelements.openapi.fluentvalidation",
+          "@type": "PackageDependency",
+          "id": "MicroElements.OpenApi.FluentValidation",
+          "range": "[7.1.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#dependencygroup/.netframework8.0/njsonschema",
+          "@type": "PackageDependency",
+          "id": "NJsonSchema",
+          "range": "[11.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#dependencygroup/.netframework8.0/nswag.generation",
+          "@type": "PackageDependency",
+          "id": "NSwag.Generation",
+          "range": "[14.4.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#dependencygroup/.netframework9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#dependencygroup/.netframework9.0/microelements.openapi.fluentvalidation",
+          "@type": "PackageDependency",
+          "id": "MicroElements.OpenApi.FluentValidation",
+          "range": "[7.1.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#dependencygroup/.netframework9.0/njsonschema",
+          "@type": "PackageDependency",
+          "id": "NJsonSchema",
+          "range": "[11.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#dependencygroup/.netframework9.0/nswag.generation",
+          "@type": "PackageDependency",
+          "id": "NSwag.Generation",
+          "range": "[14.4.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#MicroElements.NSwag.FluentValidation.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3177,
+      "fullName": "MicroElements.NSwag.FluentValidation.nuspec",
+      "length": 8032,
+      "name": "MicroElements.NSwag.FluentValidation.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 9495,
+      "fullName": "icon.png",
+      "length": 9490,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#lib/net8.0/MicroElements.NSwag.FluentValidation.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26207,
+      "fullName": "lib/net8.0/MicroElements.NSwag.FluentValidation.dll",
+      "length": 39936,
+      "name": "MicroElements.NSwag.FluentValidation.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#lib/net8.0/MicroElements.NSwag.FluentValidation.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1791,
+      "fullName": "lib/net8.0/MicroElements.NSwag.FluentValidation.xml",
+      "length": 11374,
+      "name": "MicroElements.NSwag.FluentValidation.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#lib/net9.0/MicroElements.NSwag.FluentValidation.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26287,
+      "fullName": "lib/net9.0/MicroElements.NSwag.FluentValidation.dll",
+      "length": 39936,
+      "name": "MicroElements.NSwag.FluentValidation.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#lib/net9.0/MicroElements.NSwag.FluentValidation.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1791,
+      "fullName": "lib/net9.0/MicroElements.NSwag.FluentValidation.xml",
+      "length": 11374,
+      "name": "MicroElements.NSwag.FluentValidation.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.12.10.25.40/microelements.nswag.fluentvalidation.7.1.10.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12987,
+      "fullName": ".signature.p7s",
+      "length": 12987,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Swagger",
+    "NSwag",
+    "OpenApi",
+    "FluentValidation"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

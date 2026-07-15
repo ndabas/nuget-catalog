@@ -1,0 +1,275 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Angus Johnson, port by Goswin Rothenthal",
+  "catalog:commitId": "914813e0-db6d-46eb-8b61-e975c6d285fe",
+  "catalog:commitTimeStamp": "2026-07-14T16:02:20.3314832Z",
+  "copyright": "Angus Johnson, port by Goswin Rothenthal 2026",
+  "created": "2026-07-14T15:59:17.297Z",
+  "description": "Fast and robust polygon clipping. A port of Clipper2 to F#",
+  "iconFile": "logo128.png",
+  "id": "Klip",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-14T16:01:51.87Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "4gSKAlmTDO9ojEUGc75Bqvqef7WUyad7cXumDC32UcZFjTOoVCLWDDQW9SUNh/OcH6heWXITNydouZ7wpZD/jQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 231325,
+  "projectUrl": "https://github.com/goswinr/Klip",
+  "published": "2026-07-14T15:59:17.297Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Fixed\n\n- Tolerance-horizontality is now capped by `CoordEqTolerance`: an edge classifies horizontal only when `abs Δy <= min(HorizontalAngleTolerance * abs Δx, CoordEqTolerance)`, i.e. the angle is shallow enough AND the endpoint Ys are point-coincident. Previously a long shallow edge could classify horizontal with an endpoint-Y difference far above point coincidence; `doHorizontal` then consumed it in one scanbeam, a beam before its far-end scanline, stranding another contour's seam edge arriving there - the touching contours stayed separate instead of merging (2 output paths with correct total area). The regime was reachable whenever a seam's two sides straddled the horizontality threshold (their slope ratios differ by the edge-length ratio) with the shifted vertex below the flat run, e.g. `UnionTouchingBridgeSweepProducesSingleElevenPointPolygon` at seam slopes in `(1e-5, 2e-5]` after the `HorizontalAngleTolerance` default raise - and existed before the raise too, just 10x narrower. With the cap, such edges sweep as sloped and merge via the normal crossing/join machinery; edges with float-noise Y-spans (the phantom-hole case the tolerance exists for) still classify horizontal. The cap also makes the classification consistent with the horizontal-segment machinery, whose output-point run walks always used point coincidence on Y. `Eng.isHorizontalCoords`/`getDx`/`setDx`/`trimHorz` and `ActiveEdge.create` now take `coordEqTol` as an explicit argument, following the existing tolerance-passing convention.\n\n### Changed\n\n- `Engine`: ported the sweep-loop optimizations from [clipper2-ts#34](https://github.com/countertype/clipper2-ts/pull/34) - skip the intersection merge sort on scanbeams where the active edge list is already sorted by `curX` (no intersections possible), and reuse the edge positions computed during that scan in `doTopOfScanbeam`; `isHorizontal` now reads the already-maintained `ae.dx` (±infinity if horizontal, see `Eng.getDx`) instead of re-testing the angle from bot/top coordinates; `checkJoinLeft`/`checkJoinRight` check the cheap `curX` mismatch before the hot/horizontal/open edge state; `Eng.boundingBoxesOverlap` early-exits on the first separating axis instead of computing all eight min/max values up front; `convertHorzSegsToJoins` compacts valid horizontal segments to the front of the list before sorting instead of sorting (and re-testing) invalid ones too; `addPathsToVertexList` now stores only each path's head vertex in `vertexList` (the rest of the chain stays reachable through the `next`/`prev` links), cutting one array slot per vertex. No change in clipping results - verified against the full F# (`Tests1`, `Tests2`) and JS (`vitest`) suites. The JS benchmark suite (`Test/bench/clipping-operations.bench.ts`) shows most intersection/difference/xor/union cases 10-40% faster, in line with the upstream PR's reported gains. Added `Test/FSharp/Benchmark/VitestFixtureBenchmarks.cs`, a BenchmarkDotNet suite comparing Klip against the Clipper2 2.0.0 NuGet package on those same fixture shapes (rather than `Benchmarks.cs`'s dense random-polygon dataset): on complex-polygon and geo-scale cases Klip is within ~1-6% of Clipper2 either way (noise level), but ~12-25% slower on grid/many-small-paths cases (`Union_MediumGrid`, `Union_LargeGrid`, `Intersection_Grid`, `Union_SimpleRects`/`TwoOverlapping`/`FourCircles`) - a divergence not visible in `Benchmarks.cs`'s single-large-path dataset, worth investigating separately.\n\n### Added\n\n- The `Clipper64.AngleTolerance` get/set property sets both dimensionless angle tolerances from a single angle in **degrees**: the colinearity tolerance becomes `sin θ` and the horizontal-angle tolerance `sin θ / 100` (horizontality is kept 100x tighter because classifying an edge as horizontal changes how the scanbeam processes it). The getter returns the current colinearity turn angle in degrees (default ~0.057°, i.e. `sin θ = 1e-3`). The `HorizontalAngleTolerance` default is raised from `1e-6` to `1e-5` so the defaults already follow this 100x coupling. Valid range `0.0` .. `5.7` degrees; `0.0` makes both comparisons exact, and the upper bound keeps the derived horizontal tolerance within its safe `1e-3` limit. Being scale-free it needs no rescaling to the input's coordinate magnitude, unlike `Tolerance`.\n- The `Clipper64.Tolerance` get/set property sets all five scale-dependent tolerances from a single absolute tolerance - the distance below which points are considered identical and lines touching: `CoordEqTolerance` = `MergeVertexTolerance` = `NearTopYToleranceCap` = `SmallTriangleTolerance` = the given tolerance, and the area-valued `SplitAreaTolerance` = the tolerance squared. The value is used as-is (valid range `0.0` .. `1e12`; `0` makes all five comparisons exact), **not** as a multiplier of the engine defaults - those (`1e-5` for the point tolerances, `2.0` for the culls) are calibrated for integer-Clipper2-style inputs of coordinate magnitude ~1e6 and do not correspond to any single value of this property. The dimensionless tolerances (`ColinearityTolerance`, `HorizontalAngleTolerance`, `NearTopYToleranceFactor`) are scale-invariant and untouched. Every tolerance comparison in the engine is dimensionally homogeneous, so clipping is scale-equivariant: scaling all input coordinates by `s` together with the tolerance yields the identically scaled solution - bit-exact for power-of-two `s`, verified by the new `ToleranceUnitTests`. The individual tolerance properties (`CoordEqTolerance`, `MergeVertexTolerance`, `NearTopYToleranceCap`, `SmallTriangleTolerance`, `SplitAreaTolerance`, and the dimensionless `ColinearityTolerance`, `HorizontalAngleTolerance`, `NearTopYToleranceFactor`) remain functional as expert overrides (e.g. raising `MergeVertexTolerance` above the seam gap of noisy inputs, or zeroing the sliver culls) but are now marked `[<Obsolete>]` to hide them from editor completion - the `Tolerance` property is the supported tuning surface; their valid ranges widen to `1e12` for the distances and `1e24` for `SplitAreaTolerance` to match.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#repository",
+    "type": "git",
+    "url": "https://github.com/goswinr/Klip"
+  },
+  "title": "Klip",
+  "verbatimVersion": "3.1.0",
+  "version": "3.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#dependencygroup/.netstandard2.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[6.0.7, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#Klip.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3313,
+      "fullName": "Klip.nuspec",
+      "length": 7176,
+      "name": "Klip.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4813,
+      "fullName": "README.md",
+      "length": 12058,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Klip.fsproj",
+      "@type": "PackageEntry",
+      "compressedLength": 1465,
+      "fullName": "fable/Klip.fsproj",
+      "length": 3772,
+      "name": "Klip.fsproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Src/Core.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 6367,
+      "fullName": "fable/Src/Core.fs",
+      "length": 26518,
+      "name": "Core.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Src/Engine.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 28504,
+      "fullName": "fable/Src/Engine.fs",
+      "length": 130978,
+      "name": "Engine.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Src/EngineUtil.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 7472,
+      "fullName": "fable/Src/EngineUtil.fs",
+      "length": 29680,
+      "name": "EngineUtil.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Src/Klip.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 6123,
+      "fullName": "fable/Src/Klip.fs",
+      "length": 37982,
+      "name": "Klip.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Src/KlipInternalTypes.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 6408,
+      "fullName": "fable/Src/KlipInternalTypes.fs",
+      "length": 22966,
+      "name": "KlipInternalTypes.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Src/Snap.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 2757,
+      "fullName": "fable/Src/Snap.fs",
+      "length": 10280,
+      "name": "Snap.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Test/FSharp/Tests/Tests1/Tests/ApiContractTests.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1018,
+      "fullName": "fable/Test/FSharp/Tests/Tests1/Tests/ApiContractTests.fs",
+      "length": 3553,
+      "name": "ApiContractTests.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Test/FSharp/Tests/Tests1/Tests/BooleanTests.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 7446,
+      "fullName": "fable/Test/FSharp/Tests/Tests1/Tests/BooleanTests.fs",
+      "length": 39348,
+      "name": "BooleanTests.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Test/FSharp/Tests/Tests1/Tests/Helpers.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 512,
+      "fullName": "fable/Test/FSharp/Tests/Tests1/Tests/Helpers.fs",
+      "length": 1085,
+      "name": "Helpers.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Test/FSharp/Tests/Tests1/Tests/PolyTreeTests.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1100,
+      "fullName": "fable/Test/FSharp/Tests/Tests1/Tests/PolyTreeTests.fs",
+      "length": 3466,
+      "name": "PolyTreeTests.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Test/FSharp/Tests/Tests1/Tests/SliverTriangleTests.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 843,
+      "fullName": "fable/Test/FSharp/Tests/Tests1/Tests/SliverTriangleTests.fs",
+      "length": 2238,
+      "name": "SliverTriangleTests.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Test/FSharp/Tests/Tests1/Tests/ToleranceUnitTests.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 2219,
+      "fullName": "fable/Test/FSharp/Tests/Tests1/Tests/ToleranceUnitTests.fs",
+      "length": 7160,
+      "name": "ToleranceUnitTests.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Test/FSharp/Tests/Tests1/Tests/UnionTouchingBridgeTests.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1474,
+      "fullName": "fable/Test/FSharp/Tests/Tests1/Tests/UnionTouchingBridgeTests.fs",
+      "length": 4684,
+      "name": "UnionTouchingBridgeTests.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#fable/Test/FSharp/Tests/Tests2/Tests/ZCallbackTests.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 2160,
+      "fullName": "fable/Test/FSharp/Tests/Tests2/Tests/ZCallbackTests.fs",
+      "length": 8367,
+      "name": "ZCallbackTests.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#lib/netstandard2.0/Klip.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 107184,
+      "fullName": "lib/netstandard2.0/Klip.dll",
+      "length": 173056,
+      "name": "Klip.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#lib/netstandard2.0/Klip.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 17008,
+      "fullName": "lib/netstandard2.0/Klip.xml",
+      "length": 94525,
+      "name": "Klip.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#logo128.png",
+      "@type": "PackageEntry",
+      "compressedLength": 5770,
+      "fullName": "logo128.png",
+      "length": 5829,
+      "name": "logo128.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.14.16.02.20/klip.3.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "fsharp",
+    "geometry",
+    "fable",
+    "fable-library",
+    "clipper2"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

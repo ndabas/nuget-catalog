@@ -1,0 +1,176 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Nakano Miku 13",
+  "catalog:commitId": "e539ed86-affe-483a-8231-ea29a11d3080",
+  "catalog:commitTimeStamp": "2026-07-17T15:32:13.1534524Z",
+  "copyright": "Copyright © Balu Media Server 2025",
+  "created": "2026-07-17T15:28:40.707Z",
+  "description": "Android camera streaming library with dual camera support and optional AAC audio for MAUI applications",
+  "id": "BaluMediaServer.CameraStreamer",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-17T15:31:47.767Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "sKuGtFQbbpPdbXG7GpHpya7wIg74RoA5SYmzlG1tNxpLNBvMqpJVJ545RAQHQV4bExQPEtToZyZZ9uvfdc978A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 350856,
+  "projectUrl": "https://github.com/BaluMediaServer",
+  "published": "2026-07-17T15:28:40.707Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v1.5.32: Live audio — the AAC-LC pipeline is now fully wired end-to-end. When ServerConfiguration.EnableAudioTrack is true, the microphone is captured (AudioCaptureService, PCM-16, 1024 samples/AAC access unit), hardware-encoded to AAC-LC (AacEncoder, audio/mp4a-latm, raw access units, no ADTS) via a shared AacEncoderManager, and emitted as live RTP on the second m=audio track (trackID=1) packetised per RFC 3640 mpeg4-generic AAC-hbr — each access unit gets its own SSRC/sequence/timestamp space, isolated from the video. The audio pipeline starts on the first audio-track SETUP and is torn down when the last client leaves or the server stops. Earlier builds advertised the m=audio track in the SDP and accepted SETUP for trackID=1 but did not emit audio RTP (SDP/SETUP compatibility path only); v1.5.32 completes it so audio actually plays in VLC/FFmpeg/ONVIF clients. Sample rate and channel count come from AudioSampleRateHz/AudioChannels; off by default so single-track clients see byte-identical SDP. Requires android.permission.RECORD_AUDIO in the host manifest plus a runtime grant; if the grant is missing the video pipeline keeps working and AudioCaptureService raises ErrorOccurred instead of crashing. Documentation-only release: no media-pipeline behavior changed beyond the version bump. Still on the roadmap: RTCP Sender Reports for the audio track and explicit A/V lip-sync hardening. (Also folds in the v1.5.31 work: runtime camera switching with STOP_CAMERA_*/SWITCH_CAMERA fully implemented, and LAN-aware IP selection preferring a reachable LAN interface over a VPN tunnel.)\n\nv1.5.31: ONVIF Profile S + LAN-aware discovery, software stabilization, and runtime camera switching. (1) ONVIF Profile S (opt-in via ServerConfiguration.Onvif, default disabled): the device auto-discovers into any VMS/NVR/ONVIF client. WS-Discovery announces it on the LAN (Hello/Bye + ProbeMatch on 239.255.255.250:3702); a Device + Media SOAP service (HttpListener, default port 8090) answers GetDeviceInformation/GetCapabilities/GetServices/GetScopes and GetProfiles/GetStreamUri/GetSnapshotUri/GetVideoEncoderConfigurations. GetStreamUri returns the existing RTSP URL, GetSnapshotUri returns a cached JPEG (/snapshot/back.jpg|front.jpg on the MJPEG port). Auth is WS-UsernameToken PasswordDigest against the existing RTSP user store. All SOAP/XML/digest/discovery logic is Android-free and unit-tested. Scope is Profile S only (no PTZ/Events/Imaging). (2) LAN-aware IP selection: the advertised host (RTSP SDP c= line + ONVIF XAddr/GetStreamUri/GetSnapshotUri/WS-Discovery) prefers a directly-reachable LAN interface and only falls back to a VPN tunnel when no LAN address exists. Interfaces are classified by NAME (wlan*/eth*/rmnet* vs tun*/tap*/ppp*/wg*) because Mono-on-Android reports the Wi-Fi NIC type as Unknown; loopback and link-local are excluded. Fixes a Tailscale/WireGuard tunnel IP being advertised to a LAN VMS. (3) Software noise-reduction + digital stabilization (opt-in via ServerConfiguration.BackCameraStabilization, back camera only, default off): motion-adaptive temporal denoise (also lowers bitrate) + translation-only digital stabilization, applied to NV21 before H.264 encoding. Self-times per frame and permanently self-disables if it runs over budget, so it can never silently regress framerate; kernels (FrameStabilizerMath) are Android-free and unit-tested. (4) Runtime camera switching: new Server.SwitchCameras() and Server.SetCameraActive(bool front, bool start) start/stop a single camera without tearing down the server, for devices that cannot run both lenses at once. BussCommand.STOP_CAMERA_*/SWITCH_CAMERA are now fully implemented (STOP_CAMERA_* actually releases the camera); MjpegServer.Stop() no longer tears down shared cameras. Verified live on a MediaTek device running Tailscale (WS-Discovery, full Device/Media SOAP, RTSP H.264 1080p + AAC, all reporting the reachable LAN address).\n\nv1.5.30: Stall resilience — a stalled camera no longer drops the client. While the camera delivers no frames, the server feeds a synthetic dark \"STREAM STALLED\" placeholder (black frame + message + live elapsed-seconds timer) into the H.264/MJPEG streams so the session stays open, and real video resumes seamlessly on the same session once the watchdog re-opens the camera. A camera-stall vs encoder-stall distinction restarts just a hung encoder (~1s) instead of the whole camera (10-30s on MediaTek). Opt-out via ServerConfiguration.StallPlaceholderEnabled (default true).\n\nv1.5.29: High-resolution pipeline performance + quality. Bitrate auto-scaled to resolution (~0.2 bits/pixel/frame, e.g. 1920x1080@30 → ~12.4 Mbps) instead of the old hardcoded 2 Mbps, with a per-camera manual override honored verbatim (Server.SetBack/FrontCameraBitrate(int), Set*AutoBitrate(), Get*Bitrate(), static GetRecommendedBitrate(w,h)). RTCP adaptive bitrate no longer drags the encoder below its configured value — the configured bitrate is the adaptation ceiling and ServerConfiguration.AdaptiveBitrate / Server.SetAdaptiveBitrate(false) pins it. CRITICAL: camera SENSOR_TIMESTAMP (ns) is now converted to µs before MediaCodec — raw ns made the MediaTek C2 time-based GOP logic force an IDR on every frame (~190KB/frame, ~7-11fps at 2K). Camera frames marshalled into a reusable 6-slot ring via JNIEnv.CopyArray (NOTE: FrameEventArgs.Data is reused after ~6 frames — subscribers must copy if they retain it). KeyLatency=0 removed to restore hardware encoder pipelining; NV21→NV12 chroma swap vectorized (SIMD); encoder raised 25→30fps; H.264 Main profile used when supported.\n\nv1.5.28: Optional AAC audio streaming — a second m=audio RTSP track (trackID=1) carrying hardware-encoded AAC-LC alongside the H.264 video track. New ServerConfiguration flags: EnableAudioTrack (default false — fully backward compatible), AudioSampleRateHz (44100), AudioChannels (1). SDP advertises mpeg4-generic with RFC 3640 AAC-hbr fmtp; SETUP for trackID=1 gets its own SSRC/sequence and independent RTP stream. The audio pipeline starts on the first audio-track SETUP and is torn down when the last client leaves. Verified with VLC and ffplay multi-track SDP parsing on net9.0-android.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#repository",
+    "commit": "3d74dfc817712b88ec56368637c632b76caa8d4f",
+    "type": "git",
+    "url": "https://github.com/BaluMediaServer/BaluMediaServer"
+  },
+  "verbatimVersion": "1.5.32",
+  "version": "1.5.32",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#dependencygroup/net9.0-android35.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#dependencygroup/net9.0-android35.0/microsoft.maui.controls",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Maui.Controls",
+          "range": "[9.0.51, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#dependencygroup/net9.0-android35.0/microsoft.maui.essentials",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Maui.Essentials",
+          "range": "[9.0.120, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#dependencygroup/net9.0-android35.0/xamarin.androidx.collection.ktx",
+          "@type": "PackageDependency",
+          "id": "Xamarin.AndroidX.Collection.Ktx",
+          "range": "[1.5.0.1, )"
+        }
+      ],
+      "targetFramework": "net9.0-android35.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#BaluMediaServer.CameraStreamer.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3605,
+      "fullName": "BaluMediaServer.CameraStreamer.nuspec",
+      "length": 7563,
+      "name": "BaluMediaServer.CameraStreamer.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 71290,
+      "fullName": "README.md",
+      "length": 208153,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#lib/net9.0-android35.0/BaluMediaServer.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 132184,
+      "fullName": "lib/net9.0-android35.0/BaluMediaServer.dll",
+      "length": 331776,
+      "name": "BaluMediaServer.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#lib/net9.0-android35.0/BaluMediaServer.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 44629,
+      "fullName": "lib/net9.0-android35.0/BaluMediaServer.xml",
+      "length": 257950,
+      "name": "BaluMediaServer.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#lib/net9.0-android35.0/camerastreamer-release.aar",
+      "@type": "PackageEntry",
+      "compressedLength": 83854,
+      "fullName": "lib/net9.0-android35.0/camerastreamer-release.aar",
+      "length": 86963,
+      "name": "camerastreamer-release.aar"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.17.15.32.13/balumediaserver.camerastreamer.1.5.32.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "android",
+    "camera",
+    "streaming",
+    "maui",
+    "dual-camera",
+    "rtsp",
+    "h264",
+    "mjpeg",
+    "rtp",
+    "rtcp",
+    "video",
+    "aac",
+    "audio",
+    "h265",
+    "RTSP"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,265 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "32bbf5f1-a180-4965-9fdf-6d8f8efc7265",
+  "catalog:commitTimeStamp": "2026-07-18T10:30:11.1767813Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-07-18T10:27:28.173Z",
+  "description": "Observability defaults for the Stratara stack — ConfigureOpenTelemetry (HTTP, EF Core, RabbitMQ, runtime instrumentation; OTLP exporter) and ConfigureSerilog (structured logging, OTLP sink). Reference from every host.",
+  "iconFile": "icon.png",
+  "id": "Stratara.ServiceDefaults",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-18T10:29:33.05Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "Jb43lad7v3q+MsEWdhi85nRc0jXznUnxyIK9DnMDyX0q+IhBRor3jdbAWpWAXS677Km8lblud9SAdcb6Jv3b3g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 88466,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-07-18T10:27:28.173Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Added\n\n- **User↔tenant membership (`Stratara.Identity.EntityFrameworkCore`, new package).** First wave of\n  the identity-directory plane: a many-to-many membership model (`TenantMembership` +\n  `ITenantMembershipStore` in `Stratara.Abstractions.Multitenancy`) records which tenants a user\n  belongs to and which tenant-scoped roles the user holds in each — single-tenant apps are the\n  degenerate case of one membership. The EF-backed store ships both lookup directions (a user's\n  tenants, a tenant's members), upsert semantics, per-user/per-tenant erasure sweeps for GDPR\n  flows, and a membership-guarded active-tenant selection for users who belong to more than one\n  tenant. Host the tables in your existing DbContext via\n  `modelBuilder.ApplyIdentityDirectoryModel()` (one migration lineage) or derive a standalone\n  context from `IdentityDirectoryDbContext<TContext>`; register with\n  `AddTenantMembershipStore<TContext>()`. The lockstep family grows from 24 to 25 packable\n  packages.\n- **Membership-backed authorization providers.** The framework now ships its first\n  `IAuthorizationProvider` implementations: `MembershipAuthorizationProvider` (role checks pass on\n  tenant-scoped membership roles within the session's data-owner tenant) and\n  `MembershipAuthorizationProvider<TUser>` (additionally consults global ASP.NET Identity roles —\n  platform roles such as a platform administrator — on a membership miss). Wire directly\n  (`AddMembershipAuthorization[<TUser>]()`) or through the authorizing mediator\n  (`AddAuthorizingMediator<MembershipAuthorizationProvider<TUser>>()`). Both are fail-closed.\n- **Membership-backed cross-tenant authorizer.** `AddMembershipCrossTenantAuthorizer(...)`\n  replaces strict tenant isolation's deny-all default with stored facts: a cross-tenant operation\n  passes when the actor holds an active membership in the data-owner tenant or one of the\n  configured `CrossTenantRoles` (the operator-impersonation path for platform administrators).\n- **Sign-in tenant-claim bridge (`Stratara.Identity.AspNetCore`).** The `stratara:tenant_id`\n  claim the session-context middleware reads is now emitted by the framework instead of\n  consumer-owned code. Two composable modes: `AddMembershipTenantClaim<TUser>()` decorates the\n  ASP.NET Identity claims factory and stamps the claim into every issued principal (cookies and\n  Identity bearer tokens), and `AddMembershipTenantClaimsTransformation()` resolves it live per\n  request so tenant switches apply without re-issuing the sign-in. Tenant resolution prefers the\n  user's persisted active-tenant selection, falls back to the only/first active membership, and\n  stamps nothing for users without an active membership (tenant resolution stays fail-closed).\n  Principals that already carry the claim pass through untouched.\n- **`InMemoryTenantMembershipStore` (`Stratara.Testing`).** Drop-in membership-store double\n  mirroring the EF store's contract semantics, including the membership-guarded active-tenant\n  selection and the erasure sweeps.\n- **Permission-based authorization (`[RequirePermission]`).** Fine-grained sibling of\n  `[RequireRole]`: applications declare their permission vocabulary once in a code-first\n  `PermissionCatalog` (`AddPermissionCatalog(c => { c.Add(\"sims.read\"); c.GrantToRole(\"TenantAdmin\",\n  \"sims.read\"); })` — granting an undeclared permission throws, so grant typos surface at startup),\n  and guard commands/queries with `[RequirePermission(\"sims.read\")]`. Enforcement runs in the\n  authorizing mediator and the authorizing outbox dispatcher (multiple attributes AND; missing\n  permission throws the new `PermissionAuthorizationException`, which derives from\n  `AuthorizationException` so existing 403 mappings catch it unchanged; `AuthorizationException` is\n  now unsealed for that reason). The mediator's startup validator fails fast when\n  permission-guarded types exist without an authorizing mediator or without a registered\n  `IPermissionResolver` — a permission attribute can never be silently ignored. Role guards are\n  unaffected; roles and permissions compose freely on the same request type.\n- **Catalog permission resolvers (`Stratara.Identity.EntityFrameworkCore`).**\n  `AddCatalogPermissionResolver()` maps the actor's active tenant-scoped membership roles through\n  the catalog's role grants; `AddCatalogPermissionResolver<TUser>()` additionally maps global\n  ASP.NET Identity roles (platform roles), so `GrantToRole` works regardless of which level a role\n  lives on. Resolution is memoized per `(userId, tenantId)` within a scope and fail-closed;\n  permission sets are deliberately never carried in `SessionContext`, cookies, or tokens.\n- **HTTP permission policies (`Stratara.Identity.AspNetCore`).** `AddStrataraPermissionPolicies()`\n  turns every declared catalog permission into an on-demand ASP.NET Core authorization policy —\n  plain `[Authorize(\"sims.read\")]` / `.RequireAuthorization(\"sims.read\")` works without hand-registering\n  policies. Undeclared policy names defer to the default provider; evaluation goes through the\n  registered `IPermissionResolver` (user id from the name-identifier claim, tenant scope from\n  `stratara:tenant_id`), never through claims-embedded permissions.\n- **Scoped settings plane (`Stratara.Abstractions.Settings` + `Stratara.Identity.EntityFrameworkCore`).**\n  Provider-neutral settings with four scopes — global, tenant, user, user-in-tenant. Applications\n  declare their vocabulary code-first in a `SettingCatalog` (`AddSettingCatalog(c => c.Add(new\n  SettingDefinition(\"Ui.Theme\", \"system\")))`); values are stored row-per-key via `ISettingStore`\n  (EF default: `setting_entry` table, registered with `AddSettingStore<TContext>()`, exact-scope\n  reads/writes, `null` deletes). The `ISettingProvider` read facade resolves for the current\n  session's Subject through the fixed fallback chain user-in-tenant → user → tenant → global →\n  host configuration (`Stratara:Settings:<name>`) → code default, with typed access\n  (`GetAsync<T>`); definitions with `IsInherited = false` consult only the most specific scope.\n  Reading or redeclaring an undeclared name throws — typos surface immediately.\n- **Encrypted settings + GDPR erasure.** Definitions marked `IsEncrypted = true` are stored\n  AES-GCM-encrypted at rest through the security plane's `ISecureBlobEncryptor` — key scope\n  derived from the setting scope and the purpose bound to the setting name, so a leaked row can\n  neither be decrypted under another scope's key nor replayed as a different setting; because the\n  keys live in `IKeyStore`, `EraseScopeAsync` crypto-shreds a user's encrypted settings.\n  `ISettingStore.DeleteScopeAsync` completes the plane's erasure story: a user scope sweeps the\n  user's values across all tenants, a tenant scope sweeps the tenant's values across all users.\n- **`InMemorySettingStore` (`Stratara.Testing`).** Drop-in settings-store double mirroring the EF\n  store's contract semantics, including the widened erasure-sweep behavior.\n\n- **API-key / personal-access-token authentication (`IApiKeyStore` + `StrataraApiKey` scheme).**\n  Machine-to-machine auth as a standard ASP.NET Core authentication scheme, not a parallel\n  system. `AddApiKeyStore<TContext>()` (Stratara.Identity.EntityFrameworkCore) issues\n  `stk_`-prefixed keys with 256-bit entropy — the raw key is shown exactly once, storage holds\n  only its SHA-256 digest (`api_key` table, unique hash index) — and validates fail-closed\n  (unknown/revoked/expired → null). **Machine keys are materialized as tenant memberships of the\n  key id**, so role checks, permission resolution, and cross-tenant authorization treat a key\n  exactly like a human actor; revocation and the tenant-erasure sweep remove those memberships\n  again. **Personal access tokens** bind a key to a user (issuance requires the user's active\n  membership; PATs carry no roles of their own) and authenticate as that user. On the HTTP side,\n  `AddStrataraApiKey()` (Stratara.Identity.AspNetCore) registers the handler — `X-Api-Key`\n  header by default, opt-in `access_token` query for header-less transports — whose ticket\n  carries the name-identifier and `stratara:tenant_id` claims the session-context middleware\n  already reads.\n- **Auth-scheme selector (`AddStrataraAuthSchemeSelector()`).** A policy scheme that routes each\n  request by shape — API-key header → API-key scheme, `Authorization: Bearer` → bearer scheme,\n  everything else → the cookie scheme (all three routable scheme names configurable) — so mixed\n  API/browser hosts set one default scheme instead of per-endpoint scheme lists.\n- **External-login OpenID Connect + JWT-bearer helpers (`Stratara.Identity.AspNetCore`).** Two\n  configuration-driven authentication-builder extensions add the external identity providers as\n  ordinary schemes. `AddStrataraOpenIdConnect(configuration)` wires the interactive \"log in with\n  &lt;provider&gt;\" flow (Entra, Keycloak, generic OIDC) from an `Identity:OpenIdConnect` section;\n  `AddStrataraJwtBearer(configuration)` validates API access tokens from an `Identity:JwtBearer`\n  section, routing a multi-issuer API by the token's `iss`. Both key the principal on the issuer\n  `sub`, never on email. The package now depends on\n  `Microsoft.AspNetCore.Authentication.OpenIdConnect` and\n  `Microsoft.AspNetCore.Authentication.JwtBearer`.\n- **Hardened JIT external-login provisioning (`AddStrataraExternalLoginProvisioning<TUser>()`).** On\n  a user's first external sign-in, `ExternalLoginProvisioningService<TUser>` creates a local\n  ASP.NET Identity account and links the external login, or links to an existing account — with the\n  account-takeover defenses as hard defaults, not opt-ins. It links on the issuer's `(provider,\n  sub)` (never on the mutable email claim); auto-links to a pre-existing account only when the email\n  is verified by the provider (`email_verified`/Entra `xms_edov`) **and** already confirmed locally,\n  returning `RequiresInteractiveLinking` rather than merging otherwise; honors an optional\n  invitation gate and an `AutoProvision` switch; and fails closed on every unsatisfied check. The\n  callable service leaves the sign-in callback/UI to the consumer; `Stratara.Sample.Identity`\n  demonstrates the full wiring.\n- **Documentation and runnable samples for the whole capability.** Five new guides cover the\n  identity surface — tenant membership and the sign-in claim bridge, permission-based authorization,\n  scoped settings, API keys and personal access tokens, and external login with JIT provisioning.\n  Two samples back them: the new `Stratara.Sample.IdentityDirectory` runs membership, permissions\n  and scoped settings end to end against SQLite, and `Stratara.Sample.Identity` gains the API-key\n  lane alongside its external-login wiring. Both are smoke-tested in CI like every other sample.\n\n### Changed\n\n- **`AddNpsqlWriteDbContextFactory` corrected to `AddNpgsqlWriteDbContextFactory`** (`Stratara.EventSourcing.EntityFrameworkCore`).\n  The write-side context-factory extension was missing the `g` in \"Npgsql\". The correctly-spelled\n  name is now canonical; the old spelling remains as an `[Obsolete]` alias that forwards verbatim,\n  so hosts registered against the 3.1.x name keep compiling. The alias will be removed in the next\n  major version.\n- **`AddAzureServiceBus` now replaces the `IMessageBus` registration** (`Stratara.Outbox.AzureServiceBus`).\n  Previously it used `TryAdd`, so calling it after the RabbitMQ umbrella (`AddMessaging()`, which the\n  worker composites call) was a silent no-op that left RabbitMQ in place. It now `Replace`s the slot,\n  so an explicitly-chosen transport wins regardless of registration order. Use one transport per host.\n\n### Fixed\n\n- **Authorization decorators now guard the runtime request type.** The authorizing mediator's\n  void-request path and the authorizing outbox dispatcher previously read `[RequireRole]` (and now\n  `[RequirePermission]`) attributes from the statically inferred generic type. A command dispatched\n  through a base-typed variable (class-hierarchy dispatch) therefore skipped guards declared on the\n  derived type. Both decorators now inspect `request.GetType()`, so runtime-type guards are always\n  enforced — strictly fail-closed relative to the previous behavior.\n- **Public docs and package pages corrected against source.** A pre-release audit found the READMEs,\n  DocFX guides, `llms.txt`, and several csproj `<Description>` fields describing APIs and behavior the\n  code does not have — fabricated extension methods, a compile-breaking `KeyScope` snippet, quick\n  starts that threw at runtime, `internal` types shown as wire-up, and an overstated\n  \"automatic verification\" claim for tamper-evident streams. All corrected; a new\n  `scripts/check-doc-symbols.py` gate fails the build on any documented `Add*`/`Map*`/`Use*` call\n  that no longer resolves in `src/`.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#repository",
+    "commit": "7bc7895a98e7327325d049807778c879d7a78941",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "3.2.0",
+  "version": "3.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/stratara.shared",
+          "@type": "PackageDependency",
+          "id": "Stratara.Shared",
+          "range": "[3.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/destructurama.attributed",
+          "@type": "PackageDependency",
+          "id": "Destructurama.Attributed",
+          "range": "[5.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/microsoft.extensions.http.resilience",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http.Resilience",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/microsoft.extensions.servicediscovery",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ServiceDiscovery",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.15.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.15.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.EntityFrameworkCore",
+          "range": "[1.15.1-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.http",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Http",
+          "range": "[1.15.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.runtime",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Runtime",
+          "range": "[1.15.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/rabbitmq.client.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client.OpenTelemetry",
+          "range": "[1.0.0-rc.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/serilog.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "Serilog.Extensions.Hosting",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/serilog.formatting.compact",
+          "@type": "PackageDependency",
+          "id": "Serilog.Formatting.Compact",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/serilog.settings.configuration",
+          "@type": "PackageDependency",
+          "id": "Serilog.Settings.Configuration",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/serilog.sinks.async",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Async",
+          "range": "[2.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/serilog.sinks.console",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Console",
+          "range": "[6.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/serilog.sinks.file",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.File",
+          "range": "[7.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#dependencygroup/net10.0/serilog.sinks.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.OpenTelemetry",
+          "range": "[4.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#Stratara.ServiceDefaults.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6220,
+      "fullName": "Stratara.ServiceDefaults.nuspec",
+      "length": 15979,
+      "name": "Stratara.ServiceDefaults.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1241,
+      "fullName": "README.md",
+      "length": 2374,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#lib/net10.0/Stratara.ServiceDefaults.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7039,
+      "fullName": "lib/net10.0/Stratara.ServiceDefaults.dll",
+      "length": 16384,
+      "name": "Stratara.ServiceDefaults.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#lib/net10.0/Stratara.ServiceDefaults.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1526,
+      "fullName": "lib/net10.0/Stratara.ServiceDefaults.xml",
+      "length": 4685,
+      "name": "Stratara.ServiceDefaults.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.18.10.30.11/stratara.servicedefaults.3.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "opentelemetry",
+    "otel",
+    "serilog",
+    "observability",
+    "logging",
+    "tracing",
+    "metrics",
+    "hosting",
+    "service-discovery",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

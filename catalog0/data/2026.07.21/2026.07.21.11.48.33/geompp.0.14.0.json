@@ -1,0 +1,179 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Angelo Mastro",
+  "catalog:commitId": "502b0ba3-3643-485a-906d-e8ea48b9ef0f",
+  "catalog:commitTimeStamp": "2026-07-21T11:48:33.1131581Z",
+  "created": "2026-07-21T11:45:42.127Z",
+  "description": "C# bindings for geompp, a C++20 2D/3D computational geometry library.\n      Provides Point2D/3D, Vector2D/3D, Line2D/3D, Ray2D/3D, LineSegment2D/3D,\n      Polyline2D/3D, Triangle2D/3D, Polygon2D/3D, BBox2D/3D, BBall2D/3D,\n      BRect2D, BPrism3D, Plane — with full operator support, intersection\n      queries, convex hull, bounding containers, WKT serialization, and file I/O.\n      Built with C++/CLI for Windows x64. Targets .NET 8, 9, 10 and .NET Framework 4.8.",
+  "id": "GeomPP",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-21T11:48:20.177Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "k4Ydlg9VzqMScZJy2suOhHYt1TXZcWTeLvWUx0cuy2iMgUoHa/68VNvSsK2tFfrvpX1BwSiD6Yf44Vs1jJ9VDA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1875737,
+  "projectUrl": "https://github.com/amastrobera/geompp",
+  "published": "2026-07-21T11:45:42.127Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "> C++ library — tagged `v0.14.0` · C# / NuGet — tagged `csharp-v0.14.0` · Python / PyPI — tagged `python-v0.14.0`\n\n> Quadratic Bezier corner smoothing: `bezier_smoothing_2()` rounds a polyline corner (p0, p1, p2) with a quadratic Bezier arc (density-based or exact-count, with a tunable tiny-edge skip threshold), and `Polyline2D::Expand()` / `Polyline3D::Expand()` — the inverse of `Reduce()` — apply it to every inner corner of a polyline via a new `polyline_expansion()` free function.\n\n### Added\n\n**C++ core**\n- `bezier_smoothing_2(PointT p0, PointT p1, PointT p2, double smoothness, double min_distance, double min_segment_length = DOUBLE_EPSILON)` (`calc_utils2d.hpp`) — trims tangent points into p1 by up to `smoothness` (∈ [0,1]) fraction of the shorter adjacent edge, then samples the resulting quadratic Bezier arc via De Casteljau's algorithm at roughly `min_distance` apart. An adjacent edge at or below `min_segment_length` isn't trimmed into (that tangent point falls back to `p1`); if both are, the whole corner collapses to `p1` (no curve). Templated over `PointT`; explicit-instantiated for `Point2D`/`Point3D`. Throws `std::invalid_argument` if `min_distance <= 0`.\n- `bezier_smoothing_2(PointT p0, PointT p1, PointT p2, double smoothness, int num_segments, double min_segment_length = DOUBLE_EPSILON)` — same tangent trimming and sampling, but takes an exact segment count instead of a distance-derived one; a distinct overload rather than a parameter that reinterprets `min_distance`, since the two controls don't share a unit. Throws `std::invalid_argument` if `num_segments < 1`.\n- `PolylineExpansionParams` (`constants.hpp`) — bundles `smoothness`, a `Mode` (`FixedSegments` / `MinDistance`) mirroring `bezier_smoothing_2`'s two overloads, `segments_per_corner`, `min_distance`, and `min_segment_length`.\n- `polyline_expansion(std::vector<PointT> const& input, PolylineExpansionParams const& settings)` (`calc_utils2d.hpp`) — rounds every inner corner of a raw point list via `bezier_smoothing_2`, deduplicating consecutive points (a corner fully skipped by `min_segment_length`, or two adjacent corners' arcs meeting exactly at a shared edge's midpoint — each corner's trim is independently capped at half its shared edge, so adjacent arcs can touch but never cross) rather than emitting zero-length segments. Templated over `PointT`; explicit-instantiated for `Point2D`/`Point3D`.\n- `Polyline2D::Expand(PolylineExpansionParams const& settings = PolylineExpansionParams{})` / `Polyline3D::Expand(...)` — the inverse of `Reduce()`: adds vertices rather than removing them. Thin wrappers delegating to `polyline_expansion()`.\n\n**Python bindings**\n- `bezier_smoothing_2(p0, p1, p2, smoothness, min_distance, min_segment_length=DOUBLE_EPSILON)` and `bezier_smoothing_2(p0, p1, p2, smoothness, num_segments, min_segment_length=DOUBLE_EPSILON)` — bound for both `Point2D` and `Point3D`; overload resolution follows pybind11's no-conversion-first pass, matching the C++ int-vs-double disambiguation.\n- `PolylineExpansionMode` (`FixedSegments`, `MinDistance`), `PolylineExpansionParams(smoothness=0.5, mode=FixedSegments, segments_per_corner=4, min_distance=0.1, min_segment_length=DOUBLE_EPSILON)`, `polyline_expansion(points, settings)`.\n- `Polyline2D.expand(settings=PolylineExpansionParams())` / `Polyline3D.expand(...)`.\n\n**C# bindings**\n- `GeomUtil.BezierSmoothing2(Point2D^, Point2D^, Point2D^, double, double)` / `(..., int)` — and the `Point3D^` overloads — plus `minSegmentLength` overloads of each.\n- `PolylineExpansionMode`, `PolylineExpansionParams` (explicit-backing-field properties, matching this codebase's convention — no C++/CLI auto-properties elsewhere), `GeomUtil.PolylineExpansion(points, settings)`.\n- `Polyline2D.Expand()` / `Polyline2D.Expand(PolylineExpansionParams^)` — and the `Polyline3D` equivalents.\n\n### Fixed\n\n- A pre-release iteration of `polyline_expansion()`/`Expand()` read a corner's `p0`/`p1` back out of the *already-built* output buffer instead of the original input knots — this broke the invariant that each corner's trim is bounded by its true adjacent-edge length (adjacent corners' arcs could no longer be guaranteed to meet without crossing), and on the very first corner processed could even set `p1 == p2`. Never released; caught during validation before landing. All `p0`/`p1`/`p2` are read directly from the original knot list, unconditionally.\n- `size_t` → `std::size_t` normalized throughout `calc_utils2d.cpp`.\n\n### Tests\n\n- `test_calc_utils2d.cpp`: `BezierSmoothing2_*` — both overloads' throw paths, trimmed-tangent endpoint values (hand-verified), `smoothness=0` sharp-corner collapse, coincident-endpoint degeneracy (no NaN), exact point-count for `num_segments`, and `MinSegmentLength_*` (single-side skip, both-side skip, `DOUBLE_EPSILON` default, explicit-zero opt-out). `PolylineExpansion_*` — two-point no-op, single-corner trim, a dedicated multi-corner regression test proving each corner uses its own original knots, `min_segment_length` full-corner skip.\n- `test_polyline2d.cpp` / `test_polyline3d.cpp`: `Expand_*` — unchanged below 3 knots, trimmed-tangent endpoints, `min_segment_length` full-skip matches the original polyline exactly, `MinDistance` mode density scaling, thrown-precondition propagation from `bezier_smoothing_2`.\n- `test_geompp.py`: `TestBezierSmoothing2FreeFunction`, `TestPolylineExpansionParams`, `TestPolylineExpansionFreeFunction`, `TestPolyline2DExpand`, `TestPolyline3DExpand` — same coverage as the C++ suite, plus `Point3D` cases.\n- `Program.cs`: equivalent `BezierSmoothing2_*`, `PolylineExpansionParams_*`, `PolylineExpansion_*`, `Polyline2D_Expand_*`, `Polyline3D_Expand_*` coverage.\n\n---",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#repository",
+    "type": "git",
+    "url": "https://github.com/amastrobera/geompp"
+  },
+  "requireLicenseAcceptance": false,
+  "verbatimVersion": "0.14.0",
+  "version": "0.14.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#dependencygroup/net8.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#dependencygroup/net9.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#dependencygroup/net10.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#GeomPP.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2945,
+      "fullName": "GeomPP.nuspec",
+      "length": 7395,
+      "name": "GeomPP.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1452,
+      "fullName": "README.md",
+      "length": 3428,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#lib/net10.0-windows7.0/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 461287,
+      "fullName": "lib/net10.0-windows7.0/GeomPP.dll",
+      "length": 1279488,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#lib/net48/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 472145,
+      "fullName": "lib/net48/GeomPP.dll",
+      "length": 1250304,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#lib/net8.0-windows7.0/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 461166,
+      "fullName": "lib/net8.0-windows7.0/GeomPP.dll",
+      "length": 1278976,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#lib/net9.0-windows7.0/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 461264,
+      "fullName": "lib/net9.0-windows7.0/GeomPP.dll",
+      "length": 1279488,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.11.48.33/geompp.0.14.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12987,
+      "fullName": ".signature.p7s",
+      "length": 12987,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "geometry",
+    "2d",
+    "3d",
+    "spatial",
+    "computational-geometry",
+    "gis",
+    "math",
+    "polygon",
+    "polyline",
+    "convex-hull",
+    "bounding-box",
+    "point-cloud",
+    "cpp",
+    "interop",
+    "csharp",
+    "dotnet"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,315 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Sergi Ortiz Gomez",
+  "catalog:commitId": "4cc61fae-b5c9-4b73-bab7-3a777140f0bc",
+  "catalog:commitTimeStamp": "2026-07-21T13:14:38.0494756Z",
+  "copyright": "Free",
+  "created": "2026-07-21T13:11:06.837Z",
+  "description": "Manage IndexedDb from Blazor WebAssembly applications. Create a StoreDbContext similar how is working in EF. Please report any bug or changes you need using our contact form in the web site. Thanks.",
+  "id": "DrUalcman-BlazorIndexedDb",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-21T13:14:32.96Z",
+  "licenseFile": "License.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "Wxz+Pm9sz9ICRZg05V2yAhumFANdE7TCCyob6udRT4HeI2OMKf4rECqic/MdF5DXyQCpbEJ4UEEYSqEu95PsiA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 182098,
+  "projectUrl": "https://blazorindexdb.community-mall.com/",
+  "published": "2026-07-21T13:11:06.837Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Performance and correctness work on the JS interop boundary.\n\n\t\t\t- Insert, Update and Delete now exchange UTF-8 encoded Json with JavaScript in BOTH\n\t\t\tdirections, as Select already did. Payloads travel as byte[] (a Uint8Array on the JS\n\t\t\tside), so neither end builds or re-parses a string for the whole batch. Responses are\n\t\t\tdeserialized straight from the bytes instead of being materialized as a JsonElement and\n\t\t\tserialized again.\n\t\t\t- Fixed SelectWhere: the interop wrapper called Select(table, column, value), but Select\n\t\t\tonly takes the table name, so the filter was dropped and the WHOLE store was returned.\n\t\t\tThe indexed lookup it was supposed to use is now actually reached.\n\t\t\t- Fixed the C# side of SelectWhere too: it read the response through GetJsonResult<byte[]>,\n\t\t\twhich cannot deserialize a Uint8Array (System.Text.Json expects base64 for byte[]).\n\t\t\t- JsonSerializerOptions are shared instead of rebuilt per call, which also restores the\n\t\t\tserializer metadata cache. The two copies that existed had already drifted apart.\n\n\t\t\tInsert and Update no longer guess when a write has finished.\n\n\t\t\t- They resolved on setTimeout(rows * 50), so the cost of a write grew by 50ms for every\n\t\t\trow in the call no matter how fast IndexedDB actually was — a batch of 4944 rows took\n\t\t\t247 seconds against a real write time of milliseconds — and the caller resumed while the\n\t\t\ttransaction was still open and the connection unclosed. Both now resolve from\n\t\t\ttransaction.oncomplete, the same signal Clean and Delete already used.\n\t\t\t- Added transaction.onabort. A failed request (store.add on an existing key, for\n\t\t\tinstance) aborts the whole transaction and oncomplete never fires; the timeout used to\n\t\t\thide that by reporting success for rows that were never written. Such a write is now\n\t\t\treported as failed.\n\t\t\t- Added onerror/onblocked on the database open request. Nothing handled a failed open,\n\t\t\twhich only survived because the timeout resolved regardless.\n\t\t\t- Update now closes its connection. It never did.\n\n\t\t\tDeleting many rows no longer costs one connection per row.\n\n\t\t\t- New DeleteAsync(IEnumerable<TKey> ids) deletes every id inside ONE transaction. The\n\t\t\tonly way to remove several rows was to call DeleteAsync in a loop, and each call opened\n\t\t\tits own database connection and its own transaction, so N rows cost N times what they\n\t\t\thad to. The single-id overloads are unchanged and now share the same code path.\n\t\t\t- Delete gained transaction.onabort and onerror/onblocked on the open request, so an\n\t\t\taborted or failed delete reports a failure instead of leaving the promise pending\n\t\t\tforever. Clean gained onabort for the same reason.\n\n\t\t\tReads: looking a record up by its key never worked, and a failed open hung.\n\n\t\t\t- SelectId built its key range from a variable that does not exist in that scope, so every\n\t\t\tcall threw a ReferenceError before touching the store. SingleRecord swallows the\n\t\t\trejection and returns null, so GetAsync(id) always came back empty and reported nothing.\n\t\t\t- Select handled a failed open by calling close() on the open REQUEST, which has no such\n\t\t\tmethod, so the handler threw and the promise was never settled: the caller hung forever.\n\t\t\t- None of the three read paths handled a failed open at all. Select, SelectId and\n\t\t\tSelectWhere now report one.\n\n\t\t\tA blocked database is no longer reported as an error.\n\n\t\t\t- blocked does not mean the operation failed, it means it is queued behind another\n\t\t\tconnection that has not closed yet, and it goes ahead on its own once that happens.\n\t\t\tDropDatabase rejected on it, so it reported a failure for a delete that then went ahead\n\t\t\tand completed anyway — and since the event carries no error, the rejection had no message\n\t\t\teither. Every blocked handler now warns to the console and lets onsuccess/onerror settle.\n\t\t\t- This is much less likely to be reached now that Update closes its connection and Select\n\t\t\tno longer leaks one on failure. Those leaked connections are exactly what blocks a drop.\n\n\t\t\tA rejected row no longer takes the rest of the batch down with it.\n\n\t\t\t- Insert still uses add, so a duplicated key is still refused — this is an insert, not an\n\t\t\tupsert, and it behaves like a primary key in SQL. What changed is the blast radius: an\n\t\t\tunhandled request error in IndexedDB propagates and aborts the WHOLE transaction, so one\n\t\t\tduplicate used to discard every other row in the call, and no response could say which\n\t\t\trow was at fault.\n\t\t\t- Each request now handles its own error and calls preventDefault(), which stops that\n\t\t\tpropagation. The offending row is the only one not written, everything else commits, and\n\t\t\tthe response list gets one entry per rejected row naming its key and the reason. The\n\t\t\taggregate success entry reports how many of how many went in.\n\t\t\t- CommandResponse.Result is false whenever any row was rejected, as before, so a caller\n\t\t\tthat only checks the flag sees no change. Splitting a write into chunks purely to find\n\t\t\tout which rows failed is no longer necessary.\n\t\t\t- CommandResponse.Errors lists just the refused rows, and CommandResponse.EnsureSuccess()\n\t\t\tthrows a ResponseException carrying their messages if there were any. Writes still report\n\t\t\tfailures instead of throwing — the per-row detail cannot survive an exception raised in\n\t\t\tJavaScript, since a rejected promise reaches .NET as a message and nothing else — so\n\t\t\tEnsureSuccess lets the caller opt into EF-like behaviour where it wants it.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#repository",
+    "commit": "cb21e0fa0f1d981b4daa1874ad2ef4cfa32c17b7",
+    "type": "Git",
+    "url": "https://github.com/drualcman/BlasorIndexedDb"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "1.10.50",
+  "version": "1.10.50",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net10.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[10.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net10.0/microsoft.aspnetcore.components.webassembly",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.WebAssembly",
+          "range": "[10.0.10, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net6.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[6.0.36, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net6.0/microsoft.aspnetcore.components.webassembly",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.WebAssembly",
+          "range": "[6.0.36, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net8.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[8.0.29, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net8.0/microsoft.aspnetcore.components.webassembly",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.WebAssembly",
+          "range": "[8.0.29, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net9.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[9.0.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#dependencygroup/net9.0/microsoft.aspnetcore.components.webassembly",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.WebAssembly",
+          "range": "[9.0.18, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#DrUalcman-BlazorIndexedDb.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3215,
+      "fullName": "DrUalcman-BlazorIndexedDb.nuspec",
+      "length": 7816,
+      "name": "DrUalcman-BlazorIndexedDb.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3776,
+      "fullName": "README.md",
+      "length": 11277,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#License.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 654,
+      "fullName": "License.txt",
+      "length": 1098,
+      "name": "License.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#build/DrUalcman-BlazorIndexedDb.props",
+      "@type": "PackageEntry",
+      "compressedLength": 92,
+      "fullName": "build/DrUalcman-BlazorIndexedDb.props",
+      "length": 166,
+      "name": "DrUalcman-BlazorIndexedDb.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "@type": "PackageEntry",
+      "compressedLength": 528,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "length": 1757,
+      "name": "Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "@type": "PackageEntry",
+      "compressedLength": 529,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "length": 1206,
+      "name": "Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#buildMultiTargeting/DrUalcman-BlazorIndexedDb.props",
+      "@type": "PackageEntry",
+      "compressedLength": 79,
+      "fullName": "buildMultiTargeting/DrUalcman-BlazorIndexedDb.props",
+      "length": 89,
+      "name": "DrUalcman-BlazorIndexedDb.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#buildTransitive/DrUalcman-BlazorIndexedDb.props",
+      "@type": "PackageEntry",
+      "compressedLength": 93,
+      "fullName": "buildTransitive/DrUalcman-BlazorIndexedDb.props",
+      "length": 103,
+      "name": "DrUalcman-BlazorIndexedDb.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#lib/net10.0/DrUalcman-BlazorIndexedDb.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31748,
+      "fullName": "lib/net10.0/DrUalcman-BlazorIndexedDb.dll",
+      "length": 79360,
+      "name": "DrUalcman-BlazorIndexedDb.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#lib/net10.0/DrUalcman-BlazorIndexedDb.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5077,
+      "fullName": "lib/net10.0/DrUalcman-BlazorIndexedDb.xml",
+      "length": 43164,
+      "name": "DrUalcman-BlazorIndexedDb.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#lib/net6.0/DrUalcman-BlazorIndexedDb.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31816,
+      "fullName": "lib/net6.0/DrUalcman-BlazorIndexedDb.dll",
+      "length": 79360,
+      "name": "DrUalcman-BlazorIndexedDb.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#lib/net6.0/DrUalcman-BlazorIndexedDb.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5077,
+      "fullName": "lib/net6.0/DrUalcman-BlazorIndexedDb.xml",
+      "length": 43164,
+      "name": "DrUalcman-BlazorIndexedDb.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#lib/net8.0/DrUalcman-BlazorIndexedDb.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31653,
+      "fullName": "lib/net8.0/DrUalcman-BlazorIndexedDb.dll",
+      "length": 78848,
+      "name": "DrUalcman-BlazorIndexedDb.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#lib/net8.0/DrUalcman-BlazorIndexedDb.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5077,
+      "fullName": "lib/net8.0/DrUalcman-BlazorIndexedDb.xml",
+      "length": 43164,
+      "name": "DrUalcman-BlazorIndexedDb.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#lib/net9.0/DrUalcman-BlazorIndexedDb.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31653,
+      "fullName": "lib/net9.0/DrUalcman-BlazorIndexedDb.dll",
+      "length": 78848,
+      "name": "DrUalcman-BlazorIndexedDb.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#lib/net9.0/DrUalcman-BlazorIndexedDb.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5077,
+      "fullName": "lib/net9.0/DrUalcman-BlazorIndexedDb.xml",
+      "length": 43164,
+      "name": "DrUalcman-BlazorIndexedDb.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#staticwebassets/MyDbJS.js",
+      "@type": "PackageEntry",
+      "compressedLength": 8748,
+      "fullName": "staticwebassets/MyDbJS.js",
+      "length": 53170,
+      "name": "MyDbJS.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.21.13.14.38/drualcman-blazorindexeddb.1.10.50.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "webassembly",
+    "blazor",
+    "indexedDb",
+    "interop",
+    "javascript",
+    "database"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

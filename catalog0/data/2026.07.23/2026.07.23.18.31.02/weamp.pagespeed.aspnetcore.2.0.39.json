@@ -1,0 +1,230 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "We-Amp",
+  "catalog:commitId": "ba854bad-7cdb-44cc-b1de-b9874786c06a",
+  "catalog:commitTimeStamp": "2026-07-23T18:31:02.0941419Z",
+  "copyright": "Copyright (c) 2024-2026 We-Amp B.V. All rights reserved.",
+  "created": "2026-07-23T17:53:03.947Z",
+  "description": "Drop-in ASP.NET Core middleware that improves Core Web Vitals without touching your app code: critical CSS inlining, LCP preload, lazy loading, and on-demand WebP/AVIF transcoding on every HTML response. The C++23 PageSpeed engine runs in-process via P/Invoke. Single-package install with transitive native binaries for linux-x64, linux-arm64, osx-arm64, and win-x64. Optimization runs unlicensed for evaluation (X-PageSpeed-Warn header). Production use requires a commercial license; the software never locks you out.",
+  "iconFile": "icon.png",
+  "id": "WeAmp.PageSpeed.AspNetCore",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-23T18:30:39.937Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "GwMdoBJlC7si2sGqCBb6JVWUCGlD4x5gFhK8h2OI+IeMO1PfUo183rFCo9HEqPCRVyDwoCuCXDSKpZtomDjN9A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 534491,
+  "projectUrl": "https://modpagespeed.com/features/#aspnet-core",
+  "published": "2026-07-23T17:53:03.947Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "2.0.39: Fixed: several automatically applied loading and priority hints could work against the page instead of for it; hints are now emitted only when the evidence supports them: - Injected `preconnect` links always carried `crossorigin`, warming a connection pool that plain stylesheets, scripts, and images never use (while the Early Hints variant of the same hint was bare). Preconnect hints — in both the HTML and Early Hints — now carry `crossorigin` exactly when the resource that motivated them is fetched in CORS mode (fonts, `crossorigin`-marked resources, ES modules), so the warmed connection is the one the browser actually reuses. - The preload hint for the main (LCP) image is suppressed when that image is part of a `<picture>` element, where the browser may select a different source: preloading could download an image the page never displays. - Iframes are no longer lazy-loaded unconditionally: the first iframe in the document body — typically an above-the-fold video or media embed — now loads normally, matching the above-the-fold protection images already had. (Documents without an explicit `<body>` tag keep the previous behavior.) Invisible iframes (0x0, `hidden`, or `display:none` — the shape of common tag-manager tracking frames) are left entirely untouched: never lazy-loaded, so tracking frames keep working without JavaScript, and they no longer consume the above-fold exemption meant for the first visible embed. - Invisible images (1x1 beacons, `hidden` or `display:none` elements) are now left entirely untouched, at every position on the page: never promoted to `fetchpriority=\"high\"` — the first visible image takes the high-priority slot instead, or none if no visible image appears near the top — and never given `loading=\"lazy\"`, which browsers answer for layout-less images by skipping the load altogether, silently breaking tracking pixels. Invisible images that earlier releases lazy-loaded will load again. - Stylesheets that the async-CSS optimization defers are no longer also preload-hinted in Early Hints: the old combination re-promoted the very download the optimization had deprioritized, competing with the LCP image for bandwidth. Print stylesheets are likewise no longer preload-hinted. When reprocessing leaves a page with no hints at all, previously stored hints are now cleared instead of being served stale indefinitely. Upgrade note for ASP.NET Core deployments: upgrade the middleware package together with the worker. The preconnect fix above introduces a new stored form of the hint, and a middleware from an earlier release paired with an upgraded worker does not recognize it: it emits the hint as an unusable preload header instead. Browsers ignore the malformed entry; the affected preconnect is lost and the stray header is served until the middleware is upgraded too. When rolling back a worker after its newer hints have been stored, also purge the metadata cache so the older middleware is not served hint forms it cannot read. Security: the shared cache now enforces RFC 9111's rule for authenticated requests — a response to a request carrying an `Authorization` header is stored or reused only when the origin's `Cache-Control` explicitly permits shared caching (`public`, `must-revalidate`, or `s-maxage`); all other such requests pass through to the origin. The rule now also covers stale content served during an origin outage and preload hints (`103 Early Hints`) derived from a stored response. Previously, responses to authenticated requests could be shared through the cache. Relatedly, the exemption that lets a validated license capability token (`Authorization: License <token>`) bypass this gate no longer applies to internally generated requests — `try_files`, `rewrite`, `error_page` and index targets, and subrequests — because those never pass through the validation step, so an unvalidated credential could previously reach cached content by way of an internal redirect. Deployments that route every request through such a target fall back to ordinary shared-cache rules for license-bearing requests, which may reduce cache reuse for them. Update recommended for deployments serving authenticated content. The fix is not retroactive: entries cached before the upgrade are not removed, so also purge or reset the cache — or let existing entries expire — if authenticated responses may have been cached. Security: a cached response that the origin later marks as non-shareable is now removed from the cache. When a cached entry was revalidated with the origin and the origin answered \"not modified\", the entry's freshness was refreshed without re-checking whether it was still allowed in a shared cache — so an origin that had since marked the resource `private` or `no-store` (for example, a page that became personalized or account-specific) could have its previously cached copy kept and served to other visitors. Such a response now evicts the cached copy instead of renewing it, and the origin's restrictive directive is passed on to any downstream cache rather than being replaced with a freshness lifetime. Revalidations of an authenticated request that no longer carry explicit shared-cache permission, and revalidations that set a cookie, no longer extend a shared entry's lifetime. Update recommended, particularly where resources can change between public and private over their lifetime. This fix does reach some entries cached before the upgrade: an existing entry already marked `private` or `no-store` is evicted the next time it is revalidated, even if that revalidation carries no `Cache-Control` of its own. It is not a sweep, though — an affected entry is only removed once something revalidates it, so entries that are never revalidated before they expire are never examined. Purge or reset the cache if you need affected responses gone on a known schedule rather than on next revalidation. Only the blanket forms evict. `private` in its qualified form — `private=\"Set-Cookie\"`, which restricts just the named headers and permits the rest to be cached — is correctly treated as non-blanket and keeps the entry, an idiom origins routinely pair with a perfectly cacheable `max-age`. `no-cache` never evicts in any form: it governs revalidation rather than storage. Fixed, on the same path: the response to a revalidation now carries the origin's full set of cache directives instead of a simplified freshness lifetime. An origin's `no-cache` in particular is relayed on every outcome, so a resource served as `no-cache, max-age=N` is again revalidated before each reuse rather than being treated by browsers and downstream caches as freely reusable for the whole lifetime. Security: the bundled nginx in the published worker and nginx images is updated to 1.30.4, picking up the July 2026 upstream nginx security fixes — including CVE-2026-42533, a request-processing memory-safety defect that the upstream nginx advisory reports as exploited in the wild. The images' distribution packages are also rebuilt against the latest Ubuntu security updates, which fixes CVE-2026-50812 and CVE-2026-50813 in the bundled SQLite library. Update recommended. Fixed: script deferral now requires execution evidence. The analysis browser serves same-origin scripts from the cache during analysis, and only scripts observed to execute little or nothing before first paint are deferred. Previously, scripts whose content was unavailable to the analysis could be classified as safe to defer without evidence, which could break pages that rely on synchronous script execution. Deferral continues to apply to scripts referenced by their full URL; as deferral decisions are now evidence-based, pages that load scripts from third-party hosts may see fewer scripts deferred. Fixed: pages referencing an empty same-origin script file (a stub or feature-flag placeholder) were re-analyzed every hour indefinitely: the empty file was mistaken for a script the analysis had yet to observe, which kept the page's analysis profile on its shortened warm-up lifetime forever. Cached-but-empty scripts no longer shorten the profile lifetime, so such pages return to the configured re-analysis interval. Fixed: the validator (`ETag`) on cache-served responses reflected only the variant and its byte length, so a revised page or asset that kept the same byte length also kept its old validator — a returning visitor's conditional request could be answered 304 Not Modified and briefly hold on to the outdated copy. For origins that supply an `ETag` or `Last-Modified` (and for agent-optimized pages), validators now also reflect the stored content identity, so a same-size revision gets a new validator; after upgrading, returning visitors re-download affected resources once and revalidation then resumes as normal. Origins that emit no validators keep the previous length-based behavior. Fixed: some conversion paths encoded WebP versions of JPEG and PNG images losslessly instead of at the configured quality. Depending on the image, the oversized result was either discarded in favor of the original — so the photo silently never got a WebP variant — or served as an unnecessarily large lossless WebP. Those images now receive properly compressed lossy WebP; GIF to WebP conversion remains lossless as intended. Fixed: the CSS minifier removed required whitespace around `+` and `-` inside the newer CSS math functions (`sin()`, `cos()`, `atan2()`, `pow()`, `hypot()`, and related), which could invalidate those declarations; spacing is now preserved inside the full set of CSS math functions. Fixed: the CSS minifier rewrote the contents of custom properties, whose values are opaque token streams where every space matters. Whitespace around operators was removed and interior runs collapsed, so a value such as `--gap: 1px + 2px` came back as `1px+2px` and any `calc(var(--gap))` that used it became invalid — browsers drop the whole declaration, which could leave a page visibly unstyled wherever the variable was applied. Values holding selector fragments or arbitrary strings read back through `getPropertyValue()` were altered the same way, and a stylesheet with an unquoted `url()` inside a custom property containing `/*` could have the remainder of the sheet swallowed. Custom-property values are now preserved verbatim; leading and trailing whitespace is still trimmed and comments are still removed. Backslash-escaped characters are also kept intact throughout, so a selector like a class name containing an escaped space no longer loses the escape — which previously broke the rule that used it. Fixed: the JavaScript minifier misread regular-expression literals appearing after `await`, `yield`, or the `of` in a for-of loop as division, which could alter the regular expression's whitespace and change its meaning. It could also remove the whitespace separating a regular expression's closing slash from a following `*`, forming an unintended comment opener. Such literals now minify correctly; inputs the minifier cannot safely process continue to be served unmodified. Fixed: CSS `@import` flattening could silently drop styles when only part of an import chain was cached: an `@import` that could not be inlined was left after already-inlined rules — a position where browsers must ignore it. Flattening is now all-or-nothing per stylesheet: if any imported sheet cannot be inlined, the stylesheet is served in its original form so every `@import` keeps working. Nested imports referencing sheets in other directories, which previously failed to resolve and caused the same style loss, now flatten correctly. A stylesheet imported more than once under different media conditions — for example once for `screen` and again for `print` — is now inlined under each condition instead of only the first, so the later variants' styles are no longer dropped. Stylesheets whose `@import` statements sit near comments, quoted strings, escaped characters or parenthesised media conditions are now read the way browsers read them: previously such a stylesheet could come out with a mangled media wrapper, applying rules on every medium the original had gated, or swallowing the styles that followed. Constructs that only resemble an import — an at-keyword that merely starts with `import`, or an unrecognised at-statement ahead of a live `@import` — no longer trigger inlining, and the original is served instead. Fixed: CSS `@import` flattening corrupted `url()` references whose address contains a quote, a backslash, or a closing parenthesis. Such an address accumulated one extra level of backslash escaping every time it was rebased, so a reference inside a nested import came out with doubled backslashes and pointed at a resource that does not exist — images, fonts, and other subresources reached through those references failed to load. Escape sequences are now decoded when an address is read and re-applied exactly once when it is written, so an address survives any depth of nesting unchanged. Hexadecimal escapes (`\\22`), escaped delimiters inside an unquoted `url()`, and line continuations inside quoted addresses are now interpreted per the CSS syntax rules rather than passed through literally. Security: malformed or truncated image data could crash a worker process while image dimensions were being read to reserve layout space (a denial-of-service class; no memory disclosure or code execution). Debug builds could additionally hit the same path on one valid image format. Update recommended for deployments that optimize images they do not control. Relatedly, dimensions declared by an image's own header are now held to the same range limits as author-supplied width/height attributes before being written into the page — an out-of-range header now yields no inferred dimensions rather than an implausible value. Fixed: the HTML transform pipeline now respects a page's own Content-Security-Policy delivered via a `<meta http-equiv>` tag. When the page's policy would make the browser drop an inline element, inline critical CSS and speculation rules are no longer injected, and stylesheets governed by the policy are kept render-blocking instead of being converted to an async load — pages with a restrictive policy previously could render unstyled until the full stylesheet loaded. Comma-separated policy lists and multiple policy tags are combined restrictively. Policies delivered only via response header are not yet consulted. Fixed: license verification now reports the specific reason when a token is rejected on policy grounds — for example a lifetime beyond the allowed maximum, an expiry that precedes issuance, a negative timestamp, a missing required field, or an unexpected issuer — instead of a generic \"invalid token\". Cryptographic failures (a bad signature or a malformed token) stay deliberately opaque as \"invalid token\", so the extra detail only helps an operator who is legitimately minting a token, not someone probing one.\nSee CHANGELOG.md in the repository for earlier releases.",
+  "requireLicenseAcceptance": true,
+  "title": "WeAmp.PageSpeed for ASP.NET Core — Core Web Vitals middleware",
+  "verbatimVersion": "2.0.39",
+  "version": "2.0.39",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#dependencygroup/net10.0/weamp.pagespeed",
+          "@type": "PackageDependency",
+          "id": "WeAmp.PageSpeed",
+          "range": "[2.0.39, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#dependencygroup/net10.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#dependencygroup/net8.0/weamp.pagespeed",
+          "@type": "PackageDependency",
+          "id": "WeAmp.PageSpeed",
+          "range": "[2.0.39, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#dependencygroup/net8.0/microsoft.io.recyclablememorystream",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IO.RecyclableMemoryStream",
+          "range": "[3.0.1, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#WeAmp.PageSpeed.AspNetCore.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7056,
+      "fullName": "WeAmp.PageSpeed.AspNetCore.nuspec",
+      "length": 17445,
+      "name": "WeAmp.PageSpeed.AspNetCore.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 5247,
+      "fullName": "LICENSE",
+      "length": 15434,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#NOTICE",
+      "@type": "PackageEntry",
+      "compressedLength": 314,
+      "fullName": "NOTICE",
+      "length": 555,
+      "name": "NOTICE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5040,
+      "fullName": "README.md",
+      "length": 14184,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#THIRD-PARTY-NOTICES",
+      "@type": "PackageEntry",
+      "compressedLength": 2837,
+      "fullName": "THIRD-PARTY-NOTICES",
+      "length": 11552,
+      "name": "THIRD-PARTY-NOTICES"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 8370,
+      "fullName": "icon.png",
+      "length": 8500,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#lib/net10.0/WeAmp.PageSpeed.AspNetCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 235449,
+      "fullName": "lib/net10.0/WeAmp.PageSpeed.AspNetCore.dll",
+      "length": 732160,
+      "name": "WeAmp.PageSpeed.AspNetCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#lib/net10.0/WeAmp.PageSpeed.AspNetCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9411,
+      "fullName": "lib/net10.0/WeAmp.PageSpeed.AspNetCore.xml",
+      "length": 43774,
+      "name": "WeAmp.PageSpeed.AspNetCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#lib/net8.0/WeAmp.PageSpeed.AspNetCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 235268,
+      "fullName": "lib/net8.0/WeAmp.PageSpeed.AspNetCore.dll",
+      "length": 732672,
+      "name": "WeAmp.PageSpeed.AspNetCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#lib/net8.0/WeAmp.PageSpeed.AspNetCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9362,
+      "fullName": "lib/net8.0/WeAmp.PageSpeed.AspNetCore.xml",
+      "length": 43457,
+      "name": "WeAmp.PageSpeed.AspNetCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.18.31.02/weamp.pagespeed.aspnetcore.2.0.39.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspnetcore",
+    "middleware",
+    "pagespeed",
+    "mod-pagespeed",
+    "mod_pagespeed",
+    "web-performance",
+    "core-web-vitals",
+    "web-vitals",
+    "lcp",
+    "inp",
+    "cls",
+    "webp",
+    "avif",
+    "image-optimization",
+    "critical-css",
+    "lazy-loading",
+    "lighthouse",
+    "performance",
+    "weamp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

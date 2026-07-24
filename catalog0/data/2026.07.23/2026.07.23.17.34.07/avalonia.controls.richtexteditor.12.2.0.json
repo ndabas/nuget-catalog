@@ -1,0 +1,238 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "AvaloniaUI OÜ",
+  "catalog:commitId": "0f458d3a-3eae-4333-9138-e5e12a689ab7",
+  "catalog:commitTimeStamp": "2026-07-23T17:34:07.5297925Z",
+  "copyright": "Copyright 2019-2026 © AvaloniaUI OÜ",
+  "created": "2026-07-23T15:41:45.05Z",
+  "description": "Interactive rich text editor control for Avalonia with selection, formatting, and undo/redo support",
+  "iconFile": "icon.png",
+  "id": "Avalonia.Controls.RichTextEditor",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-23T17:33:40.803Z",
+  "listed": true,
+  "packageHash": "97Cr4tFjMaD8+Rx2L4oLtz9xeHXtYYiTn96Qp7p2aKZ+whawIE8KFG9P9WynShXUXUZhdkNuQyj4dQNkygCVcw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 338301,
+  "projectUrl": "https://avaloniaui.net/",
+  "published": "2026-07-23T15:41:45.05Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## 12.2.0\n\n### Features\n- Inline images: `EditorActions.InsertImage` (the `InsertImageAction`) inserts an image at the selection — `ExecuteWith(host, data, mimeType, …)` for known bytes, or the default async path opens a file picker. Backed by `TextRange.InsertImage`; insertion, deletion, selection, and undo/redo all participate.\n- Image authoring surface: an insert-image toolbar button; an image-size flyout tool (width/height with aspect lock, percent presets, reset to intrinsic, alt text); an image-link flyout tool; and `EditorActions.ReplaceImage` / `EditorActions.DeleteImage` surfaced as \"Replace image...\" / \"Delete image\" in the context menu when an image is the caret context. Inserting is deliberately toolbar-only — the context menu acts on the image under the pointer, so insert and replace are never offered side by side.\n- Corner drag-resize handles for the image in the caret context (`ImageResizeAdorner`): aspect ratio locked by default, Shift frees it. The outline and handles preview the pending size during the drag; the size is committed to the document once on release as a single undo unit, so the paragraph is not re-laid-out on every pointer move. Losing pointer capture cancels the gesture without writing.\n- Table cells can now be merged and split interactively. \"Merge cells\" combines the cells covered by the selection into one: the covered cells grow to the smallest rectangle of whole cells (a partial overlap pulls the whole cell in, matching Word), the top-left cell keeps the combined content appended in row-major order, and it takes the rectangle's column and row span. Empty cells work too: they occupy no text offsets, so the merge target is resolved from the cells the selection's endpoints sit in, and the rectangle between them fills in the rest. \"Split cell\" dissolves a merged cell back into its grid slots, keeping its content in the top-left slot and filling the freed columns and rows with empty cells that clone the merged cell's borders, padding, and alignment. Both are available from the table context menu and as `EditorActions.MergeCells` / `EditorActions.SplitCell` (`MergeTableCellsAction`, `SplitTableCellAction`; ids `Table.MergeCells`, `Table.SplitCell`), undo and redo as single steps, and round-trip through save formats via the existing merged-cell span support.\n- Tables now show direct-manipulation chrome while the caret is inside them. Slim strips outside the table's top and left edges select a whole column or row per segment click; the segments part exactly at the grid boundaries (the gap matches the interior gridline width) and the highlight fills exactly the cells covering the selected line — a spanning cell joins the selection in its full extent (a column crossed by a full-width row highlights as a T shape), while the rectangular closure a merge requires is applied by the merge itself, so a table with a full-width title row does not turn every column click into a whole-table selection. A \"...\" button on the hovered cell opens the table actions flyout, built on the same infrastructure as the selection mini-bar: an editor toolbar hosting the standard insert row above/below, delete row, insert column before/after, delete column, merge, and split tools with the shared tool styling and enablement, anchored to the hovered cell or to the strip selection rectangle and flipping to whichever edge has room to render. A strip selection parks the caret in the line's first cell so every caret-relative action targets the selected line, and merge consumes the selected cell rectangle directly, since a linear text range cannot express a column of cells. The chrome appears and disappears with caret movement, is editor-only (never in the read-only viewer, and it hides when the editor becomes read-only), and every operation runs through the same editor actions and undo units as the toolbar and context menu, which remain available.\n- Selecting text across table cells now selects whole cells, like Word. When a selection's endpoints sit in different cells of the same table, it becomes a cell selection: the rectangle of whole cells spanned by the two endpoint cells (grown over merged cells), highlighted cell-by-cell through the table overlay while the linear text highlight steps aside — a drag down one column highlights that column, not the offset range that sweeps the rows in between. Cell selections work with the mouse and with Shift+arrows, and they drive the cell operations: the selection mini-bar gains a table group (merge, split, delete row, delete column) that appears only for multi-cell selections via the new `ToolbarTargetAreas.TableCells` flag, merge combines exactly the selected rectangle, and delete row/column removes every row or column the selection covers as one undo step. Formatting follows the cells too: inline formatting (bold, italic, fonts, colors) applies to each covered cell's whole content as one undo step — toggles turn off only when every covered cell already carries the format — and block-level tools target the covered cells' paragraphs, or for cell background and borders the covered cells themselves. Table strip selections format the same way despite their collapsed caret. Keyboard editing follows the cells as well, matching Word: Backspace or Delete clears the contents of every covered cell and leaves the cells in place, and typing clears them and inserts the character into the first covered cell — each as a single undo step. Copy and cut still act on the underlying text range. Selections inside a single cell behave exactly as before. (`TextRange.ApplyPropertyValue` became virtual to carry the redirection; no call-site changes.)\n\n### Fixes\n- A font chosen in an empty document now reaches the text you type, regardless of clicks in between. Picking a family or size at a collapsed caret only springloaded it, and every pointer press clears springloads, so choosing a font and then clicking into the editor before typing silently dropped the choice; in an empty document there is no surrounding text to mask the loss. Property actions now route through the selection's `ApplyPropertyValue`, which writes the value durably onto the empty paragraph (Word's paragraph-mark semantics). The toolbar read-back reflects it, typing inherits it, and after deleting all content the toolbar and the next typed character resume the deleted text's formatting instead of reverting to the theme font.\n- The alignment and border tools no longer disappear from the main toolbar while text is highlighted. A non-empty selection collapsed the toolbar's active target areas to the text tools, hiding the block-targeted group that the selection mini-bar kept offering for the same selection. The active areas now derive from the selection's position in the document tree for a collapsed caret and a range selection alike, so block, list, and table context tools stay available when the selection covers their blocks.\n- Editor toolbar and menu icons now sit centered in their buttons. The icon template draws each glyph at its authored size (no scaling, so the tuned stroke weights are preserved) but was centering the icon element by its bounding box, which counted the empty space above and left of the glyph as offset and pushed every icon down and to the right — a fraction of a pixel for most, but several pixels for a glyph that fills only a thin band, such as the table \"...\" button. The glyph now fills its box so it lands exactly where it was drawn, centered on the 16-grid.\n- The undo and redo toolbar buttons now enable immediately after an editor action such as inserting a table row or column. An action commits its undo unit after the edit's change notification has already fired, so toolbar and menu items re-queried their enabled state one event too early and stayed stale until the next caret move. The editor now signals a refresh whenever the undo stack changes outside an open edit.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#repository",
+    "commit": "180466b7d2d648548cea837c4f298115960fe04d",
+    "type": "git"
+  },
+  "verbatimVersion": "12.2.0",
+  "version": "12.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net10.0/avalonia.controls.documents.serialization.rtf",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents.Serialization.Rtf",
+          "range": "[12.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net10.0/avalonia.controls.documents",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents",
+          "range": "[12.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net10.0/avalonia",
+          "@type": "PackageDependency",
+          "id": "Avalonia",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net10.0/avalonia.controls.colorpicker",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.ColorPicker",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net10.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net8.0/avalonia.controls.documents.serialization.rtf",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents.Serialization.Rtf",
+          "range": "[12.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net8.0/avalonia.controls.documents",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents",
+          "range": "[12.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net8.0/avalonia",
+          "@type": "PackageDependency",
+          "id": "Avalonia",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net8.0/avalonia.controls.colorpicker",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.ColorPicker",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#dependencygroup/net8.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.1, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#Avalonia.Controls.RichTextEditor.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3854,
+      "fullName": "Avalonia.Controls.RichTextEditor.nuspec",
+      "length": 9796,
+      "name": "Avalonia.Controls.RichTextEditor.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3653,
+      "fullName": "CHANGELOG.md",
+      "length": 9053,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 444,
+      "fullName": "README.md",
+      "length": 886,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 7718,
+      "fullName": "icon.png",
+      "length": 7934,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#lib/net10.0/Avalonia.Controls.RichTextEditor.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 126576,
+      "fullName": "lib/net10.0/Avalonia.Controls.RichTextEditor.dll",
+      "length": 393728,
+      "name": "Avalonia.Controls.RichTextEditor.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#lib/net10.0/Avalonia.Controls.RichTextEditor.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25684,
+      "fullName": "lib/net10.0/Avalonia.Controls.RichTextEditor.xml",
+      "length": 227302,
+      "name": "Avalonia.Controls.RichTextEditor.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#lib/net8.0/Avalonia.Controls.RichTextEditor.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 126579,
+      "fullName": "lib/net8.0/Avalonia.Controls.RichTextEditor.dll",
+      "length": 393728,
+      "name": "Avalonia.Controls.RichTextEditor.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#lib/net8.0/Avalonia.Controls.RichTextEditor.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25684,
+      "fullName": "lib/net8.0/Avalonia.Controls.RichTextEditor.xml",
+      "length": 227302,
+      "name": "Avalonia.Controls.RichTextEditor.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#_manifest/cyclonedx/bom.cdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2323,
+      "fullName": "_manifest/cyclonedx/bom.cdx.json",
+      "length": 11990,
+      "name": "bom.cdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.23.17.34.07/avalonia.controls.richtexteditor.12.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

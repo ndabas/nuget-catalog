@@ -1,0 +1,322 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Antonio Macrì",
+  "catalog:commitId": "bafe2325-1c45-4478-8f41-71c849512662",
+  "catalog:commitTimeStamp": "2026-07-24T18:11:20.8182176Z",
+  "created": "2026-07-24T18:07:32.673Z",
+  "description": "A Blazor Razor Class Library that adds an AI-powered floating chat assistant to any Blazor application, built on Microsoft Agent Framework. Supports multi-level agent orchestration (tools, handoff, group chat), page navigation, UI actions, contextual memory, streaming, voice, and security — all with zero boilerplate.",
+  "iconFile": "IconMA.png",
+  "id": "MentorAgent",
+  "isPrerelease": true,
+  "lastEdited": "2026-07-24T18:11:10.58Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "ecEeSv5yWuSPl+5gjMeGRc8kP/arQFGtPjQ+3rZimOSYl/NVwgIirerGIUaQubFcblYwG8xBahXJgqSfqjVhOQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 239931,
+  "published": "2026-07-24T18:07:32.673Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.0-preview.3\n\t\t- Token & cost dashboard reworked into an Azure-OpenAI-Monitoring-style operator view: usage is now attributed PER MODEL — the cheap chat model, the strong routing model and the embedding model are tracked separately (tokens, requests, latency, cost). Adds a model selector, temporal SVG charts (tokens / requests / latency over time, dependency-free and CSP-safe), and a per-model cost table. Configured models appear even before they serve traffic (e.g. a strong model no turn has escalated to yet). Hourly time-series with configurable MetricsRetention (default 7 days). Chat usage is attributed via response.ModelId; embeddings are metered too.\n\t\t- Model routing is now strategy-based via MentorRoutingStrategy (Semantic embeddings / Classifier LLM SIMPLE-COMPLEX label / Cascade cheap-then-escalate / Custom async predicate) — no keyword matching on user text. Configure with StrongChatClient + RoutingStrategy (+ RoutingThreshold / RoutingComplexExemplars / RoutingClassifierClient / UseStrongModelAsync).\n\t\t- Blazor components: event handlers in the shipped components silently compiled to LITERAL HTML attributes (with zero build warnings) because Microsoft.AspNetCore.Components.Web was not in Razor using-scope — so @onclick/@onchange/@bind never fired. This broke the dashboard model selector and Refresh, the WelcomePanel suggestion chips, the HITL confirmation banner buttons, and the MCP/A2A status badges. Fixed by adding a project-wide _Imports.razor. If you consume the components, upgrade to get working handlers.\n\t\t- Fix: a dashboard summary value rendered the literal text \".ToString(\"N0\")\" instead of the formatted number.\n\t\t- Refreshed the package icon (new MentorAgent \"MA\" logo).\n\t\t- Token & cost optimization (Wave 1): per-call token counter/logging; slimmer, cache-friendly system prompt; opt-in semantic tool filtering (EnableToolFiltering + EmbeddingGenerator, embedding-based relevance) and history compaction (EnableCompaction).\n\t\t- fully semantic: RAG relevance relies on the vector search + RagMinScore (no keyword question-gate — nothing is injected on pure commands); relevance-ranked memory (MemoryRelevanceFiltering) now ranks memories by embedding cosine similarity (requires EmbeddingGenerator; falls back to last-N), identity/preference facts always kept. Both save tokens with no keyword heuristics.\n\t\t- Reliable memory (MemoryAutoCapture, on by default): a post-turn extraction saves durable user facts (name, role, team, preferences) with a dedicated minimal LLM call, so memory no longer depends on the model proactively calling the remember tool (which weaker models do inconsistently). On Path A it is the sole memory writer — the redundant remember tool and its forceful prompt block are dropped (fewer per-call tokens); on Path B (no ChatClient) it falls back to the remember tool. The forget tool is always available. Set MemoryAutoCapture=false to opt out (one extra small model call per user message).\n\t\t- HITL confirmation message now spells out the concrete arguments the AI is about to pass , so the user can verify exactly what will change before approving. The text flows through every transport (in-process Blazor and the headless SignalR ConfirmationRequired event), the banner is responsive, and the full message is available as a tooltip.\n\t\t- Fix: the system prompt no longer injects a bare \"User: not authenticated\" line for anonymous users. It made the model invent authorization rules and refuse tools that have no role requirement (e.g. \"you must be an admin to change prices\"). Role-gated tools remain enforced by the middleware.\n\t\t- Middleware suite: built-in LLM safety checks for input (EnableSafetyCheck) and now output (EnableOutputSafetyCheck) — no keyword blacklists. Custom hooks remain and take precedence: InputGuardrail / OutputGuardrail (buffer-then-moderate), OnToolResult (transform a tool result before it reaches the model), OnException (+ built-in defaults), and ConfigureChatClientPipeline to plug your own DelegatingChatClient / Agent Framework middleware. All additive.\n\t\t- Observability: opt-in EnableObservability emits OpenTelemetry GenAI-convention traces/metrics for the chat client (LLM) calls, plus MentorAgent per-turn/tool spans and counters, under ObservabilitySourceName (\"MentorAgent\"). Prompt/response content only when ObservabilityIncludeSensitiveData is set (Development).\n\t\t- Token & cost dashboard: admin-only MentorDashboard Blazor component + IMentorMetrics snapshot (tokens, cost, deflection, top actions). Cost via developer-supplied ModelPricing (no built-in prices). Never shown in the end-user widget. Now optionally persistent via a pluggable IMentorMetricsStore (default RAM-only, zero overhead): register your own before AddMentorAgent() for local durability (LoadForSeed on startup + timed/shutdown Save, cadence via MetricsPersistenceInterval) or to read an external aggregate the #8 export already pushed to Prometheus/Azure Monitor (QueryAsync). Same pattern as IMentorMemoryStore. The MentorDashboard component was also refined: the top-actions list now shows relative share bars, the layout/styling is tightened for admin use, and every label is localized through MentorLocalizer (10 languages, English fallback) — automatic from options.Language on Blazor Server, via the new Language parameter in WASM.\n\t\t- Model routing: route each turn to a cheap or strong model via StrongChatClient + UseStrongModel — a real cost lever, developer-configured.\n\t\t- Structured outputs: IMentorStructured.GenerateAsync<T> returns a strongly-typed result (JSON schema derived from T) for auto-filled forms / typed generative UI.\n\t\t- Eval / regression kit: MentorEvaluator now wraps the Agent Framework's native evaluation (agent.EvaluateAsync + LocalEvaluator/EvalChecks with native token metering) instead of a hand-rolled loop. Runs EvalCases, gates on token-budget/quality (report.ThrowIfFailed()), and exposes native Checks + Evaluators (FoundryEvals, MEAI quality/safety) for production-grade quality & safety scoring.\n\t\t- Documentation improvements across the MentorAgent package family.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#repository",
+    "commit": "1d8e2a8d720792c6c2a6ac22c8d2b1a7d96b04a1",
+    "type": "git"
+  },
+  "title": "MentorAgent",
+  "verbatimVersion": "1.0.0-preview.3",
+  "version": "1.0.0-preview.3",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/mentoragent.abstractions",
+          "@type": "PackageDependency",
+          "id": "MentorAgent.Abstractions",
+          "range": "[1.0.0-preview.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/azure.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.OpenAI",
+          "range": "[2.9.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/azure.ai.projects",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.Projects",
+          "range": "[2.1.0-beta.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/azure.identity",
+          "@type": "PackageDependency",
+          "id": "Azure.Identity",
+          "range": "[1.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/microsoft.agents.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/microsoft.agents.ai.foundry",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Foundry",
+          "range": "[1.6.1-preview.260514.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/microsoft.agents.ai.hosting.a2a.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Hosting.A2A.AspNetCore",
+          "range": "[1.6.1-preview.260514.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/microsoft.agents.ai.workflows",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Workflows",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/microsoft.aspnetcore.components.authorization",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Authorization",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/microsoft.extensions.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/microsoft.extensions.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.OpenAI",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#dependencygroup/net10.0/modelcontextprotocol.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol.AspNetCore",
+          "range": "[1.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#MentorAgent.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3905,
+      "fullName": "MentorAgent.nuspec",
+      "length": 8868,
+      "name": "MentorAgent.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "LICENSE",
+      "length": 1092,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 31679,
+      "fullName": "README.md",
+      "length": 97720,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#build/MentorAgent.props",
+      "@type": "PackageEntry",
+      "compressedLength": 92,
+      "fullName": "build/MentorAgent.props",
+      "length": 166,
+      "name": "MentorAgent.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "@type": "PackageEntry",
+      "compressedLength": 917,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "length": 6905,
+      "name": "Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "@type": "PackageEntry",
+      "compressedLength": 799,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "length": 4606,
+      "name": "Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#buildMultiTargeting/MentorAgent.props",
+      "@type": "PackageEntry",
+      "compressedLength": 64,
+      "fullName": "buildMultiTargeting/MentorAgent.props",
+      "length": 75,
+      "name": "MentorAgent.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#buildTransitive/MentorAgent.props",
+      "@type": "PackageEntry",
+      "compressedLength": 78,
+      "fullName": "buildTransitive/MentorAgent.props",
+      "length": 89,
+      "name": "MentorAgent.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#lib/net10.0/MentorAgent.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 118615,
+      "fullName": "lib/net10.0/MentorAgent.dll",
+      "length": 302592,
+      "name": "MentorAgent.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#staticwebassets/IconBM.png",
+      "@type": "PackageEntry",
+      "compressedLength": 20012,
+      "fullName": "staticwebassets/IconBM.png",
+      "length": 20026,
+      "name": "IconBM.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#staticwebassets/IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "staticwebassets/IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#staticwebassets/css/MentorAgent.css",
+      "@type": "PackageEntry",
+      "compressedLength": 5938,
+      "fullName": "staticwebassets/css/MentorAgent.css",
+      "length": 36682,
+      "name": "MentorAgent.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#staticwebassets/js/MentorAgent.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1634,
+      "fullName": "staticwebassets/js/MentorAgent.js",
+      "length": 6020,
+      "name": "MentorAgent.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.24.18.11.20/mentoragent.1.0.0-preview.3.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "blazor",
+    "blazor-server",
+    "blazor-auto",
+    "ai",
+    "chatbot",
+    "chat-widget",
+    "assistant",
+    "agent",
+    "multi-agent",
+    "handoff",
+    "group-chat",
+    "microsoft-agent-framework",
+    "openai",
+    "azure-openai",
+    "ollama",
+    "rag",
+    "retrieval-augmented-generation",
+    "mcp",
+    "model-context-protocol",
+    "a2a",
+    "agent-to-agent",
+    "signalr",
+    "voice",
+    "memory",
+    "skills",
+    "streaming",
+    "wasm",
+    "mentor",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

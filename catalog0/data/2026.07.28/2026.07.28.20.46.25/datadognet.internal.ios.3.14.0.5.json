@@ -1,0 +1,234 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "s.bokatuk",
+  "catalog:commitId": "923e0dc3-1f93-4891-b11d-9c800629c632",
+  "catalog:commitTimeStamp": "2026-07-28T20:46:25.0055205Z",
+  "copyright": "Copyright © s.bokatuk",
+  "created": "2026-07-28T20:42:19.157Z",
+  "description": ".NET for iOS / .NET MAUI bindings for the native Datadog iOS SDK's DatadogInternal framework: the shared foundation every other Datadog feature module is built on, including the URLSession delegate used for automatic network instrumentation. Built against dd-sdk-ios 3.14.0. You normally get this package transitively rather than referencing it directly.",
+  "iconFile": "icon.png",
+  "id": "DatadogNet.Internal.iOS",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-28T20:46:10.743Z",
+  "licenseExpression": "MIT AND Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/MIT%20AND%20Apache-2.0",
+  "listed": true,
+  "packageHash": "2fWCuZFcrT9061pGMRw3cchRmPVFLurSJv4wFpavCEoCQ+UdTrYjTX5Eut/lnpvTYSqO3uL+gy3twlGa/FLNQg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 20754395,
+  "projectUrl": "https://github.com/sbokatuk/DatadogNet.iOS",
+  "published": "2026-07-28T20:42:19.157Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## What's changed\n\nBinding-only release. The native SDK is unchanged — still\n[dd-sdk-ios 3.14.0](https://github.com/DataDog/dd-sdk-ios/releases/tag/3.14.0) — and so are the\npackage ids, namespaces and API. The fourth component advances for one reason: **apps using these\npackages can now build for a real iPhone.** Every earlier release fails its device link.\n\n## Real-device builds no longer fail to link\n\nBuilding any consuming app for `ios-arm64` — a physical device, any target framework — failed at\nthe native link with a wall of:\n\n```\nerror : Undefined symbols for architecture arm64:\n  \"_OBJC_CLASS_$_DDConfiguration\", referenced from: in registrar.o\n  \"_OBJC_CLASS_$_DDRUMConfiguration\", referenced from: in registrar.o\n  ...\n```\n\nwhile the identical build for the simulator linked and ran fine.\n\nThe defect is upstream, in the prebuilt archives this repository binds. dd-sdk-ios builds its\n**device** slices with a 12.0 deployment target and its **simulator** slices with 14.0 (the\narm64-simulator floor) — and below iOS 13, the Swift compiler withholds static Objective-C\nregistration for `@objc` classes whose metadata needs runtime fix-ups: no `_OBJC_CLASS_$_<Name>`\nsymbol, no `__objc_classlist` entry. **41 classes** that every simulator slice exports are simply\nnot there to link against in the device slices: `DDConfiguration`, `DDSite`, `DDTrackingConsent`\nand the URLSession instrumentation types in Core; `DDLogEvent`; `DDRUMConfiguration` and all the\nRUM event-model classes; `DDTraceConfiguration`; `DDSessionReplayConfiguration`. The .NET static\nregistrar references bound classes by exactly those names, so any app that reaches one — and\n`DDConfiguration` is the front door — cannot link.\n\nEvery prebuilt upstream archive checked has the same asymmetry (2.30.2, 3.13.0, 3.14.0, and the\narm64e twin zips), so this is not a 3.14.0 regression and no earlier package release escapes it:\n**the 2.x line and 3.14.0.1–3.14.0.4 all fail device links.** It went unnoticed because nothing\non either side ever linked a device build: this repository's CI was simulator-only (no longer —\nsee below), and upstream's consumers overwhelmingly build from source via SwiftPM/CocoaPods with\ntheir app's own, higher deployment target. The defect is reported upstream with the full\nevidence; a corrected upstream build makes this entire mechanism disappear.\n\n## The fix: generated linker aliases, plus up-front realization\n\nThe missing classes are not gone from the device binaries. Each class object is present and\nexported under its Swift metadata symbol (`_$s…CN`) — the simulator slice exports the very same\nobject under both that name and the Objective-C one, at the same address. So, per affected class,\nthe packages now carry one linker flag:\n\n```\n-Wl,-alias,_$s11DatadogCore18objc_ConfigurationCN,_OBJC_CLASS_$_DDConfiguration\n```\n\n`build/GenerateDeviceClassAliases.sh` derives the table mechanically from the binaries (join the\ntwo names on their shared address in the simulator slice; require the Swift symbol to be exported\nby the device slice) and writes one committed file per framework under\n`build/device-class-aliases/`. `Datadog.Binding.props` folds each file into the framework's\n`NativeReference` as `LinkerFlags`, which travel inside the binding assembly — consuming apps get\nthe repair automatically, with no project changes.\n\nLinking is half the story. On device those class objects start out *unrealized*, and messaging\nunrealized Swift class metadata is not a slow path but a segfault — measured on hardware: a cold\n`[DDConfiguration class]` crashes, while the same address realized through the class's Swift\nmetadata accessor (`_$s…CMa`) becomes a fully working, name-resolvable class. And the first such\nmessage does not wait for app code: the static registrar's `xamarin_create_classes`, called from\n`main()` before a single line of managed code, does `[DDConfiguration class]` for every mapped\nbound class — so no managed hook (a module initializer included; tried, crashed identically) can\nrun early enough. The realization therefore ships as native code: each affected framework gets a\ngenerated `<Framework>Realize.xcframework`, a static library whose one dyld initializer calls\nthe metadata accessor of every aliased class. dyld runs it after the Datadog dylibs load and\nbefore `main` — exactly the window. On the simulator, where the classes are statically\nregistered anyway, the accessors return immediately — the path is identical on both targets and\nexercised by the simulator test suites. Verified end-to-end on a physical iPhone 15 Pro Max:\ninstall, launch, SDK initialization, and runtime name-resolution of the previously missing\nclasses.\n\n## Guard rails, so this cannot ship broken again\n\n- **A Mach-O symbol audit joins the package tests** (`SymbolAuditTests`): every class the binding\n  assemblies register must resolve for a device link exactly as it does for a simulator link —\n  exported by the device slice or covered by a shipped alias; every shipped alias must point at a\n  symbol the device slice actually exports and must not shadow a class the device slice has\n  learned to export itself; and a package that ships aliases must ship the realization library\n  calling exactly those classes' metadata accessors. Symbol-level checking of the native payload\n  existed nowhere before; the audit is what would have caught this defect at pack time.\n- **CI now links for a real device on both bands.** The release link check became a matrix —\n  `net9.0-ios18.0` and `net10.0-ios26.0` — and the example app gained a net10 band\n  (`-p:DatadogSdkBand=net10`) so the newest target framework is the one exercised most.\n- **`build/BumpNativeVersion.sh`'s checklist regenerates the aliases** right after fetching new\n  frameworks: the Swift mangled names change with every native release, and the audit fails on\n  stale ones.\n\n## Upgrading from 3.14.0.4\n\n```diff\n-<PackageReference Include=\"DatadogNet.RUM.iOS\" Version=\"3.14.0.4\" />\n+<PackageReference Include=\"DatadogNet.RUM.iOS\" Version=\"3.14.0.5\" />\n```\n\nNothing to change beyond the version: same native SDK, same API, same package set, and all\npackages move together as they depend on each other at an exact version. If your app only ever\nran on the simulator, nothing visible changes; if you have been unable to build for a device,\nthis release is the fix.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#repository",
+    "commit": "cac568f964b3535dd565197c2617aba0effd2e4b",
+    "type": "git",
+    "url": "https://github.com/sbokatuk/DatadogNet.iOS"
+  },
+  "title": ".NET for iOS bindings for the native DatadogInternal framework.",
+  "verbatimVersion": "3.14.0.5",
+  "version": "3.14.0.5",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#dependencygroup/net8.0-ios18.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0-ios18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#dependencygroup/net9.0-ios18.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0-ios18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#dependencygroup/net10.0-ios26.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0-ios26.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#DatadogNet.Internal.iOS.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3580,
+      "fullName": "DatadogNet.Internal.iOS.nuspec",
+      "length": 7912,
+      "name": "DatadogNet.Internal.iOS.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net8.0-ios18.0/DatadogNet.Internal.iOS.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4546,
+      "fullName": "lib/net8.0-ios18.0/DatadogNet.Internal.iOS.dll",
+      "length": 10752,
+      "name": "DatadogNet.Internal.iOS.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net8.0-ios18.0/DatadogNet.Internal.iOS.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1811,
+      "fullName": "lib/net8.0-ios18.0/DatadogNet.Internal.iOS.xml",
+      "length": 10640,
+      "name": "DatadogNet.Internal.iOS.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net9.0-ios18.0/DatadogNet.Internal.iOS.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4545,
+      "fullName": "lib/net9.0-ios18.0/DatadogNet.Internal.iOS.dll",
+      "length": 10752,
+      "name": "DatadogNet.Internal.iOS.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net9.0-ios18.0/DatadogNet.Internal.iOS.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1811,
+      "fullName": "lib/net9.0-ios18.0/DatadogNet.Internal.iOS.xml",
+      "length": 10640,
+      "name": "DatadogNet.Internal.iOS.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net8.0-ios18.0/DatadogNet.Internal.iOS.resources.zip",
+      "@type": "PackageEntry",
+      "compressedLength": 6899192,
+      "fullName": "lib/net8.0-ios18.0/DatadogNet.Internal.iOS.resources.zip",
+      "length": 7017733,
+      "name": "DatadogNet.Internal.iOS.resources.zip"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net9.0-ios18.0/DatadogNet.Internal.iOS.resources.zip",
+      "@type": "PackageEntry",
+      "compressedLength": 6899199,
+      "fullName": "lib/net9.0-ios18.0/DatadogNet.Internal.iOS.resources.zip",
+      "length": 7017733,
+      "name": "DatadogNet.Internal.iOS.resources.zip"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 1974,
+      "fullName": "icon.png",
+      "length": 1969,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 10772,
+      "fullName": "README.md",
+      "length": 28938,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#licenses/LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 632,
+      "fullName": "licenses/LICENSE",
+      "length": 1071,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#licenses/Apache-2.0.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 3949,
+      "fullName": "licenses/Apache-2.0.txt",
+      "length": 11358,
+      "name": "Apache-2.0.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net10.0-ios26.0/DatadogNet.Internal.iOS.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4550,
+      "fullName": "lib/net10.0-ios26.0/DatadogNet.Internal.iOS.dll",
+      "length": 10752,
+      "name": "DatadogNet.Internal.iOS.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net10.0-ios26.0/DatadogNet.Internal.iOS.resources.zip",
+      "@type": "PackageEntry",
+      "compressedLength": 6899198,
+      "fullName": "lib/net10.0-ios26.0/DatadogNet.Internal.iOS.resources.zip",
+      "length": 7017733,
+      "name": "DatadogNet.Internal.iOS.resources.zip"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#lib/net10.0-ios26.0/DatadogNet.Internal.iOS.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1798,
+      "fullName": "lib/net10.0-ios26.0/DatadogNet.Internal.iOS.xml",
+      "length": 10602,
+      "name": "DatadogNet.Internal.iOS.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.28.20.46.25/datadognet.internal.ios.3.14.0.5.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "datadog-internal",
+    "urlsession",
+    "datadog",
+    "observability",
+    "SDK",
+    "MAUI",
+    "iOS",
+    "dotnet-ios",
+    "Binding"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

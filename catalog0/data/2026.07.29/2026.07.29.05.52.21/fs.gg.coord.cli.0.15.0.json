@@ -1,0 +1,329 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "FS-GG",
+  "catalog:commitId": "65fc74ab-081b-4f85-9511-b6b19bdff3bd",
+  "catalog:commitTimeStamp": "2026-07-29T05:52:21.3907728Z",
+  "created": "2026-07-29T05:48:26.927Z",
+  "description": "FS-GG typed coordination engine — the schedulability model behind `fsgg-coord` as one total function over a board-state snapshot, plus the typed IO layer that drives it. It IS the coordination tool (ADR-0034/ADR-0040): the `fsgg-coord` shim resolves and execs it; there is no bash left to shadow.",
+  "id": "FS.GG.Coord.Cli",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-29T05:51:43.993Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "9n7lArjqD2b9oNRxBwtZZyVLUTjndtYbdhrvsSqj1klBi5TqThZvwhRRU8Lz3rI4CyQaITEaUcE4jYAFtGcr8g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2212629,
+  "projectUrl": "https://github.com/FS-GG/.github/tree/main/src/FS.GG.Coord.Cli",
+  "published": "2026-07-29T05:48:26.927Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "0.15.0 — MINOR on the 0.x line, which is also the 0.x BREAKING signal.\n\nTEN engine commits since 0.14.0, and ONE OF THEM MOVES THE WIRE SURFACE\n(src/FS.GG.Coord.Core/Protocol.fs). That file is the source the exit-code tables in every worker-facing\nskill are GENERATED from, so between .github#1680 landing and this release the org's own documents\ndescribed a verb contract no published engine implemented. This release is what makes them true again.\n\nTHE REASON TO TAKE THIS RELEASE: every worker vendors `scripts/fsgg-coord`, which resolves and execs\nthis package. A receiver on 0.14.0 runs a collision gate that answers DISJOINT over live locks, a\n`landable` that burns 600 seconds waiting on already-merged work, and an `add` that files rows no\nscheduler can see.\n\nBREAKING — THE WIRE SURFACE. `landable` answers a PR THAT IS NOT OPEN with exit 10 (.github#1680).\nGitHub reports mergeable as null on a merged PR, which the four-row match read as \"still computing\" and\nreturned as `pending` / exit 7 — the ONE code the contract defines as worth retrying, for the most\nterminal state there is. So the waiting form spent its entire 600s budget (30 tries x 20s) on a settled\nfact, every time, and the caller that meets this most is the RECOVERY path, which re-gates a PR whose\nworker died between merge and stamp.\n\n  $ fsgg-coord-engine landable 1675 --wait\n      0.14.0:  pending   rc=7    after 600s\n      0.15.0:  merged    rc=10   after 0.69s\n\nExit 10 prints one of two words on stdout and they call for OPPOSITE acts. `merged` means the work\nLANDED: do not merge it again, go STAMP it. `closed` means nothing landed: do NOT stamp it done. It is\ndeliberately not 3 (red/conflicted), because folding a success into the stop code would tell that\nsuccessor to give up rather than to finish.\n\nWHO THIS BREAKS: any caller that switched exhaustively over `landable`'s previous five codes, or that\ntreated \"not 0 and not 7\" as a failure. Exit 10 on `merged` is a SUCCESS. An unmet `--sha` on the merged\narm is now reported with its own sentences rather than dropped.\n\nBREAKING — THE #353 COLLISION GATE REFUSES WHERE IT USED TO PERMIT. Three fixes, one surface:\n`widen`, `set-paths` and `overlap --active`.\n\n  * .github#1740 — the scan was served from the 90-second scheduling cache, and a `Status` write can sit\n    QUEUED on an exhausted budget, so the freshest possible board still showed the pre-claim column.\n  * .github#1779 — the candidate set is no longer derived from the board at all. `claim` exits GREEN with\n    that column unwritten in FOUR ways and the cache/queue fixes could reach only two. The scan now keys\n    on the LOCK: `Reads.openIssues` lists open issues with their bodies in one paginated call, token\n    conflicts are computed on those free bodies, and a marker is read only for a row that actually\n    collides. Measured either side of one `overlap --active` on the live board: 24/27/31 GraphQL points\n    and the wrong answer, to 0/0/0 points and the right one.\n  * .github#1792 — `Scan.snapshot` asked `reserver` (a lapsed lease still reserves) while the collision\n    gate asked `winner` (it does not), so \"is this file reserved?\" had two answers depending on which\n    verb asked. The gate asks a reservation question and now calls the reservation function.\n\n  $ fsgg-coord-engine widen .github#123 --paths src/A.fs\n      0.14.0:  DISJOINT   (over a live, uncolumned claim on src/A.fs)\n      0.15.0:  OVERLAP\n\nWHO THIS BREAKS: anything that read DISJOINT as licence to edit. There is no CAS on a file, so nothing\ndownstream ever re-decided that answer — which is why a wrong DISJOINT was final and this is the fix\nworth taking the release for. Two workers really did edit one file this way on 2026-07-28.\n\nBREAKING — READS FAIL CLOSED (.github#1794). `Reads.openIssues` DROPPED an element with no numeric\n`number` silently, and read an absent or ill-typed `body` as an empty string — which parses as\n\"declares nothing\" and collides with nothing. Both failed OPEN, into the gate above, where a wrong\nDISJOINT is final. Now an unidentifiable element refuses the whole read quoting `element N of M`, and an\nunreadable body is carried to the marker phase: no reserver means it is safely skipped, a reserver means\nwe may not answer DISJOINT over a live reservation, so it refuses and names the row and the holder.\n`body: null` stays a real observed empty body. Calls that exited 0 over a partially unreadable board now\nexit non-zero — that is the point of the change, not a regression.\n\nBREAKING — `who` GAINS A FOURTH ROW STATE (.github#1668). `Reads.markers` classified every comment as\nmarker-or-nothing, so two failures to READ were indistinguishable from a successful observation of\nABSENCE, and `Ok []` on an In-progress row rendered as `UNCLAIMED` with the \"someone is working outside\nthe protocol\" accusation attached. That was printed 32 seconds before a `--force` deleted a live marker\non the same item. `who` now has `UNDETERMINED`, with a distinct `.state` word in `--json`, no\naccusation, and an explicit instruction not to dispatch, `reap` or `adopt`. The incompleteness rides\nEVERY row, not only markerless ones: a hidden marker with a lower id makes a `held` row name the wrong\nholder. Consumers switching exhaustively over the state vocabulary meet a new value (residue: #1897).\n\nBREAKING — `FSGG_CLAIM_LEASE_MIN` IS ACTUALLY READ (.github#1677). It was named across this repo as the\nway to configure the claim lease and honoured by no line of code; `--lease` was the only control that\never existed. Precedence is now `--lease` then `FSGG_CLAIM_LEASE_MIN` then 120. A malformed value is\nREFUSED (exit 1, naming the variable and what was read), identically to `--lease abc` — deliberately,\nbecause falling back to 120 on garbage would rebuild the exact unfalsifiability this fixes. Unset and\nempty mean \"not configured\" and take the default.\n\nWHO THIS BREAKS: anyone who exported the variable and got 120 anyway. They now get the lease they asked\nfor, which may not be the lease their scripts were tuned against.\n\nBREAKING for board writers — `add` DEFAULTS `Status` TO `Backlog` (.github#1823). A row with no `Status`\nis invisible to every scheduler. Fourteen were filed that way on 2026-07-28, in three batches, and every\none was found by accident. `Backlog` and not `Ready`: visible to triage, not startable without a\ndeliberate promotion. THE DEFAULT ONLY EVER FILLS AN EMPTY COLUMN — `add` is idempotent and re-run\nroutinely, so the already-on-board arm reads the column first and an unreadable column is left alone\nrather than defaulted. `add` never becomes a refusal: an underivable identity degrades the column by\nname instead of refusing the filing. Ships with the `STATUS-UNSET` chore, which reports rather than\nprevents.\n\nCHANGED DIAGNOSTICS — A SECONDARY RATE LIMIT IS TOLD FROM THE PRIMARY BUDGET (.github#1666). `EX_RATE`\nhalted a six-worker fan-out repeatedly while the primary REST budget read 62%, 87%, 88% free, and a\nretry seconds later succeeded. Four diagnoses were filed on that reading; three were withdrawn by their\nown authors. There was never an internal counter — `Budget.classify` reacts to a real 403, computed\nwhich of five wordings matched, discarded that, and rendered ONE sentence for THREE mechanisms. A\nsecondary (abuse-detection) limit is triggered by burst CONCURRENCY, fires with the primary counter\nuntouched, and NEVER APPEARS IN /rate_limit; the reset was being read off the primary window, which is\nwhy \"resets in ~6m\" preceded a retry that succeeded in seconds; and `Retry-After`, the only header that\ndescribes a secondary limit, was read nowhere. `RateLimitResource` now carries the mechanism and the\nbucket, `SecondaryLimit` gets no resetAt, and the remedy is stated correctly: reduce concurrency, do not\nwait fleet-wide. An unclassifiable 403 fails closed. `budget` now says whose budget it reports and what\nit omits. The same defect was found and fixed in three more sites (Board, Scan, Done), which classified\nGraphQL error arrays with `isRateLimited` and advised \"REST-only work may still run\" into the detector\nthat had just fired.\n\nALSO: a comment-only correction in the `command-contract` emitter (.github#1654) — it argued against a\nschema bump using an asymmetry .github#1574 had already removed. No behaviour moves.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#repository",
+    "commit": "04c6cbddbe69f8195204808eb60ae2a868ad4e01",
+    "type": "git",
+    "url": "https://github.com/FS-GG/.github"
+  },
+  "verbatimVersion": "0.15.0",
+  "version": "0.15.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#FS.GG.Coord.Cli.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4665,
+      "fullName": "FS.GG.Coord.Cli.nuspec",
+      "length": 9444,
+      "name": "FS.GG.Coord.Cli.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1824,
+      "fullName": "README.md",
+      "length": 3816,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 145,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 205,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/FS.GG.Coord.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 152407,
+      "fullName": "tools/net10.0/any/FS.GG.Coord.Core.dll",
+      "length": 340480,
+      "name": "FS.GG.Coord.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/FS.GG.Coord.Core.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 24503,
+      "fullName": "tools/net10.0/any/FS.GG.Coord.Core.pdb",
+      "length": 71296,
+      "name": "FS.GG.Coord.Core.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/FS.GG.Coord.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 66403,
+      "fullName": "tools/net10.0/any/FS.GG.Coord.Core.xml",
+      "length": 197158,
+      "name": "FS.GG.Coord.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/FS.GG.Coord.GitHub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 163800,
+      "fullName": "tools/net10.0/any/FS.GG.Coord.GitHub.dll",
+      "length": 378368,
+      "name": "FS.GG.Coord.GitHub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/FS.GG.Coord.GitHub.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 39896,
+      "fullName": "tools/net10.0/any/FS.GG.Coord.GitHub.pdb",
+      "length": 114204,
+      "name": "FS.GG.Coord.GitHub.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/FS.GG.Coord.GitHub.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 55671,
+      "fullName": "tools/net10.0/any/FS.GG.Coord.GitHub.xml",
+      "length": 167925,
+      "name": "FS.GG.Coord.GitHub.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/FSharp.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1155888,
+      "fullName": "tools/net10.0/any/FSharp.Core.dll",
+      "length": 2407720,
+      "name": "FSharp.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/cs/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16291,
+      "fullName": "tools/net10.0/any/cs/FSharp.Core.resources.dll",
+      "length": 34128,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/de/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16386,
+      "fullName": "tools/net10.0/any/de/FSharp.Core.resources.dll",
+      "length": 35112,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/es/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16005,
+      "fullName": "tools/net10.0/any/es/FSharp.Core.resources.dll",
+      "length": 34088,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/fr/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16065,
+      "fullName": "tools/net10.0/any/fr/FSharp.Core.resources.dll",
+      "length": 34600,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/fsgg-coord-engine.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 651,
+      "fullName": "tools/net10.0/any/fsgg-coord-engine.deps.json",
+      "length": 3310,
+      "name": "fsgg-coord-engine.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/fsgg-coord-engine.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 212106,
+      "fullName": "tools/net10.0/any/fsgg-coord-engine.dll",
+      "length": 562688,
+      "name": "fsgg-coord-engine.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/fsgg-coord-engine.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 47487,
+      "fullName": "tools/net10.0/any/fsgg-coord-engine.pdb",
+      "length": 128848,
+      "name": "fsgg-coord-engine.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/fsgg-coord-engine.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 255,
+      "fullName": "tools/net10.0/any/fsgg-coord-engine.runtimeconfig.json",
+      "length": 463,
+      "name": "fsgg-coord-engine.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/fsgg-coord-engine.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 58003,
+      "fullName": "tools/net10.0/any/fsgg-coord-engine.xml",
+      "length": 167253,
+      "name": "fsgg-coord-engine.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/it/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15969,
+      "fullName": "tools/net10.0/any/it/FSharp.Core.resources.dll",
+      "length": 34088,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/ja/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16224,
+      "fullName": "tools/net10.0/any/ja/FSharp.Core.resources.dll",
+      "length": 36688,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/ko/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15983,
+      "fullName": "tools/net10.0/any/ko/FSharp.Core.resources.dll",
+      "length": 35624,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/pl/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16392,
+      "fullName": "tools/net10.0/any/pl/FSharp.Core.resources.dll",
+      "length": 35152,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/pt-BR/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15910,
+      "fullName": "tools/net10.0/any/pt-BR/FSharp.Core.resources.dll",
+      "length": 33616,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/ru/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17018,
+      "fullName": "tools/net10.0/any/ru/FSharp.Core.resources.dll",
+      "length": 41296,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/tr/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15888,
+      "fullName": "tools/net10.0/any/tr/FSharp.Core.resources.dll",
+      "length": 33576,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/zh-Hans/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15875,
+      "fullName": "tools/net10.0/any/zh-Hans/FSharp.Core.resources.dll",
+      "length": 32080,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#tools/net10.0/any/zh-Hant/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15832,
+      "fullName": "tools/net10.0/any/zh-Hant/FSharp.Core.resources.dll",
+      "length": 31528,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.05.52.21/fs.gg.coord.cli.0.15.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "fsgg",
+    "coordination",
+    "scheduler",
+    "dotnet-tool",
+    "fsharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

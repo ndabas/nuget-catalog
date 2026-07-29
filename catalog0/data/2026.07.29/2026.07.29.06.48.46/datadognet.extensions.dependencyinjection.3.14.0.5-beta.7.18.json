@@ -1,0 +1,785 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "s.bokatuk",
+  "catalog:commitId": "7093b78c-23c9-4fa9-9215-afa8602602ed",
+  "catalog:commitTimeStamp": "2026-07-29T06:48:46.2298987Z",
+  "copyright": "Copyright © s.bokatuk",
+  "created": "2026-07-29T06:45:41.06Z",
+  "description": "Wires DatadogNet into any Microsoft.Extensions host, no MAUI required: AddDatadog registers\n      IRumMonitor, IDatadogLogs, IDatadogLogger, IDatadogTracer and ISessionReplay for constructor\n      injection, an ILogger provider forwards Microsoft.Extensions.Logging output to Datadog, and\n      AddDatadogTracking instruments a named or typed HttpClient. DatadogNet.Maui builds on this\n      package; reference it directly from a plain .NET Android or iOS app, a service, or a test\n      host.",
+  "iconFile": "icon.png",
+  "id": "DatadogNet.Extensions.DependencyInjection",
+  "isPrerelease": true,
+  "lastEdited": "2026-07-29T06:48:14.76Z",
+  "licenseExpression": "MIT AND Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/MIT%20AND%20Apache-2.0",
+  "listed": true,
+  "packageHash": "Mz/crDSr8MOiberkXNVfWD26jalkiVFBEYdvqXcvh8bt5a2a0XkrRySj5QmUYH35esl4M9nvq7bFGlz60krewQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 227473,
+  "projectUrl": "https://github.com/sbokatuk/DatadogNet",
+  "published": "2026-07-29T06:45:41.06Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# 3.14.0.5\n\nTwo releases in one. `3.14.0.4` was tagged but never published — its release run failed on\ninfrastructure and was superseded before a rerun — so for anyone on `3.14.0.3` everything below\nis new, including the whole `3.14.0.4` section at the end. The binding pins are unchanged from\n`3.14.0.3`'s: DatadogNet.iOS `3.14.0.3`, DatadogNet.Android `3.12.1.3`, DatadogNet.Mac\n`3.14.0.2` (dd-sdk-ios 3.14.0, dd-sdk-android 3.12.1). Binding releases carrying their own\nround of improvements ship separately; a later façade release re-pins.\n\n## A logger created early now comes alive\n\nThe one real behaviour bug in this release's line: both native SDKs answer \"create a logger\"\nwith a permanently dead no-op until Logs is enabled, and loggers are exactly what apps create\nearly and cache forever — `Datadog.Logger`, the DI singleton, one `ILogger` per category. Any of\nthose created before `Datadog.Initialize` silently dropped every entry *for the life of the\napp*, even after the SDK came up.\n\nNow a logger created too early holds the recipe instead of the corpse: entries written while the\nSDK is down are dropped (the documented pre-initialise contract, unchanged), but the logger\nstarts delivering at the first write after `Initialize`, and `AddAttribute`/`AddTag`\nconfiguration applied while it waited is kept and replayed in order. `Datadog.Stop()` also\nresets `Datadog.Logger`, so a re-initialised app gets a logger of the new epoch.\n\n## The `ILogger` bridge carries structure, not just text\n\n`logger.LogInformation(\"Order {OrderId} placed\", id)` used to reach Datadog as flat text. The\nprovider now implements `ISupportExternalScope` and forwards what `Microsoft.Extensions.Logging`\nalready carries:\n\n- message-template values become attributes (`OrderId: 42`) — the things the Logs UI facets on;\n- the template itself lands as `logger.template`, one value per call site however many ids\n  flow through it;\n- structured scope values become attributes (the entry shadows its scopes, inner scopes shadow\n  outer); unstructured scopes collect under `logger.scope`;\n- `EventId` keeps its `logger.event_id`/`logger.event_name` shape.\n\n## New: `IDatadogSdk`\n\nThe feature surfaces were injectable all along; the lifecycle was not. `IDatadogSdk` mirrors the\nstatic façade — `Initialize`, `SetUser`, `SetAccount`, `SetTrackingConsent`, `ClearAllData`,\n`Stop`, and the feature properties — with `DatadogSdk.Instance` delegating to the static.\n`AddDatadog` (and therefore `UseDatadog`) registers it, so \"we call `SetUser` on sign-in\" and\n\"accepting the consent banner flips consent\" are now unit tests against a fake.\n\n## New: `AddDatadog(IConfiguration)` — the appsettings path\n\n```csharp\nbuilder.Services.AddDatadog(builder.Configuration.GetSection(\"Datadog\"));\n```\n\nBound by a hand-rolled `DatadogConfigurationBinder` (the `required`/`init` configuration shape is\nexactly what the reflection binder cannot construct): keys are property names, features enable by\ntheir section being present, defaults come from the option types themselves, and a malformed\nsection throws at startup naming the full configuration path. The `ConfigureNative` hooks cannot\ncome from configuration; use the object overload when you need them.\n\n## New package: `DatadogNet.Extensions.Diagnostics`\n\nThe `System.Diagnostics.Activity` bridge. Name the `ActivitySource`s you mean and their\nactivities become Datadog spans — tags, `DisplayName` (as `resource.name`), error status and\nparentage carried across:\n\n```csharp\nusing var bridge = DatadogActivityBridge.Start(new DatadogActivityBridgeOptions {\n    Sources = [\"MyCompany.Checkout\", \"MyCompany.Sync\"],\n});\n```\n\nForwarding is opt-in per source, because a modern .NET process emits activities from everywhere\nand every forwarded span is an event Datadog ingests. Spans go through the same `IDatadogTracer`\nas hand-written ones — `TraceOptions.SampleRate` and RUM correlation apply once, rather than\nthrough a parallel exporter pipeline with its own configuration to reconcile.\n\n## Unhandled-exception reporting is now public, and not MAUI-only\n\n`UnhandledExceptionReporting` moved into the core package with a public `Enable()`. A plain .NET\nAndroid or iOS app, a background service, or a generic host — the DI package's own audience —\ncan now opt into the AppDomain/TaskScheduler/platform-boundary hooks that previously only\n`UseDatadog` could reach. MAUI apps change nothing: `TrackUnhandledExceptions` delegates to the\nsame class.\n\n## Smaller, but real\n\n- `GetCurrentSessionIdAsync(CancellationToken)` — a default interface implementation, so\n  existing fakes keep compiling; a support screen can stop waiting on an SDK queue.\n- Trim and AOT analyzers now run on every head with warnings as errors. `IsTrimmable` is\n  deliberately not claimed; the README states the trimming stance.\n- The XML docs stop calling Mac Catalyst an unsupported head (the Catalyst TFMs have compiled\n  the real SDK over the DatadogNet.Mac bindings since `3.14.0.3`), `TraceOptions` sheds its 2.x\n  OpenTracing paragraph, and `CrashReporting`'s docs credit KSCrash rather than PLCrashReporter\n  for the 3.x line.\n- The README gains a **Version map** — façade × dd-sdk-ios × dd-sdk-android × binding pins ×\n  .NET bands × minimum OS in one CI-checked row — and a **Running ahead of the pins** section\n  stating what the `>=` binding floor does and does not keep working.\n- The generated GitHub release notes now read their target-frameworks table out of the packed\n  `.nupkg`s themselves; the old hardcoded lists omitted every maccatalyst head on the very\n  release that introduced them.\n- CI now compiles a windows-headed consumer against the packed `DatadogNet.Maui` — the stub\n  head's whole pitch, previously never consumer-compiled. (A XAML-free MAUI class library rather\n  than a sample TFM: WinUI's XAML compiler is a Windows-only executable, so a windows-headed MAUI\n  *app* cannot build on this repository's macOS runners.)\n\n## Everything 3.14.0.4 contained (never published)\n\n**`DatadogNet.Extensions.DependencyInjection` is its own package.** Everything `UseDatadog`\nwired into the container, with no MAUI in it: `AddDatadog` registers the feature interfaces as\n`TryAdd` singletons (a test host's fake wins), an overload registers without initialising,\n`builder.Logging.AddDatadog()` adds the `ILogger` provider, `AddDatadogTracking` instruments an\n`HttpClient`. `DatadogNet.Maui` depends on it and delegates. Moves to be aware of\n(source-compatible for a typical app): `AddDatadogTracking` and\n`DatadogHttpMessageHandlerOptions` moved from the `DatadogNet.Maui` namespace/assembly into\n`DatadogNet` in the new package; the `ILoggingBuilder.AddDatadog(DatadogMauiOptions?)` overload\nbecame `AddDatadog(LoggerOptions?, LogLevel)`.\n\n**`DatadogNet.Maui` restores on a Windows head.** Stub heads per band: `UseDatadog` compiles and\nruns there, every call lands in the documented no-ops, and the platform-conditional\n`PackageReference` earlier releases required is no longer needed.\n\n**Unhandled-exception coverage reaches the platform boundaries.** Android's\n`UnhandledExceptionRaiser` and Apple's managed-exception marshalling, beyond the AppDomain and\nTaskScheduler hooks; a weak reported-set keeps a failure seen twice to one RUM error.\n\n**Verified harder.** Device tests exercise `DatadogNet.WebView` on a real platform web view; the\nsample demonstrates `ConfigureNative`, the consent cycle, and gated Session Replay recording;\nthe façade's WebView/CrashReporting packages ship their own Android R8 keep-rules under\n`buildTransitive/`; six DI unit tests.\n\n**Release pipeline.** These notes reach nuget.org (`PackageReleaseNotes`); CI fails when the\nREADME's versions drift from `Directory.Build.props`; the net8 sunset is stated policy — dropped\nin the first release after .NET 8 leaves support on **10 November 2026**.\n\n## Upgrading from 3.14.0.3\n\nFor a MAUI app: update the version, optionally delete any windows-head guard around the\n`DatadogNet.Maui` reference. Direct callers of the moved HttpClient/logging extensions: see the\nmoves note above. The `ILogger` provider now attaches template/scope attributes to log events —\nnew data on existing events, nothing removed.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#repository",
+    "commit": "072975aac142e344695a3164f2887e83a1a8615f",
+    "type": "git",
+    "url": "https://github.com/sbokatuk/DatadogNet"
+  },
+  "title": "Datadog Microsoft.Extensions integration for .NET",
+  "verbatimVersion": "3.14.0.5-beta.7.18",
+  "version": "3.14.0.5-beta.7.18",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-android34.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-android34.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-android34.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-android34.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-android34.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-android34.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0-android34.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-ios18.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-ios18.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-ios18.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-ios18.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-ios18.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-ios18.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0-ios18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-maccatalyst18.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-maccatalyst18.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-maccatalyst18.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-maccatalyst18.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-maccatalyst18.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net8.0-maccatalyst18.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0-maccatalyst18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-android35.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-android35.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-android35.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-android35.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-android35.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-android35.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net9.0-android35.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-ios18.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-ios18.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-ios18.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-ios18.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-ios18.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-ios18.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net9.0-ios18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-maccatalyst18.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-maccatalyst18.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-maccatalyst18.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-maccatalyst18.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-maccatalyst18.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net9.0-maccatalyst18.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net9.0-maccatalyst18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-android36.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-android36.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-android36.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-android36.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-android36.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-android36.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0-android36.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-ios26.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-ios26.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-ios26.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-ios26.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-ios26.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-ios26.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0-ios26.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-maccatalyst26.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-maccatalyst26.0/datadognet",
+          "@type": "PackageDependency",
+          "id": "DatadogNet",
+          "range": "[3.14.0.5-beta.7.18, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-maccatalyst26.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-maccatalyst26.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-maccatalyst26.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#dependencygroup/net10.0-maccatalyst26.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0-maccatalyst26.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#DatadogNet.Extensions.DependencyInjection.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4737,
+      "fullName": "DatadogNet.Extensions.DependencyInjection.nuspec",
+      "length": 16893,
+      "name": "DatadogNet.Extensions.DependencyInjection.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net8.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10990,
+      "fullName": "lib/net8.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25088,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net8.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net8.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net8.0-android34.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11090,
+      "fullName": "lib/net8.0-android34.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net8.0-android34.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net8.0-android34.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net8.0-ios18.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11061,
+      "fullName": "lib/net8.0-ios18.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net8.0-ios18.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net8.0-ios18.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net8.0-maccatalyst18.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11075,
+      "fullName": "lib/net8.0-maccatalyst18.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net8.0-maccatalyst18.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net8.0-maccatalyst18.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net9.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10993,
+      "fullName": "lib/net9.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25088,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net9.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net9.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net9.0-android35.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11097,
+      "fullName": "lib/net9.0-android35.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net9.0-android35.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net9.0-android35.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net9.0-ios18.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11069,
+      "fullName": "lib/net9.0-ios18.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net9.0-ios18.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net9.0-ios18.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net9.0-maccatalyst18.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11075,
+      "fullName": "lib/net9.0-maccatalyst18.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net9.0-maccatalyst18.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net9.0-maccatalyst18.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 1974,
+      "fullName": "icon.png",
+      "length": 1969,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 14295,
+      "fullName": "README.md",
+      "length": 37871,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#licenses/MIT.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 632,
+      "fullName": "licenses/MIT.txt",
+      "length": 1071,
+      "name": "MIT.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#licenses/Apache-2.0.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 3949,
+      "fullName": "licenses/Apache-2.0.txt",
+      "length": 11358,
+      "name": "Apache-2.0.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net10.0-android36.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11098,
+      "fullName": "lib/net10.0-android36.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net10.0-android36.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net10.0-android36.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net10.0-ios26.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11065,
+      "fullName": "lib/net10.0-ios26.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net10.0-ios26.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net10.0-ios26.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net10.0-maccatalyst26.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11075,
+      "fullName": "lib/net10.0-maccatalyst26.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25600,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net10.0-maccatalyst26.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net10.0-maccatalyst26.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net10.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10987,
+      "fullName": "lib/net10.0/DatadogNet.Extensions.DependencyInjection.dll",
+      "length": 25088,
+      "name": "DatadogNet.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#lib/net10.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4075,
+      "fullName": "lib/net10.0/DatadogNet.Extensions.DependencyInjection.xml",
+      "length": 17854,
+      "name": "DatadogNet.Extensions.DependencyInjection.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.29.06.48.46/datadognet.extensions.dependencyinjection.3.14.0.5-beta.7.18.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "datadog",
+    "dependency-injection",
+    "ilogger",
+    "httpclient",
+    "rum",
+    "logging",
+    "tracing",
+    "observability",
+    "android",
+    "ios",
+    "maccatalyst"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

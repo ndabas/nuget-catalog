@@ -1,0 +1,279 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "s.bokatuk",
+  "catalog:commitId": "4f7fb620-245b-4eaa-8500-1e94391b439c",
+  "catalog:commitTimeStamp": "2026-07-30T15:19:01.7416482Z",
+  "copyright": "Copyright © s.bokatuk",
+  "created": "2026-07-30T15:15:09.407Z",
+  "description": "Adds the app-builder and service-collection registration a .NET MAUI app needs to consume\n      MarketingCloudSDK.Net through dependency injection: UseMarketingCloud/AddMarketingCloud\n      register IMarketingCloudClient as a singleton alongside the options. Add\n      MarketingCloudSDK.Net on its own if you are not using MAUI.",
+  "iconFile": "icon.png",
+  "id": "MarketingCloudSDK.Net.Maui",
+  "isPrerelease": true,
+  "lastEdited": "2026-07-30T15:18:45.483Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "1QEZY8PDhsjHIzFf+yQSedenNuqpEqi7G28WDxUN2pV2oYqFMhyCxO0ICJ8EuXtvdVrCyHXlJuWCpmGNyfr9sA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 55294,
+  "projectUrl": "https://github.com/sbokatuk/MarketingCloudSDK.Net",
+  "published": "2026-07-30T15:15:09.407Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## What's changed\n\nA dependency refresh, and the first release where the Android initialization is actually\ninitialization.\n\n### Fixed\n\n- **Android initialization did nothing.** `InitializeAsync` configured MobilePush through\n  `MarketingCloudSdk.init`, the pre-Unified-SDK entry point, which at v11 hands the engagement\n  module a null `SFMCSdkComponents` and dies inside `getEncryptionManager` — while still calling its\n  listener back, so the façade reported success over an SDK that never came up and `requestSdk`\n  never fired. Configuration now goes through `SFMCSdk.Configure` with `MarketingCloudConfig`\n  attached as the engagement module config, which is what the sibling\n  `MarketingCloudSDK.Net.Android` repository's own sample and device tests do (see its `11.0.1.2`\n  notes). iOS was never affected — it already initialized through the core.\n- **`EditAsync` could hang forever on Android.** The `requestSdk` queue it waits on never drains if\n  the SDK is not coming up, and the wait was unbounded. It is now bounded by the same timeout\n  initialization uses (`MarketingCloudOptions.InitializationTimeout`, or its 30-second default for\n  an edit issued before initialization) and expiry surfaces as `TimeoutException`.\n- **The Android device tests could never get past initialization.** Their dummy application id was\n  the nil UUID, and `MarketingCloudConfig.Builder.build()` runs `java.util.UUID` validation that\n  rejects anything which is not a version-4 variant-1 UUID — so it threw\n  `The applicationId is not a valid UUID` from inside the builder, before the SDK was reached and\n  before the timeout could mean anything. iOS validates neither the id nor the token, which is why\n  this only ever failed on one platform. The sibling `MarketingCloudSDK.Net.Android` suite had\n  already learned it; the values now match (and the access token is padded to a real one's 24\n  characters for the same reason).\n- **The iOS timeout fallback now documents what it actually proves.** Measured against 11.0.2 in a\n  simulator: the core's module roster reports `pushfeature` whether or not a push config was ever\n  supplied, and in an unprovisioned tenant every module reads `\"status\": \"inactive\"`. The fallback\n  is deliberately kept — failing there would refuse to initialize on exactly the unprovisioned\n  tenants it exists for — but the code and docs no longer imply it verifies the module concluded.\n\n### Added\n\n- **`TrackCustomEvent`** on `IMarketingCloudClient`, forwarding to the SFMC SDK core the façade\n  already composes. Custom events moved to the core at v11 exactly as identity did; previously the\n  README sent you to the raw platform namespaces for them, which was worse advice than the\n  cross-platform API sitting in an already-referenced package.\n- **`IsSupported` and `IsInitialized`** on `IMarketingCloudClient` — the two members that answer on\n  every target framework instead of throwing, so shared code has something to branch on. Neither is\n  the one-shot guard: after a failed initialization `IsInitialized` stays false while the guard\n  stays claimed.\n- **`NullMarketingCloudClient`** — the no-op implementation the README used to tell consumers to\n  write themselves, for MAUI heads with no SDK and for tests. It validates its arguments, so it\n  hides platforms without hiding caller bugs.\n- **`UseMarketingCloud()` / `AddMarketingCloud()` without options**, for apps whose credentials are\n  not known at composition time (a signed-in user's tenant, a runtime prompt). Previously those apps\n  got nothing from the `.Maui` package and hand-wrote the `AddSingleton` themselves — as this\n  repository's own sample did, which is why the package's headline API was never exercised in CI.\n- **`build/RepinPackages.sh`** — the re-pin helper the upstream-drift issue template has been\n  pointing at under a name that did not exist. It rewrites the props and reports what the README\n  still owes, leaving `CheckReadmeVersions.sh` as the gate.\n- **A cross-repo pin agreement package test.** The MobilePush bindings and the core umbrella must\n  agree on the `SFMCSDK.Net.Android`/`.iOS` revision underneath them; that was documented in a\n  csproj comment and asserted nowhere, which is how the two lines drifted apart once already.\n\n### Dependencies\n\n- Re-pinned to the newest downloadable NuGet builds:\n  [`MarketingCloudSDK.Net.Android 11.0.1.2`](https://github.com/sbokatuk/MarketingCloudSDK.Net.Android/releases/tag/v11.0.1.2),\n  [`MarketingCloudSDK.Net.iOS 11.0.2.2`](https://github.com/sbokatuk/MarketingCloudSDK.Net.iOS/releases/tag/v11.0.2.2)\n  and [`SFMCSDK.Net 4.0.1.1`](https://github.com/sbokatuk/SFMCSDK.Net/releases/tag/v4.0.1.1),\n  all pinned exactly in `Directory.Build.props`.\n- Bumped this repository's release revision from `11.0.2.1` to `11.0.2.2` to reflect the new pin\n  set.\n\n### Upgrading\n\nSource-compatible for consumers. Implementers of `IMarketingCloudClient` — a hand-written test fake\n— must add `TrackCustomEvent`, `IsSupported` and `IsInitialized`, or switch to\n`NullMarketingCloudClient`. MAUI Android apps on the net10 head need a direct\n`Xamarin.AndroidX.Lifecycle.LiveData.Core 2.10.0` reference to settle the graph against MAUI\n10.0.20; see the README's troubleshooting section.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#repository",
+    "commit": "d0997def8618dc5776e2aea456cf8c22aaa27da0",
+    "type": "git",
+    "url": "https://github.com/sbokatuk/MarketingCloudSDK.Net"
+  },
+  "title": ".NET MAUI wiring for MarketingCloudSDK.Net",
+  "verbatimVersion": "11.0.2.2-beta.6.11",
+  "version": "11.0.2.2-beta.6.11",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net8.0-ios18.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net8.0-ios18.0/marketingcloudsdk.net",
+          "@type": "PackageDependency",
+          "id": "MarketingCloudSDK.Net",
+          "range": "[11.0.2.2-beta.6.11, 11.0.2.2-beta.6.11]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net8.0-ios18.0/microsoft.maui.controls",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Maui.Controls",
+          "range": "[8.0.100, )"
+        }
+      ],
+      "targetFramework": "net8.0-ios18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net9.0-ios18.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net9.0-ios18.0/marketingcloudsdk.net",
+          "@type": "PackageDependency",
+          "id": "MarketingCloudSDK.Net",
+          "range": "[11.0.2.2-beta.6.11, 11.0.2.2-beta.6.11]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net9.0-ios18.0/microsoft.maui.controls",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Maui.Controls",
+          "range": "[9.0.30, )"
+        }
+      ],
+      "targetFramework": "net9.0-ios18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net10.0-android36.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net10.0-android36.0/marketingcloudsdk.net",
+          "@type": "PackageDependency",
+          "id": "MarketingCloudSDK.Net",
+          "range": "[11.0.2.2-beta.6.11, 11.0.2.2-beta.6.11]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net10.0-android36.0/microsoft.maui.controls",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Maui.Controls",
+          "range": "[10.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0-android36.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net10.0-ios26.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net10.0-ios26.0/marketingcloudsdk.net",
+          "@type": "PackageDependency",
+          "id": "MarketingCloudSDK.Net",
+          "range": "[11.0.2.2-beta.6.11, 11.0.2.2-beta.6.11]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#dependencygroup/net10.0-ios26.0/microsoft.maui.controls",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Maui.Controls",
+          "range": "[10.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0-ios26.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#MarketingCloudSDK.Net.Maui.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3104,
+      "fullName": "MarketingCloudSDK.Net.Maui.nuspec",
+      "length": 7617,
+      "name": "MarketingCloudSDK.Net.Maui.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#lib/net8.0-ios18.0/MarketingCloudSDK.Net.Maui.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2632,
+      "fullName": "lib/net8.0-ios18.0/MarketingCloudSDK.Net.Maui.dll",
+      "length": 7168,
+      "name": "MarketingCloudSDK.Net.Maui.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#lib/net8.0-ios18.0/MarketingCloudSDK.Net.Maui.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2312,
+      "fullName": "lib/net8.0-ios18.0/MarketingCloudSDK.Net.Maui.xml",
+      "length": 9070,
+      "name": "MarketingCloudSDK.Net.Maui.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#lib/net9.0-ios18.0/MarketingCloudSDK.Net.Maui.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2911,
+      "fullName": "lib/net9.0-ios18.0/MarketingCloudSDK.Net.Maui.dll",
+      "length": 7680,
+      "name": "MarketingCloudSDK.Net.Maui.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#lib/net9.0-ios18.0/MarketingCloudSDK.Net.Maui.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2312,
+      "fullName": "lib/net9.0-ios18.0/MarketingCloudSDK.Net.Maui.xml",
+      "length": 9070,
+      "name": "MarketingCloudSDK.Net.Maui.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 3971,
+      "fullName": "icon.png",
+      "length": 4699,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 10097,
+      "fullName": "README.md",
+      "length": 26795,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#licenses/LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 632,
+      "fullName": "licenses/LICENSE",
+      "length": 1071,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#lib/net10.0-android36.0/MarketingCloudSDK.Net.Maui.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3078,
+      "fullName": "lib/net10.0-android36.0/MarketingCloudSDK.Net.Maui.dll",
+      "length": 8192,
+      "name": "MarketingCloudSDK.Net.Maui.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#lib/net10.0-android36.0/MarketingCloudSDK.Net.Maui.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2312,
+      "fullName": "lib/net10.0-android36.0/MarketingCloudSDK.Net.Maui.xml",
+      "length": 9070,
+      "name": "MarketingCloudSDK.Net.Maui.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#lib/net10.0-ios26.0/MarketingCloudSDK.Net.Maui.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3099,
+      "fullName": "lib/net10.0-ios26.0/MarketingCloudSDK.Net.Maui.dll",
+      "length": 8192,
+      "name": "MarketingCloudSDK.Net.Maui.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#lib/net10.0-ios26.0/MarketingCloudSDK.Net.Maui.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2312,
+      "fullName": "lib/net10.0-ios26.0/MarketingCloudSDK.Net.Maui.xml",
+      "length": 9070,
+      "name": "MarketingCloudSDK.Net.Maui.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.15.19.01/marketingcloudsdk.net.maui.11.0.2.2-beta.6.11.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "salesforce",
+    "marketingcloud",
+    "mobilepush",
+    "sfmc",
+    "push",
+    "notifications",
+    "maui",
+    "android",
+    "ios"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

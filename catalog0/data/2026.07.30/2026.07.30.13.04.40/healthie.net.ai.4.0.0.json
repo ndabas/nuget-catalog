@@ -1,0 +1,204 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Ivan Vydrin",
+  "catalog:commitId": "69f24a47-6828-4148-80db-75b490a27f58",
+  "catalog:commitTimeStamp": "2026-07-30T13:04:40.1328784Z",
+  "copyright": "Copyright (c) Ivan Vydrin 2024-2026",
+  "created": "2026-07-30T13:01:33.177Z",
+  "description": "AI diagnostics for Healthie.NET -- summarises a pulse checker's recent failures and suggests likely causes. Provider-agnostic: bring any Microsoft.Extensions.AI IChatClient (Anthropic, OpenAI, Azure OpenAI, Ollama).",
+  "iconFile": "healthie.net.png",
+  "id": "Healthie.NET.AI",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-30T13:04:23.207Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "6Rde8RqpSoI+/F2nRQ6Dd4z1pTwXoZrm8gPXOn8WswuBtVLKmWUgCljo29N0Pi4SazhnLsgfKJPye8e5bYONgg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 134478,
+  "projectUrl": "https://github.com/ivanvyd/Healthie.NET",
+  "published": "2026-07-30T13:01:33.177Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Twelve new packages, the schedule model several of them needed, and optimistic concurrency on the\nstate contract.\n\n**Source-compatible: an application that upgrades without touching its code still compiles and still\nbehaves as it did.** Nothing public was removed or renamed, and every new interface member is a\ndefaulted one, so a provider or scheduler written against 3.x keeps working. Two things to know\nbefore upgrading:\n\n- **One binary break.** `HealthieTools`, the MCP read-only tool class, gained a defaulted\n  `HealthieMcpOptions?` parameter on its constructor so it could read the page-size option it had\n  been ignoring. Calling code still compiles unchanged; an assembly compiled against 3.1.4 and not\n  rebuilt does not. Recompiling is enough, and that break is why this is a major rather than a minor.\n- **The relational providers alter an existing table on startup** to add the version column\n  optimistic concurrency needs. See *Optimistic concurrency* below.\n\n### Added\n\n- **Optimistic concurrency on `IStateProvider`.** A state write can now be made conditional on the\n  state not having changed since it was read, closing the lost update that has been documented on\n  `CosmosDbStateProvider` since the beginning: a setting changed from the dashboard could be\n  overwritten by a check that had read the state first. `GetStateEntryAsync` returns the state with\n  the version it was read at, and `TrySetStateAsync` writes only if that version is still current,\n  reporting a refused write rather than throwing -- under contention a conflict is expected, not\n  exceptional. `UpdateStateAsync` is the read-modify-write retry loop over the pair, and every\n  setting on `PulseChecker` goes through it -- as does a check storing its own result, which reads\n  and writes the whole state and so used to put every other field back to what it was when the\n  check started. Within one process a semaphore hid that; across two replicas sharing one store\n  nothing did, and that is the direction the dashboard actually loses to.\n\n  This was expected to need a major release and did not. The new members are defaulted interface\n  methods: a provider written against the old two-method interface still compiles, still works, and\n  reports `SupportsOptimisticConcurrency == false` rather than pretending. CosmosDB uses ETags,\n  the relational providers a version column added to existing tables on startup, and the in-memory\n  provider a compare-and-swap.\n- **`HealthChanged` on `PulseCheckerStateChangedEventArgs`**, with `PreviousHealth` and\n  `CurrentHealth` beside it. `StateChanged` fires on every check -- a stored result always moves the\n  execution time -- which was listed as a known issue and is not one: the dashboard redraws from\n  exactly those events. What was missing was a way to ask the narrower question, so every handler\n  that only cared about a component going down reached into `OldState`/`NewState.LastResult?.Health`\n  and worked it out again. The alerting and uptime packages were doing that identically; both now\n  read `PreviousHealth` and `CurrentHealth` from the event instead of digging for them.\n- **Slack, Microsoft Teams and PagerDuty alert sinks**, in `Healthie.NET.Alerting` beside the\n  webhook. Each of those three rejects arbitrary JSON and wants its own shape, so the generic\n  webhook never actually reached them without something in between to reshape it -- which its own\n  remarks admitted, in the phrase \"Teams through a Power Automate flow\". They need no dependency the\n  package did not already have, so they are sinks rather than a package each. Teams targets the\n  Workflows URL and an Adaptive Card, because the Office 365 connectors and the `MessageCard`\n  payload they took are retired. PagerDuty resolves the incident it opened rather than raising a\n  second one: `Alert.DeduplicationKey` and `Alert.IsRecovery` already existed for exactly that.\n- **`Healthie.NET.Redis`.** State is written on every tick of every checker, and Redis is the store\n  that does not mind: a relational provider does a round trip to a disk-backed engine for each of\n  those writes, and this does one to memory. One hash per checker holding the state, the type it was\n  written as, and a version, so the compare and the write are a single Lua script -- Redis runs one\n  to completion without interleaving anything else, which is the guarantee a read-then-write cannot\n  give. Durability is whatever the Redis is configured for, and the package README says so rather\n  than implying more.\n- **A startup warning when a surface that can change a checker is reachable without\n  authenticating.** `AddHealthieController` still does not require authorization unless asked, and\n  the dashboard's `AllowMutations` still defaults to `true` -- both are deliberate and changing\n  either would break every application that maps them. What was missing was anyone being told: an\n  application that maps one and stops there lets whoever can reach it stop a checker or clear a\n  failing streak, which hides an incident rather than reporting one. Logged once, at `Warning`, on\n  application start.\n\n  Asked of the endpoints rather than of the flags that built them, so an application that applied\n  authorization its own way -- `RequireAuthorization()`, an endpoint group, its own attribute -- is\n  not warned at. A warning that fires on correctly secured applications gets filtered out, and then\n  it is not there for the one that needs it.\n- **Schedules.** `PulseSchedule` says either \"every this long\" or \"on this cron expression\", and\n  sits alongside `PulseInterval` rather than replacing it. The enum stopped at five minutes, which\n  is short of what a certificate-expiry or disk-space check wants. Cron is standard Unix syntax and\n  is evaluated in UTC by every scheduler.\n- **`Healthie.NET.Postgres`, `Healthie.NET.SqlServer`, `Healthie.NET.Sqlite`** and the\n  `Healthie.NET.Relational` engine behind them, which works against any database with an ADO.NET\n  driver. PostgreSQL also covers Databricks Lakebase, which is managed PostgreSQL.\n- **`Healthie.NET.Hangfire`.** Schedules live in Hangfire's storage, so they survive a restart and\n  each occurrence runs on exactly one replica.\n- **`Healthie.NET.Coravel`**, for applications already running Coravel. Coravel has no API for\n  removing a scheduled job, so Healthie owns the due times and Coravel supplies the tick; the\n  package README says so, and says to use the built-in timer if Coravel is not already there.\n- **`Healthie.NET.Temporal`.** Schedules live in the Temporal cluster. It needs a cluster and the\n  SDK carries a native core, both of which the README weighs against Hangfire and the built-in timer.\n- **`Healthie.NET.Checkers`.** HTTP endpoints, TCP ports, TLS certificate expiry, DNS resolution and\n  disk space, with no checker code to write. Certificate expiry and disk space report *suspicious*\n  before they report unhealthy, because both are gradual and the warning is the useful signal.\n- **`Healthie.NET.Alerting`.** Health changes become alerts, delivered to a webhook or your own\n  `IAlertSink`, with transition-only firing, recovery notifications and flap suppression. A sink that\n  throws, hangs or backs up cannot delay a check, hold its semaphore, or mark anything unhealthy.\n- **`Healthie.NET.Uptime`.** Records health transitions rather than checks, so uptime is exact over\n  any window and small enough to keep for a year -- the rolling history holds a hundred results,\n  which for a one-second checker is a hundred seconds. Time the application was not running is\n  reported as unknown rather than counted as either up or down.\n- **`Healthie.NET.LeaderElection`.** Runs the checks on one replica at a time. Without it, three\n  replicas ask a database three times whether it is healthy and race to write the same state.\n- **Metrics and traces.** A `Meter` and an `ActivitySource` named `Healthie.NET`, discovered by\n  OpenTelemetry by name with no package to install: check duration, results by health, health\n  transitions, and triggers skipped because the previous check had not finished. That last one is\n  the only place a checker outlasting its own interval shows up.\n- **Bulk state reads.** `IStateProvider.GetStatesAsync` reads every checker in one call, which is\n  what a dashboard load and a list request do. Defaulted to the old one-read-per-name behaviour, so\n  existing providers are unaffected.\n- **State removal.** `IStateProvider.DeleteStateAsync` cleans up after a checker that was renamed or\n  removed. Defaulted to refuse rather than to silently do nothing.\n\n- **The dashboard shows what the feature packages know.** Installing one used to change what the\n  application did and nothing about the one screen an operator looks at, so uptime, alerts and\n  leadership were only visible to whatever the host wired up itself. Each now has a small read-only\n  contract in `Healthie.NET.Abstractions` that its package implements, and the board renders the\n  panel when the container can resolve it: uptime over the last day and the longest outage in it\n  beside the run-based percentage, a drawer of recent alerts saying which reached their sinks and\n  which did not, a badge saying whether this replica is the one running the checks, and a button\n  that asks the model why a checker has been failing. An application that installs none of them gets\n  the board exactly as it was.\n\n  Read-only throughout, so all of it shows under `HealthieUIOptions.AllowMutations = false` -- the\n  one exception is asking the model, which is still a read but spends money on the host's account,\n  and is gated with the controls that change things.\n- **The alert history is persisted and paged.** It is written through the application's own\n  `IStateProvider`, so a deployment on CosmosDB, PostgreSQL, SQL Server, SQLite or Redis keeps its\n  alerts across a redeploy and one left on the in-memory provider does not. There is no second\n  storage contract to configure and no provider had to learn about alerts. `IAlertInsights` reads a\n  page at a time and reports the total, because the question asked most often is asked just after a\n  restart, about what happened before it -- which is exactly what a last-twenty list throws away.\n  Bounded at `HistoryLength`, and the view says how many are kept, of what cap, in which provider.\n- **The dashboard shows where alerts are delivered**, with each sink's delivered and failed counts\n  and its last error. An application that installed alerting and never configured a sink raises\n  alerts that reach nobody, and a healthy-looking list of them was indistinguishable from one that\n  was notifying people; sinks are now listed from startup rather than from their first delivery, and\n  one that recovers stops being reported as failing.\n- **Alerting is configurable from the dashboard**: minimum severity, deduplication window, delivery\n  timeout, and whether recoveries alert. Those four and no others, because they are the ones the\n  dispatcher reads on every alert -- its queue capacity and history length are fixed when it is\n  built, so they are shown as facts rather than offered as controls that would quietly do nothing.\n  There is also a test alert, which goes through the real sinks: the only way to find out that a\n  webhook URL is wrong is to use it.\n- **`AddHealthieMetrics()`** collects the library's own instruments in-process behind\n  `IMetricsInsights`, and the dashboard grows a metrics view: checks run, the share that reported\n  healthy, transitions, mean and slowest check duration, and results by health. A `MeterListener` on\n  the `Healthie.NET` meter, so it reads what is already being emitted and runs alongside an\n  OpenTelemetry exporter rather than instead of one. Opt-in, because a listener costs a callback on\n  every measurement and an application with an APM has somewhere better to look.\n\n  Overlapped triggers get their own figure. A checker whose check outlasts its own interval looks\n  healthy and is quietly running at a fraction of the rate it was asked to, and this is the only\n  place that shows.\n- **A side menu on the dashboard**, listing an overview, a section per group with its tally and worst\n  state, and the alerts, metrics, event-log and about views. Picking a group narrows the list and picking it\n  again is the way back; it combines with the search box and the tag filter rather than clearing\n  them, and the groups it lists come from the store rather than from the rows currently surviving\n  those filters -- a menu that dropped a group because a search had narrowed it away would take away\n  the means of getting back to it.\n\n  A rail rather than an overlay drawer, and collapsing to its icons rather than disappearing. This\n  package ships no JavaScript of its own, and an off-canvas drawer needs a focus trap to be honest\n  about keyboard use. Below 820px it becomes a scrolling strip above the list.\n- **The dashboard opens sectioned by group** rather than as one flat list. A group is a partition, so\n  the sectioned view answers what is wrong and where at a glance; a flat list of forty checkers asks\n  the reader to do that grouping themselves. Checkers with no group collect under one heading, so the\n  default hides nothing. The `GROUP` button still switches to the flat list.\n- **A cron expression can be set from the dashboard**, beside the interval picker, and through\n  `PUT /healthie/{checkerName}/schedule` on the REST API. The scheduler judges the expression before\n  anything is stored -- `IPulseScheduler.TryValidateSchedule`, defaulted to accept so an existing\n  scheduler is unaffected -- because Cronos, Quartz and Temporal do not agree on cron dialects and\n  the only answer worth having is from the implementation that will run it. A refusal carries that\n  implementation's own reason and leaves the stored schedule alone; storing first and failing on the\n  reschedule would leave a checker that no longer runs and a store that says it should.\n\n  `IPulseChecker.SetScheduleAsync` and `IPulsesScheduler.SetScheduleAsync` are the API behind it. A\n  schedule an interval can express exactly is stored as that interval, so only a genuinely custom\n  period or a cron expression occupies `PulseCheckerState.Schedule`.\n\n### Fixed\n\n- **The dashboard ignored `PulseSchedule` everywhere it showed a cadence.** It read\n  `PulseCheckerState.Interval` for the rate column, for the aggregate checks-per-minute, and for the\n  interval picker -- and that field is documented as ignored once `Schedule` is set. So a checker on\n  a cron expression advertised a rate it was not running at, was summed into the aggregate at that\n  rate, and offered a picker whose every change stored a field nothing reads. The board now reads\n  `EffectiveSchedule`, shows a cron expression as one, counts cron checkers separately rather than\n  inventing a rate for them, and disables the picker while an expression is in force.\n- **`SetIntervalAsync` did nothing to a checker that had a schedule.** The schedule overrides the\n  interval, so choosing one left the checker at its old cadence with nothing to say so. It now clears\n  the schedule, which is what choosing an interval means.\n- **The dashboard's own page did not encode its title.** `MapHealthieUI` builds that one page as a\n  string rather than through Razor, which encodes every interpolation for you, so a\n  `HealthieUIOptions.DashboardTitle` built from anything the host did not write itself could close\n  the title element and open a script one.\n- **A dashboard component left its handler behind when it was disposed.** The service is scoped to a\n  circuit, so it was assumed the circuit ending released everything; that holds only while the\n  dashboard is mounted once per circuit, and a host that routes to it inside its own layout builds a\n  new one every time the user navigates back. `IHealthieDashboardService.UnsubscribeFromStateChangesAsync`\n  is the missing half, and the component calls it.\n- **Two callers scheduling one checker at once could leave a timer nobody could stop.** Installing a\n  schedule was \"cancel the old one, then start the new one\", and only the last one stored was\n  reachable; the other kept triggering, could not be unscheduled, and held a linked\n  `CancellationTokenSource` that was never disposed.\n- **`HealthieMcpOptions.MaxHistoryPageSize` was documented and never read.** `get_check_history`\n  clamped to a hard-coded 200 instead, so a host that lowered the option got no such thing.\n- **The relational table-name guard admitted a name with a trailing newline.** In .NET `$` matches\n  immediately before one, so a table name ending in one passed a check whose own error message says\n  it does not. Nothing could be smuggled through it -- a lone trailing newline is whitespace to\n  every engine here -- but the guard now ends at `\\z` and means what it says.\n- **The release workflow granted `contents: write` to every job in it.** Only the one job that\n  creates the GitHub release needs it, and the top level now grants nothing but read, so a job added\n  later starts with no write access rather than inheriting it.\n- **A checker name from a REST route reached the log with its control characters intact.** The\n  not-found branch logs a name precisely when it matches nothing, percent-encoded CR and LF arrive\n  decoded, and a log sink writing plain text writes them as line breaks.\n\n- A cron schedule whose next occurrence was more than about fifty days out **stopped the checker\n  permanently and silently**. `Task.Delay` refuses a longer wait and throws, and that throw is not a\n  cancellation, so the scheduler's loop ended with nothing logged. An annual certificate check\n  reached it. Long waits are now taken in bounded steps.\n- Quartz and the built-in scheduler read the same cron expression in **different timezones** --\n  Quartz defaults to the machine's local zone, the built-in scheduler evaluates in UTC. Both are\n  pinned to UTC now, matching what the dashboard renders.\n- Quartz quietly accepted out-of-range cron fields: `99 99 * * *` produced a trigger firing every\n  minute, for ever. Ranges are checked before Quartz sees them.\n- Cron expressions were compared as typed, so `0 0 * * MON-FRI` and `0  0  *  *  mon-fri` looked\n  like a change to the checker. They are normalized, as tags already were.\n\n### Security\n\n- CodeQL, OpenSSF Scorecard and dependency review run on every pull request, releases carry a\n  CycloneDX SBOM, every GitHub Action is pinned to a commit SHA, and every workflow drops to\n  deny-by-default permissions.\n- Four high-severity advisories resolved: `SQLitePCLRaw.lib.e_sqlite3` (GHSA-2m69-gcr7-jv3q),\n  `Newtonsoft.Json` reached through Hangfire (GHSA-5crp-9r3c-p9vr), and `System.Text.Json` in the\n  console sample (CVE-2024-30105 and CVE-2024-43485). The solution reports no vulnerable packages.\n\nFull changelog: https://github.com/ivanvyd/Healthie.NET/blob/v4.0.0/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "8054ca4b005c963aed3c4239f5f43a7a546845ae",
+    "type": "git",
+    "url": "https://github.com/ivanvyd/Healthie.NET"
+  },
+  "verbatimVersion": "4.0.0",
+  "version": "4.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#dependencygroup/net10.0/healthie.net.abstractions",
+          "@type": "PackageDependency",
+          "id": "Healthie.NET.Abstractions",
+          "range": "[4.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#dependencygroup/net10.0/microsoft.extensions.ai.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.Abstractions",
+          "range": "[10.8.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#dependencygroup/net8.0/healthie.net.abstractions",
+          "@type": "PackageDependency",
+          "id": "Healthie.NET.Abstractions",
+          "range": "[4.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#dependencygroup/net8.0/microsoft.extensions.ai.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.Abstractions",
+          "range": "[10.8.3, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#Healthie.NET.AI.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 8548,
+      "fullName": "Healthie.NET.AI.nuspec",
+      "length": 20567,
+      "name": "Healthie.NET.AI.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1414,
+      "fullName": "README.md",
+      "length": 2882,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#healthie.net.png",
+      "@type": "PackageEntry",
+      "compressedLength": 84436,
+      "fullName": "healthie.net.png",
+      "length": 85056,
+      "name": "healthie.net.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#lib/net10.0/Healthie.AI.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9926,
+      "fullName": "lib/net10.0/Healthie.AI.dll",
+      "length": 23040,
+      "name": "Healthie.AI.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#lib/net10.0/Healthie.AI.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2390,
+      "fullName": "lib/net10.0/Healthie.AI.xml",
+      "length": 11815,
+      "name": "Healthie.AI.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#lib/net8.0/Healthie.AI.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9924,
+      "fullName": "lib/net8.0/Healthie.AI.dll",
+      "length": 23040,
+      "name": "Healthie.AI.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#lib/net8.0/Healthie.AI.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2390,
+      "fullName": "lib/net8.0/Healthie.AI.xml",
+      "length": 11815,
+      "name": "Healthie.AI.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.30.13.04.40/healthie.net.ai.4.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "health-check",
+    "healthchecks",
+    "monitoring",
+    "watchdog",
+    "uptime",
+    "observability",
+    "dotnet",
+    "pulse",
+    "ai",
+    "llm",
+    "diagnostics",
+    "rca"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

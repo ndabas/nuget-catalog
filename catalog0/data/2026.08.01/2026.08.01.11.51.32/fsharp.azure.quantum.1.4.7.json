@@ -1,0 +1,252 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Tuomas Hietanen",
+  "catalog:commitId": "8d95ce79-71fc-468a-96b1-f69de2c2ff77",
+  "catalog:commitTimeStamp": "2026-08-01T11:51:32.3666736Z",
+  "copyright": "Unlicense - Public Domain",
+  "created": "2026-08-01T11:48:35.083Z",
+  "description": "F# library for Azure Quantum with quantum-first optimization (Graph Coloring, TSP, MaxCut, Knapsack, Network Flow, Portfolio), Azure Quantum backend integration (IonQ, Rigetti, Quantinuum, Atom Computing), extensible circuit validation, local quantum simulation, QAOA with automatic parameter optimization (Nelder-Mead), OpenQASM 2.0 support, error mitigation techniques (ZNE, PEC, REM), Quantum Random Number Generation (QRNG), and educational quantum algorithms (Grover, QFT, Amplitude Amplification) with cloud backend execution. Native IQuantumBackend integration for IonQ, Rigetti, Quantinuum, Atom Computing, IQM and D-Wave, plus Pasqal neutral-atom analog hardware (via Pulser) and a neutral-atom analog programming model; additional platforms (IBM, Amazon Braket, Google Cirq) are targetable via OpenQASM 2.0 export/import.",
+  "iconFile": "logo.png",
+  "id": "FSharp.Azure.Quantum",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-01T11:51:11.12Z",
+  "licenseExpression": "Unlicense",
+  "licenseUrl": "https://licenses.nuget.org/Unlicense",
+  "listed": true,
+  "packageHash": "aYyvQIX6nJvnd5oasPJKr8tKshcHCIKhbUxGFQkH2AxP8r1v0jddKrQYSqFNGnVqQzltUJqTrBftj3MPMIQZPw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2873419,
+  "projectUrl": "https://github.com/thorium/FSharp.Azure.Quantum",
+  "published": "2026-08-01T11:48:35.083Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v1.4.7: Correctness release — second-pass audit (silently-wrong-results fixes + dependency updates)\n\nBREAKING CHANGES (vs 1.4.6):\n- QuantumClientConfig gained a required Location field (Azure region, e.g. \"eastus\") and Client.createConfig takes it as a new parameter. QuantumClient now targets the {location}.quantum.azure.com DATA-PLANE endpoint — the previous management.azure.com (ARM) base URL made every live job call fail 401/404 against the quantum-scoped bearer token\n- Amplitude encoding (FeatureMap.amplitudeEncoding) prepares the state with amplitude[i] = normalizedFeature[i] (state index = feature index). The previous construction was wrong for most inputs (skipped Gray-code CNOTs, wrong closing control, missing Gray reindexing of the multiplexed-RY angles) — kernels/VQC models trained on amplitude-encoded data should be retrained\n\nFIXED (silently wrong results):\n- CRX transpilation was the identity (X commutes with RX, so the RX-CNOT ladder cancelled) — now decomposed as H·CRZ(θ)·H; any transpiled circuit containing CRX was silently missing the gate\n- Amplitude amplification's reflection about the prepared state executed A;S0;A† (operator A†·S0·A) instead of A†;S0;A — correct only for self-inverse preparations such as plain Grover's H⊗n\n- HHL general (non-diagonal) path maps upper-half QPE register values to NEGATIVE eigenvalues (phase unwrap); a λ < 0 component was previously inverted as phaseScale − |λ|. Phase scale is now 4·maxEig (positive and negative eigenvalues in disjoint phase halves; costs one bit of QPE precision)\n- OpenQASM angle formatting in CircuitBuilder.toOpenQASM and QaoaCircuit.toOpenQasm uses InvariantCulture F10 (comma-decimal locales emitted \"rx(1,57)\" — invalid QASM submitted to paid hardware)\n- QuantumClient.GetResultsAsync downloads results from outputDataUri (blob SAS URL) — the job model never inlines outputData, so the previous code could not return results\n- SAS blob downloads (job results, Client + JobLifecycle) no longer carry the workspace bearer token: Azure Storage rejected it (401) and the token leaked to the storage host (AuthenticationHandler honors a per-request no-auth marker)\n- VQC regression models persist ValueRange (ValueRangeMin/Max in SerializableVQCModel) — reloaded models previously produced affinely-rescaled predictions\n\nFIXED (crashes / robustness):\n- Rate-limit exponential backoff overflowed Int32 after ~23 consecutive 429s (Random.Next(min > max) crashed the HTTP pipeline); backoff and job-poll delays now honor cancellation tokens\n- Sync ExecuteToState wrappers on the five cloud backends run via Task.Run — no more permanent deadlock when called from a UI thread (WPF/WinForms)\n- QAOA multi-start optimization no longer runs two extra objective evaluations (paid quantum jobs) per start for a log line, and only evaluates when a logger is attached\n- HttpResponseMessage/JsonDocument disposal in QuantumClient and the D-Wave SAPI backend (socket exhaustion under load)\n- Guards: correlation/covariance matrices over return series with no common dates; SMO training with a single sample; confusion matrix with test labels unseen at training; measurement standard deviation NaN from one-ulp negative variance; risk engine rejects SimulationPaths < 2 with a validation error\n\nUPDATED: FSharp.Core 10.1.302, Microsoft.Extensions.Logging 10.0.10, OpenTelemetry 1.17.0, Serilog 4.4.0\n\nv1.4.6: Correctness release — full-library audit (25 critical + ~35 high-severity fixes)\n\nBREAKING CHANGES (vs 1.4.5):\n- submitAndWaitForResultsAsync takes a trailing CancellationToken on IonQ/Rigetti/Quantinuum/AtomComputing/Pasqal backends (polling is now cancellable)\n- QaoaOptimizer.Optimizer.minimizeWithBounds takes tolerance and maxIterations parameters (config values are now honored; non-convergence returns best-so-far instead of throwing)\n- QuantumState gained a MeasurementHistogram case (and QuantumStateType.Sampled) — exhaustive matches must handle or wildcard it\n- MitigationTechnique.ReadoutErrorMitigation payload is now CalibrationMatrix option (no fabricated default calibration; missing calibration = pass-through)\n- QuantumGraphColoringSolver.solveClassical returns Result instead of throwing when colors run out\n- constraintSolver's searchSpace now means NUMBER OF VARIABLES (matching forSudokuStyle/forNQueens); numVariables × log2(domainSize) ≤ 16 qubits is enforced with a clear error\n- Knapsack/set-cover/drug-discovery QUBOs use slack variables for inequality constraints (NumVariables grew; decoders unchanged for item bits)\n- findCheapestBackend/recommendCostOptimization exclude subscription-priced backends (Quantinuum has no per-job USD price); an all-subscription backend list returns an Error / no recommendation\n- Business classification/regression builders REJECT feature counts above the qubit cap (8 binary / 5 predictive) with a clear error instead of failing every epoch (1.4.5) or silently truncating; reduce dimensionality first\n- MitigatedResult gained CorrectionApplied: false means the histogram passed through uncorrected (readout mitigation selected without calibration data)\n\nNEW: Wide cloud hardware support\n- QuantumState.MeasurementHistogram: sampled results with NO qubit-count limit (at most `shots` entries regardless of width)\n- Cloud result tiering everywhere (Braket + Azure backends): dense state ≤ 20 qubits, sparse state 21-31, measurement histogram beyond — Quantinuum H2 (56q), Rigetti Ankaa (~84q), IonQ Forte (36q) results are now usable (previously crashed above 20)\n\nHIGH-severity fixes (selection):\n- IonQ result parser accepts the documented Azure probability-histogram format (decimal state keys); live jobs no longer error\n- OpenQASM export defines rxx/ryy/rzz inline where qelib1/stdgates lack them; importer accepts the definitions\n- VQC gradients apply the chain rule (parameter-shift on circuit expectations × analytic loss derivative) — was a biased finite difference of the loss\n- VQC model serialization stores PauliFeatureMap/TwoLocal configuration losslessly (saveVQCModelWithConfigAsync); AutoML train/validation split is seeded-shuffled\n- Parametric VaR honors the requested confidence for Student-t/log-normal; Historical redirects to the empirical function; Asian options priced via the exact geometric-average distribution (was silently European)\n- Network-flow conservation penalty de-doubled and solutions validated (conservation/supply/demand) before selection; graph-coloring fixed colors enforced; scheduling objective (incl. MinimizeLateness) actually honored\n- Portfolio: negative-return zero-risk assets no longer rank first; quantum decode respects Min/MaxHolding; KnapsackBuilder solveClassicalDP is genuine dynamic programming\n- Shor draws a fresh random base per retry (N=33-style permanent failures fixed; gcd hits return the factor immediately)\n- QRNG local path uses a cryptographic RNG and documentation states it is CSPRNG, not quantum, randomness\n- Molecular CSV labels stay aligned; unlabeled drug screening errors instead of reporting every candidate as a hit; malformed SMILES fail at parse time\n- Cost recommendations exclude subscription-priced backends (Quantinuum HQC no longer 'cheapest' at $0); QAOA optimizer non-convergence returns best-so-far\n- Density-matrix simulator handles Reset/Barrier/Conditional with exact channels; strategy selection no longer allocates a 2^n×2^n placeholder (34 GB at 16 qubits)\n\nv1.4.6 critical fixes (earlier batch):\n- FIXED: Circuit adjoint (CircuitBuilder.reverse) now reverses gate order — corrects amplitude amplification reflections and quantum Monte Carlo Grover operators\n- FIXED: Multi-controlled X/Z decomposition for 3+ controls (correct ancilla-free recursion; the old \"borrowed ancilla\" ladder computed the wrong predicate) — affects Grover 4+ qubits and HHL eigenvalue inversion\n- FIXED: QUBO -> Ising conversion (fromQubo/fromQuboSparse) now includes cross-term linear contributions, and QuboExtraction is its exact inverse (D-Wave path optimized a corrupted objective before)\n- FIXED: Trotter-Suzuki Pauli decomposition qubit ordering (was bit-reversed vs circuit synthesis) and diagonal decomposition (correct I/Z expansion via Walsh-Hadamard transform); HHL controlled-evolution gate order; controlled evolution of identity terms emits the control phase\n- FIXED: Zero-noise extrapolation scaled circuits executed in reverse gate order\n- FIXED: Budget checks no longer skip the monthly limit when a daily warning fires\n- FIXED: Task scheduling — resource capacity encoded with non-negative overload penalties (equality penalty rewarded infeasible schedules); decoded schedules re-validated classically (one-hot, dependencies, resource capacity) with earliest-slot one-hot repair\n- FIXED: Grover constraint solver — searchSpace is the number of variables (matching forSudokuStyle/forNQueens), with a 16-qubit feasibility guard; mixed-radix decode no longer overflows\n- FIXED: Graph coloring greedy solver returns Result instead of throwing when colors run out (HybridSolver propagates)\n- FIXED: ML — amplitude-encoding Walsh-Hadamard butterfly (wrong state for 3+ qubits), 2-class VQC prediction (always returned first class), anomaly detection rebuilt on kernel centroid distance (one-class SVM was degenerate and could never learn); model loaders validate model kind (wrong-kind files no longer load as VQC-regression with null parameters)\n- FIXED: Invariant-culture number parsing in chemistry and market data (comma-decimal locales silently lost elements/atoms/returns)\n- FIXED: Parametric Expected Shortfall no longer overstated by factor z (~2.33x at 99%); risk engine errors on missing/malformed data instead of fabricating zeros or mock returns\n- FIXED: D-Wave direct backend speaks the documented SAPI v2 qp wire format (base64 lin/quad against solver topology; correct submit/poll/answer decoding); problems off the hardware graph error explicitly (minor-embedding not implemented)\n- NOTE: P(theta) transpiles to RZ(theta) on backends without a native phase gate (equal up to global phase)\n\nv1.4.3: Neutral-atom analog mode, CUDA-Q-style primitives, and new backends\n- NEW: Neutral-atom (Rydberg) analog programming - NeutralAtom module Trotterizes an analog program to gates; PasqalBackend (RydbergProgram -> Pulser JSON -> Azure Quantum) and QueraBackend (RydbergProgram -> Braket AHS JSON)\n- NEW: CUDA-Q-style execution primitives (Primitives: sample/observe/run/getState) over IQuantumBackend, plus CudaQBridge\n- NEW: ADAPT-VQE and ADAPT-QAOA adaptive-ansatz algorithms (AdaptVqe, AdaptQaoa)\n- NEW: IQM gate backend (IqmBackend)\n- NEW: Density-matrix noisy simulator backend (NoisyBackend)\n- NEW: Emulate-target mode (Emulation) - transpile, validate, then run locally for a cloud target\n- NEW: Companion FSharp.Azure.Quantum.Braket package isolates the AWS SDK dependency (QuEra neutral-atom analog and Braket gate QPUs)\n- IMPROVED: Business builders and ML model serialization refactors\n\nv1.4.2: Compilation/hardware tooling and weighted MAX-SAT\n- NEW: QubitRouting - inserts SWAPs so two-qubit gates respect device connectivity (CouplingMap: grid/linear/fromPairs); tracks logical-to-physical qubit permutation\n- NEW: CloudBackends.Factory.createRigettiRouted - Rigetti backend that auto-routes circuits for a device coupling map\n- NEW: QirEmitter - emit circuits as QIR base-profile textual LLVM IR for Azure Quantum submission\n- NEW: ResourceEstimation - logical (qubits/gates/T-count/depth) and physical (surface-code) resource estimates\n- NEW: NoiseModel - DeviceNoiseProfile with noise-aware routing (routeNoiseAware) and success-probability estimation\n- NEW: Weighted MAX-SAT - per-clause weights in QuantumSatSolver (clause / weightedClause); solution reports SatisfiedWeight/TotalWeight\n- IMPROVED: AutoML returns a typed TrainedModel discriminated union instead of obj (no unboxing in predict)\n- IMPROVED: Connected-component decomposition now unions sub-solutions for Vertex Cover and Maximum Matching\n- IMPROVED: Knapsack builder shares the solver item type (no duplicate record or field mapping)\n\nv1.4.1: Dependency updates\n- UPDATED: Azure.Identity 1.13.1 to 1.21.0\n- UPDATED: FSharp.Core to 10.1.301\n- UPDATED: Microsoft.Extensions.Logging to 10.0.9, Serilog to 4.3.1\n- UPDATED: OpenTelemetry to 1.16.0 (Exporter.Console 1.16.0, Instrumentation.Http 1.15.1)\n\nv1.3.10: Async backend refactoring\n- NEW: Task-based async APIs on IQuantumBackend (ExecuteToStateAsync, ApplyOperationAsync) with CancellationToken\n- NEW: Async QAOA execution helpers (executeQaoaCircuitAsync, executeQaoaWithGridSearchAsync, executeWithBudgetAsync)\n- NEW: Async ML pipeline (computeKernelAsync, computeKernelMatrixAsync, predictAsync, evaluateAsync)\n- NEW: Cloud backend factory (CloudBackendFactory) for Rigetti, IonQ, Quantinuum, AtomComputing\n- NEW: UnifiedBackend async helpers (applySequenceAsync, applyWithConversionAsync)\n- NEW: OpenQASM export async (exportToFileAsync, exportToFileWithConfigAsync)\n- IMPROVED: All async methods use task {} CE (not async {}), returning Task<T> for .NET interop\n- IMPROVED: Sync methods marked [Obsolete] where async alternatives exist\n- FIXED: 6 pre-existing .fsx script failures (MathNet dependency, syntax errors)\n- Status: Production-ready",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#repository",
+    "branch": "refs/heads/dev",
+    "commit": "f3b8399aee77c06b73a4eaaad26b8988fae7131a",
+    "type": "git",
+    "url": "https://github.com/thorium/FSharp.Azure.Quantum"
+  },
+  "title": "FSharp.Azure.Quantum",
+  "verbatimVersion": "1.4.7",
+  "version": "1.4.7",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/azure.identity",
+          "@type": "PackageDependency",
+          "id": "Azure.Identity",
+          "range": "[1.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.1.302, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/mathnet.numerics",
+          "@type": "PackageDependency",
+          "id": "MathNet.Numerics",
+          "range": "[5.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/mathnet.numerics.fsharp",
+          "@type": "PackageDependency",
+          "id": "MathNet.Numerics.FSharp",
+          "range": "[5.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/microsoft.azure.quantum.client",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Azure.Quantum.Client",
+          "range": "[0.28.302812, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/opentelemetry",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry",
+          "range": "[1.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/opentelemetry.exporter.console",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.Console",
+          "range": "[1.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/opentelemetry.instrumentation.http",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Http",
+          "range": "[1.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/serilog",
+          "@type": "PackageDependency",
+          "id": "Serilog",
+          "range": "[4.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/serilog.sinks.console",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Console",
+          "range": "[6.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#dependencygroup/net10.0/serilog.sinks.file",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.File",
+          "range": "[7.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#FSharp.Azure.Quantum.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7252,
+      "fullName": "FSharp.Azure.Quantum.nuspec",
+      "length": 16531,
+      "name": "FSharp.Azure.Quantum.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 40906,
+      "fullName": "README.md",
+      "length": 133140,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 491751,
+      "fullName": "logo.png",
+      "length": 518039,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#contentFiles/cs/net10.0/GlobalUsings.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 532,
+      "fullName": "contentFiles/cs/net10.0/GlobalUsings.cs",
+      "length": 1438,
+      "name": "GlobalUsings.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#lib/net10.0/FSharp.Azure.Quantum.Business.CSharp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25536,
+      "fullName": "lib/net10.0/FSharp.Azure.Quantum.Business.CSharp.dll",
+      "length": 59392,
+      "name": "FSharp.Azure.Quantum.Business.CSharp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#lib/net10.0/FSharp.Azure.Quantum.Business.CSharp.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 11760,
+      "fullName": "lib/net10.0/FSharp.Azure.Quantum.Business.CSharp.xml",
+      "length": 102951,
+      "name": "FSharp.Azure.Quantum.Business.CSharp.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#lib/net10.0/FSharp.Azure.Quantum.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1992897,
+      "fullName": "lib/net10.0/FSharp.Azure.Quantum.dll",
+      "length": 4962816,
+      "name": "FSharp.Azure.Quantum.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#lib/net10.0/FSharp.Azure.Quantum.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 286735,
+      "fullName": "lib/net10.0/FSharp.Azure.Quantum.xml",
+      "length": 1652620,
+      "name": "FSharp.Azure.Quantum.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.11.51.32/fsharp.azure.quantum.1.4.7.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "F#",
+    "FSharp",
+    "Quantum",
+    "Azure",
+    "Computing",
+    "Optimization",
+    "TSP",
+    "Portfolio",
+    "QAOA",
+    "Circuit"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

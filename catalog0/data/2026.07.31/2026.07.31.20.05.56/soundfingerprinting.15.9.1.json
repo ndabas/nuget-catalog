@@ -1,0 +1,184 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Sergiu Ciumac",
+  "catalog:commitId": "a1e8f8f8-83b9-4fd1-8a54-3a07e71cd806",
+  "catalog:commitTimeStamp": "2026-07-31T20:05:56.6766237Z",
+  "copyright": "Copyright © Sergiu Ciumac 2026",
+  "created": "2026-07-31T20:02:10.61Z",
+  "description": "SoundFingerprinting is a C# framework that implements an efficient algorithm of audio fingerprinting and identification. Designed for developers, enthusiasts, researchers in the fields of audio processing, data mining, digital signal processing.",
+  "iconFile": "soundfingerprinting.png",
+  "id": "SoundFingerprinting",
+  "isPrerelease": false,
+  "lastEdited": "2026-07-31T20:05:17.27Z",
+  "licenseFile": "license.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "h0lyDjTu+7I/gaSf9gQDadtHcxNYoRNBq9AqEi1cEJpUL59DmxUXDIEuueXkqaXONLMdp0NuP3a+KXmmmZQ/2g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 413473,
+  "projectUrl": "https://github.com/addictedcs/soundfingerprinting",
+  "published": "2026-07-31T20:02:10.61Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Version 15.9.1\n\t\t- Guard Origins and StreamId against protobuf null on deserialization\n\t\tVersion 15.9.0\n\t\t- Realtime result entry concatenation applies negative query offsets (chunk overlap) to `QuerySequenceNumber` in signed arithmetic. Previously the offset went through a negative double to uint cast (saturates to 0 on .NET Core, unspecified on .NET Framework), leaving stitched sequence numbers ahead of their match times by the overlap length.\n\t\t- `Coverage.Confidence` is capped at 1. A matched path overhanging the declared query/track length (e.g. the last fingerprint of a full-length match extending past the stored track duration) shrank the denominator below the numerator, yielding confidence above 1.\n\t\t- Fixed an out-of-bounds spectrum read: `UseDynamicLogBase = false` with `FrequencyRange.Max` at or near Nyquist produced a spectrum bin index one past the last stored bin, silently folding adjacent stack memory into fingerprints. The index now scales by N/2 (was N/2 + 1) and clamps at the last bin. Static log base bin boundaries above roughly Nyquist/2 shift down by one spectral bin, so fingerprints generated with static log base differ marginally from prior versions; the default dynamic log base configuration is unaffected.\n\t\t- Realtime query cancellation reaches sources supplied via `From(IAsyncEnumerable)` overloads (the token was silently discarded before the source enumerator; cancelling while awaiting the next chunk hung until the producer completed).\n\t\t- Realtime error handling: exceptions thrown by user callbacks no longer reroute already consumed hashes to `IOfflineStorage` (previously re-emitting the same results and double-counting query length); `ErrorCallback` is invoked after backoff registration and offline persistence, so the default rethrowing callback no longer loses hashes; cancellation during the error backoff delay delivers pending aggregated entries; the realtime samples aggregator survives source re-enumeration after transient errors, preserving the buffered chunk tail. Realtime sources must be hot (resume where they left off when re-enumerated) - documented on `IRealtimeSource`.\n\t\t- Performance: `Coverage` caches gap computations (previously recomputed on every property access, multiple times per candidate per query); `ExtractLogBins` accumulates raw magnitudes and scales once per bin; `TinyFingerprintSchema` is backed by ulong words with popcount (56x faster `TrueCounts`, 32x faster `AgreeOn`, 1.24x faster encoding, identical results).\n\t\t- Versioning: the release version is now a single `Version` property in src/Directory.Build.props from which package and assembly versions derive; assembly attributes are SDK-generated, so `AssemblyVersion` follows the package version exactly (the historical .100 revision suffix is gone) and `InformationalVersion` carries the source revision. New bump.sh automates version bumps and release notes.\n\t\tVersion 15.8.0\n\t\t- Realtime `MatchedAt` timestamps no longer land late by the chunk-overlap prefix. Realtime aggregation prepends the tail of the previous chunk (~one fingerprint length) for FFT continuity across chunk boundaries and records the prefix in `Hashes.TimeOffset`, but the offset was never applied when deriving the absolute match time — every realtime match spanning aggregated chunks was stamped late by the prefix length (~1.8s with default configurations). Match time is now derived as `RelativeTo + TimeOffset + QueryMatchStartsAt`.\n\t\t- `Hashes.WithRelativeTo` preserves `TimeOffset` (previously reset it to 0, silently destroying the prefix record when realtime chunks were re-stamped with their capture time — the root cause of the above on file-fed realtime pipelines, and of downstream consumers double-counting the overlap on the query axis).\n\t\t- `RelativeTo` is uniformly the caller's content stamp and is never amended internally: `RealtimeAudioSamplesAggregator` no longer back-shifts the aggregated chunk's `RelativeTo` by the prefix length; the prefix is carried exclusively in `TimeOffset` and applied at every calculation deriving absolute time (`EndsAt`, `GetRange`, `MergeWith` alignment, match-time derivation). Consumers reading `RelativeTo` of realtime-aggregated chunks now observe the chunk's own stamp; the fingerprinted window starts at `RelativeTo + TimeOffset`.\n\t\t- Producers cutting overlapping chunks should stamp `Hashes.TimeOffset` with the negative overlap length; a non-zero producer-stamped offset is authoritative.\n\t\tVersion 15.7.0\n\t\t- New `RealtimeQueryConfiguration.OngoingEntryStalenessCeiling` (default `double.MaxValue` — no behavior change unless set): caps the longest non-matching stretch, in seconds, an ongoing realtime result entry may bridge while waiting for the matched track to resume. Historically an ongoing entry was held until the query stream advanced past the track's remaining length, so a sporadic few-seconds match against a very long track stayed pending (accumulating query hashes) for the track's remaining duration, delaying downstream consumers that wait on entry completion. With a capped ceiling such entries complete shortly after they stop extending; entries whose coverage keeps growing are unaffected, and entries on tracks shorter than the ceiling are unaffected regardless of the value.\n\t\tVersion 15.6.0\n\t\t- Adjusting Insert method signature.\n\t\tVersion 15.5.1\n\t\t- Fixed head/tail bridges being refused when the boundary reals share a `QuerySequenceNumber` (a duplicate query-position match — one query sub-fingerprint matching several track sub-fingerprints). The endpoint slot period was derived from only the adjacent boundary pair, so `qSeqSpan = 0` yielded slope 0 and the whole leading/trailing edge was left unbridged (a genuine duplicate then wrongly reported not-full). The slope now anchors on the endpoint real and scans inward to the nearest real with a strictly distinct query sequence number.\n\t\t- `CompositeBridgingStrategy` now derives `MaxQueryRelativeBridge` / `MaxAbsoluteBridgeSeconds` as the maximum over its legs (was minimum), so composition is additive — adding a tighter leg (e.g. `SimilarProfileBridgingStrategy`) no longer starves the broadband/silence budget and drops interior + tail bridges.\n\t\t- `SimilarProfileBridgingStrategy` ΔSFM `tolerance` cap removed (was [0.05, 0.20], now (0, 1]); the caller controls bridging aggressiveness and is responsible for downstream false-merge safety.\n\t\tVersion 15.5.0\n\t\t- Adjusting spectral profile bridging\n\t\tVersion 15.4.0\n\t\t- Fixing synthetic candidates emissions\n\t\tVersion 15.3.0\n\t\t- `FingerprintConfiguration.ComputeSpectralProfile` now defaults to `true`: tracks fingerprinted with the default config carry the per-second spectral profile, so enabling an `SfmMatchStrategy` at query time works out of the box instead of silently no-op'ing against profile-less tracks (the profile can only be computed while the original media is in hand). Opt out with `ComputeSpectralProfile = false` for storage-constrained catalogs. Match results are unchanged unless a bridging strategy is set; query configs are unaffected (the `SfmMatchStrategy` setter cascade keeps the flag off for `NoBridgingStrategy`).\n\t\tVersion 15.2.0\n\t\t- `MatchedWith` now carries a `MatchedWithType` (`Fingerprint` | `Silence` | `BroadbandNoise` | `SimilarProfile`) recording whether a path entry is a real fingerprint hit or which spectral-bridging strategy synthesised it; bridging strategies stamp their synthetics and `Coverage.BridgedSeconds` is derived from it.\n\t\t- `TruePositivesFilter` gains `ignoreBridgedCoverage` (default `true`): when bridging is present the thresholds are re-evaluated against the fingerprint-only coverage, so a stepping-stone synthetic cannot inflate a weakly-anchored match over the bar (it would otherwise extend the span and tuck the gap under the permitted gap). No effect on coverages produced without bridging.\n\t\tVersion 15.1.0\n\t\t- `CompositeBridgingStrategy` now returns a canonical (deduplicated, ascending-by-QueryMatchAt) union, making it independent of inner-strategy order; previously the concatenated runs could violate the path-reconstruction cursor invariant and drop head/tail bridges depending on leg order.\n\t\t- Removed `CompositeBridgingStrategy.BroadbandOrSilent` (breaking). Compose explicitly, e.g. `new CompositeBridgingStrategy(new BroadbandNoiseBridgingStrategy(), SilentRegionBridgingStrategy.Default)`.\n\t\t- `ISfmMatchStrategy` gains `MaxQueryRelativeBridge` and `MaxAbsoluteBridgeSeconds`; the Phase-2 budget is now per-strategy `min(absolute, relative × queryLength)`, replacing the hidden universal 70% cap (now the configurable default). `CompositeBridgingStrategy` derives both as the minimum over its legs.\n\t\t- `SimilarProfileBridgingStrategy`'s dual cap unified onto these properties (internal truncation removed); it is now composable — its tight cap travels via the min-combine.\n\t\t- `BroadbandNoiseBridgingStrategy` agreement is now a windowed mean of |ΔSFM| over `AgreementWindowRadius` seconds (presence stays pointwise). Defaults changed to `SfmThreshold = 0.40`, `AgreementWindowRadius = 2` (window makes the lower floor safe); `sfmThreshold` range widened to [0.20, 0.90]. `AgreementWindowRadius = 0` reproduces the prior pointwise gate.\n\t\tVersion 15.0.9\n\t\t- Fixing Hashes.GetRange spectral profile slicing.\n\t\tVersion 15.0.1\n\t\t- Fixing diagonal-distance swap that breaks track monotonicity.\n\t\tVersion 15.0.0\n\t\t- SFM-based path bridging for second-tier ad-deduplication matching. Per-second spectral profile (SFM + power) captured during fingerprinting and used at path-reconstruction time to bridge regions where hashes don't match across recordings (e.g., Corona ad's broadband intro waves, Apple ad's silent brand-reveal moments).\n\t\t- New `FingerprintConfiguration.ComputeSpectralProfile` flag (default false). When set, per-Frame SFM/power is computed pre-normalization and attached to `Hashes.Properties` as a base64-encoded payload via `SpectralProfileCodecV1` (1 version byte + 1 reserved + interleaved sfm/power bytes per second).\n\t\t- New `QueryConfiguration.SfmMatchStrategy` property (default `NoBridgingStrategy`). Setter cascades to `FingerprintConfiguration.ComputeSpectralProfile` so the query-side flag stays in lock-step with the chosen strategy.\n\t\t- New `ISfmMatchStrategy` interface with built-in strategies: `NoBridgingStrategy`, `BroadbandNoiseBridgingStrategy` (per-second SFM > 0.70 on both sides + |Δ| < 0.15), `SilentRegionBridgingStrategy` (per-second power < 5% on both sides + |Δ| < 5%), `SimilarProfileBridgingStrategy` (|Δsfm| < 0.10, capped at min(10s, 0.30 × queryLength)).\n\t\t- New `CompositeBridgingStrategy` for safe union of bridging strategies; ships with `CompositeBridgingStrategy.BroadbandOrSilent` static covering both broadband and silent regions in one pass. Rejects `SimilarProfileBridgingStrategy` (its own per-strategy cap is load-bearing) and `NoBridgingStrategy` (empty bridge) at construction.\n\t\t- `MatchedWithExtensions.GetCoverages` extended with two-phase synthetic emission: Phase 1 per-strategy per-second candidates; Phase 2 skip-if-real, local bracket-interpolation for sequence numbers, universal 70% cumulative cap. Synthetics are structurally indistinguishable from real matches downstream — no `IsSynthetic` field, no wire-format change to `MatchedWith`.\n\t\t- `LCS.Coverage.BridgedSeconds` added as `[ProtoMember(6)]` — wire-visible cumulative count of seconds bridged by the active strategy.\n\t\t- New `SpectralProfileExtensions`: `TrackInfo.WithMetaFieldsFromHashes(Hashes)` (Insert-side auto-propagation), `Hashes.WithPropertiesFromTrack(TrackInfo)` and `Hashes.WithPropertiesFromMetaFields(IDictionary)` (Read-side auto-propagation). `InMemoryModelService.Insert` and `ReadHashesByTrackId` call these so consumers don't have to hand-plumb the profile between `Hashes.Properties` and `TrackInfo.MetaFields`.\n\t\t- `Hashes.Merge` propagates the spectral profile across contiguous splices (≤0.5s gap); one-sided profiles are dropped (cannot fabricate the missing half).\n\t\t- Removed `FingerprintConfiguration.TreatSilenceAsSignal` (breaking change). Silent regions are now bridged at the path layer via `SilentRegionBridgingStrategy` — symmetric (both sides must be silent at the same second), capped by the universal 70% bound, power-based (handles fade-outs and near-silence, not just hard zero). Consumers with `TreatSilenceAsSignal = true` should drop the line and configure `SilentRegionBridgingStrategy.Default` (or `CompositeBridgingStrategy.BroadbandOrSilent`) on the query side.\n\t\tVersion 14.1.0\n\t\t- Adding maxTotalDelay to RandomExponentialBackoffPolicy\n\t\tVersion 14.0.0\n\t\t- Fixing parallelisim inside FingerprintService\n\t\t- QueryPathReconstructionStrategy lookup optimization O(1) instead of O(n^2)\n\t\t- Improving HashConverter performance by using direct bit manipulation instead of BitConverter\n\t\tVersion 13.0.0\n\t\t- Upgrading .NET dependencies to .NET 10\n\t\tVersion 12.8.0\n\t\t- Adding TruePositives filter with optional parameters.\n\t\tVersion 12.6.0\n\t\t- Adding the ability to filter false positives results on configuration level (default is off).\n\t\tVersion 12.5.0\n\t\t- Adding default black frames configuration\n\t\tVersion 12.4.0\n\t\t- Model reference tracker has to generate contiguous sub-fingerprint ids for the same set of hashes.\n\t\tVersion 12.1.0\n\t\t- Upgrading .NET dependencies to .NET 9.0.0\n\t\tVersion 12.0.0\n\t\t- Accomodating SoundFingerprinting.Emy upgrade to FFmpeg 7.x\n\t\tVersion 11.4.0\n\t\t- Passing stream identifier to ongoing result callback.\n\t\tVersion 11.3.0\n\t\t- Adding IsFullMatch property to ResultEntry to indicate if the match is a duplicate match or not.\n\t\tVersion 11.1.0\n\t\t- Adjusting `IRealtimeResultEntryFilter` implementation classes, making sure we adhere to the same principles across both configuration options `ResultEntryFilter` and `OngoingResultEntryFilter`.\n\t\t- Adding `ChainedRealtimeEntryFilter` which replaces `OngoingRealtimeResultEntryFilter`.\n\t\t- `TrackMatchLengthEntryFilter` can be used as `TrackCoverageLengthEntryFilter(waitTillCompletion: false)`\n\t\t- `OngoingRealtimeResultEntryFilter(x, y)` can be chained as new ChainedRealtimeEntryFilter([new TrackRelativeCoverageEntryFilter(x, waitTillCompletion: false), new TrackCoverageLengthEntryFilter(y, waitTillCompletion: false)`])\n\t\t- `TrackRelativeCoverageLengthEntryFilter` can be used as `TrackRelativeCoverageEntryFilter(waitTillCompletion: true)`.\n\t\tVersion 11.0.0\n\t\t- Cleanup of the codebase, removing obsolete methods and classes.\n\t\t- Removed IAdvancedModelService.\n\t\t- Removed obsolete Query methods from IQueryService, leaving only QueryEfficient method.\n\t\t- Removed MediaType from QueryConfiguration, as it was not used anymore.\n\t\tVersion 10.4.0\n\t\t- Added new property MetaFields to AVQueryMatch, to be able to store additional metadata about the match.\n\t\tVersion 10.3.0\n\t\t- Improved the ability to reconstruct coverage from tone signal matches (silence can be treated as a tone signal).\n\t\t- Added a fingerprinting flag that allows including silence fingerprints in the generated result set.\n\t\tVersion 10\n\t\t- Accomodating SoundFingerprinting.Emy upgrade to FFmpeg 6.x\n\t\tVersion 9.5.0\n\t\t- Dependency upgrade to .NET 8\n\t\tVersion 9.4.2\n\t\t- Contains an important improvement to QueryCommand, allowing a much faster lookup for the use-cases when the track and the query are very long and almost identical.\n\t\t- The improvement is rooted in the idea of returning Candidates from the IModelService instead of list of SubFingerprints. This provided knowledge on which hashed fingerprint matched with the query.\n\t\t- To further improve the API design, methods related to the correct functioning of the QueryCommand were extracted into IQueryService interface (from which IModelService derives).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#repository",
+    "commit": "5555a4257096f0dc8ab2ddf5586ea2208511d44c",
+    "type": "git",
+    "url": "https://github.com/AddictedCS/soundfingerprinting"
+  },
+  "verbatimVersion": "15.9.1",
+  "version": "15.9.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#dependencygroup/.netstandard2.0/microsoft.bcl.asyncinterfaces",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.AsyncInterfaces",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#dependencygroup/.netstandard2.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#dependencygroup/.netstandard2.0/protobuf-net",
+          "@type": "PackageDependency",
+          "id": "protobuf-net",
+          "range": "[2.4.6, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#SoundFingerprinting.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6942,
+      "fullName": "SoundFingerprinting.nuspec",
+      "length": 17340,
+      "name": "SoundFingerprinting.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3425,
+      "fullName": "README.md",
+      "length": 8506,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#lib/netstandard2.0/SoundFingerprinting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 319340,
+      "fullName": "lib/netstandard2.0/SoundFingerprinting.dll",
+      "length": 667136,
+      "name": "SoundFingerprinting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#lib/netstandard2.0/SoundFingerprinting.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 52638,
+      "fullName": "lib/netstandard2.0/SoundFingerprinting.xml",
+      "length": 398778,
+      "name": "SoundFingerprinting.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#license.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 617,
+      "fullName": "license.txt",
+      "length": 1054,
+      "name": "license.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#soundfingerprinting.png",
+      "@type": "PackageEntry",
+      "compressedLength": 15136,
+      "fullName": "soundfingerprinting.png",
+      "length": 15634,
+      "name": "soundfingerprinting.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.07.31.20.05.56/soundfingerprinting.15.9.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Audio",
+    "Video",
+    "Identification",
+    "Fingerprinting",
+    "Digital",
+    "Signal",
+    "Processing",
+    "Music",
+    "Recognition",
+    "Data",
+    "Mining",
+    "Content",
+    "Sound",
+    "Shazam"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

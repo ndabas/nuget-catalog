@@ -1,0 +1,242 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "We-Amp",
+  "catalog:commitId": "4e4d2c3a-2292-4995-a668-af4d7d31bd68",
+  "catalog:commitTimeStamp": "2026-08-01T15:41:20.1896741Z",
+  "copyright": "Copyright (c) 2024-2026 We-Amp B.V. All rights reserved.",
+  "created": "2026-08-01T15:37:43.157Z",
+  "description": "Most ASP.NET Core users want WeAmp.PageSpeed.AspNetCore (the drop-in middleware), which pulls this package as a transitive dependency. This package is the low-level managed binding to the C++23 PageSpeed engine via P/Invoke — install it directly only if you're embedding the optimization library outside of an ASP.NET Core pipeline. Provides HTML transformation, critical CSS extraction, image classification, and high-performance caching.",
+  "iconFile": "icon.png",
+  "id": "WeAmp.PageSpeed",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-01T15:41:18.593Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "to7sOt1bEs096U/rm317n6XAOYhRiaDcWnyRdqfC7nOQcOZreZr+SYqQDbNEUHBScaCHpOn8NvDDYsym3t6Ssg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 101616,
+  "projectUrl": "https://modpagespeed.com/features/#aspnet-core",
+  "published": "2026-08-01T15:37:43.157Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "2.0.40: Fixed: two JavaScript minifier edge cases, matching the same fixes in mod_pagespeed 1.15. A line break before an arrow function's `=>` was dropped as expression continuation — ECMA-262 forbids a line terminator there, so the input was already a SyntaxError, but the minified output (`a = x\\n=> y` → `a=x=>y`) was VALID, silently turning a broken script into running code that masks the author's error; the line break is now preserved and invalid input is served as written. And an object or class-field literal whose generator method is followed by further members (`var o = { *m() {}, b: 2 };`) declined minification, so the whole file was served unminified; such files now minify normally. Fixed: several more cache-overwrite paths left a stale in-memory copy of the overwritten entry in place, the same class as the optimized-variant fix below. Most visibly: after a page's origin content was refreshed, a serving process could keep serving the pre-refresh version from its in-memory cache tier indefinitely, even though the refreshed version was in the cache. And after a revalidation confirmed a cached entry was still fresh, the in-memory copy kept its old timestamp, so that process revalidated the entry against origin on every subsequent request instead of serving it for its refreshed lifetime. Internal bookkeeping entries had the same gap, which could cause already-current work — such as llms.txt builds or image re-optimization — to be redone on every subsequent check after a refresh. All of these overwrite paths now invalidate the process's in-memory copy when the write completes. Fixed: writing a freshly optimized variant of a resource did not invalidate the in-memory cache tier's copy of the version it replaced. A process whose in-memory tier had captured the original bytes could keep serving the resource in its original form indefinitely, even though the optimized version was in the cache. The in-memory copy is now evicted when the write completes, so subsequent reads observe the optimized content. Fixed: optimized images ignored EXIF orientation. Portrait photos (EXIF Orientation 2-8, typical of phone cameras) were re-encoded with their stored, rotated pixels while the tag was stripped, so the served JPEG/WebP/AVIF rendered sideways or mirrored. The orientation is now baked into the pixels at decode time — every output format renders upright with no reliance on the tag surviving, and reported dimensions (including injected width/height attributes and viewport resizing) use the upright orientation. JPEG paths that cannot rewrite pixels (lossless recompression, oversized images) keep an accurate minimal orientation tag instead, so they continue to render upright; no other metadata is reintroduced. The fix is not retroactive: image variants cached before the upgrade keep their old (sideways) orientation until they expire, so purge or reset the cache to serve upright images immediately. Fixed: the CSS minifier's decimal optimization rewrote identifiers as if they were numbers. The rule that shortens `0.5` to `.5` fired wherever a `0` before a `.` was not preceded by a digit — including inside identifiers, where `0.5` is not a number: the class selector `.a0.5` was served as `.a.5`, `#id0.5` as `#id.5`, and the custom-element selector `a-0.5` as `a-.5`, silently restyling any page using such names. The strip now fires only at a number-token start: a `0` preceded by an identifier character (letter, digit, `_`, non-ASCII, or an escape), or by a `-` that itself continues a dashed identifier, is left untouched, while genuine numbers still minify (`0.5px` → `.5px`, `-0.5px` → `-.5px`). Fixed: the CSS minifier rewrote brace groups (`{...}`) nested inside declaration values. Its shorthand-collapse pass treated such a group as a nested block and re-emitted its contents: a leading or trailing `;` inside the group was deleted (`a{--z:{;x}}` served `a{--z:{x}}`, `a{--z:{L;}}` served `a{--z:{L}}`), and real longhand sequences inside custom-property values were collapsed into bogus shorthands (`--z:{padding-top:1px;...}` became `--z:{padding:1px}`). For custom properties this changes what `var()`/`getPropertyValue()` observe — valid-input corruption; ordinary values were rewritten the same way. The earlier trailing-semicolon trim had the same blind spot inside these groups. Both phases now leave brace groups inside declaration values byte-for-byte opaque; real nested blocks (`@media`, nested rulesets including `:pseudo`-starting selectors like `a{:hover{...}}`), the genuine trailing-`;` trim (`a{b:c;}` → `a{b:c}`), and real shorthand collapse are unaffected. One deliberate edge: nested rules with bare ident+pseudo preludes (`a{a:hover{...}}`) are preserved verbatim rather than collapsed — arguably the spec-correct treatment anyway, since CSS Nesting's relaxed parsing tries ident-starting preludes as declarations first. Fixed: three more CSS minifier correctness bugs in the same family. The declaration splitter in the longhand-to-shorthand pass treated a backslash-escaped `;` as a declaration terminator: `a{b:c\\;}` lost the escaped semicolon (served `a{b:c\\}`), and `a{m:\\;;--z:url(x)}` glued the escape into the next declaration name, silently swallowing an entire custom property — both change what is served for valid input, the latter also what `var(--z)`/`getPropertyValue()` observe. The same gap in the pass's top-level scan and brace matcher let an escaped quote open a phantom string (`a{b:c\\'d'e{x;}}`), misaligning block boundaries so string content was rewritten. Escapes outside string literals are now consumed as pairs in all of these scanners, like everywhere else in the minifier. Inside `calc()` and its siblings, space tightening around `*` and `/` could glue them into a `/*` comment token (`a{b:calc(1 / *2)}`), which a repeated optimization pass then honors as a real comment and truncates the stylesheet; the space between `/` and `*` (and the `*/` mirror) is now always kept. And the longhand-to-shorthand collapse accepted empty longhand values, so `{overflow-y:;overflow-x::}` collapsed to `{overflow:: }` with a trailing space no pass trims, converging one optimization pass late; empty values now refuse the collapse, as do values whose edge characters (`:`, `,`, `!`, …) would let a later pass trim the separator space the collapse emits (the same one-pass-late class; this also declines to collapse signed lengths like `+1px`, which were themselves one-pass-late). With these three, fuzzing's strict idempotence oracle has no known violations left on valid input. Fixed: the CSS minifier treated custom-property values as ordinary declarations in two more of its phases. The trailing-semicolon trim deleted `;` inside opaque values (`a{--x:{;}}` served `a{--x:{}}`), and the decimal optimizer rewrote numbers inside them — `:root{--x:0.5}` became `:root{--x:.5}`. Both are fixed: the trim now skips custom-value content but still removes the terminating semicolon (`a{--x:v;}` → `a{--x:v}`), and decimals inside custom-property values are left untouched. **Behavior note:** the decimal change is intentional — custom-property values are observed verbatim by `var()` and `getPropertyValue()`, so what is served for them is now byte-exact rather than minified. Escaped characters and braces inside parenthesized value groups are handled correctly, and detection of custom-property names no longer misfires across combinators. Fixed: the CSS minifier treated the contents of unquoted `url()` tokens as stylesheet structure in its later phases. Semicolons and braces are legal URL code points, but the trailing-semicolon trim deleted a `;` inside a url — `a{background:url(x;}y)}` served `url(x}y)` — and the longhand-to-shorthand pass could split a declaration mid-url and rewrite it into garbage (`padding-top:url(x;padding-right:1px);...` collapsed into a bogus `padding:` shorthand). Those phases now skip unquoted `url()` content verbatim, like the earlier phases already did. Fixed: the streaming CSS minifier corrupted stylesheets containing a backslash-escaped slash (`\\/`) outside string literals. Its first phase did not recognize backslash escapes in normal context — a gap left by an earlier fix that added escape handling to the second phase only — so `\\/` was misread as the start of a comment and everything up to the next `*/` (or end of input) was deleted. A valid stylesheet such as `a{--x:\\/*y*/;b:c}` lost its custom-property value, changing what `var(--x)` and `getPropertyValue()` observe. Escaped quotes suffered the mirror-image misparse (a phantom string), which also made repeated optimization passes collapse one trailing space per pass instead of converging in one. The same phase skew also let the second phase scan unquoted `url()` content as ordinary CSS, stripping spaces before operator characters (`url(a ;b)` lost its space). Repeated optimization also converged one pass late on custom properties whose value starts with a comment (`a{--x:/*c*/v;...}` gained a leading space that the next pass removed). Escapes are now consumed uniformly, both phases tokenize `url()` the same way, and comments before the first value token contribute nothing, so what is served is preserved and re-optimization converges in one pass. Fixed: the CSS minifier deleted an escaped space at the end of an unquoted `url()` token. Its trailing-space trims before the closing paren (and at end of input) popped whitespace without checking for a preceding backslash escape, so `a{background:url(x\\ )}` — an escaped space is a legal URL character — was emitted as `a{background:url(x\\)}`, changing the URL; the rebound `\\)` also made repeated optimization passes re-tokenize the url on the next pass. The trims now keep escaped whitespace, matching the guard the custom-property value trim already had. Changed: the HTML keyword table now recognizes the `data-pagespeed-srcset-url-hashes` attribute, completing the `HtmlName::Keyword` union with mod_pagespeed 1.15. Documents carrying that attribute now have it classified as a known keyword during parsing instead of an unrecognized name. No shipped filter rewrites on it, so what is served is unchanged; the two products' keyword enums are now identical. Fixed: the HTML parser never ran node destructors, so node data still owned at the end of a parse — attributes of elements deleted mid-parse, character data of dead nodes — leaked for the lifetime of the parser. The parser's node arena now tracks every allocated object and runs each node's destructor exactly once when the parse is cleared, releasing that memory. What is served is unchanged. Fixed: two per-parse memory leaks in the HTML parser. Adjacent character tokens merged by the parser's coalescing pass kept the merged-away token's text alive, and an element whose start tag was cut off by end of input (e.g. unterminated mid-attribute) never released its data; both buffers leaked outright because the parser's node arena frees memory in bulk without running destructors. The merged-away token now releases its text the moment it is retired, and a never-emitted element releases its data when the parse finishes. What is served is unchanged. Fixed: generators that yield object literals are minified again. A file containing `yield {…}` — or a same-line `await {…}` or `for (x of {…})` — was served in its original, unminified form: the minifier could not rule out that the braces opened a block rather than the operand, and declined the whole file. On a single line the braces can only be the operand, so such files are now fully minified. The genuinely ambiguous form — a line break between the keyword and the brace, where the two readings differ — is still declined and served unmodified, as before. Fixed: a class with a bare field directly before a generator method is no longer broken by minification. The line break after a bare field — `x` on its own line, followed by `*gen() {…}` — is what ends the field declaration; the minifier removed it, fusing the field and the generator method into one invalid declaration, so the minified script failed to parse where the original ran. The line break is now preserved. Static (`static x`), computed-name (`[expr]`), and private (`#x`) bare fields were affected the same way and are covered by the same fix. Fixed: the HTML parser classified doctypes with a substring heuristic that produced confidently wrong results on malformed input — any doctype whose text contained \"strict\" (even inside the system-identifier URL or in garbage) was treated as Strict, an \"xhtml\" substring flipped XHTML serialization behaviors on under `text/html`, and any unrecognized doctype defaulted to HTML 4 Transitional. Doctype classification now uses the exact-matching parser converged with mod_pagespeed 1.15: the tokens are compared against the known doctype spellings and anything unrecognized degrades to \"unknown\" instead of a guessed classification. FPI matching is ASCII case-insensitive (browsers sniff doctypes case-insensitively), and `<!DOCTYPE html SYSTEM \"about:legacy-compat\">` is now correctly classified as HTML5. Changed: the HTML parser's element nesting cap is now 512 (was 1024), unified with mod_pagespeed 1.15's limit. Pages nested deeper than the cap stop parsing at the cap and are passed through unrewritten. Real-world documents nest far below this bound. The trip is silent, exactly as in 1.15: the truncated parse is the observable signal and `HtmlParse::size_limit_exceeded()` stays reserved for the byte/token ceilings. Fixed: JSON resources served through the HTML parser's content-type table reported their canonical MIME type as `application/javascript`; it is now `application/json` (ported from mod_pagespeed 1.15). AVIF is now a recognized content type (`image/avif`, `.avif`), classified as an image for rewriting purposes. Fixed: the HTML lexer's `Restart()` error-recovery path trusted an internal invariant with only a debug-mode assertion; a release build that ever hit the violated invariant would attempt to resize a string to SIZE_MAX and abort. It now degrades gracefully (guard ported from mod_pagespeed 1.15). Changed: the HTML keyword tables now recognize the `allowfullscreen`, `decoding`, `dialog`, `fetchpriority`, `loading`, `picture`, and `playsinline` names, completing the union with mod_pagespeed 1.15's table. Fixed: the postfix `++`/`--` line-break fix below did not cover variables named `await` or `yield` (legal as ordinary names outside async and generator functions): the statement-separating line break after `await++`/`yield++` was still removed, so the two statements re-parsed as one and the script was served broken. Such line breaks are now preserved as well. Fixed: JavaScript minification could corrupt a script in which a line break separates a postfix `++`/`--` from a next statement that begins with an opening parenthesis, or with a leading-dot number such as `.5`. That line break is what keeps the two statements apart — without it the code re-parses as a call or member access on the value just incremented, which the browser rejects as a syntax error — but the minifier removed it and reported success, so the script was served broken with nothing logged. Such line breaks are now preserved (including when carried inside a comment). Line breaks that a following binary operator genuinely continues are still removed, and already-correct minified output is byte-for-byte unchanged. Fixed: JavaScript minification declined any file containing modern syntax and served it unminified instead — class declarations and class bodies, generator functions, object-literal method shorthand (`{ foo() {} }`), getters and setters, `import` and `export` declarations, dynamic `import()`, and private class fields. Together with the destructuring fix below, that covers most of what current bundlers emit, so a modern site could have the majority of its JavaScript served at full size with nothing reported as an error. Affected files now minify; measured against modern ES module bundles, the saving roughly doubled. Text inside template-literal interpolations (`${ ... }`) is now minified as well, where it was previously left as written. Files that contain none of these constructs minify to exactly the same bytes as before, and the minifier still declines and serves the original wherever a construct is genuinely ambiguous rather than risk altering the script. Fixed: critical-CSS inlining could omit stylesheet rules that are actually used above the fold — most visibly state-conditional rules such as dark-mode variants — producing a brief flash of unstyled content on first paint. Critical CSS is now derived against the page's actual DOM, preserving `@layer` and `@media` structure, and inlining is skipped when too many of the rules the page uses would be missing. Fixed: JavaScript minification could corrupt the script it served when the source contained an IE conditional-compilation comment (`/*@ ... @*/`), which the minifier preserves by design. Where such a comment directly followed a division operator or a regular-expression literal, dropping the whitespace between them ran the two together into what the browser then read as the opening of a comment, silently discarding the rest of the line. The script was served corrupted with nothing reported. Retained conditional-compilation comments are now kept separated from their neighbours whenever running them together would change how the script parses, and a line break that automatic semicolon insertion depends on is preserved across such a comment. Scripts that present no such hazard are minified exactly as before. Fixed: JavaScript minification declined any file containing a destructuring declaration — `const {a, b} = obj`, `let [x, y] = arr`, and their nested, computed-key, default, rest, and `for-of` forms — and served that file unminified instead. Current bundlers emit these patterns routinely, so a modern site could have a substantial share of its JavaScript served at full size with nothing reported as an error. Affected files now minify. Behavior is unchanged wherever a construct is genuinely ambiguous: the minifier still declines and serves the original rather than risk altering the script.\nSee CHANGELOG.md in the repository for earlier releases.",
+  "requireLicenseAcceptance": true,
+  "title": "WeAmp.PageSpeed — PageSpeed Engine .NET Bindings",
+  "verbatimVersion": "2.0.40",
+  "version": "2.0.40",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#dependencygroup/net10.0/weamp.pagespeed.nativeassets.linux",
+          "@type": "PackageDependency",
+          "id": "WeAmp.PageSpeed.NativeAssets.Linux",
+          "range": "[2.0.40, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#dependencygroup/net10.0/weamp.pagespeed.nativeassets.windows",
+          "@type": "PackageDependency",
+          "id": "WeAmp.PageSpeed.NativeAssets.Windows",
+          "range": "[2.0.40, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#dependencygroup/net10.0/weamp.pagespeed.nativeassets.macos",
+          "@type": "PackageDependency",
+          "id": "WeAmp.PageSpeed.NativeAssets.macOS",
+          "range": "[2.0.40, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#dependencygroup/net8.0/weamp.pagespeed.nativeassets.linux",
+          "@type": "PackageDependency",
+          "id": "WeAmp.PageSpeed.NativeAssets.Linux",
+          "range": "[2.0.40, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#dependencygroup/net8.0/weamp.pagespeed.nativeassets.windows",
+          "@type": "PackageDependency",
+          "id": "WeAmp.PageSpeed.NativeAssets.Windows",
+          "range": "[2.0.40, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#dependencygroup/net8.0/weamp.pagespeed.nativeassets.macos",
+          "@type": "PackageDependency",
+          "id": "WeAmp.PageSpeed.NativeAssets.macOS",
+          "range": "[2.0.40, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#WeAmp.PageSpeed.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7979,
+      "fullName": "WeAmp.PageSpeed.nuspec",
+      "length": 20583,
+      "name": "WeAmp.PageSpeed.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 5246,
+      "fullName": "LICENSE",
+      "length": 15434,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#NOTICE",
+      "@type": "PackageEntry",
+      "compressedLength": 314,
+      "fullName": "NOTICE",
+      "length": 555,
+      "name": "NOTICE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5040,
+      "fullName": "README.md",
+      "length": 14184,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#THIRD-PARTY-NOTICES",
+      "@type": "PackageEntry",
+      "compressedLength": 2837,
+      "fullName": "THIRD-PARTY-NOTICES",
+      "length": 11552,
+      "name": "THIRD-PARTY-NOTICES"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 8370,
+      "fullName": "icon.png",
+      "length": 8500,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#lib/net10.0/WeAmp.PageSpeed.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23501,
+      "fullName": "lib/net10.0/WeAmp.PageSpeed.dll",
+      "length": 62976,
+      "name": "WeAmp.PageSpeed.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#lib/net10.0/WeAmp.PageSpeed.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4578,
+      "fullName": "lib/net10.0/WeAmp.PageSpeed.xml",
+      "length": 18509,
+      "name": "WeAmp.PageSpeed.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#lib/net8.0/WeAmp.PageSpeed.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23205,
+      "fullName": "lib/net8.0/WeAmp.PageSpeed.dll",
+      "length": 62464,
+      "name": "WeAmp.PageSpeed.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#lib/net8.0/WeAmp.PageSpeed.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4578,
+      "fullName": "lib/net8.0/WeAmp.PageSpeed.xml",
+      "length": 18509,
+      "name": "WeAmp.PageSpeed.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.01.15.41.20/weamp.pagespeed.2.0.40.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12987,
+      "fullName": ".signature.p7s",
+      "length": 12987,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "pagespeed",
+    "mod-pagespeed",
+    "mod_pagespeed",
+    "aspnetcore",
+    "web-performance",
+    "core-web-vitals",
+    "web-vitals",
+    "lcp",
+    "inp",
+    "cls",
+    "webp",
+    "avif",
+    "image-optimization",
+    "critical-css",
+    "lazy-loading",
+    "lighthouse",
+    "css",
+    "minification",
+    "weamp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

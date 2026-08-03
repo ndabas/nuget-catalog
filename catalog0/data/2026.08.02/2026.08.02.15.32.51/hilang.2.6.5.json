@@ -1,0 +1,219 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Stephen Channell",
+  "catalog:commitId": "aa8ecf3d-9cbd-4b0e-9421-695e81042f76",
+  "catalog:commitTimeStamp": "2026-08-02T15:32:51.9624791Z",
+  "copyright": "Cepheis Ltd (C) 2023, 2024, 2025, 2026",
+  "created": "2026-08-02T15:29:07.467Z",
+  "description": "HiLang is the AOT compiler for Hiperspace objects",
+  "iconFile": "Hiper.png",
+  "id": "HiLang",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-02T15:32:43.96Z",
+  "licenseFile": "licence.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "G8PhHDsQwDMEGZxaQqVboL74XpQX5qoi+P1Iyu6oZzc89oYYViG2W095dw23mEJGTJwOHQ5Fa1ThPzRsQco85g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2059132,
+  "projectUrl": "https://www.cepheis.com/hiperspace/hilang",
+  "published": "2026-08-02T15:29:07.467Z",
+  "readmeFile": "readme.md",
+  "releaseNotes": "https://www.cepheis.com/hiperspace/20260802\n# Overview\nThis release enhances the support for alternate indexes to include nested values and handling of unique references to other entities.\n\nThis enhancement removes the need to define additional element values to support view access.\n\n---\n\n## Alternate Index\nThe normal/**best** way to define an index is to include an access path.  The following *model* defines a Customer and Account ***and*** implicitly an alternate index for navigation from Customer to all accounts.\n```\nentity Customer (Id : Int32){Name : String}[Accounts : Account (Customer = this)];\nentity Account (Id : Int32){Customer : Customer};\n```\nThe `@AlternateIndex` property of a *key*/*value* allows for indexes to be created where it is not possible to define an access path (e.g. to `segment` or `aspect` that may have multiple implementations.  If Account is instead defined as a *segment*, it would not be possible to define an access path from `Book` to `Account` since the segment could be defined for any number of *elements*.\n```\nentity Customer = Node ()(Id : Int32) {Name : String} [Accounts : Account, TypeName = \"Customer\"];\nsegment Account = Node(), Edge() (Id : Int32) {Name : String, @AlternateIndex Book : Book} [TypeName = \"Account\", From = Book, To = this];\nentity Book = Node() (Id : Int32) {Name : String}[TypeName = \"Book\"];\n```\nWhen `Book` is viewed as a *graph* `Node`, it has a `Froms` collection of `Edge` that includes all *Accounts* that refer to the `Book`.  `@AlternateIndex` creates an access path to `Account` from `Book`.\n\n### ISO20022\n\n[ISO20022.Static.BranchAndFinancialInstitution](https://github.com/channell/Hiperspace.ISO20022/blob/291d6bb1f03bc6925d31b702ccc53986a4217903/Static.hilang#L498) includes a nested value `ISO20022.Static.FinancialInstitution` that could be a *Bank*, a *LegalEntity* or both.\n```\nentity ISO20022.Static.BranchAndFinancialInstitution \n    = Node (Name = FinInstnId.Nm, SKey = SKey, TypeName = \"ISO20022.BranchAndFinancialInstitution\")\n    , ISO20022.Edges \n        ( From = this\n        , To = Bank\n        , Name = BankName\n        , FromTypeName = \"BranchAndFinancialInstitution-Bank\"\n        , ToTypeName =  \"Bank-BranchAndFinancialInstitution\"\n        )\n(\n    @XmlElement BrnchId            : ISO20022.Static.BranchData,\n    @XmlElement FinInstnId         : ISO20022.Static.FinancialInstitution,\n)\n[\n    @XmlIgnore, JsonIgnore \n    Bank                           : ISO20022.Static.Bank (AnyBIC = FinInstnId.BICFI),\n]  \n```\nThis release adds the option to include `@AlternateIndex` for `ISO20022.Static.FinancialInstitution.BICFI` and have an index on every *entity/segment/aspect* that includes the `FinancialInstitution` reference.  When `ISO20022.Static.Bank` is viewed as a graph `Node` it will include a *edges* to and from every `BranchAndFinancialInstitution` that referenes it.\n\n---\n\n## Unique Reference\nWhen an *element* has an extent reference to another *element* it is normally a **set**, in the top example `Customer.Accounts` is a set because any number of `Account` could refer to `Customer`, but if the parameter to the reference is the same as key of the referenced *element* it is included as **single** since it will never have more than one value. When an *element* includes a reference to an `aspect` (single value inheriting the owner’s key) the **single** value behaves like a nested value:\n* Reading the `Value` does a lazy lookup from the `SubSpace` cache, or from the underlying `HiperSpace`\n* Setting the `Value` copies the *owner* key to the aspect transparently to behave like a value but stored seperately.\n\nThis release add the ability set foreign references in the same way as `aspect`, but instead of binding the *owner* of the aspect, the parameter fields in the referencing element are updated.\n\nFor the ISO20022 example above the code `var aBranch = new BranchAndFinancialInstitution { Bank = goldmanSachs };` will assign `goldmanSachs.AnyBIC` value to `aBranch.FinInstnId.BICFI` since that is semantically equvilent to `var aBranch = new BranchAndFinancialInstitution { FinInstnId = new ISO20022.Static.FinancialInstitution { BICFI = goldmanSachs }};`\n\n---\n# Worked Example\nThe [ISO20022](https://github.com/channell/Hiperspace.ISO20022/blob/main/Static.hilang) includes the defintion of **Party** that can *optionally* reference *a Legal Entity*, *a Bank* or *both*, in addtion to generic *person* nand *branch* information.  The entity can be *viewed* as a `Node` in graph (*with the `TypeName` \"ISO20022.Party\"*) **and** up to four `Edge`:\n* **Party-Bank** (*if `OrgId.AnyBIC` has a value*) - via Party Key\n* **Bank-Party** (*if `OrgId.AnyBIC` has a value*) - via Party AnyBIC index\n* **Party-LegalEntity** (*if `OrgId.LEI` has a value*) - via Party Key\n* **LegalEntity-Party** (*if `OrgId.LEI` has a value*) - via Party LEI index\n\nif we query `SELECT node, edge.To AS Party FROM Nodes AS node, n.Tos /*implicit join*/ AS edge WHERE node.Name = 'Goldman Sachs' AND edge.TypeName = 'Bank-Party';` will return a result set of all *parties* that participate in an ISO20022 message for the Bank with the name Goldman Sachs. The query plan will perform:\n\n1. Create a template `Node` with `Name` \"Goldman Sachs\"\n2. Query  `SetSpace<Node>` for all `Node` that has a index on Name (*including `node.TypeName = 'ISO20022.Bank'` would limit the query to `SetSpace<Bank>`*)\n3. Create a template `Bank` with  `Name` \"Goldman Sachs\"\n4. Query `SetSpace<Bank>` using the Bank Name index\n3. Create a template `Edge` with `From` set to the `Node` object for \"Goldman Sachs\" and TypeName 'Bank-Party' \n4. Query `SetSpace<edge>` (*since edge TypeName is set, only `SetSpace<Party>` is searched*)\n5. Create a template `Party` with `Bank` set to \"Goldman Sachs\" (*the `binder` code adds an `OrgId` value, and set `OrgId.AnyBIC` to `Bank.AnyBIC`*)\n6. Query `SetSpace<Party>` using the Party AnyBIC index \n7. Project a data frame of Node and Party\n \nThe following LINQ query will traverse the graph of nodes through all edges (upto a length 100) to find CreditTransferTransaction associated with \"Goldman Sachs\":\n```\nfrom node in space.Nodes \nwhere node.Name == \"Goldman Sachs\" \nlet transfer = node.HiperEdges(\"*\", 100, new HashSet<string> {\"Fact:ISO20022.Cube.CreditTransferTransaction\"}\nselect transfer;\n```\nFor **Hiperspace.DB** the graph search will use GPU parallel search, otherwise a parallel pipeline is used.\n\n---\n\n## Referenced libraries\nExternal references have been updated to the latest version",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#repository",
+    "commit": "dcd8a53a4413f3f79d05e9fadb16a8fa4fcc9a75",
+    "type": "git"
+  },
+  "requireLicenseAcceptance": true,
+  "title": "Hiperspace language compiler",
+  "verbatimVersion": "2.6.5",
+  "version": "2.6.5",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#dependencygroup/.netstandard2.0/hiperspace",
+          "@type": "PackageDependency",
+          "id": "Hiperspace",
+          "range": "[2.6.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#dependencygroup/.netstandard2.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.1.302, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#dependencygroup/.netstandard2.0/fslexyacc",
+          "@type": "PackageDependency",
+          "id": "FsLexYacc",
+          "range": "[11.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#dependencygroup/.netstandard2.0/fslexyacc.runtime",
+          "@type": "PackageDependency",
+          "id": "FsLexYacc.Runtime",
+          "range": "[11.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#dependencygroup/.netstandard2.0/microsoft.codeanalysis.csharp",
+          "@type": "PackageDependency",
+          "id": "Microsoft.CodeAnalysis.CSharp",
+          "range": "[5.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#dependencygroup/.netstandard2.0/microsoft.bcl.hashcode",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.HashCode",
+          "range": "[6.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#HiLang.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3192,
+      "fullName": "HiLang.nuspec",
+      "length": 8160,
+      "name": "HiLang.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#Hiper.png",
+      "@type": "PackageEntry",
+      "compressedLength": 6176,
+      "fullName": "Hiper.png",
+      "length": 6209,
+      "name": "Hiper.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#licence.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 1652,
+      "fullName": "licence.txt",
+      "length": 4060,
+      "name": "licence.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#readme.md",
+      "@type": "PackageEntry",
+      "compressedLength": 155,
+      "fullName": "readme.md",
+      "length": 212,
+      "name": "readme.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#analyzers/dotnet/cs/FSharp.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1133793,
+      "fullName": "analyzers/dotnet/cs/FSharp.Core.dll",
+      "length": 2401576,
+      "name": "FSharp.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#analyzers/dotnet/cs/FsLexYacc.Runtime.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 36935,
+      "fullName": "analyzers/dotnet/cs/FsLexYacc.Runtime.dll",
+      "length": 86016,
+      "name": "FsLexYacc.Runtime.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#analyzers/dotnet/cs/HiLang.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 420164,
+      "fullName": "analyzers/dotnet/cs/HiLang.dll",
+      "length": 1544192,
+      "name": "HiLang.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#analyzers/dotnet/cs/Hiperspace.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19353,
+      "fullName": "analyzers/dotnet/cs/Hiperspace.dll",
+      "length": 45568,
+      "name": "Hiperspace.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#lib/netstandard2.0/HiLang.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 420164,
+      "fullName": "lib/netstandard2.0/HiLang.dll",
+      "length": 1544192,
+      "name": "HiLang.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#lib/netstandard2.0/HiLang.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1829,
+      "fullName": "lib/netstandard2.0/HiLang.xml",
+      "length": 9750,
+      "name": "HiLang.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.02.15.32.51/hilang.2.6.5.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

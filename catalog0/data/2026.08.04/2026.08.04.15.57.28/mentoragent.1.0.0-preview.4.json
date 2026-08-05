@@ -1,0 +1,322 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Antonio Macrì",
+  "catalog:commitId": "ce2f8818-eda6-43f5-8d8b-3b36026fae56",
+  "catalog:commitTimeStamp": "2026-08-04T15:57:28.7535599Z",
+  "created": "2026-08-04T15:54:08.25Z",
+  "description": "A Blazor Razor Class Library that adds an AI-powered floating chat assistant to any Blazor application, built on Microsoft Agent Framework. Supports multi-level agent orchestration (tools, handoff, group chat), page navigation, UI actions, contextual memory, streaming, voice, and security — all with zero boilerplate.",
+  "iconFile": "IconMA.png",
+  "id": "MentorAgent",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-04T15:57:13.18Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "jtP4k0fmPv8XONHAS8lQldmQyBjF7iJc542YHpxMggMxo1QtsdFD11JiTbG968mO+8CtihMZzZ4yShM5BRxFhQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 274883,
+  "published": "2026-08-04T15:54:08.25Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.0-preview.4\n\n\t\t=== Provider-hosted tools ===================================================\n\t\t- NEW — options.HostedTools lets the model provider run web search, a sandboxed code interpreter, file search, image generation and remote MCP calls on its own infrastructure: nothing to implement and nothing executed on your servers. Enable the ones you want: MentorHostedTools.WebSearch | CodeInterpreter | FileSearch | ImageGeneration | HostedMcp. Fail-closed — file search is skipped with a warning unless FileSearchVectorStoreIds is set, hosted MCP unless HostedMcpServers is. Availability is a PROVIDER capability, not a MentorAgent one: the Azure OpenAI / OpenAI Responses client and Foundry support the full set, the Chat Completions client supports web search only. The enabled set is logged at startup so a rejected call is easy to diagnose. Because these calls happen on the provider, they never pass through the function-calling middleware: RequiredRoles, RequiresConfirmation and per-tool metrics do not apply to them. The exception is hosted MCP, where the provider itself can pause for approval via MentorHostedMcpServer.RequireApproval and the request arrives as a normal ToolApprovalRequestContent.\n\t\t- NEW — options.ShowHostedToolActivity (default true) reports provider-side work through the channels the widget already has: \"Searching the web…\" / \"Running code…\" / \"Generating the image…\" in the action-feedback line, pages cited by web search as citation chips (the panel RAG already uses), generated images attached inline to the message, and one Debug log line per call — the only trace these calls leave, since they never reach the middleware or the metrics.\n\t\t- NEW — options.HostedImageModel and options.HostedImageSize configure image generation. Size (WIDTHxHEIGHT, e.g. \"1024x1024\") is what the image is billed on, so it is better chosen than inherited; an unparsable value is ignored with a warning rather than throwing at startup. ⚠️ On AZURE OpenAI the model name alone is not enough: Azure resolves the image deployment from the x-ms-oai-image-generation-deployment REQUEST HEADER and otherwise answers \"imagegen deployment must be provided through header\". MentorAgent is handed an already-built IChatClient and cannot add the header — attach it as a PipelinePolicy where you construct the AzureOpenAIClient (a ~15-line policy; see Infrastructure/ImageDeploymentHeaderPolicy.cs in the samples). The requirement is restated in a startup log line whenever image generation is on.\n\t\t- NEW — the enabled hosted tools are listed in the coordinator's system prompt. Without this a coordinator holding a long list of application actions, and instructed never to invent capabilities, answers from memory instead of searching or running code. Costs a handful of tokens and only when hosted tools are on.\n\t\t- NEW — the active hosted-tool set is published to remote clients so a capability badge no longer has to be mirrored by hand: IMentorStateService.OnHostedToolsDeclared, raised from the HostedToolsDeclared event, and ChatWidget prefers it over its local MentorWidgetOptions.HostedTools. A hand-kept copy drifts silently — the badge then claims tools the server dropped, or hides ones it gained.\n\n\t\t=== Keeping the expensive tools from firing when they are not needed =========\n\t\t- NEW — options.FilterHostedTools (default true) puts hosted tools through the semantic tool filter, declaring web search / code interpreter / file search / image generation / hosted MCP only on turns whose message is relevant to them instead of on every message. They were the ONE group the filter never touched — not being AIFunctions they carry no description to embed — so the cheap application tools were trimmed on every call while the expensive ones went through untouched (a web search is billed per call; a file-search turn measured 8249 input tokens against 2870 for a plain one). Descriptions come from an internal catalogue. options.HostedToolFilterMinScore is their own threshold, defaulting to 0.15 — deliberately LOWER than ToolFilterMinScore rather than inherited from it: hosted tools are matched through long English descriptions while your actions carry short descriptions in the user's language, so the two populations score on different scales and one threshold mis-fires on the other. Measured on real turns, an image request scored web_search 0.04-0.07, code_interpreter 0.05-0.08 and image_generation 0.29-0.35: at 0.35 the verdict flipped between two rewordings of the same request, at 0.15 it is stable and the irrelevant tools are still dropped. Every score is logged at Debug so the threshold can be tuned from real traffic rather than guessed.\n\t\t- NEW — options.HostedToolDomainCheck gates hosted tools on whether the message concerns THIS APPLICATION at all, which is a different question from whether it needs a given tool: \"draw me a dog\" scores high against the image tool because it genuinely is an image request, and is nonsense for an e-commerce assistant that pays for the picture anyway. A small model is asked once per turn, and ONLY when a hosted tool has already passed relevance filtering — so ordinary conversation costs nothing and a couple of hundred tokens are spent exactly where a per-call web search or a generated image was about to be. Scope text is derived from AppName + AppDescription + page names, or set options.HostedToolDomainScope; options.HostedToolDomainClassifier replaces the model call with your own predicate (an existing intent service, a per-user policy, or simply to make the check free). Fails open on error or an unexpected answer. NOTE this is deliberately NOT embedding similarity: raw cosine has no stable zero point — measured on a real turn, \"genera immagine di un cane\" scored 0.398 against a shop's page names, high because both were short phrases in the same language rather than because they were related, and the same request moved from 0.290 to 0.352 across a 0.35 threshold on a one-word rewording. Embeddings are kept where they do discriminate, which is per-tool relevance on that same turn.\n\t\t- NEW — options.MaxHostedToolCallsPerSession caps hosted-tool calls per session (0 = unlimited); once spent they stop being declared. Complementary to the filter, not an alternative: relevance scoring is probabilistic and lowers how often an expensive tool fires on a message that did not need it, while only a counter puts a ceiling on a session. FAIL-OPEN by design: with tool filtering disabled or no EmbeddingGenerator configured, nothing is filtered and hosted tools keep firing — with an explicit startup warning naming the options being ignored. Losing a capability because a model was not configured is worse than costing more than expected, and there is deliberately no keyword fallback.\n\t\t- Fix (SEVERE — two cost controls were silently inert) — hosted tools were set aside for gating only when FilterHostedTools was on, so turning relevance filtering off also disabled HostedToolDomainCheck and MaxHostedToolCallsPerSession while both still reported as enabled. The partition now triggers on any of the three. The budget is also evaluated after relevance scoring rather than before it, so it withholds (and reports) only when the user actually asked for something a hosted tool would have served — and an exhausted budget no longer pays for a domain-classifier call.\n\t\t- Fix — a hosted MCP server was keyed as \"hosted:mcp:mcp\". HostedMcpServerTool.Name is the tool KIND, identical for every server; the configured label is ServerName. Two remote servers would have collapsed onto one key and shared a single embedding, and the embedded text lost the only word saying what the server was about. Now keyed and described by ServerName.\n\n\t\t=== Withholding a tool without telling the model makes it fabricate =========\n\t\t- Fix — when a hosted tool was withheld for a turn the model did not know, and filled the gap by inventing: an image request came back as a fabricated stock-photo URL introduced as \"the image I created\" — a lie to the user and someone else's licensed content. The system prompt is built once while the tool list is decided per turn, so a block announcing \"you can generate images\" could contradict the tools actually supplied. The hosted-tools block now states that the list describes what is CONFIGURED rather than what is available now, that a capability may be used only when its tool is present in the current turn, and that a missing one must be reported plainly and NEVER faked.\n\t\t- Fix (the same failure again — the prompt rule above was not enough) — with the domain check correctly withholding the image tool, the next run still answered \"Vado subito a creare l'immagine!\" followed by an invented link. A general anti-fabrication paragraph loses against an explicit capability list sitting hundreds of tokens earlier in the same static prompt. MentorAgent now emits a PER-REQUEST notice whenever it withholds a hosted tool — naming the reason (outside this application's scope / session limit reached) and requiring a one-sentence refusal with no substituted result — and the same request then answers \"In questo momento non posso generare immagini, ma posso aiutarti con…\". The notice travels in ChatOptions.Instructions rather than as an extra system message on purpose: under UseServiceManagedHistory a message is STORED in the conversation, so \"image generation is unavailable\" would silently follow the user into every later turn. It is APPENDED to the agent's instructions, never substituted, or the turn would lose its persona, security block and page list. Nothing is sent on turns where nothing was withheld, so ordinary conversation keeps its cached prompt prefix. Covered by regression tests.\n\n\t\t=== Hosted-tool diagnostics =================================================\n\t\t- Fix — hosted file search showed no activity and no sources. Microsoft.Extensions.AI 10.6.0 has no content type for it: its call and result arrive as the plain ToolCallContent/ToolResultContent, and the documents it matched come back as CitationAnnotations on the answer text, neither of which was read. Both are now handled, so file search reports \"Searching your documents…\" and its matched documents as citation chips, exactly like web search. NOTE for anyone extending the activity reporter: FunctionCallContent and FunctionResultContent DERIVE from those same base types, so the generic case excludes them explicitly — without that exclusion every local tool call would be swallowed and function calling would stop working. An unnamed hosted call is attributed to file search only when FileSearch is enabled; otherwise it is logged and nothing is shown, because a wrong label is worse than none.\n\t\t- Fix — a hosted-MCP approval banner showed the raw call id (\"mcpr_0805…\") instead of the tool name. ToolApprovalRequestContent.ToolCall is typed as the base ToolCallContent: a local tool arrives as FunctionCallContent, a provider-side MCP call as McpServerToolCallContent, and only the first was recognised. The banner now names the tool and the remote server it will be sent to (e.g. \"Microsoft Docs Search · microsoft_learn\") along with the arguments, so the user can actually decide.\n\t\t- Fix — a provider-side failure during a turn (a hosted tool rejected, a deployment missing) arrived as ErrorContent and was logged only as \"Stream content: ErrorContent\". Those errors never reach the middleware and the turn can complete with zero tokens and no exception, so that line was the only trace and it carried no cause. The message, error code and details are now logged at Error level.\n\t\t- Fix (image generation was unusable) — enabling MentorHostedTools.ImageGeneration failed EVERY turn with \"System.ArgumentNullException: Value cannot be null (Parameter 'value')\" raised while the request was being assembled, before any network call. Microsoft.Extensions.AI 10.6.0 converts ImageGenerationOptions.MediaType into the OpenAI output-file-format with no null check, and the tool carries no media type by default; the conversion also only understands full MIME types, so \"png\" fails exactly like null. MentorAgent now always sends \"image/png\".\n\t\t- NEW (diagnostics) — duplicate tool names are reported at startup (\"N duplicate tool name(s) among the filterable tools: …\"). Any class with [Description] methods becomes an L1 tool, so read-only copies added for team members can shadow the originals: both copies are declared on any turn the name matches, both consume ToolFilterMaxTools, and they share one relevance-score cache entry — so the description embedded second decides the score for both. Found in the samples (40 tools under 34 names, with one tool being called twice in a single turn) after the tool-filter Debug line was changed to print matched/candidates and hosted/hostedTotal.\n\n\t\t=== Human-in-the-loop tool approval =========================================\n\t\t- NEW — approval aligned with the Agent Framework. options.HitlMode picks the mechanism: Blocking (default, unchanged — the middleware parks the turn on a TaskCompletionSource: one model round-trip, streaming stays alive) or Native (the AF standard ApprovalRequiredAIFunction → ToolApprovalRequestContent → ToolApprovalResponseContent: one extra round-trip per approved call, for interop with AF workflows and AF-native hosts). The confirmation banner and the client protocol are IDENTICAL in both modes, so switching needs no client change. On rejection the localized denial travels back to the model as the AF reason.\n\t\t- NEW — options.RequiresApproval: a predicate that forces approval for a tool by name, on top of the declared confirmations. This is the way to gate tools you do not own (MCP, skills, remote agents) per the AF Agent Safety guidance — side effects, sensitive data, irreversible operations.\n\t\t- Fix (SECURITY) — tools invoked inside a Level-2 specialist or a Level-3 team bypassed every per-tool gate. Those agents are built as ChatClientAgent instances handed to AgentWorkflowBuilder, so their function calls happen inside the workflow where the MentorAgent middleware never reaches: [MentorAction(RequiresConfirmation = true, RequiredRoles = [\"Admin\"])] on a specialist method executed with NO confirmation banner and — more seriously — NO role check whenever the coordinator delegated to it. Fixed by attaching the gate to the AIFunction itself so it travels with the tool: role checks, confirmation, action feedback, NavigateTo, OnToolResult/OnException and per-tool metrics now apply at every level, through one shared implementation. Nested tools always use the blocking approval flow even under HitlMode.Native, because an AF ToolApprovalRequestContent raised inside a workflow never surfaces to the orchestrator; the banner and the client protocol are identical and the user is asked exactly once. Confirmation is now also honoured on Level-3 team-member tools, matching the role lookup which always covered them.\n\t\t- Fix — MentorMcpServer.RequiresConfirmation was documented but never enforced: tools from an MCP server marked that way executed without asking. They are now gated exactly like [MentorAction(RequiresConfirmation = true)], in both HITL modes.\n\n\t\t=== Multimodal image input =================================================\n\t\t- NEW — users can send images to the assistant. Opt in with EnableImageInput; the user turn becomes a native Agent Framework multimodal ChatMessage (TextContent + DataContent for uploads / UriContent for remote URLs). Safety follows the AF Agent Safety guidance — an ALLOW-LIST of MIME types (AllowedImageTypes, default png/jpeg/gif/webp) plus MaxImageBytes (4 MB) and MaxImagesPerMessage (4), all re-validated server-side; rejected attachments are dropped with a warning and the turn still runs. Requires a vision-capable chat model (e.g. gpt-4.1 / gpt-4o / o3). The widget composer accepts images four ways — file upload, clipboard paste, drag & drop, and remote URL — with removable thumbnails before sending and inline images in the message bubble. New API: IMentorOrchestrator.SendMessageAsync(text, attachments) and the MentorAttachment / MentorUserMessage records; an image-only turn (empty text) is valid. Image bytes are streamed via IJSStreamReference, so Blazor Server does not need a raised HubOptions.MaximumReceiveMessageSize.\n\n\t\t=== Service-managed history and per-turn decisions ==========================\n\t\t- NEW — options.UseServiceManagedHistory: required companion for clients that keep the conversation on the service (the Responses API — which hosted tools need — Foundry, Copilot Studio). Those services return a conversation id and the Agent Framework refuses to combine it with a local ChatHistoryProvider, so every turn failed with \"Only ConversationId or ChatHistoryProvider may be used, but not both\". With this on, MentorAgent installs no history provider; MaxSessionMessages and EnableCompaction stop applying (a warning is logged if compaction is on).\n\t\t- Fix (SEVERE) — ChatOptions was copied property-by-property in two middlewares, silently dropping ConversationId and with it previous_response_id on the follow-up request. With UseServiceManagedHistory this broke EVERY local tool call: the provider could not match the tool result to its call and failed the turn with \"HTTP 400 — No tool call found for function call output with call_id …\", which the user saw as \"An error occurred while processing the response\". Both now use ChatOptions.Clone(). The same hand-copy also dropped Tools, so a page registering UI actions offered the model only those actions instead of the full tool list.\n\t\t- Fix — tool filtering and model routing re-evaluated their decision on every request, including the follow-up requests the function-invoking chat client makes inside one turn. With service-managed history that follow-up carries only the tool result, so filtering fell back to \"core only\" and dropped the tool just called, and routing could finish a turn on a different deployment than it started on — both rejected by the provider. Both now decide once per turn.\n\n\t\t=== Widget fixes ===========================================================\n\t\t- Fix — a citation with no URL (a document matched inside a provider vector store, a file produced by the code interpreter) rendered as a link to \"#\", which navigated to the top of the host page and looked like a broken download. The chip now omits href entirely and is styled as non-interactive.\n\t\t- Fix — the hosted-tools (amber) and A2A (indigo) chips hard-coded pale dark-theme text, so on the Minimal (light) theme the tool names were nearly invisible against their own tint. They now use CSS variables overridden per theme.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#repository",
+    "commit": "1530e122f22a055afbb5eebe9bddac89862bdd71",
+    "type": "git"
+  },
+  "title": "MentorAgent",
+  "verbatimVersion": "1.0.0-preview.4",
+  "version": "1.0.0-preview.4",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/mentoragent.abstractions",
+          "@type": "PackageDependency",
+          "id": "MentorAgent.Abstractions",
+          "range": "[1.0.0-preview.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/azure.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.OpenAI",
+          "range": "[2.9.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/azure.ai.projects",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.Projects",
+          "range": "[2.1.0-beta.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/azure.identity",
+          "@type": "PackageDependency",
+          "id": "Azure.Identity",
+          "range": "[1.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/microsoft.agents.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/microsoft.agents.ai.foundry",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Foundry",
+          "range": "[1.6.1-preview.260514.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/microsoft.agents.ai.hosting.a2a.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Hosting.A2A.AspNetCore",
+          "range": "[1.6.1-preview.260514.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/microsoft.agents.ai.workflows",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Workflows",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/microsoft.aspnetcore.components.authorization",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Authorization",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/microsoft.extensions.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/microsoft.extensions.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.OpenAI",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#dependencygroup/net10.0/modelcontextprotocol.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol.AspNetCore",
+          "range": "[1.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#MentorAgent.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 8561,
+      "fullName": "MentorAgent.nuspec",
+      "length": 21544,
+      "name": "MentorAgent.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "LICENSE",
+      "length": 1092,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 43004,
+      "fullName": "README.md",
+      "length": 130738,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#build/MentorAgent.props",
+      "@type": "PackageEntry",
+      "compressedLength": 92,
+      "fullName": "build/MentorAgent.props",
+      "length": 166,
+      "name": "MentorAgent.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "@type": "PackageEntry",
+      "compressedLength": 917,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "length": 6905,
+      "name": "Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "@type": "PackageEntry",
+      "compressedLength": 799,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "length": 4606,
+      "name": "Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#buildMultiTargeting/MentorAgent.props",
+      "@type": "PackageEntry",
+      "compressedLength": 64,
+      "fullName": "buildMultiTargeting/MentorAgent.props",
+      "length": 75,
+      "name": "MentorAgent.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#buildTransitive/MentorAgent.props",
+      "@type": "PackageEntry",
+      "compressedLength": 78,
+      "fullName": "buildTransitive/MentorAgent.props",
+      "length": 89,
+      "name": "MentorAgent.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#lib/net10.0/MentorAgent.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 137587,
+      "fullName": "lib/net10.0/MentorAgent.dll",
+      "length": 356352,
+      "name": "MentorAgent.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#staticwebassets/IconBM.png",
+      "@type": "PackageEntry",
+      "compressedLength": 20012,
+      "fullName": "staticwebassets/IconBM.png",
+      "length": 20026,
+      "name": "IconBM.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#staticwebassets/IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "staticwebassets/IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#staticwebassets/css/MentorAgent.css",
+      "@type": "PackageEntry",
+      "compressedLength": 5938,
+      "fullName": "staticwebassets/css/MentorAgent.css",
+      "length": 36682,
+      "name": "MentorAgent.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#staticwebassets/js/MentorAgent.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1634,
+      "fullName": "staticwebassets/js/MentorAgent.js",
+      "length": 6020,
+      "name": "MentorAgent.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.57.28/mentoragent.1.0.0-preview.4.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "blazor",
+    "blazor-server",
+    "blazor-auto",
+    "ai",
+    "chatbot",
+    "chat-widget",
+    "assistant",
+    "agent",
+    "multi-agent",
+    "handoff",
+    "group-chat",
+    "microsoft-agent-framework",
+    "openai",
+    "azure-openai",
+    "ollama",
+    "rag",
+    "retrieval-augmented-generation",
+    "mcp",
+    "model-context-protocol",
+    "a2a",
+    "agent-to-agent",
+    "signalr",
+    "voice",
+    "memory",
+    "skills",
+    "streaming",
+    "wasm",
+    "mentor",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

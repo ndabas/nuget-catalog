@@ -1,0 +1,181 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Antonio Macrì",
+  "catalog:commitId": "5dc3c140-9712-4bba-bc97-dd2658320092",
+  "catalog:commitTimeStamp": "2026-08-04T15:59:18.4824831Z",
+  "created": "2026-08-04T15:56:34.48Z",
+  "description": "Expose MentorAgent as a universal AI backend from any ASP.NET Core application. Adds a SignalR hub (/mentor-hub), SSE streaming endpoint (/mentor/chat), MCP server, and A2A agent — no Blazor required.",
+  "iconFile": "IconMA.png",
+  "id": "MentorAgent.Server",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-04T15:59:08.93Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "rrYFp+cJFWdQ3/o2zr1amWo8PBo+4gaWfaCaP+AC7Z1dRuyo4pmDkZMhtz04KA27fs/A5cqKpu194nJ1NspNaQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 89734,
+  "published": "2026-08-04T15:56:34.48Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.0-preview.4\n\n\t\t=== Provider-hosted tools for headless backends =============================\n\t\t- NEW — options.HostedTools declares provider-side web search, a sandboxed code interpreter, file search, image generation and remote MCP servers (options.HostedMcpServers). The tools run on the model provider and their results appear in the streamed answer, so existing React/Angular/Vue/MAUI clients keep working with no update. Requires a client that supports them (the Responses API or Foundry; Chat Completions supports web search only) and, with the Responses API, options.UseServiceManagedHistory. The README carries the provider-support matrix and the setup steps.\n\t\t- NEW — options.ShowHostedToolActivity (default true) reports provider-side work on events your client already handles: ActionExecuting / ActionCompleted for \"Searching the web…\" / \"Running code…\", and RagSourcesReady for the pages cited by web search (same payload shape as RAG). One new event, GeneratedImages(string[]), carries images from the hosted image-generation tool as data: URIs or absolute URLs, ready for <img src>. Purely additive: a client that does not subscribe keeps working exactly as before.\n\t\t- NEW — HostedToolsDeclared(int): one server→client event, sent once on connect with the active MentorHostedTools flags, so a client can render its capability badge from what the server actually enabled instead of mirroring the list in its own configuration (a copy that drifts the moment the server changes). Also purely additive.\n\t\t- NEW — options.HostedImageModel and options.HostedImageSize (WIDTHxHEIGHT — the cost knob, since size is what the image is billed on). ⚠️ On Azure OpenAI the model name alone is not enough: the image deployment must travel as the x-ms-oai-image-generation-deployment REQUEST HEADER. Add it as a PipelinePolicy on your AzureOpenAIClient — MentorAgent.Server receives an already-built IChatClient and cannot add it. See Infrastructure/ImageDeploymentHeaderPolicy.cs in the samples.\n\n\t\t=== Cost control on the hosted tools ========================================\n\t\t- NEW — options.FilterHostedTools (default true) puts hosted tools through the semantic tool filter, so a web search or a file search is declared only on turns whose message is relevant to it instead of on every message. They were the only group the filter never touched, while the cheap application tools were trimmed on every call. options.HostedToolFilterMinScore sets their own threshold (default 0.15, deliberately lower than ToolFilterMinScore because the two populations score on different scales); options.MaxHostedToolCallsPerSession caps them per session. ⚠️ The counter lives in the orchestrator scope, so over SignalR it spans the whole connection while a POST /mentor/chat call is its own session — a stateless HTTP client gets a per-request cap, not a per-user one.\n\t\t- NEW — options.HostedToolDomainCheck (+ HostedToolDomainScope / HostedToolDomainClassifier): hosted tools run only when the message concerns the application at all. A different question from per-tool relevance — \"draw me a dog\" is a genuine image request and nonsense for a shop backend — and the one that stops paying for it. A small model decides, once per turn and only when a hosted tool would otherwise run, so ordinary turns cost nothing. Fails open. See the MentorAgent (core) notes for why this is a classifier and not a similarity threshold.\n\t\t- All three controls run inside the semantic tool filter, which is installed only with options.EnableToolFiltering and an EmbeddingGenerator. Without those, nothing is filtered and hosted tools keep firing on every turn — fail-open, with a startup warning that names the options being ignored.\n\t\t- Fix — when one of these controls withholds a hosted tool, the server now tells the model so in that same request, and the model refuses plainly instead of inventing a result. Without it an image request answered with a fabricated URL presented as a generated image. See the MentorAgent (core) notes.\n\n\t\t=== Hosted-tool diagnostics =================================================\n\t\t- Fix — hosted file search produced no live activity for remote clients. It is the one hosted tool Microsoft.Extensions.AI 10.6.0 has no content type for (its call/result arrive as the plain base types, its matched documents as annotations on the answer text), so nothing was emitted. Clients now receive ActionExecuting/ActionCompleted for it and RagSourcesReady with the matched documents — same payload shape as web citations, except a document cited from a vector store has no sourceUrl (there is nothing to open): render its title and snippet.\n\t\t- Fix — the ConfirmationRequired event for a provider-side MCP call carried the raw approval id (\"mcpr_0805…\") as the tool name. It now carries the tool name and the remote server (\"Microsoft Docs Search · microsoft_learn\") plus the arguments. No wire-format change: same event, same POST /mentor/approve reply.\n\t\t- Fix (diagnostics) — provider-side failures during a turn (a rejected hosted tool, a missing deployment) were logged only as \"Stream content: ErrorContent\", with no cause; the message, code and details are now logged at Error level. These never reach the middleware and can end a turn with zero tokens and no exception, so that line was the only trace.\n\t\t- Fix (image generation was unusable) — enabling ImageGeneration failed every turn with ArgumentNullException while the request was being assembled. Microsoft.Extensions.AI 10.6.0 converts ImageGenerationOptions.MediaType into the OpenAI output-file-format with no null check and the tool carries none by default; \"image/png\" is now always sent.\n\n\t\t=== Human-in-the-loop approval ==============================================\n\t\t- NEW — options.HitlMode = Blocking (default, unchanged) or Native (the Agent Framework's ApprovalRequiredAIFunction / ToolApprovalRequestContent flow). Deliberately NO wire-format change: both modes emit the same ConfirmationRequired(actionId, toolName, message) event and accept the same POST /mentor/approve reply, so every existing SignalR/SSE client keeps working untouched when you switch mode.\n\t\t- Fix (SECURITY) — tools invoked inside a Level-2 specialist or a Level-3 team bypassed the confirmation banner AND the RequiredRoles check, because those agents run their own function-calling loop inside the workflow. The gate is now attached to the function itself, so it applies at every level. See the MentorAgent (core) notes.\n\t\t- Fix — MentorMcpServer.RequiresConfirmation is now enforced; previously a server marked that way had its tools executed without asking. Also new: options.RequiresApproval to gate any tool by name (MCP, skills, remote agents).\n\t\t- Docs — the RespondToApproval hub method is now explicitly marked backwards-compatibility-only in the protocol reference. POST /mentor/approve remains the correct path, because SignalR dispatches one hub invocation at a time per connection.\n\n\t\t=== Multimodal image input over both transports =============================\n\t\t- NEW — SignalR: SendMessage(text, attachments?) — the trailing argument is optional, so existing 1-argument clients keep working unchanged. SSE: a new POST /mentor/chat accepting { \"message\": \"...\", \"attachments\": [ { \"mimeType\", \"dataBase64\" | \"url\", \"fileName\" } ] }, because a base64 image does not fit in a query string (GET remains for text-only). Enable server-side with EnableImageInput and a vision-capable ChatClient; every attachment is re-validated against the allow-list (AllowedImageTypes / MaxImageBytes / MaxImagesPerMessage). An image-only turn (empty message) is valid. The README carries upload/paste/drag-drop/URL examples for React, Angular, Vue and .NET MAUI.\n\t\t- Fix (image attachments over SignalR) — sending any real photo from a SignalR client failed silently: the widget echoed the user bubble and then nothing happened — no reply, no error, no busy indicator. Attachments ride inside the SendMessage invocation as base64 and SignalR's default MaximumReceiveMessageSize is 32 KB, so the server aborted the connection (\"The maximum message size of 32768B was exceeded\"). AddMentorAgentServer() now raises HubOptions<MentorHub>.MaximumReceiveMessageSize to MaxImageBytes * MaxImagesPerMessage * 4/3 + 512 KB when EnableImageInput is on — scoped to the MentorAgent hub so the host's own hubs are untouched, and only ever raising an existing value. The limit is sized from your image options, so keep MaxImageBytes / MaxImagesPerMessage tight.\n\n\t\t=== Transport and turn-lifecycle fixes ======================================\n\t\t- Fix (Stop button) — cancelling an in-flight turn never worked for SignalR clients. SignalR dispatches at most one hub invocation at a time per connection (MaximumParallelInvocationsPerClient = 1), so the CancelRequest hub method queued behind the still-streaming SendMessage and only ran after the turn it was meant to abort had finished. Added POST /mentor/cancel?connectionId=… which reaches the connection's live orchestrator out of band — the same reasoning that already applies to POST /mentor/approve. The CancelRequest hub method is kept for backwards compatibility but only works while idle. README client examples (React, Angular, Vue) updated.\n\t\t- Fix (SEVERE) — with options.UseServiceManagedHistory every local tool call failed: the server answered \"An error occurred while processing the response\" on any turn that used a tool. Two middlewares copied ChatOptions property-by-property and dropped ConversationId, so the follow-up request lost previous_response_id and the provider rejected the tool result with \"HTTP 400 — No tool call found for function call output with call_id …\". Fixed by using ChatOptions.Clone(). Two related fixes: tool filtering and model routing now decide once per turn instead of once per request, since a mid-turn change of tool list or deployment is rejected the same way.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#repository",
+    "commit": "1530e122f22a055afbb5eebe9bddac89862bdd71",
+    "type": "git"
+  },
+  "title": "MentorAgent.Server",
+  "verbatimVersion": "1.0.0-preview.4",
+  "version": "1.0.0-preview.4",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#dependencygroup/net10.0/mentoragent",
+          "@type": "PackageDependency",
+          "id": "MentorAgent",
+          "range": "[1.0.0-preview.4, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#MentorAgent.Server.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4931,
+      "fullName": "MentorAgent.Server.nuspec",
+      "length": 11533,
+      "name": "MentorAgent.Server.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "LICENSE",
+      "length": 1092,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 33890,
+      "fullName": "README.md",
+      "length": 107991,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#lib/net10.0/MentorAgent.Server.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15499,
+      "fullName": "lib/net10.0/MentorAgent.Server.dll",
+      "length": 35328,
+      "name": "MentorAgent.Server.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.04.15.59.18/mentoragent.server.1.0.0-preview.4.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspnetcore",
+    "webapi",
+    "minimal-api",
+    "signalr",
+    "sse",
+    "server-sent-events",
+    "ai",
+    "chatbot",
+    "assistant",
+    "agent",
+    "multi-agent",
+    "mcp",
+    "model-context-protocol",
+    "a2a",
+    "agent-to-agent",
+    "react",
+    "angular",
+    "vue",
+    "mobile",
+    "maui",
+    "headless",
+    "blazor",
+    "blazor-wasm",
+    "blazor-auto",
+    "openai",
+    "azure-openai",
+    "ollama",
+    "rag",
+    "memory",
+    "skills",
+    "mentor",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

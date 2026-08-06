@@ -1,0 +1,141 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Lefteris Rentas",
+  "catalog:commitId": "13db01cd-240a-4c18-a05f-88dff73be41c",
+  "catalog:commitTimeStamp": "2026-08-05T17:29:28.6141632Z",
+  "copyright": "Copyright © Lefteris Rentas",
+  "created": "2026-08-05T17:26:38.79Z",
+  "description": "The reactive component base every Noodloft component is built on: a model, a DTO, a pure\n            evaluator, and a three-state result that tells a no-op apart from a refusal. No dependencies.",
+  "id": "Noodloft.Components",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-05T17:29:15.263Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "xgSm8UEXEhnpVKX4ossKy6wQpdDfdmtbSj5Kw12BSNJPgsX6T/dIEtZ1VnqwfaVKp+MEcxeqgamn7rSBRpxM6g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 33475,
+  "projectUrl": "https://git.lefterisrentas.dev/LefterisRentas/Noodloft.Components",
+  "published": "2026-08-05T17:26:38.79Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "The nodes were closed. Anything outside a node's own scene could reach a component's state but not\noperate on it usefully, and there was nowhere for a rule that spans two entities to live. This release\nopens the node API and adds a systems layer above it.\n\n### Added\n\n- **A systems layer.** A system is a node that operates on components it does not own. Ships as source\n  beside the nodes, so forking one is the expected way to make it match a game rather than a failure.\n\n  This is **not an ECS**, and the distinction decides what to expect from it. An ECS is fast because\n  components are flat structs in contiguous arrays walked linearly; these components are class\n  instances hanging off scene-tree nodes, and systems above them change nothing about that layout.\n  Two things the split does buy, both real: rules that span entities live in one editable place, and a\n  system that ticks a list in one loop replaces N per-node `_Process` callbacks, each of which is a\n  marshalled call from the engine's C++ loop into managed code.\n\n- **`DamageSystem`.** The one place a hit passes through. Runs composable filters over it, applies it,\n  and reports back a `DamageDeliveryResult` with four outcomes rather than a discarded `void`.\n\n  `Blocked` is deliberately not `Rejected`. A hitbox resting against a teammate refuses on every\n  physics frame, so a game's own rules refusing a hit is the common case and must not read as something\n  going wrong. Only `Rejected` — no target, a freed target, an amount that is not a number — is worth\n  logging.\n\n- **`DamageFilter` resources: `SelfDamageFilter`, `GroupDamageFilter`, `DeadTargetFilter`.** Rules\n  authored as `.tres` rather than compiled in, so turning friendly fire on for one arena is a data\n  edit. A custom rule is one overridden method returning `null` to allow or a reason to refuse.\n\n  Teams are Godot's own groups. This library ships no team component on purpose: groups are authored\n  in the inspector, free to test, and a node can be in several at once — which is what a game needs the\n  day \"undead\" and \"player's summons\" have to overlap. A second concept beside them would only give a\n  game two sources of truth to keep in step.\n\n- **`TickSystem`.** Ticks many component nodes from one frame callback. Composes with the existing\n  per-node gating rather than replacing it: `ManualTick` still checks `NeedsTick`, so two hundred\n  tracked cooldowns of which three are running do three operations. The gating decides how much work\n  happens; this decides how many times the engine has to cross into C# to make it happen — which is\n  why it earns its keep at scale and not below it. `TakeOverTicking` switches each node it adopts to\n  `TickMode.Manual` and puts it back on removal, because a node left on `Process` is ticked twice a\n  frame and its cooldowns run at double speed.\n\n- **`InteractionSystem2D` and `InteractionSystem3D`.** Which of several things in range should hold\n  focus. The choice is arithmetic and lives in the new pure `InteractionTargeting`, so it is tested\n  without an engine running; the nodes only supply distance and facing.\n\n  It has hysteresis, which is the whole reason it is worth writing down. Two chests side by side score\n  within a rounding error of each other, and an idle animation is enough to swap which one wins — so\n  without a sticky bonus the prompt strobes, both interactables raise focus and unfocus events every\n  frame, and a hold-to-interact in progress is cancelled the moment focus moves. Physics query order is\n  not deterministic either, which is the second reason.\n\n  Candidates are pushed in from an `Area2D`/`Area3D`'s own signals rather than discovered: the engine\n  already tracks overlaps well, and re-querying the scene every frame would cost more than it saves.\n\n- **`Apply(TDto)` on every component node**, returning the `ReactiveResult` instead of discarding it.\n  The convenience methods are now sugar over it and return results too. Before this, the only way to\n  reach `DamageOperation.BypassMitigation` from a node was not to use the node.\n\n- **Allocation-free node lookups** in `Noodloft.Components.Games.Godot`: `FindComponent`,\n  `FindSiblingComponent`, `FindComponentInAncestors`, `FindComponentInDescendants`, `FindComponents`,\n  `IsInAnyGroup`, `SharesAnyGroup`. The obvious `GetChildren().FirstOrDefault(x => x is T)` builds a\n  marshalled copy of the child list plus a LINQ enumerator and a closure on every call, and written\n  into a damage path that runs on every hitbox overlap of every actor.\n\n- **`DamageableReactiveComponent.LastReport`**, in the same idiom as\n  `InventoryReactiveComponent.LastChangeSet`. It lets a system return the resolved numbers as a value\n  instead of subscribing and unsubscribing around every hit, which would allocate a delegate per swing.\n\n- **`PersistentComponentNode.SetTickMode`**, which changes the mode *and* refreshes processing.\n  Assigning `TickMode` alone only takes effect at the next `UpdateProcessing`, which for a node with\n  nothing to do right now is never.\n\n- **[docs/godot-guide.md](docs/godot-guide.md)** — the node API, systems, filters, recipes and the\n  pitfalls, including the two mistakes below.\n\n### Changed\n\n- **`Component` is no longer nullable on any node.** It is built on first touch rather than only in\n  `_Ready`, so a system that reaches a node before the engine has readied it gets a working component\n  instead of a `null` that every call site swallows with `?.` — which is the shape that silently drops\n  operations and gives no hint that it did. It throws in the two places it genuinely cannot exist:\n  while the scene is being edited, and once the node is queued for deletion. Guard `[Tool]` code with\n  the now-public `HasComponent`.\n\n- **Node methods return their results.** `DamageableNode.Hit`, `Heal`, `Kill` and `Revive`,\n  `HealthNode.Damage` and `Heal`, `InteractableNode.Focus`/`Cancel`/`SetPrompt` and the rest previously\n  returned `void` and threw away the reason a refusal happened.\n\n- **`ManualTick` is gated and returns whether it did anything**, so a batching system gets the same\n  collapse a per-node `_Process` gets for free.\n\n### Fixed\n\n- **`CooldownSetNode.Registry` and the node convenience properties no longer read as empty before\n  `_Ready`.** They shared the nullable-component problem: `IsReady`, `CountOf`, `IsMoving` and friends\n  returned a default rather than a value, which is indistinguishable from a real answer.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json#repository",
+    "commit": "9d100f32b0a7d062414b2d7f09e66e2997c190d8",
+    "type": "git",
+    "url": "https://git.lefterisrentas.dev/LefterisRentas/Noodloft.Components.git"
+  },
+  "verbatimVersion": "0.0.1-alpha8",
+  "version": "0.0.1-alpha8",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json#Noodloft.Components.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3537,
+      "fullName": "Noodloft.Components.nuspec",
+      "length": 7607,
+      "name": "Noodloft.Components.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5712,
+      "fullName": "README.md",
+      "length": 12545,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json#lib/net10.0/Noodloft.Components.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4581,
+      "fullName": "lib/net10.0/Noodloft.Components.dll",
+      "length": 10240,
+      "name": "Noodloft.Components.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json#lib/net8.0/Noodloft.Components.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4579,
+      "fullName": "lib/net8.0/Noodloft.Components.dll",
+      "length": 10240,
+      "name": "Noodloft.Components.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.05.17.29.28/noodloft.components.0.0.1-alpha8.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12989,
+      "fullName": ".signature.p7s",
+      "length": 12989,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "gamedev",
+    "components",
+    "reactive"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

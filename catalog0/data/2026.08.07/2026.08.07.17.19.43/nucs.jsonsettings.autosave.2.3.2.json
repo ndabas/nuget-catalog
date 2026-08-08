@@ -1,0 +1,328 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Nucs / Eli Belash",
+  "catalog:commitId": "58be262c-73ff-47bf-b735-47fe53b45d86",
+  "catalog:commitTimeStamp": "2026-08-07T17:19:43.2219364Z",
+  "copyright": "Eli Belash @ 2026",
+  "created": "2026-08-07T17:16:31.363Z",
+  "description": "An extension to JsonSettings that saves automatically when a property changes. Mark your settings class [Autosave] and every setter commits a save - no proxy, no virtual requirement, and nothing generated at runtime, so it works under Native AOT.",
+  "iconFile": "icon.png",
+  "id": "Nucs.JsonSettings.Autosave",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-07T17:19:07.457Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "HbUm/h/XW2/n7ozgX4KylCDJAZbcvdhQtJr0Tw9PajCBgFg/VcJ446e1z6ap0U9Y6vAyYCTm/a+ZYuBXE/UerA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 135722,
+  "projectUrl": "https://github.com/Nucs/JsonSettings",
+  "published": "2026-08-07T17:16:31.363Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "2.3.2\n\nChanged\n- Public namespace corrections (source-breaking - update your usings, no behavior change):\n  - NotifiyingJsonSettings moved from Nucs.JsonSettings.Examples to Nucs.JsonSettings. It is the\n    shipped INotifyPropertyChanged base the Autosave and NotifyChanges packages bind to (production\n    API, not a sample) and was the only library type in the .Examples namespace.\n  - The fluent configuration extensions (WithFileName, WithModule, WithEncryption, WithBase64,\n    WithVersioning, WithRecovery, WithDefaultValues, LoadNow) moved from Nucs.JsonSettings.Fluent to\n    Nucs.JsonSettings, so one `using Nucs.JsonSettings;` now covers the whole configure-and-load call.\n  Update imports: replace `using Nucs.JsonSettings.Examples;` and `using Nucs.JsonSettings.Fluent;`\n  with `using Nucs.JsonSettings;`. Members, behavior and the on-disk format are unchanged; KeySize,\n  EncryptionAlgorithm, ISavable and IEncryptedSavable remain in Nucs.JsonSettings.\n\n2.3.1\n\nFixed\n- Builds no longer fail on locales whose default calendar is not Gregorian - Persian (fa-IR),\n  Umm al-Qura Arabic (ar-SA) and kin - with \"error MSB3374: The last access/last write time on\n  file '....aspectsinjected' cannot be set. Not a valid Win32 FileTime.\" (the follow-up report on\n  issue #51). Both weave targets stamped their incrementality marker by feeding\n  %(IntermediateAssembly.ModifiedTime) into the Touch task's Time parameter: MSBuild formats that\n  metadata with the CURRENT CULTURE's calendar while Touch parses Time with the invariant culture,\n  so under fa-IR August 2026 was rendered as Persian year 1405, re-read as Gregorian year 1405,\n  and dates before 1601 cannot be represented as a Win32 FILETIME - every build died at the stamp,\n  right after a successful weave. The timestamp now travels as a culture-invariant round-trip\n  (\"o\") string (verified tick-exact under fa-IR against both the .NET and the Visual Studio\n  MSBuild); the marker-equals-assembly-time up-to-date discipline is unchanged. Note that\n  AspectInjector's stock in-process target carries the same defect on its own stamp line, so the\n  out-of-process weave (the default since 2.3.0) is now also the only culture-safe path.\n- The settings-file version/archive-counter pattern (VersioningModule.VersionMatcher) matches\n  ASCII digits only ([0-9] instead of regex \\d, which in .NET matches every Unicode digit): a\n  settings file hand-named with native digits - natural on a Persian or Arabic keyboard - in its\n  version or counter segment previously MATCHED the pattern and then crashed the load with a raw\n  FormatException from the ASCII-only int.Parse of the archive counter; such names now simply\n  parse as unversioned and are archived accordingly. The counter parse is also explicitly\n  invariant-culture.\n- JsonSettings.Load's corrupt-file exception filter compares ordinally\n  (StartsWith(..., StringComparison.Ordinal)) instead of with the current culture's collation.\n- Verified: the full test suite (net10.0/net8.0/net6.0/net48/net472) runs green with the system\n  culture switched to fa-IR and to tr-TR, the torture locales for non-Gregorian calendars and\n  for casing/decimal rules respectively.\n\n2.3.0\n\nFixed\n- Executable consumers no longer fail in CreateAppHost with \"error MSB4018 ... The process cannot\n  access the file '<App>.dll' because it is being used by another process\". AspectInjector 2.9.0's\n  in-process MSBuild task leaks file handles into the MSBuild node that hosts it: a ReadWrite handle\n  on obj\\<App>.dll whenever the assembly has nothing to weave - exactly the case for an app that\n  merely references Nucs.JsonSettings.Autosave or Nucs.JsonSettings.NotifyChanges without declaring\n  an [Autosave]/[NotifyChanges] class yet - and read handles on every referenced assembly always (its\n  reference resolver is never disposed). The SDK's next step for an executable, CreateAppHost, then\n  cannot open the still-locked dll and the build dies: deterministically on small fast builds (a\n  one-project console app, a stock WinUI app), not at all on heavy ones (MAUI) purely by timing. The\n  leaked read handles also blocked REBUILDS of referenced projects for as long as a reused MSBuild\n  worker node lived. Both weaving packages now suppress the in-process task and run the identical\n  AspectInjectorTask in a short-lived child MSBuild process (a shipped .Weave.proj next to the build\n  targets); the OS closes everything the weaver leaks when the child exits, before CreateAppHost\n  runs. Weaving semantics, task parameters, incrementality (the .aspectsinjected stamp) and the\n  strong-name re-sign step are unchanged, and a consumer referencing BOTH packages still weaves\n  exactly once. Opt back into the stock in-process weave with\n  <NucsJsonSettingsOutOfProcWeave>false</NucsJsonSettingsOutOfProcWeave> (one property, honoured by\n  both packages); <AspectInjector_Enabled>false</AspectInjector_Enabled> still disables weaving\n  entirely. New diagnostics NJS1005/NJS1006 (error) fire if AspectInjector.dll cannot be located for\n  the out-of-process weave, with the remedies in the message.\n- Incremental builds no longer stack the weave when another post-compile IL rewriter runs after it.\n  .NET MAUI's XamlC target rewrites the assembly AFTER the weave and moves its timestamp past the\n  .aspectsinjected marker, so the next incremental build re-wove the already-woven assembly - and\n  re-weaving stacks the advice (measured: a setter that saved once per write saved twice after the\n  next build, three times after the one after that). The packaged targets now re-stamp the marker\n  right after XamlC, the same guard the re-sign step already applied for its own rewrite. Avalonia\n  needs no guard by construction: its XAML compiler runs inside CoreCompile, before the weave.\n- Re-weave stacking is now impossible whatever rewrites the assembly, not just for the XamlC case\n  above: before invoking the weaver, the targets read the intermediate assembly and skip the weave\n  when it already carries AspectInjector's injected IL (the '__a$_instance' aspect singleton, which\n  no compiler emits from source). A Fody / ILRepack / obfuscator step that pushes the assembly past\n  the .aspectsinjected stamp therefore costs one detection read on the next incremental build\n  instead of silently doubling the advice per build. A semicolon in the intermediate output path now\n  fails fast as NJS1007/NJS1008 with the actual reason (MSBuild splits child -property: values on\n  ';', and .NET executables cannot start from such paths anyway) instead of a cryptic MSB1006 from\n  the child process.\n- A build that silently skipped the weave can no longer masquerade as working: the [Autosave] aspect\n  now mixes the empty marker interface IAutosaveWoven into every class it processes, and\n  EnableAutosave() throws a JsonSettingsException naming the likely causes (a direct AspectInjector\n  reference with ExcludeAssets=\"build\", a single-pass `msbuild -t:Restore;Build` that evaluates the\n  project before the restored targets exist, AspectInjector_Enabled=false) when the attribute is\n  present but the marker is not. Previously such a class compiled, EnableAutosave() succeeded, and\n  every \"saved\" change was silently lost. For assemblies woven by versions older than 2.3.0 that\n  cannot be rebuilt, set JsonSettingsAutosaveExtensions.RequireWeaveMarker=false once at startup.\n- EnableAutosave() now binds nested collections on ANY settings class that implements\n  INotifyPropertyChanged - [NotifyChangesMixin] classes and hand-written implementations included -\n  where previously only a NotifiyingJsonSettings base qualified. A mixin class's\n  ObservableCollection compiled, bound in the UI and silently never saved on in-place Add/Remove;\n  the shipped Avalonia example demonstrated exactly that without knowing it. NotificationBinder\n  gained a JsonSettings constructor overload (the NotifiyingJsonSettings one remains).\n- Reloading no longer duplicates collection contents, and recovery genuinely resets them: writable\n  collection properties deserialize with ObjectCreationHandling.Replace. Json.NET's default (Auto)\n  reused the live collection and appended the file's items on every Load() ([\"a\"] reloaded as\n  [\"a\",\"a\"]), grew default-seeded collections by one copy per application start, and let\n  RenameAndLoadDefault keep - and re-save as the new \"defaults\" - the stale pre-corruption items.\n  The NotificationBinder resyncs itself after every populate (it subscribes to the repopulate\n  events the load pipeline raises), so the replacement instances stay bound and keep saving;\n  get-only collections cannot be replaced and keep the append semantics.\n- Nested-change saves now honour every gate the woven-setter path honours. The NotificationBinder's\n  collection / nested-object handlers called Save() directly, so a populate that wrote a bound\n  nested object or filled a get-only collection saved the half-loaded file from inside Load(); an\n  AfterSave handler that mutated a bound collection re-entered Save without bound (a stack\n  overflow, not a catchable exception); and an in-place Add inside a SuspendAutosave() scope saved\n  immediately, once per Add, instead of batching into the resume commit - each contradicting the\n  documented behaviour of loads, re-entrancy and suspension. A nested change now takes exactly the\n  decision path a woven setter write takes (load suppression, re-entrancy guard, suspension\n  accounting), whichever pipe reported it.\n\nExamples (in the repository, not in the packages)\n- A UI example gallery now exercises the packages from real apps on every framework the docs name:\n  Avalonia (cross-platform: compiled bindings over the mixin-injected INotifyPropertyChanged,\n  background writes marshalled via EnableNotificationMarshaling, and corrupt-file self-healing with\n  WithRecovery(RenameAndLoadDefault) wired to a \"corrupt the file\" button), Windows Forms\n  (net48 + net10.0-windows: the zero-code settings dialog PropertyGrid.SelectedObject = settings,\n  BindingSource two-way binding kept in sync by the injected interface, and an encrypted vault via\n  WithEncryption shown side by side with its ciphertext on disk), .NET MAUI (the settings class as\n  the page's BindingContext, [NotifyChangesFor]-computed captions, batched SuspendAutosave reset)\n  and the existing WPF notification tour.\n\n2.2.0\n\nBreaking changes\n- Both shipped packages are now strong-named (PublicKeyToken=cc7b13ffcd2ddd51) AND their assemblies\n  are renamed to match their package ids and namespaces: JsonSettings.dll -> Nucs.JsonSettings.dll and\n  JsonSettings.Autosave.dll -> Nucs.JsonSettings.Autosave.dll. (The new Nucs.JsonSettings.NotifyChanges\n  package follows the same rule but has no prior release to break.) Everything published up to and\n  including 2.1.0 shipped unsigned, which meant a strong-named assembly could not reference this library\n  at all - a strong-named consumer cannot reference a weak-named dependency, and there was no workaround\n  short of repackaging the DLL. The key is Microsoft's published open-source key, the same one\n  netstandard, System.Memory and System.Buffers carry; its private half is published by design, so this\n  is assembly IDENTITY and not a security property. It does not attest that a file came from this\n  project, and InternalsVisibleTo is not an access control. Verify origin with the SHA-256 checksums\n  published on each GitHub release.\n  UPGRADING: the assembly identity changes in two ways - a strong-name token where there was none, and a\n  new simple name (Nucs.JsonSettings[.Autosave]). A bindingRedirect written against the old unsigned\n  identity will not match the new one and should be removed rather than edited, and anything that\n  hardcodes a full assembly display name needs the name and token updated. Recompiling is otherwise\n  enough. See docs/SIGNING.md.\n- Autosave now requires an [Autosave] attribute on the settings class. Nucs.JsonSettings.Autosave\n  no longer proxies with Castle.DynamicProxy; it rewrites the property setters at compile time\n  with AspectInjector. An existing EnableAutosave()/EnableIAutosave() call now throws until the\n  class is marked [Autosave] - the missing attribute is checked at runtime rather than silently\n  never saving. In exchange the old proxy restrictions are gone: properties no longer need to be\n  virtual, sealed classes are supported, and EnableAutosave() returns the very instance it was\n  given rather than a proxy, so a reference captured before the call autosaves too. SettingsBag is\n  unaffected - its autosave is dictionary-backed, not woven. MIGRATION: add [Autosave] to the\n  class; opt a property out with [IgnoreAutosave]. See docs/AOT.md.\n- Encryption moved onto System.Security.Cryptography directly and the vendored third-party Rijndael256\n  helper was removed. RijndaelModule was renamed to EncryptionModule; RijndaelModule is kept as an\n  [Obsolete] shim that forwards to it, so existing code still compiles. The KeySize enum moved from the\n  Rijndael256 namespace to Nucs.JsonSettings - source-compatible through a `using Nucs.JsonSettings;`,\n  but a binary namespace change. The default algorithm, the PBKDF2-SHA1 key derivation and the on-disk\n  format are unchanged; files from every earlier version stay readable, verified against a pre-migration\n  ciphertext and an independent BCL-only reimplementation of the format.\n\nNew features\n- New lifecycle events BeforeRepopulate and AfterRepopulate (JsonSettings and ISavable) bracket the\n  JSON populate itself and are the pipeline's only per-populate signal: unlike\n  BeforeDeserialize/AfterDeserialize (successful file loads only) and AfterLoad (once per Load),\n  they also fire for LoadDefault(), versioning and recovery reloads, and direct LoadJson() calls.\n  AfterRepopulate fires from a finally and carries successfulPopulate - false when the populate\n  threw halfway, in which case the object may hold a mix of old and file values. Handlers must not\n  save between the two; the autosave machinery itself rides this pair for load suppression and\n  collection rebinding.\n- Encryption accepts binary secrets, not only a text password:\n  - WithEncryption(byte[]) - a binary password, PBKDF2-stretched exactly like a text password.\n    It is a DIFFERENT credential from the text password whose UTF-8 bytes match it.\n  - WithEncryptionRawKey(byte[]) - a raw AES key used verbatim, no derivation, 16/24/32 bytes,\n    for callers who already hold key material.\n  Each has value, Func<byte[]> and Func<T,byte[]> overloads. The on-disk format is\n  unchanged and the text-password path is byte-for-byte compatible with every earlier version.\n- Encryption can use algorithms beyond the default AES-256-CBC, all from System.Security.Cryptography:\n  authenticated AES-CBC-HMAC (every target framework), and the AEAD ciphers AES-GCM, AES-CCM and\n  ChaCha20-Poly1305 (.NET 6.0+). Select one by passing an EncryptionAlgorithm to WithEncryption,\n  WithEncryption(byte[]) or WithEncryptionRawKey. The authenticated algorithms reject a tampered file\n  outright rather than relying on the AES-CBC UTF-8 heuristic; the default stays AES-256-CBC, unchanged\n  on disk.\n\nNotifications and data binding (new package Nucs.JsonSettings.NotifyChanges)\n- New package Nucs.JsonSettings.NotifyChanges produces INotifyPropertyChanged from your setters for data\n  binding, split out of Nucs.JsonSettings.Autosave so a class can notify without autosaving or the\n  reverse. Mark a class [NotifyChanges] (with a NotifiyingJsonSettings base or a convention raiser) or\n  [NotifyChangesMixin] (no base - the interface is injected) and every setter raises PropertyChanged with\n  no hand-written OnPropertyChanged, including on auto-properties. Compile-time IL weaving like\n  [Autosave], Native AOT-safe, and framework-neutral: it depends only on System.ComponentModel, so the\n  same class binds under WPF, WinForms, WinUI, MAUI, Avalonia and Uno. To both save and notify, reference\n  both packages. These aspects never shipped in a release, so the move is not a breaking change.\n- NotificationGuard (OnlyChanged default, SkipNullOrDefault, Always; [Flags]) decides when a setter\n  notifies, per class or per property. [IgnoreNotify] silences a property, independent of [IgnoreAutosave].\n- Also raises INotifyPropertyChanging before the assignment: NotifiyingJsonSettings now implements it, a\n  convention OnPropertyChanging/RaisePropertyChanging is recognised, and [NotifyChangesMixin] injects it\n  alongside INotifyPropertyChanged.\n- [NotifyChangesFor(nameof(Other))] fans a change out to a computed property so its binding refreshes -\n  the counterpart to CommunityToolkit.Mvvm's [NotifyPropertyChangedFor].\n- EnableNotificationMarshaling() captures the UI thread's SynchronizationContext and posts notifications\n  back to it, so a settings object written from a background thread still raises PropertyChanged on the UI\n  thread. Opt-in, off by default, and depends on no UI framework.\n- Performance: the reflection left on hot and per-instance paths is now cached through a new\n  Nucs.JsonSettings.Reflection.ReflectionHelper accessor cache. Every woven [NotifyChanges] setter read the\n  property's previous value with PropertyInfo.GetValue and called a convention raiser with MethodInfo.Invoke\n  on each write; both now use a delegate compiled once per member (with a reflective fallback under Native\n  AOT, so nothing changes there). The nested-notifier binder and the per-instance constructor discovery in\n  Activation (HasDefaultConstructor / CreateInstance) are cached likewise. Behaviour is unchanged.\n\nAutosave (see the breaking-change note above for the [Autosave] requirement)\n- Native AOT compatible. AspectInjector emits nothing at runtime, so EnableAutosave() works under\n  Native AOT, where the Castle.DynamicProxy path threw PlatformNotSupportedException and no\n  annotation could fix it. Nucs.JsonSettings.Autosave no longer depends on Castle.Core.\n- Removed the vestigial public ProxyGeneratedAttribute. It tagged Castle.DynamicProxy-generated\n  types so the JsonSettings constructor could skip re-creating their ModuleSocket; with the proxy\n  path gone nothing applies it and the constructor guard that read it was always taken, so the\n  attribute and the guard were both deleted.\n- Autosave machinery no longer ships inside the base package. IgnoreAutosaveAttribute,\n  NotificationBinder, the SuspendAutosave struct and AutosaveModule itself, plus the property\n  opt-in rules, moved from Nucs.JsonSettings.dll to Nucs.JsonSettings.Autosave.dll where they are\n  actually wired up; the Nucs.JsonSettings.Autosave namespace is unchanged, so a project that\n  references the Autosave package sees no difference while a base-only project no longer sees\n  types that did nothing without it. The base package keeps only the neutral state the two\n  autosave paths share - the new SuspensionModule (the IsSaving/IsLoading gates and the\n  reference-counted suspension machine) - and SettingsBag now attaches its own\n  SettingsBagAutosaveModule subclass rather than the woven path's module, so the is-AutosaveModule\n  resolution scans in the woven advice and the binder can never mistake a bag's module for a woven\n  one. The load pipeline stopped reaching into modules altogether: LoadJson raises the new\n  BeforeRepopulate/AfterRepopulate events around every populate - AfterRepopulate fires from the\n  finally and reports whether the populate ran to completion - SuspensionModule brackets its own\n  IsLoading by subscribing to them on attach, and the NotificationBinder resyncs its nested-change\n  subscriptions the same way; both deliberately act on success and failure alike, since a populate\n  that threw halfway has still replaced values. SuspendAutosave targets the shared SuspensionModule base, so\n  settings.SuspendAutosave() keeps working on woven classes and bags alike, and a stand-alone\n  binder (constructed without EnableAutosave) is now resynced on loads too, which the old\n  module-slot pattern-match never did. One visible edge: resolving a bag's module by the concrete\n  AutosaveModule type no longer matches - a bag carries a SettingsBagAutosaveModule. The module's\n  SuspendAutosave() method is removed (call the settings.SuspendAutosave() extension) and its\n  NotificationsHandler is now typed IDisposable - honestly a pure lifetime slot, since nothing\n  reaches through it any more.\n- The package re-signs the woven assembly after the weave (shipped build/ and buildTransitive/\n  targets), because weaving invalidates the strong-name signature the compiler applied and\n  AspectInjector 2.9.0 retired its own re-signing. If sn.exe is unavailable the build warns\n  (NJS1001) rather than failing; the assembly still loads on .NET 5+. See docs/SIGNING.md.\n- Fixed: a load after EnableAutosave() wrote the object back to disk once per populated property,\n  persisting a half-loaded object mid-load. Load, LoadDefault and versioning reloads no longer\n  count as user writes, and the framework-written IVersionable.Version is no longer monitored.\n- Fixed: nested SuspendAutosave is reference-counted - an inner scope's Dispose no longer ends the\n  outer scope early and commits the save it was batching.\n- Fixed: [IgnoreAutosave] is honoured for inline-initialised INotify* collections, which the\n  binder previously subscribed and saved on regardless of the attribute.\n- Fixed (SettingsBag/DynamicSettingsBag): a write made inside AfterSave no longer recurses to a\n  stack overflow, and EnableAutosave() reached through a JsonSettings-typed reference now behaves\n  the same as through a SettingsBag-typed one instead of throwing.\n\nBug fixes (regressions introduced in 2.1.0)\n- A custom module inside the encryption layer is readable again. 2.1.0's wrong-password UTF-8\n  check ran on that module's still-encoded output, so a compressing or otherwise binary module\n  attached before WithEncryption rejected a correct password; the check now runs on the final\n  plaintext. Files 2.0.x wrote through such a chain load again.\n- RecoveryModule absorbs a short or zero-length encrypted file again. 2.1.0 threw from the\n  decrypt stage before recovery could run, so a zero-byte file - the usual result of an\n  interrupted save - was no longer recoverable.\n- A file too short to hold an initialization vector is a JsonSettingsException again, rather\n  than an EndOfStreamException escaping catch (JsonSettingsException).\n- Serialization depth: Newtonsoft.Json 13 capped nesting at 64 by default, inherited silently\n  in 2.1.0. MaxDepth is now set explicitly to 128 - past any realistic settings graph, yet low\n  enough to remain a working backstop, since the reader is recursive and exhausts the stack\n  before a larger limit could fire. Set SerializationSettings.MaxDepth = null for the pre-2.1.0\n  unlimited behaviour. See docs/UPGRADE-2.0.x-to-2.1.0.md.\n\nTesting\n- Cross-version file compatibility is now pinned by a full producer x consumer matrix. One JSON\n  fixture is captured per shipped target (net472 standing in for netstandard2.0, plus net48, net6.0,\n  net8.0 and net10.0) holding the exact bytes that framework serializes, and every target loads all\n  of them on every ordinary test run. A settings file written on .NET Framework is proven to read\n  back identically on modern .NET and the reverse, including the floating-point formatting that\n  differs between the two - net48 renders a round-trippable double with \"R\" while .NET Core renders\n  the shortest round-trippable string. Regenerate the fixtures with JSONSETTINGS_REGEN_CROSSVERSION=1.\n- Added targeted edge-case and unhappy-flow coverage across the core and modules, chosen from a line\n  coverage pass: Save translating a read-only or exclusively-held file into a catchable\n  JsonSettingsException (rather than an UnauthorizedAccessException/IOException or a null-stream NRE), a\n  corrupt file surfacing as the same, the configure-state guard rolling back so an instance whose\n  OnConfigure threw can be loaded again, attaching a versioning module to a non-IVersionable socket,\n  the invalid-action defensive arms, the notification-marshalling argument guards, and\n  AutosaveModule.TryTriggerSave.\n\n2.1.0\n\nBug fixes\n- SuspendAutosave: fixed silent data loss. A change made inside a suspension scope defers\n  its save to the end of the scope, but the scope reached the settings object only through\n  a weak reference. If a garbage collection ran while the scope was open the pending write\n  was dropped with no exception and no partial file. Most likely to bite when the settings\n  variable is not touched again before the scope closes, which the JIT may treat as the\n  object being dead.\n- Encryption: a wrong password is now reliably reported as a wrong password. Detection\n  relied on the padding check alone, which accepts wrong-key output by chance about once in\n  256 attempts; when it did, the failure surfaced as \"Unable to parse file\" with a JSON\n  reader error, pointing at file corruption rather than at the password. The decrypted\n  payload is now also checked for being valid UTF-8. This is a better diagnostic, not an\n  integrity guarantee, and the on-disk format is unchanged.\n- Encryption: fixed a truncated-read defect. The initialization vector was read without\n  checking how many bytes came back, so a short read left part of the IV zeroed and\n  produced garbage plaintext or a misleading padding error rather than failing. Files too\n  short to contain an IV are now rejected outright.\n- Encryption is unchanged on disk. Existing encrypted files stay readable: the cipher is\n  the same (AES-128-block CBC, previously spelled RijndaelManaged), and the PBKDF2\n  pseudorandom function is still SHA-1, now stated explicitly so it cannot be \"modernised\"\n  by accident. A ciphertext written by 2.0.x is checked against every target in the test\n  suite.\n- Paths: MoveFileEx is no longer P/Invoked on non-Windows, where it raised\n  DllNotFoundException instead of doing nothing. IsDirectoryWritable builds its probe path\n  with Path.Combine (it previously concatenated, testing a sibling of the intended\n  directory) and no longer collides between concurrent processes. Paths.ExecutingExe is\n  now nullable rather than being left null behind a non-nullable declaration when the\n  executable path cannot be determined, as under single-file publish.\n\nTargets and packaging\n- Multi-targeting: netstandard2.0, net48, net6.0, net8.0 and net10.0 for both\n  Nucs.JsonSettings and Nucs.JsonSettings.Autosave (Autosave previously shipped\n  netstandard2.0 only).\n- Removed the System.Security.SecureString 4.3.0 dependency. Every type used is part of\n  netstandard2.0 and in-box on .NET Framework and modern .NET, so it only added a\n  dependency edge.\n- Upgraded Newtonsoft.Json to 13.0.3 and Castle.Core to 5.1.1.\n- Packages now ship the README, declare their license as an SPDX expression instead of a\n  deprecated licenseUrl, and publish a .snupkg symbol package with Source Link instead of\n  embedding .pdb files in lib/.\n\nTesting\n- The test suite now runs against every shipped asset rather than a subset. net472 was\n  added specifically to cover lib/netstandard2.0, which is what consumers without an exact\n  framework match receive and which previously had no test behind it at all.\n- Tests also run on Linux, so the platform-conditional code in Paths is executed rather\n  than only compiled. .NET Framework targets remain Windows-only.\n\n2.0.2\n- Added RecoveryModule and .WithRecovery to capture parsing errors\n- Added JsonSettings.SuspendAutosave() extension\n- Added proxy construction guard to prevent unncessary allocation on proxy creation.\n- Fix non virtual built-in properties returning null after being wrapped with proxy.\n- Added ProxyGeneratedAttribute that is attached to every proxy-generated class\n- Module: made Dispose() inheritable.\n- Module.Socket: changed to WeakReference<JsonSettings>\n- SettingsBag: added support for SuspendAutosave #26\n- VersioningModule: some internal fixes and renames #19\n- Added RecoveryModule and WithRecovery api. #19\n- JsonSettings: added TryingRecover and Recovered events.\n- JsonSettings: Removed ThrowOnEmptyFile, this is handled by RecoveryModule now\n- Made all module functions and variables protected or virtual.\n- FluentJsonSettings: replaced dynamic creation with hardcoded creation (faster).\n- Added proper Versioning example\n- JsonSettings: add OnXXXX methods that trigger event changed to protected internal.\n- Made all modules extensible\n- SettingsBag: removed locking, optimized and replaced with ConcurrentDictionary for threadsafety\n- Added documentation",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#repository",
+    "commit": "25f9b0db7cb82ca237b1dae7ddec50defe70b81e",
+    "type": "git",
+    "url": "https://github.com/Nucs/JsonSettings"
+  },
+  "requireLicenseAcceptance": true,
+  "title": "Nucs.JsonSettings.Autosave",
+  "verbatimVersion": "2.3.2",
+  "version": "2.3.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net10.0/nucs.jsonsettings",
+          "@type": "PackageDependency",
+          "id": "Nucs.JsonSettings",
+          "range": "[2.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net10.0/aspectinjector",
+          "@type": "PackageDependency",
+          "id": "AspectInjector",
+          "range": "[2.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net10.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/.netframework4.8/nucs.jsonsettings",
+          "@type": "PackageDependency",
+          "id": "Nucs.JsonSettings",
+          "range": "[2.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/.netframework4.8/aspectinjector",
+          "@type": "PackageDependency",
+          "id": "AspectInjector",
+          "range": "[2.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/.netframework4.8/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.3, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net6.0/nucs.jsonsettings",
+          "@type": "PackageDependency",
+          "id": "Nucs.JsonSettings",
+          "range": "[2.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net6.0/aspectinjector",
+          "@type": "PackageDependency",
+          "id": "AspectInjector",
+          "range": "[2.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net6.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.3, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net8.0/nucs.jsonsettings",
+          "@type": "PackageDependency",
+          "id": "Nucs.JsonSettings",
+          "range": "[2.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net8.0/aspectinjector",
+          "@type": "PackageDependency",
+          "id": "AspectInjector",
+          "range": "[2.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/net8.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.3, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/.netstandard2.0/nucs.jsonsettings",
+          "@type": "PackageDependency",
+          "id": "Nucs.JsonSettings",
+          "range": "[2.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/.netstandard2.0/aspectinjector",
+          "@type": "PackageDependency",
+          "id": "AspectInjector",
+          "range": "[2.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#dependencygroup/.netstandard2.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.3, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#Nucs.JsonSettings.Autosave.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 12242,
+      "fullName": "Nucs.JsonSettings.Autosave.nuspec",
+      "length": 31855,
+      "name": "Nucs.JsonSettings.Autosave.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 13081,
+      "fullName": "README.md",
+      "length": 40508,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 25806,
+      "fullName": "icon.png",
+      "length": 26388,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#build/Nucs.JsonSettings.Autosave.Weave.proj",
+      "@type": "PackageEntry",
+      "compressedLength": 1051,
+      "fullName": "build/Nucs.JsonSettings.Autosave.Weave.proj",
+      "length": 2874,
+      "name": "Nucs.JsonSettings.Autosave.Weave.proj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#build/Nucs.JsonSettings.Autosave.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 9465,
+      "fullName": "build/Nucs.JsonSettings.Autosave.targets",
+      "length": 29591,
+      "name": "Nucs.JsonSettings.Autosave.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#buildTransitive/Nucs.JsonSettings.Autosave.Weave.proj",
+      "@type": "PackageEntry",
+      "compressedLength": 1051,
+      "fullName": "buildTransitive/Nucs.JsonSettings.Autosave.Weave.proj",
+      "length": 2874,
+      "name": "Nucs.JsonSettings.Autosave.Weave.proj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#buildTransitive/Nucs.JsonSettings.Autosave.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 9465,
+      "fullName": "buildTransitive/Nucs.JsonSettings.Autosave.targets",
+      "length": 29591,
+      "name": "Nucs.JsonSettings.Autosave.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#lib/net10.0/Nucs.JsonSettings.Autosave.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9397,
+      "fullName": "lib/net10.0/Nucs.JsonSettings.Autosave.dll",
+      "length": 20480,
+      "name": "Nucs.JsonSettings.Autosave.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#lib/net48/Nucs.JsonSettings.Autosave.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9377,
+      "fullName": "lib/net48/Nucs.JsonSettings.Autosave.dll",
+      "length": 20480,
+      "name": "Nucs.JsonSettings.Autosave.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#lib/net6.0/Nucs.JsonSettings.Autosave.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9580,
+      "fullName": "lib/net6.0/Nucs.JsonSettings.Autosave.dll",
+      "length": 20992,
+      "name": "Nucs.JsonSettings.Autosave.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#lib/net8.0/Nucs.JsonSettings.Autosave.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9409,
+      "fullName": "lib/net8.0/Nucs.JsonSettings.Autosave.dll",
+      "length": 20480,
+      "name": "Nucs.JsonSettings.Autosave.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#lib/netstandard2.0/Nucs.JsonSettings.Autosave.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9345,
+      "fullName": "lib/netstandard2.0/Nucs.JsonSettings.Autosave.dll",
+      "length": 20480,
+      "name": "Nucs.JsonSettings.Autosave.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.17.19.43/nucs.jsonsettings.autosave.2.3.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "nucs",
+    "config",
+    "file",
+    "newtonsoft",
+    "settings",
+    "json",
+    "configuration",
+    "preferences"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

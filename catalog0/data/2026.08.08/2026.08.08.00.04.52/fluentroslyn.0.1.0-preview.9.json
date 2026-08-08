@@ -1,0 +1,157 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Cameron Lambert",
+  "catalog:commitId": "c727969f-7646-44ff-857a-cbfa3db0d5aa",
+  "catalog:commitTimeStamp": "2026-08-08T00:04:52.936076Z",
+  "copyright": "Copyright (c) 2026 Cameron Lambert",
+  "created": "2026-08-08T00:02:15.553Z",
+  "description": "A fluent C# API for generating C# source code — a readable facade over Roslyn's SyntaxFactory. Targets netstandard2.0 so it works inside incremental source generators, where Roslyn's own SyntaxGenerator (in Microsoft.CodeAnalysis.Workspaces) cannot be referenced.",
+  "iconFile": "icon.png",
+  "id": "FluentRoslyn",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-08T00:04:51.313Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "B6YdU1BPJ/D8X7JI726nKTZqzyNNzBVnzTKMbyreeHo5zSLU/UhipufV241Nok6qUk/vtDMEpvYUNpGvAVjlnQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 134591,
+  "projectUrl": "https://github.com/keybindings/FluentRoslyn",
+  "published": "2026-08-08T00:02:15.553Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "0.1.0-preview.9\n\nA hardening release: everything a code review of the operator feature found, fixed. What was reviewed, when, and what came of it is recorded in docs/REVIEWS.md in the repository.\n\nOperator validation is now signature-aware. C# matches operator pairs, checked/unchecked twins, and duplicates by signature, not by symbol, and the library now does the same. Each of the following previously emitted source that failed in the consumer's build and is now refused when the generator runs:\n\n  Wrong operator arity (CS1534/CS1019/CS1020).\n  A pairing partner with a different signature: ==(A, A) beside !=(A, int) is refused, matching CS0216.\n  A checked form without an unchecked twin of the same signature (CS9025); conversion identity spans implicit/explicit, so a checked explicit beside an unchecked implicit is refused as the mixed-direction error it is (CS0557).\n  Duplicate operator or conversion signatures, including implicit and explicit to the same target (CS0111/CS0557).\n  Operators on a static class (CS0715).\n  operator true/false with a non-bool result (CS0215).\n  An instance member referenced from any static context - a static method or an operator - instead of emitting a bare name that fails with CS0120. If a generator did this it was already emitting broken code; the throw is new, the breakage is not.\n\nType spellings are canonicalized before signatures compare - int equals System.Int32, spaced and unspaced generics agree - so mixing symbol-derived and hand-written type names does not produce false rejections.\n\nNew: records can declare operators and conversions, gaining a brace body (never == or !=, which a record synthesizes - the refusal points at Equals instead). OperatorKind.UnsignedRightShift adds >>>, completing the overloadable set that preview.8's notes wrongly claimed was already complete. PartnerDeclaredElsewhere() waives the pairing and twin requirements per operator, for partial types that legally split a pair across their parts. A member builder's own ToString() now runs the same validation the declaring type runs.\n\nBreaking, deliberately, while the version says preview: ConversionKind no longer defines zero (Implicit is now 1), so default(ConversionKind) throws instead of silently declaring an implicit conversion; an undefined OperatorKind or ConversionKind throws at Define time naming the value, rather than a KeyNotFoundException later. Source-compatible unless you wrote those literally; recompile rather than drop in.\n\n0.1.0-preview.8\n\nOperators and conversions, which the library could not declare at all before: DefineMethod validates its name as a C# identifier, so \"operator ==\" was rejected before it started. That left generated value objects and strongly-typed ids visibly incomplete — users write a == b, not a.Equals(b).\n\nDefineOperator and DefineConversion come in a typed form (the result type as a type argument, which is what comparison operators want since they all return bool) and a raw-named form, for an operator returning the type being generated, which no type argument can name. Every overloadable operator is covered, plus implicit and explicit conversions.\n\nModifiers: Unsafe(), and Checked() for the C# 11 checked form — public static A operator checked +(A l, A r). Accessibility and staticness are fixed by the language (CS0558) and so are not offered.\n\nFour language rules are enforced when the type is built, rather than passed to your consumer's compiler as a build error you would never see:\n\n  == must be declared with != (CS0216), and likewise the ordering pairs and true/false.\n  A checked form is legal only on + - * / ++ and -- (CS9023). Not remainder, bitwise, shift or comparison — and not unary +, though binary + is fine, so arity decides.\n  A checked conversion must be explicit (CS9024).\n  A checked form requires its unchecked counterpart (CS9025).\n\nOnly the type sees every operator, so all four checks live there. This is the same stance the enum builder takes on an out-of-range member value: refuse to emit rather than emit something that will not compile.\n\nSource-compatible and binary-compatible with preview.7 — everything here is additive.\n\n0.1.0-preview.7\n\nA small release: one addition.\n\nReturnRaw(value) on a value-returning method builder. DefineMethod<bool> gives a Return checked against its type argument, but the raw family — InvokeRaw, MemberRaw, Value.NewOfType — produces untyped values, so a method whose signature is known when the generator is compiled (bool Equals(…), int GetHashCode()) could not forward to something the library cannot see without falling back to Returns(\"bool\") and giving up the type argument. ReturnRaw keeps the typed signature and accepts an unchecked value. Named apart from Return rather than overloading it, so a genuine type mismatch on Return still reports as one.\n\nSource-compatible with preview.6, and binary-compatible too — nothing was restructured this time.\n\n0.1.0-preview.6\n\nCompletes the story for generators driven by the consumer's own code. A generator working purely from ISymbols can now emit a whole type — declarations, assignments, guards, calls, member reads, returns and construction — without a single raw statement. The decorator example in the repository does exactly that.\n\nReaching a discovered member. MemberRaw(name) reads or writes a member of a type the generator only found at generation time, CallRaw(target, name, args) forwards a call as a statement, and Invocations.InvokeRaw does the same as a value. These take their arguments as params rather than in fixed arities: the handle-based Call/Invoke families stop at three because each arity needs its own type parameters, and with nothing to check there is nothing to bound — which is what a forwarding generator needs.\n\nStatic calls. CallStatic and InvokeStatic, in one form per place a type name can come from: a type argument, a typeof, a builder reference, and raw text. Use the typeof form for a static class — Console, Math, File, Enumerable — because C# forbids a static type as a type argument, so CallStatic<Console> does not compile. Every form but the raw one routes the type through the same machinery as any other type reference, so it is fully qualified by default and shortens under SimplifyTypeNames with the import added.\n\nValue.Literal(x) lets a constant be a call argument, which nothing could be before — AssignLiteral and ReturnLiteral had closed that gap for assignment and return only. It is typed, so it composes with the checked handles as well as the raw ones.\n\nProperties typed by name. DefineProperty(name, typeName) joins the field and parameter forms added in preview.4; without it a discovered interface could not be implemented at all, since its property types come from the interface. Its accessor bodies are built too, via WithGetter/WithSetter scopes — and the setter's `value` carries the property's declared type text, so assigning it into a backing field still checks that the two agree. ThrowIfNullRaw guards a raw-typed parameter, which the type-argument form could not.\n\nThe ceiling, unchanged and worth repeating: everything in the raw tier is checked by declared type text when the generator runs, or not at all. That is strictly less than a type argument. What it does guarantee is that malformed syntax is impossible and that names come from the builders that declared them rather than from string formatting that can drift.\n\nSource-compatible with preview.5; binary-breaking, as previews are permitted to be. Property builders gained a shared base, mirroring the change field builders took in preview.4, so recompile rather than drop in.\n\n0.1.0-preview.5\n\nNo changes to this library. It is identical to 0.1.0-preview.4 and there is no reason to upgrade for its own sake.\n\nThis version exists so that the companion package FluentRoslyn.Templates — new in this release — shares a version line with it. The two ship from one tag and are versioned in lockstep, so a matching pair is always obvious at a glance. FluentRoslyn.Templates is a meta-generator that runs on your source-generator project: mark a method [Template] and its body is real, compiled C# that gets lifted into the FluentRoslyn calls reproducing it. It is optional, and install it into the generator project rather than the consumer.\n\n0.1.0-preview.4\n\nExtends the typed statement surface at both ends: the locations a value can be written to, and the values that can be written.\n\nReference paths. Member, MemberNamed and Item build one reference out of another, so this.a.b, arr[i] and map[k] are now assignment targets, call receivers, arguments and return values. A path is an IReference, so every position that already accepted one takes a path with no new overload. When a parameter shadows a path's leading name only that name is qualified, because everything after the first dot binds in the target's type.\n\nComputed values. AsConstructable yields a type-checked new T(args), and a call's result can be used as a value rather than only as a statement. Assign, Return and argument positions now take IValue<T>, which IReference<T> implements — existing calls are unaffected.\n\nMembers typed by name, for generators driven by the consumer's own code. A consumer's type is an ISymbol, never a CLR T, so the <T> surface could not declare a field or parameter of one at all. DefineField(name, typeName) and WithParameter(name, typeName) now can; AssignRaw connects two such references; Value.NewOfType constructs a type named by text; and This()/This<T>() make `this` a reference. Together these let a generator working purely from consumer symbols emit without a single raw statement — see the builders example in the repository.\n\nWorth being precise about what that buys. The raw-name forms are checked by declared type text when the generator runs, not by the compiler when it builds; construction is not checked at all. That is strictly less than <T>, and it is the most available when a type exists only as an ISymbol. What it does guarantee is that malformed syntax is impossible and that names come from the builders that declared them.\n\nSource-compatible with preview.3; binary-breaking, as previews are permitted to be. Field builders gained a shared base and several signatures widened from IReference to IValue, so recompile rather than drop in.\n\nEarlier previews\n\nBREAKING in preview.3: a generated file is its own builder. SourceFile.InNamespace(\"MyApp\") owns the using directives, SimplifyTypeNames(), BlockScopedNamespace(), WithIndentation() and WithLineEndings() — those five moved off the type builders, because they describe a file rather than a type. Several types can share one file, and simplification decides ambiguity across all of them, which is the only way that decision can be correct when types share a file. NamespaceBuilder.Get(ns).Class(name) still works and opens a single-type file, so the common path is unchanged. Preview.3 also added Source Link and a symbol package, so stepping into this library lands on the real source rather than decompiled IL, and CI builds are deterministic.\n\nFrom the first preview — type declarations: classes, structs, records, enums, interfaces, and delegates, nestable to any depth; fields, constructors, properties, methods, and events; generics with constraints, attributes (including target specifiers), base types and interfaces, async, required members, and XML doc comments.\n\nType-checked statements: properties, fields, and parameters are typed references, so Assign matches both sides at generator compile time; AsCallable/Call check a method call's arguments, and AsCallableOn/CallOn check the receiver too. Also Return, literal values, null guards, and compound assignment. A member shadowed by a parameter is qualified automatically rather than silently binding the parameter.\n\nGenerated types: reference a type being generated by its builder, or declare an [EmitsAs] placeholder so the whole typed surface works for types that do not exist as CLR types yet.\n\nOutput is 4-space/LF by default so it is byte-identical across operating systems; optional using-directive management shortens type names and adds the imports they need.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#repository",
+    "commit": "a9c4181e5d327fc88bac733b7b64ace3debf494b",
+    "type": "git",
+    "url": "https://github.com/keybindings/FluentRoslyn"
+  },
+  "verbatimVersion": "0.1.0-preview.9",
+  "version": "0.1.0-preview.9",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#FluentRoslyn.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5564,
+      "fullName": "FluentRoslyn.nuspec",
+      "length": 13454,
+      "name": "FluentRoslyn.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1072,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 11178,
+      "fullName": "README.md",
+      "length": 30930,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 2447,
+      "fullName": "icon.png",
+      "length": 2442,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#lib/netstandard2.0/FluentRoslyn.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 63051,
+      "fullName": "lib/netstandard2.0/FluentRoslyn.dll",
+      "length": 152064,
+      "name": "FluentRoslyn.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#lib/netstandard2.0/FluentRoslyn.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 36375,
+      "fullName": "lib/netstandard2.0/FluentRoslyn.xml",
+      "length": 225682,
+      "name": "FluentRoslyn.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.00.04.52/fluentroslyn.0.1.0-preview.9.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "roslyn",
+    "source-generator",
+    "codegen",
+    "code-generation",
+    "syntaxfactory",
+    "fluent",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

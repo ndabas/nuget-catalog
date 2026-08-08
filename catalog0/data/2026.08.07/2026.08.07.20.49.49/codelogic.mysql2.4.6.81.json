@@ -1,0 +1,186 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Media2A",
+  "catalog:commitId": "8cbdfde6-f355-4feb-9008-efdec3ce25f1",
+  "catalog:commitTimeStamp": "2026-08-07T20:49:49.974661Z",
+  "copyright": "Copyright © 2026 Media2A",
+  "created": "2026-08-07T20:46:39.373Z",
+  "description": "MySQL with typed LINQ, SQL aggregation, projection pushdown, compiled materializers, covering indexes, retention, and a working cache.",
+  "id": "CodeLogic.MySQL2",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-07T20:49:47.317Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "cl76pgQSRPkXLSgGGPI9U8IKvOxSoGl8/nOFKAusxuI0PO055WGUoz2kVwZvE17iX/BYVQbXnJ5Uz60Kw4tu+Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 255295,
+  "projectUrl": "https://github.com/Media2A/CodeLogic.Libs",
+  "published": "2026-08-07T20:46:39.373Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.MySQL2 — Changelog\n\nAll notable changes to **CodeLogic.MySQL2** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/). The version listed here matches the\nNuGet package version of `CodeLogic.MySQL2`.\n\n## 2026-08-07\n\n### Added\n\n- Forward-only keyset pagination on entity queries through `.After(cursor)` and\n  `ToCursorPagedListAsync(pageSize)`, returning `CursorPagedResult<T>`.\n- Versioned Base64URL continuation tokens, stable primary-key tie-breaking,\n  compound ASC/DESC ordering, and MySQL-compatible nullable ordering.\n\n### Fixed\n\n- Reject cursor tokens longer than 4,096 encoded characters before Base64 decoding\n  or JSON deserialization, bounding work performed on untrusted paging input.\n\n### Documentation\n\n- Expanded the package README into a complete capability overview covering entity\n  mapping, repositories, querying and paging, schema sync, migrations, lifecycle,\n  transactions, caching, resilience, observability, configuration, and API boundaries.\n\n## 2026-06-20\n\n### Fixed\n\n- Query-builder parameter re-keying could corrupt SQL when a single predicate\n  emitted 11 or more parameters: the rename used a substring replace, so `@p1`\n  also rewrote `@p10`/`@p11`, leaving placeholders with no bound value.\n  Parameters are now renamed longest-name-first in `QueryBuilder.Where` and\n  `JoinedQuery`, matching the existing subquery path. Covered by a new\n  integration test (12-parameter predicate).\n\n### Documentation\n\n- **Full README + multi-page docs rewrite to the unified house style.** The\n  README is now concise — title, NuGet + license badges, one-line tagline, a\n  short intro, `Install`, `Quick start`, `Features`, `Configuration` (table +\n  JSON), `Documentation`, `Requirements`, and `License` — and renders correctly\n  on both GitHub and NuGet (Markdown only, absolute `https://` links, no raw\n  HTML or relative paths). The full API now lives in the docs site rather than\n  the README.\n- **Docs site pages rewritten** to match the house style across the four-page\n  structure: [`index`](https://media2a.github.io/CodeLogic.Libs/libs/mysql2/index.html)\n  (overview, load, repository basics, entry points, config, health, events),\n  [`queries`](https://media2a.github.io/CodeLogic.Libs/libs/mysql2/queries.html),\n  [`schema-migrations`](https://media2a.github.io/CodeLogic.Libs/libs/mysql2/schema-migrations.html),\n  and [`performance`](https://media2a.github.io/CodeLogic.Libs/libs/mysql2/performance.html).\n  Each sub-page now opens with a tagline and an overview breadcrumb and closes\n  with a consistent \"See also\" footer.\n- **No API changes.** Documentation only — no behaviour, signatures, config\n  keys, or version numbers were altered.\n\n## [4.5.3] — 2026-06-20\n\n### Added\n\n- **Three schema sync modes — `SyncMode`.** A new operator-facing knob on each\n  database (`config.mysql.json`) replaces the lower-level `SchemaSyncLevel` /\n  `AllowDestructiveSync` flags (which still work for back-compat — `SyncMode` takes\n  precedence and maps onto them via `EffectiveSyncLevel`).\n\n  | Mode | Behaviour |\n  |---|---|\n  | `Developer` | Aggressive rolling updates — drops removed columns/indexes/FKs on every boot (maps to `Full`). |\n  | `Production` *(default)* | Additive only — adds/modifies, **never drops**. A change that needs a drop is deferred and the table is flagged `DriftPending`. |\n  | `Migration` | Deliberate one-shot destructive reconcile (takes a schema backup first). Idempotent — once every model matches and no drift is pending it does nothing and logs a warning to switch back to `Production`. |\n\n  ```json\n  { \"Databases\": { \"Default\": { \"SyncMode\": \"Production\" } } }\n  ```\n\n- **CRC sentinel — `__schema_state`.** Each model's desired schema is hashed\n  (CRC) into a per-table row. Sync skips a table **entirely** — no\n  `information_schema` diffing, no DDL — when the stored CRC matches the model\n  *and* the table still exists. New `SyncResult` fields: `Skipped`, `SchemaCrc`,\n  `DriftPending`; new `SchemaSyncStatus` enum (`Synced` / `DriftPending`).\n  Exposed via `mysql.SchemaState` (a `SchemaStateStore`).\n\n- **Cross-node schema-sync lock — `SchemaSyncLock`.** A schema/migration pass\n  serializes across application nodes with MySQL `GET_LOCK`. The winner runs the\n  DDL; peers wait, then find the schema already reconciled (matching CRCs) and do\n  nothing.\n\n- **Batch schema sync + runtime mode override.** `mysql.SyncSchemaAsync(params\n  Type[])` reconciles a whole set of entities as one pass under a single lock,\n  honouring the configured `SyncMode` and the CRC fast-path — the recommended\n  startup entry point. `mysql.SetSyncMode(mode, connectionId)` overrides the mode\n  at runtime (e.g. to flip `Migration` back to `Production` once a pass completes).\n\n- **Imperative migrations.** `IMigration` / `MigrationVersion` / the abstract\n  `Migration` base for data transforms, seeds, and semantic changes the\n  declarative sync can't express. `IMigrationContext` provides `ExecuteAsync`,\n  `QueryAsync<T>`, `ScalarAsync<T>`, and a `SyncTableAsync<T>()` bridge into\n  declarative sync. The `MigrationRunner` applies pending migrations in\n  `MigrationVersion` order over the `__migrations` table, each in its own\n  transaction, under the shared lock, gated by the app version\n  (`CodeLogicEnvironment.AppVersion`), and warns when an applied migration's\n  checksum has drifted. Library surface: `RegisterMigration`,\n  `RegisterMigrationsFrom(assembly)`, `MigrateAsync`, `GetPendingMigrationsAsync`.\n\n  ```csharp\n  public sealed class SeedRoles() : Migration(\"1.4.0\", 1, \"Seed default roles\")\n  {\n      public override async Task UpAsync(IMigrationContext ctx, CancellationToken ct) =>\n          await ctx.ExecuteAsync(\"INSERT INTO roles (name) VALUES ('admin'), ('user')\", ct: ct);\n  }\n  ```\n\n  > MySQL implicitly commits on DDL, so a migration that mixes `ALTER` with data\n  > changes is not atomic — keep `UpAsync` steps idempotent.\n\n- **Rollback.** `mysql.RollbackAsync(MigrationVersion target)` runs `DownAsync`\n  newest-first for every applied migration above `target`, each in its own\n  transaction. It pre-flights the range and aborts cleanly **before any change**\n  if a migration in range has no `DownAsync` override. Declaratively,\n  `mysql.RestoreSchemaAsync(tableName)` replays a `BackupManager` schema snapshot\n  (DDL only — rows are lost) and clears the table's `__schema_state` row so the\n  next sync reconciles from scratch.\n\n### Fixed\n\n- **Upsert now portable to MariaDB.** `UpsertAsync`, `UpsertManyAsync`, and\n  `UpsertWithIncrementsAsync` emit the portable `... ON DUPLICATE KEY UPDATE col =\n  VALUES(col)` form, which works on **both** MySQL and MariaDB, instead of the\n  MySQL-8.0.19+-only `INSERT ... AS new ... ON DUPLICATE KEY UPDATE` row-alias\n  syntax that MariaDB rejected.\n\n## [4.5.2] — 2026-06-13\n\n### Added\n\n- **Typed JOINs.** `Query<TLeft>().Join<TRight, TKey, TResult>(leftKey, rightKey,\n  resultSelector, type)` translates a strongly-typed equi-join to real SQL with\n  table aliases (left `t0`, right `t1`) and a compiled, reflection-free projection\n  into `TResult` — only the columns the selector references are transferred.\n\n  ```csharp\n  var views = await mysql.Query<Order>()\n      .Where(o => o.Total > 100)\n      .Join<Customer, long, OrderView>(\n          o => o.CustomerId,                 // left key\n          c => c.Id,                         // right key\n          (o, c) => new OrderView { OrderId = o.Id, Customer = c.Name })\n      .OrderByDescending((o, c) => o.Total)\n      .Take(20)\n      .ToListAsync();\n  ```\n\n  - **Join types:** `Inner` (default), `Left`, `Right`. `Cross` is rejected for a\n    keyed join (keys imply an equi-join).\n  - **Composite keys:** `o => new { o.A, o.B }` matched positionally with\n    `c => new { c.X, c.Y }`.\n  - **Carried filters:** `.Where(...)` calls made on the left builder *before*\n    `.Join` are re-qualified to the left table and preserved.\n  - **Fluent surface on the join:** `.Where((l, r) => …)`, `.OrderBy` /\n    `.OrderByDescending((l, r) => …)`, `.Take` / `.Skip`, and the\n    `ToListAsync` / `FirstOrDefaultAsync` / `CountAsync` terminals.\n  - The single-table query path and the existing raw-string\n    `Join(table, condition, type)` overload are unchanged.\n\n- **Subquery filters — `EXISTS` / `IN`.** Four new WHERE-family methods on the\n  query builder translate to real SQL subqueries:\n\n  ```csharp\n  // Correlated EXISTS — correlated + non-correlated conditions in one predicate\n  mysql.Query<Order>()\n      .WhereExists<Shipment>((o, s) => s.OrderId == o.Id && s.Status == \"sent\");\n\n  // IN (subquery) with an optional uncorrelated inner filter\n  mysql.Query<Order>()\n      .WhereIn<Customer, long>(o => o.CustomerId, c => c.Id, c => c.IsVip);\n  ```\n\n  - `WhereExists<TInner>` / `WhereNotExists<TInner>` →\n    `[NOT] EXISTS (SELECT 1 FROM inner WHERE …)`, correlated via the predicate.\n  - `WhereIn<TInner, TKey>` / `WhereNotIn<TInner, TKey>` →\n    `col [NOT] IN (SELECT innerCol FROM inner [WHERE innerFilter])`.\n  - Composes with ordinary `.Where(...)` and reuses the same multi-source\n    translator as joins (each source qualified by its table name).\n\n- **Column rename — `[Column(PreviousName = \"old_col\")]`.** Schema sync now emits\n  `CHANGE COLUMN old_col new_col …` to rename in place and **preserve the data**,\n  instead of the drop-old + add-new that silently lost it (orphan column at Safe;\n  data loss at Full). Works at `Safe` and above; remove `PreviousName` once every\n  environment has synced.\n\n  ```csharp\n  [Column(Name = \"email_address\", PreviousName = \"email\")]\n  public string EmailAddress { get; set; } = \"\";\n  ```\n\n- **Multi-node cache coordination — `ICacheCoordinator`.** A pluggable coordination\n  seam (same model as `ICacheStore`: interface + in-process default, distributed\n  adapter supplied by the consumer) that closes the single-node limitation called\n  out in 4.1.2's notes. Install with `QueryCache.UseCoordinator(...)`.\n\n  - **Cross-node invalidation** — a local mutation now fans out via\n    `PublishInvalidationAsync`; a peer's broadcast bumps this node's table-version\n    counter and evicts matching entries (without re-broadcasting). Previously the\n    version counter was per-process, so a mutation on one node never invalidated\n    the others.\n  - **Single-flight pool refresh** — `SmartCachePool` ticks now acquire a refresh\n    lease via `TryAcquireRefreshLeaseAsync`; only the lease holder hits the DB, so\n    N nodes don't all refresh the same pool. Idle-entry retirement still runs on\n    every node. Pair with a shared `ICacheStore` (e.g. Redis) so non-leaders read\n    the entry the leader writes.\n  - The default `NullCacheCoordinator` is single-node: no fan-out, always grants\n    the lease — behaviour is identical to before off-cluster.\n\n- **Raw SQL escape hatch.** `mysql.SqlQueryAsync<T>(sql, parameters)` materializes\n  rows into `T` with the same compiled materializer as the query builder;\n  `ExecuteSqlAsync(sql, parameters)` runs a non-query and returns the affected count;\n  `SqlScalarAsync<T>(sql, parameters)` returns a single value. All use named\n  parameters, flow through observability, and inherit the transient-retry policy.\n\n  ```csharp\n  var rows = await mysql.SqlQueryAsync<UserRecord>(\n      \"SELECT * FROM users WHERE country = @c\", new() { [\"@c\"] = \"DK\" });\n  ```\n\n- **Transient-error auto-retry.** Single non-transactional statements that fail with\n  a deadlock (1213) or lock-wait timeout (1205) are retried with exponential backoff\n  + jitter. Configurable per database via `TransientRetryCount` (default 3) and\n  `TransientRetryBaseDelayMs` (default 50); 0 disables. Statements inside an explicit\n  transaction scope are never auto-retried — the whole transaction is the caller's\n  to retry.\n\n- **Cache stampede protection.** Concurrent cache misses on the same cold key now\n  collapse to a single factory execution (single-flight) instead of a thundering\n  herd of identical DB queries. Transparent — no API change.\n\n- **Soft deletes — `[SoftDelete(nameof(DeletedUtc))]`.** Marks a nullable-`DateTime`\n  column as the delete marker. `Repository.DeleteAsync` then sets it to UtcNow\n  instead of issuing a physical `DELETE`, and reads via `mysql.Query<T>()` and the\n  repository getters automatically exclude rows where it is set. Opt back in with\n  `.IncludeDeleted()` on a query, or purge for real with `Repository.HardDeleteAsync`.\n\n  ```csharp\n  [SoftDelete(nameof(DeletedUtc))]\n  public class Account { /* … */ public DateTime? DeletedUtc { get; set; } }\n  ```\n\n### Notes\n\n- **No breaking changes.** Joins and subquery filters are new methods; the\n  multi-source WHERE translator is byte-identical to the single-table translator\n  when no alias map is supplied.\n- **Subquery-filtered queries are not cacheable** and cannot be turned into a\n  typed `.Join` — same single-table-version-stamping limitation as joins. Both\n  are gated explicitly (cache silently bypassed; `.Join` throws).\n- **`WhereExists` against the outer query's own table is rejected** — unqualified\n  inner columns would be ambiguous.\n- **Soft-delete auto-filtering applies to single-table reads only** —\n  `mysql.Query<T>()` terminals and the repository getters. It does NOT apply to\n  joins, subqueries, or the query builder's bulk `UpdateAsync`/`DeleteAsync` (those\n  stay raw so you can target or restore deleted rows). `QueryBuilder.DeleteAsync`\n  is a hard delete regardless of `[SoftDelete]`.\n- **Joins are not cacheable in this version.** The result cache stamps each entry\n  with a single table's version counter, so a join entry could not be invalidated\n  when the *other* joined table mutates. `.WithCache` / `.SmartCache` are\n  intentionally absent on `JoinedQuery` rather than risk serving stale joins;\n  multi-table invalidation is on the roadmap.\n- **`TRight` must be specified explicitly** (e.g. `Join<Customer, long, OrderView>`)\n  — it cannot be inferred from a lambda parameter type.\n\n## [4.5.0] — 2026-05-24\n\n### Added\n\n- **`StorageType` enum on `ColumnAttribute`.** Per-column physical storage\n  override that takes precedence over `DataType` for DDL generation.\n  Available values: `Binary`, `VarBinary`, `TinyBlob`, `Blob`, `MediumBlob`,\n  `LongBlob`. When set, the column is stored as the chosen binary type and\n  values are automatically converted to/from binary on read and write.\n\n- **Guid-as-BINARY(16) support.** Set `StorageType = StorageType.Binary` on a\n  `Guid` property and CL.MySQL2 stores it as `BINARY(16)` using RFC 4122\n  big-endian byte layout for correct lexicographic sort order. Conversion is\n  automatic in all paths: insert, update, read, WHERE clauses, and IN queries.\n\n  ```csharp\n  [Column(StorageType = StorageType.Binary, Primary = true, NotNull = true)]\n  public Guid Id { get; set; }\n  ```\n\n- **Automatic binary conversion for all CLR types.** Any property can be\n  stored as binary by setting `StorageType`. Supported types and their binary\n  sizes (auto-detected when `Size` is not explicit):\n\n  | CLR type | Binary size | Byte order |\n  |---|---|---|\n  | `Guid` | 16 | RFC 4122 big-endian |\n  | `long` / `ulong` | 8 | big-endian |\n  | `int` / `uint` | 4 | big-endian |\n  | `short` / `ushort` | 2 | big-endian |\n  | `double` | 8 | big-endian |\n  | `float` | 4 | big-endian |\n  | `decimal` | 16 | big-endian |\n  | `DateTime` / `DateTimeOffset` | 8 | ticks, big-endian |\n  | `bool` / `byte` / `sbyte` | 1 | — |\n  | `string` | explicit | UTF-8 |\n  | `byte[]` | passthrough | as-is |\n\n- **LINQ WHERE support for binary-stored columns.** Expressions like\n  `repo.Where(x => x.Id == someGuid)` and `list.Contains(x.Id)` correctly\n  convert parameter values to binary when the column uses `StorageType`.\n\n- **`SequentialGuid.NewId()` helper.** Generates time-ordered UUIDv7 values\n  optimized for `BINARY(16)` primary keys. Sequential inserts append to the\n  B-tree instead of causing random page splits — dramatically reducing index\n  fragmentation compared to random UUIDv4.\n\n  ```csharp\n  [Column(StorageType = StorageType.Binary, Primary = true, NotNull = true)]\n  public Guid Id { get; set; } = SequentialGuid.NewId();\n  ```\n\n- **Unified versioning.** All CodeLogic.Libs now share a single version line\n  controlled by `version.txt`. AssemblyVersion is derived automatically.\n\n### Notes\n\n- **No breaking changes.** `StorageType` defaults to `StorageType.Default`\n  (the zero-value), so all existing entities and schemas are unaffected.\n  Guid inference still returns `Char(36)` unless you explicitly opt in.\n\n## [4.2.3] — 2026-05-15\n\n### Fixed\n\n- **Cache orphan accumulation on mutations.** `QueryCache.Invalidate(tableName)`\n  previously only bumped the per-table version counter — old cache entries\n  (now unreachable via the read path because the cache key changed) lingered\n  in the underlying store until TTL or LRU swept them. On a busy app this\n  produced unbounded memory growth. Invalidate now also calls\n  `ICacheStore.EvictByTableAsync` to sweep matching entries in the same step.\n- **SmartCachePool orphan tracking.** Each pool entry now remembers the\n  cache key it last wrote. If the next tick computes a different key\n  (because a mutation bumped the table version between ticks), the\n  previous key is evicted explicitly. Works on any `ICacheStore`\n  implementation including ones that can't enumerate (Redis without\n  SCAN, memcached).\n\n### Added\n\n- `ICacheStore.EvictByTableAsync(tableName)` — bulk eviction by table.\n  Default in-process implementation is an O(n) scan over current entries.\n  Distributed adapters can override (e.g. Redis tag-set or key prefix).\n- `ICacheStore.CountByTable()` — entries grouped by tableName for diagnostics.\n- `QueryCache.GetStats()` → `QueryCacheStats(TotalEntries, EntriesByTable,\n  TableVersions)`. Surfaced on the library API via `MySQL2Library.GetCacheStats()`\n  so admin tools can render \"what's in the cache right now\" without\n  dumping values.\n\n## [4.2.2] — 2026-05-15\n\n### Fixed\n\n- **SmartCache pool no longer corrupts `ToListAsync` results.** The pool's\n  refresh factory stored the unwrapped `List<T>` instead of the\n  `Result<List<T>>` that the cache-aside read path expects. After the first\n  background refresh tick, every subsequent read failed the `(Result<List<T>>)`\n  cast inside `GetOrSetAsync`, the outer try/catch turned it into a Failure\n  Result, and callers saw an empty list (manifested as \"No servers configured\"\n  / empty leaderboards roughly one refresh interval after warm-up). `FirstOrDefaultAsync`\n  and `CountAsync` already cached the full Result and were unaffected; only\n  `ToListAsync` was wrong.\n\n## [4.2.1] — 2026-05-15\n\n### Fixed\n\n- **Failure Results no longer poison the cache.** Previously, a query that\n  failed (e.g. transient connection error during a cold warm-up) had its\n  `Result<T>.Failure` value cached just like a successful one — subsequent\n  reads served the failure until the entry's TTL expired or a pool refresh\n  overwrote it. Now `QueryCache.GetOrSetAsync` skips writing failure Results,\n  evicts any pre-existing failure entry on read, and `SetDirectAsync` (the\n  smart-cache pool's refresh path) refuses to write failures too. Empty\n  server lists / leaderboards on first request after a deploy are gone.\n\n## [4.2.0] — 2026-05-15\n\n### Added\n\n- **Smart-cache pool warm-up on registration.** `RegisterCachePool` now\n  accepts an optional `warmUp: Func<Task>` callback that fires as a\n  fire-and-forget task right after the pool starts. The callback just\n  calls the queries that should be warm — they auto-register with the\n  pool via their normal `.SmartCache(name)` decoration — so the cache\n  is hot before the first user request hits it. Exceptions are caught\n  and logged; the pool stays lazy if warm-up fails.\n- `SmartCachePool.WarmUp(Func<Task>)` — public method exposing the same\n  behaviour for callers that want to warm a pool independently of\n  registration.\n\n## [4.1.2] — 2026-05-15\n\n### Added\n\n- **Smart cache pools** — named groups of cached queries kept warm by a\n  background timer (`mysql.RegisterCachePool(\"dashboard\", refreshEvery: 30s)`,\n  opt in per-query with `.SmartCache(\"dashboard\")`). Reads after the first\n  populate the cache never block on the DB — the pool's timer re-runs every\n  registered query in the background and overwrites the entry.\n- `SmartCachePool.RefreshNowAsync()` — out-of-schedule refresh, useful right\n  after a deploy to prime the cache before the first user hits the page.\n- `MySQL2Library.GetCachePoolStats()` — diagnostic snapshot per pool\n  (entry count, ticks fired, ticks failed, last tick UTC).\n- `QueryCache.SetDirectAsync(...)` — internal cache write API used by pools.\n\n### Notes\n\n- Smart cache is mutually exclusive with `.WithCache(TimeSpan)` — if both are\n  set, the pool wins and the TTL comes from `refreshEvery * 2`.\n- Unknown pool name on `.SmartCache(name)` logs a warning and falls back to\n  non-cached execution (no exception).\n- Per-pool eviction policy: an entry that has not been read for\n  `MaxIdleFires` (default 3) consecutive ticks is dropped from the refresh\n  list. Bounds cardinality on parameterized queries.\n- Smart cache is disabled inside a transaction scope (same as `.WithCache`).\n- Single-node only in v4.2. Multi-node coordination is on the roadmap.\n\n## [4.1.1] — 2026-04-17\n\n### Fixed\n\n- Qualify LHS columns in upsert SET clauses so `UpsertAsync` no longer\n  generates ambiguous column references when the table has columns whose\n  names clash with parameter placeholders.\n\n## [4.1.0] — 2026-04-17\n\n### Added\n\n- **Typed upsert** — `UpsertAsync` + `UpsertWithIncrementsAsync` on the\n  repository. Compiles to `INSERT ... ON DUPLICATE KEY UPDATE ...` with\n  full LINQ-shaped value/increment expressions on the update side.\n\n### Changed\n\n- `LibraryManifest.Version` now reads from the assembly's `AssemblyVersion`\n  attribute at runtime instead of being a hard-coded string. Keeps the\n  manifest honest across rebuilds.\n\n## [4.0.4] — 2026-04-16\n\n### Changed\n\n- README + manifest refresh across every CodeLogic library for the v4 baseline.\n- No functional changes vs 4.0.3.\n\n## [4.0.1] — 2026-04-09\n\n### Fixed\n\n- Drop the `Expression.Compile().DynamicInvoke()` fast-path inside the SQL\n  expression visitor — it broke on closures over generic types. The visitor\n  now always walks the tree.\n\n## [4.0.0] — 2026-04-09\n\nMajor rewrite. Breaking.\n\n### Added\n\n- **Projection pushdown** — `.Select<TResult>(x => new { ... })` emits a\n  real `SELECT col1, col2, ...` column list instead of `SELECT *`. Combined\n  with compiled materializers this often cuts row-transfer bandwidth by 80%+.\n- **SQL-side aggregation** — `.GroupBy(...).Select(g => new { g.Key,\n  g.Sum(...), g.Average(...), ... })` translates to real `GROUP BY` +\n  aggregate functions. No client-side row materialization.\n- **`SqlFn` helpers** — server-side function markers (`SqlFn.DayOfWeek`,\n  `SqlFn.Hour`, `SqlFn.BucketUtc`, `SqlFn.Coalesce`, `SqlFn.Round`, etc.)\n  recognized by the translator — mirrors EF's `EF.Functions` pattern.\n- **`[Index]` attribute** — declare named, unique, and covering indexes\n  (with `Include = new[] { ... }`) at the column level.\n- **`[RetainDays]` attribute** — opt entities into a daily background purge\n  worker that runs batched `DELETE` until drained.\n- **Working result cache** — `.WithCache(TimeSpan)` with two correctness\n  fixes from prior versions:\n  - DateTime closures near `UtcNow` are time-quantized to a configurable\n    window (default 60s) so `.Where(x => x.At >= UtcNow.AddDays(-30))`\n    stops producing a unique cache key per call.\n  - Mutations bump a per-table version that participates in the cache\n    key — invalidation is free (old keys become un-hittable, no eviction\n    loop).\n- **`EntityMetadata<T>` + compiled `Materializer<T>`** — reflection runs\n  once per entity at first use; subsequent reads use a compiled\n  reader-to-entity function.\n- **Observability events** — `QueryExecutedEvent`, `SlowQueryEvent`,\n  `CacheHitEvent`, `CacheMissEvent`, `N1QueryDetectedEvent`,\n  `TableSyncedEvent` publish to the CodeLogic event bus.\n- **`MaxBatchInsertSize`, `MaxInClauseValues`, `PreparedStatementCacheSize`,\n  `N1DetectorThreshold`, `CaptureExplainOnSlowQuery`, `DefaultStringSize`,\n  `CacheEnabledOverride`** — per-database config knobs.\n- **`CacheConfiguration`** — global cache settings (`Enabled`,\n  `MaxEntries`, `DefaultTtlSeconds`, `TimeQuantizeSeconds`,\n  `PublishEvents`).\n\n### Changed\n\n- Republished as v4.0.0 to reset the version line with the new package shape.\n- All public APIs refreshed under the v4 baseline.\n\n## Earlier releases\n\nPre-4.0 history is retained in the\n[git log](https://github.com/Media2A/CodeLogic.Libs/commits/main/CL.MySQL2)\nbut is not documented in detail here — the library shape changed\nsignificantly in the v4 rewrite.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#repository",
+    "commit": "ed53802208049d9917319a28f66584d4824eeda3",
+    "type": "git",
+    "url": "https://github.com/Media2A/CodeLogic.Libs"
+  },
+  "verbatimVersion": "4.6.81+ed53802",
+  "version": "4.6.81+ed53802",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#dependencygroup/net10.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[4.0.0, 5.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#dependencygroup/net10.0/mysqlconnector",
+          "@type": "PackageDependency",
+          "id": "MySqlConnector",
+          "range": "[2.6.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#lib/net10.0/CL.MySQL2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 177387,
+      "fullName": "lib/net10.0/CL.MySQL2.dll",
+      "length": 463360,
+      "name": "CL.MySQL2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#lib/net10.0/CL.MySQL2.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 32920,
+      "fullName": "lib/net10.0/CL.MySQL2.xml",
+      "length": 166076,
+      "name": "CL.MySQL2.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 10544,
+      "fullName": "CHANGELOG.md",
+      "length": 24931,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#CodeLogic.MySQL2.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 11094,
+      "fullName": "CodeLogic.MySQL2.nuspec",
+      "length": 26385,
+      "name": "CodeLogic.MySQL2.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 635,
+      "fullName": "LICENSE",
+      "length": 1064,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7650,
+      "fullName": "README.md",
+      "length": 20395,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.07.20.49.49/codelogic.mysql2.4.6.81.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "mysql",
+    "database",
+    "orm",
+    "linq",
+    "query-builder",
+    "aggregation",
+    "cache"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Lefteris Rentas",
+  "catalog:commitId": "50be4c50-4adb-47a5-a936-1e0dcb49e9e9",
+  "catalog:commitTimeStamp": "2026-08-08T05:00:12.663158Z",
+  "copyright": "Copyright © Lefteris Rentas",
+  "created": "2026-08-08T04:57:20.103Z",
+  "description": "Save and load for Noodloft components. Source-generated JSON, pluggable stores, per-entry\n            versioning, and a merging save that does not wipe the state of scenes that are not loaded.\n            Configuration is never written to disk, so rebalancing takes effect on existing saves.",
+  "id": "Noodloft.Components.Persistence",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-08T04:59:52.13Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "ZIVlDuUa5awsjpvG9/u3IYl5mo/k22hURC6Gn7LMXDYRgeL8P15VeLiSPsvzNVOyjjH0muVCFhCg2/h9RDYlKQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 113496,
+  "projectUrl": "https://git.lefterisrentas.dev/LefterisRentas/Noodloft.Components",
+  "published": "2026-08-08T04:57:20.103Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "The damage seam was one-directional. Simulated things could hurt nodes; nodes could not hurt simulated\nthings, and every rule a game plays by — friendly fire included — stopped applying the moment a target\nstopped being a node. This release closes that, which costs two breaking changes and buys one set of\ncombat rules for everything on screen.\n\nIt is also the first release numbered honestly. Eleven of them at `0.0.1-alphaN` put every bit of\ninformation in the pre-release label and none in the number.\n\n### Fixed\n\n\n- **`ArchWorldNode` never ran its `PhysicsProcess` stage, and never had.** `Noodloft.Components.Games.Godot.Arch`\n  referenced `GodotSharp` but not `Godot.SourceGenerators`, so the class had no generated\n  `HasGodotClassMethod` bridge. Godot decides whether to call a script's frame callbacks by asking the\n  script whether it has the method, and with no bridge the answer for `_PhysicsProcess` was no — the C#\n  override existed and the engine called it zero times.\n\n  Nothing reported it. There was no missing member, no exception and no warning: the `Process` stage\n  worked, because a subclass that overrides `_Process` gets a bridge from its own project's generator,\n  so a swarm would draw and animate normally while every physics system behind it — motion, steering,\n  collision, contact damage, proxy sync — sat dead. A subclass that overrode `_PhysicsProcess` itself\n  was unaffected, which is why the sample in the class documentation worked.\n\n  Fixed by referencing the generator, with `ScriptPathAttribute` disabled — this is a library reached\n  by subclassing, not a folder of scripts, and it has no `res://` path to stamp. `GodotMethodBridgeTests`\n  now asserts the bridge and every frame callback in it, because a csproj edit is all it takes to lose\n  this again and nothing else in the build can see it.\n\n  Caught before this ever shipped, so there is nothing to upgrade from — the only build of\n  `ArchWorldNode` anyone can reference is the one that works.\n\n### Changed — breaking\n\n- **Armor is now a percentage with diminishing returns, not a flat subtraction.**\n  `DefaultDamageEvaluator` resolves a hit as `(raw × crit) × (constant / (constant + armor)) ×\n  (1 − resistance)`, where the constant is `DamageableOptions.ArmorConstant` (default 100) and is by\n  definition the armor value that halves a hit. `ArmorMitigation.Flat` restores the old behaviour on any\n  damageable that wants it.\n\n  Flat armor is worth the same *absolute* amount against every hit, which makes it total against a\n  swarm and negligible against a boss — the opposite of what a defensive stat is meant to express, and\n  a cliff rather than a curve at the point where armor exceeds the incoming damage. The curve is worth\n  the same *fraction* of your effective health per point, never reaches immunity however much is\n  stacked, and is what almost every game means by armor.\n\n  **Existing armor values have to be re-read against the new scale**: under the old rule 15 armor\n  erased 15 damage, and now it takes off thirteen percent. Negative armor — a sunder, a shred —\n  amplifies along the mirrored curve, bounded at exactly double damage and continuous through zero, so\n  a debuff ticking down past it produces no step.\n\n- **`IMitigationSource` is now a single-member producer**: `MitigationValues For(DamageType)` replaces\n  the `Armor` property and the `ResistanceTo` method. `NoMitigation`, `StaticMitigation` and\n  `AttributeMitigation` are updated; the latter two keep `Armor` and `ResistanceTo` as their own\n  members, so only code written against the *interface* has to change.\n\n  The two-member shape only implied that mitigation resolves per hit per type. One member states it,\n  and it lets an implementation read its backing store once where the split forced it to read twice.\n  A default interface method would have preserved compatibility here, and it was rejected: the point\n  was to change the shape, and leaving the old one reachable would have left two ways to ask.\n\n- **`DamageFilter.Veto` now takes a `DamageContext`** instead of\n  `(Node?, DamageableNode, DamageOperation)`. Rewrite a custom filter as\n  `public override string? Veto(in DamageContext context)` and read `context.Source`,\n  `context.TargetNode`, `context.Target` and `context.Operation`.\n\n  The old signature assumed every combatant was a node. A rule that genuinely needs node identity —\n  scene ownership, Godot groups — should check `context.HasTargetNode` and **allow** the hit when\n  there is none. Refusing instead makes every entity invulnerable the day a game adds that filter, and\n  the symptom is a swarm that cannot be killed rather than an error anyone can search for.\n\n- **`LifetimeSystem` and `ProjectileSystem2D` now take an `ArchDestructionQueue`.** Both destroyed\n  entities themselves, each with its own private list, which meant the one place that has to free an\n  entity's physics handles was several places and any of them could be the one that forgot.\n\n- **Removed `MotionSystem3D`, `NodeSyncSystem3D`, `Position3D` and `Velocity3D`.** Pure speculation in\n  a 2D-only codebase, costing compile time and documentation surface for nothing. They come back the\n  day something 3D needs them, which is a smaller job than keeping them warm.\n\n### Added\n\n- **`MitigationValues`** — `readonly record struct (float Armor, float Resistance)`. A hit has exactly\n  one damage type, so resolving one never needs a resistance *table*, and collapsing it to two floats\n  is what lets a struct entity carry mitigation at all.\n\n- **`FactionId`** — which side something is on, as a value small enough for anything to hold. Godot\n  groups remain the better answer for nodes; this exists for combatants that are structs in an array\n  and can never be in a group. Deliberately just an identity: relations belong in a filter, not in a\n  matrix this type would have to serialize.\n\n  One rule is worth stating because it surprises people: **unaligned is not a side.** Two things that\n  both forgot to set a faction are not allies, because treating them as one blocks every hit in a game\n  that has not finished wiring factions up.\n\n- **`DamageableView`** — everything resolving a hit needs to know about its target, flattened so the\n  target can be an object *or* a struct in an array. `DefaultDamageEvaluator.Resolve` now has an\n  overload taking one, and it is the implementation; the `DamageableModel` overload builds a view and\n  calls it. One copy of the arithmetic for a sword and for a swarm.\n\n  A plain `readonly record struct`, not a `ref struct`: nothing here borrows a reference to the health\n  it describes, so the extra restrictions would be paid for nothing.\n\n- **`DamageContext` and `DamageVerdict`** in `Noodloft.Components.Games.Godot`, plus\n  **`IDamageRouter.Judge`**. `Route` lets a simulated thing damage a node; `Judge` runs the same rules\n  against a target that is not one and reports what *would* happen without changing anything. It\n  judges rather than applies because an entity's pool is a float in a chunk that its own system owns.\n\n- **`FactionNode`** and **`FactionDamageFilter`** in the addon. The friendly-fire rule that works when\n  some combatants are not nodes. `GroupDamageFilter` is still the better choice for a game with no\n  simulated ones.\n\n- **`DamageableNode.ToView(DamageType)`** — the node's own numbers in the shape the rules read.\n\n- **Arch combat components**: `Health` (a struct pool with `TryApplyDamage`), `Faction`, `Mitigation`\n  and `Invulnerable`, plus **`InvulnerabilitySystem`**, which removes the component rather than leaving\n  it at zero so the query is empty in the common case.\n\n- **`ArchCombat`** — deals damage *to* entities through the game's own rules. `Damage(entity, …)` for\n  one, `DamageOverlapping(space, query, …)` for a melee swing. With no router assigned every hit is\n  refused rather than dealt unfiltered: a swarm that cannot be hurt is noticed in seconds, a swarm that\n  ignores friendly fire ships.\n\n- **`PhysicsProxyRegistry`** and the `PhysicsProxy` component. Entities register a shape with\n  `PhysicsServer2D` directly, so the player's existing `Area2D` finds them with no node involved.\n\n  This is the one genuinely dangerous thing in the adapter and it is worth reading the type's remarks\n  before using it. **Arch has no destructor hook** — nothing runs when an entity is destroyed — so a\n  `World.Destroy` called outside the destruction queue leaks an area into the physics server forever,\n  and the symptom is a frame rate that decays over a session while everything visible looks correct.\n  Five things stand between a game and that, of which `Reconcile` is the one that does not depend on\n  anyone having remembered anything. Compare `LiveCount` against the entity count if you suspect one.\n\n- **`ArchDestructionQueue`** — one place entities die, drained by the world node after every stage.\n  Closes the proxy leak by construction, since Arch offers nothing else the chance.\n\n- **`ArchHitBuffer`** and `SwarmHit` — what happened to entities this frame, read once as a\n  `ReadOnlySpan` instead of told two hundred times. A Godot signal per hit marshals every argument\n  through a Variant; batching is also what makes the presentation sane, since two hundred floating\n  damage numbers in one frame is unreadable at any cost.\n\n- **`ArchWorldNode.Combat`, `.Destroyed`, `.Proxies` and `.Hits`**, with destruction drained after\n  damage each stage and proxies reconciled on the existing prune interval.\n\n- **A build-time Godot floor check** in the Arch package. `GodotSharp` is deliberately absent from the\n  nuspec — declaring it makes NuGet unify against the SDK-supplied one and quietly demands a specific\n  engine — which meant an engine below 4.4 failed at runtime with a `MissingMethodException` after a\n  clean restore and compile. Error `NLC0001` now says so at build time instead.\n\n- **Tests**: `DamageableViewTests` (the view and the model must resolve identically), `FactionIdTests`,\n  `ArchDestructionQueueTests`, `SwarmCombatTests`, `SpatialHashGrid2DTests`, `SteeringTests`, `AttributeSetTests`, `HealthMaxValueTests`, `SwarmAnimationTests`. 1006 passing headless, plus the engine suite above.\n\n### Added — after the first slice\n\nThe vertical slice proved the seam; these are the pieces that make a swarm something a player can see\nand fight, plus the attribute work that has a consumer today.\n\n- **`PhysicsProxySyncSystem2D`.** Moves each entity's shape to where the entity now is. Without it a\n  swarm is hittable exactly once, in the spot it spawned — and it is the hardest absence here to\n  diagnose, because the units are visibly walking around and the sword visibly passes through them.\n\n- **`MultiMeshRenderSystem2D`** and the `Rendered` tag. Two thousand instances of one `MultiMesh` are\n  one draw call, where two thousand `Sprite2D` nodes are two thousand canvas items. Everything else in\n  the adapter saves CPU on simulation and then hands it all back at the point of drawing unless the\n  drawing is batched too.\n\n- **`DamageableReactiveComponent.GrantInvulnerability(float)`** and the matching\n  `DamageableNode.GrantInvulnerability`. Invulnerability had exactly one way in — being hit — which\n  covers the common case and none of the deliberate ones: a dash that passes through enemies, a parry\n  window, the moment after a respawn. It **extends rather than replaces**, so a shorter grant can never\n  cut short the frames a hit already gave you, and the node calls `UpdateProcessing` so the countdown\n  actually runs. Not modelled as a `DamageOperation`, because every kind there resolves to a change in\n  the pool and this changes none; the same shape as `HealthReactiveComponent.SetMaxValue`.\n\n- **`ArchCombat.Options`.** The entity path hard-coded `DamageableOptions.Default`, so a game resolving\n  criticals attacker-side — authoring `CriticalMultiplier = 1` on its resources, as the guide\n  recommends — got them scaled a second time on entities and not on nodes. A crit on a swarm unit hit\n  for exactly twice what the same swing did to a boss, which reads as a swarm bug rather than as two\n  sets of rules. A property rather than a component because a critical multiplier and a resistance cap\n  are the game's rules, not facts about one unit, unlike `Faction` and `Mitigation`.\n\n- **`Animated.Flipped`**, written into `INSTANCE_CUSTOM.g` and read by `swarm_atlas.gdshader` as a\n  horizontal mirror. On `Animated` rather than in a `Facing` component of its own, because the draw pass\n  already reads `Animated` — a separate component would cost a hash lookup per entity per frame to ask\n  whether it existed, which is the same trade `Rendered` refuses for tint and rotation. It exists\n  because a sprite sheet draws a character facing one way and a swarm walks in every direction, so\n  mirroring saves an artist three more rows per animation.\n\n  Instance slots are deliberately **not** stable — an entity is written to whatever index it reaches\n  during the walk — so nothing may be cached per slot across frames.\n\n  Position only. Per-entity rotation, scale and tint were written and then removed: each is optional,\n  so the renderer had to ask every entity whether it had them, and asking is a hash lookup per entity\n  per frame. The way to add them back is a second query over the archetype that has the component, not\n  a test inside the loop.\n\n- **`SpatialHashGrid2D`**, **`SeparationSystem2D`**, **`SteeringSystem2D`**, **`SeekTargetSystem2D`**,\n  and the `Seek` / `Separation` / `SeparationForce` components. Seek plus separation is the smallest\n  pair that produces a crowd a player can fight: seek alone stacks every unit on the same pixel, and\n  separation alone is a cloud that never arrives.\n\n  Not full boids. Alignment and cohesion make a flock read as birds, which is the wrong feeling for\n  something hunting you — aligned units drift as a mass and appear to be avoiding the player.\n\n  **This departs from the plan, which said neighbours would come from the physics server.** Building it\n  showed the cost is not what either of us assumed: a shape query per unit per frame returns an array of\n  dictionaries from the C# binding, so two thousand units is two thousand allocations a frame, and\n  monitor callbacks would mean two thousand managed `Callable`s invoked from native code. A grid over\n  `Position2D` is chunk-linear and makes no native call at all. The server remains right for a *sword*\n  hitting a swarm — a handful of queries a second — which is what `ArchCombat.DamageOverlapping` uses.\n  Frequency is what separates the two cases. `SeparationForce` is the seam, so swapping the neighbour\n  source back is one system.\n\n- **`AttributeSet`**, `AttributeSetSnapshot`, `SaveParticipants.ForAttributeSet`, and the addon's\n  **`AttributeSetResource`** / **`AttributeSetNode`**. Several named stats in one node, the same answer\n  `CooldownSetNode` gives for eight abilities.\n\n  Every entry is a real `AttributeReactiveComponent`, so gear, buffs and status effects still stack by\n  the rules the attribute evaluator already tests. What makes a hand-rolled dictionary of floats look\n  attractive is only ever the node count, and what it costs is every one of those rules — including\n  being reachable by `StatusEffectSystem` at all.\n\n  One save id covers the set. An unknown saved key is warned about and skipped; a stat the save does not\n  mention keeps its configured value. Bounds are not captured, so a rebalanced cap reaches old saves.\n\n- **`HealthReactiveComponent.SetMaxValue(max, value?)`.** There was no public way to move a ceiling at\n  runtime — only `RestoreState`, which is the load path. Using that for a live change works and reads as\n  a mistake, which is worse than either. Raises `OnModelSet` once, raises no domain event: a ceiling\n  dropping to zero is not a death, because nothing dealt any damage.\n\n- **`ISwarmAnimationSet`** and `SwarmClip` in the glue, **`SwarmAnimationResource`** /\n  `SwarmClipResource` / `swarm_atlas.gdshader` in the addon, **`Animated`** and\n  **`SwarmAnimationSystem`** in Arch. Animating a swarm that has no nodes to hang an\n  `AnimatedSprite2D` on.\n\n  A `MultiMesh` is one mesh, one material and one texture, so per-unit frame selection cannot swap\n  textures and has to happen in a shader reading a frame index from per-instance custom data. The trade\n  is stated plainly in the resource: `AnimationDirector2D` does not serve swarm units, and neither does\n  anything built on `SpriteFrames`. What you get back is two thousand animated units in one draw call.\n\n  Frame selection is folded into `MultiMeshRenderSystem2D` rather than given its own system, because\n  instance slots are assigned by walk order — two systems writing transforms and frames separately would\n  disagree the moment one entity gained or lost the component, and the symptom is units wearing each\n  other's animations.\n\n  Clips are addressed by index, not name. A string in a component makes it managed, which takes every\n  entity carrying it off the fast path; resolve names once at spawn with `IndexOf`.\n\n- **`tests/Noodloft.Components.EngineTests`** and `.gitea/workflows/engine-tests.yml`. The half of the\n  suite that cannot run headless: physics RIDs the server actually hands out and takes back, real\n  `MultiMesh` buffers, signal emission, and the node lifecycle around `NotificationPredelete` and\n  reparenting — including the first check that reparenting does **not** destroy a component, which has\n  been a claim in a comment since the first release.\n\n  Gated to pull requests into `master` and to tags, not every push. `build.yml` runs 1006 xUnit tests in\n  seconds with no download; fetching an engine on every commit is a bad trade.\n\n  Pinned to Godot 4.7.1, which is above the 4.4 floor the libraries target — GoDotTest is versioned in\n  step with the engine and its current release requires 4.7.1. Testing above the floor is the right way\n  round, since the referenced assemblies compiled against 4.4 bindings and a higher runtime satisfies\n  them. What is genuinely not covered is a 4.4-only regression, and that is a gap rather than an\n  omission.\n\n- **`AttributeHealthLink`** and `MaxHealthChangePolicy`. Pushes a stat into a `DamageableNode`'s\n  maximum. The direction is the design — the damageable never reads attributes, which is what keeps\n  damage and progression independent.\n\n  `KeepAbsolute` is the default and the only rule immune to equipping and unequipping the same item as a\n  free heal. `KeepRatio` is what a shrinking pool usually wants; `Refill` is a reward and should never\n  be attached to gear.\n\n### Fixed\n\n- **`swarm_atlas.gdshader` no longer draws every unit upside down.** A `QuadMesh` is a 3D primitive and\n  its UVs are laid out for a world where +Y is up; a canvas has +Y down. Drawing one through a\n  `MultiMeshInstance2D` — which is what `MultiMeshRenderSystem2D` documents as the setup — therefore\n  flipped every frame vertically. Corrected in the shader, where the mesh being used is known, rather\n  than by asking artists to flip their sheets; `flip_v` turns it off for a game supplying its own mesh\n  with canvas-correct UVs. Found the first time a swarm was actually put on screen.\n\n- **`SelfDamageFilter` no longer lets an actor hit itself.** It resolved both nodes to their `Owner`\n  and compared those, which never matched for the shape every game actually has: a game names the body\n  it swung from as the source, and the target is always the `DamageableNode` *underneath* that body.\n  The root of an instanced scene is owned by the scene that instanced it, while the nodes inside it are\n  owned by the root — so the attacker resolved to the level and the victim resolved to the actor, one\n  level apart, and a rule whose entire job is refusing self-damage refused nothing.\n\n  It now treats two nodes as one actor when either contains the other, or when both resolve to the same\n  instance — with an instance root resolving to itself, and the level never counting as an actor so a\n  spike trap can still hurt a barrel authored beside it. Found in a real game, which is the only place\n  it could have been found: the shape that breaks it cannot occur in a hand-built tree.\n\n- **`FactionNode.Of` now looks beside the node as well as below and above it.** It searched children\n  then ancestors, and the caller that matters most is `DamageableNode.ToView` asking which side its own\n  entity is on — where the faction is a *sibling*, since both hang off the body. So every target\n  reported as unaligned, and `FactionDamageFilter` silently allowed every hit including friendly fire\n  and self-damage. `FindSiblingComponent` existed for exactly this case and its own documentation names\n  it; the lookup just did not call it.\n\n- **Every addon resource now derives from `global::Godot.Resource`.** They said `Godot.Resource`, which\n  binds to whatever `Godot` is reachable from `Noodloft.Components.Addon.Resources` — and in a consuming\n  assembly that happens to define a `Noodloft.Components.Godot` namespace, that is the wrong one. The\n  failure is not a missing type: it is `GD0102` on every single `[Export]` of a resource, which reads as\n  the addon being fundamentally broken rather than as one name resolving oddly. Found by building the\n  new engine-test project, which was briefly named exactly that.\n\n- **The Arch test assembly no longer runs its classes in parallel.** Arch keeps worlds in a static\n  table and recycles the slots `World.Destroy` frees, so two classes creating and destroying worlds on\n  different threads contend over it — and it fails as an entity reported dead because another class\n  recycled its world's slot, not as an exception. It surfaced the moment a third and fourth test class\n  were added, which is how long this kind of bug stays hidden.\n\n### Deprecated\n\n- **`ProjectileSystem2D` is now documented as a reference implementation, not a shipped system.** No\n  game in this repository fires a projectile, so unlike everything beside it, it has never run a frame\n  in anger. The swept-ray logic is the non-obvious part and worth keeping written down; treat the rest\n  as a starting point to copy rather than something to depend on.\n\n### Notes\n\n- **Arch is now referenced as `[2.1.0,3.0.0)`** rather than pinned. The family around it —\n  `Arch.System`, `Arch.Relationships`, `Arch.Persistence` — is versioned in step, and an exact pin puts\n  anyone who wants one of those into a unification fight over a package this library has no opinion\n  about beyond \"2.x\".\n\n- **Swarm entities are not saved**, deliberately, for the same reason `AnimationDirector2D` has\n  `CanPersist => false`. Physics RIDs, render slots and steering state are all derived and rebuildable\n  from a spawn count and a position list. A unit that must survive a save has stopped being swarm and\n  wants to be a node.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#repository",
+    "commit": "4fd3127680c43e55e14a90fcb74d5e69db72daaf",
+    "type": "git",
+    "url": "https://git.lefterisrentas.dev/LefterisRentas/Noodloft.Components.git"
+  },
+  "verbatimVersion": "0.1.0",
+  "version": "0.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#dependencygroup/net10.0/noodloft.components.games",
+          "@type": "PackageDependency",
+          "id": "Noodloft.Components.Games",
+          "range": "[0.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#dependencygroup/net10.0/noodloft.components",
+          "@type": "PackageDependency",
+          "id": "Noodloft.Components",
+          "range": "[0.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#dependencygroup/net8.0/noodloft.components.games",
+          "@type": "PackageDependency",
+          "id": "Noodloft.Components.Games",
+          "range": "[0.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#dependencygroup/net8.0/noodloft.components",
+          "@type": "PackageDependency",
+          "id": "Noodloft.Components",
+          "range": "[0.1.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#Noodloft.Components.Persistence.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 10128,
+      "fullName": "Noodloft.Components.Persistence.nuspec",
+      "length": 24601,
+      "name": "Noodloft.Components.Persistence.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6171,
+      "fullName": "README.md",
+      "length": 13679,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#lib/net10.0/Noodloft.Components.Persistence.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 42441,
+      "fullName": "lib/net10.0/Noodloft.Components.Persistence.dll",
+      "length": 117248,
+      "name": "Noodloft.Components.Persistence.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#lib/net8.0/Noodloft.Components.Persistence.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 39554,
+      "fullName": "lib/net8.0/Noodloft.Components.Persistence.dll",
+      "length": 105984,
+      "name": "Noodloft.Components.Persistence.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.08.05.00.12/noodloft.components.persistence.0.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12989,
+      "fullName": ".signature.p7s",
+      "length": 12989,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "gamedev",
+    "components",
+    "save",
+    "serialization",
+    "persistence"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

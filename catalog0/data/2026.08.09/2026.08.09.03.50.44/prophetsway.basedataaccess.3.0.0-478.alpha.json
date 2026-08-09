@@ -1,0 +1,187 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "G. Gordon Nasseri",
+  "catalog:commitId": "7720bbf5-6f4d-4251-a941-a0058579b821",
+  "catalog:commitTimeStamp": "2026-08-09T03:50:44.23314Z",
+  "created": "2026-08-09T03:47:26.96Z",
+  "description": "A group of interfaces to define any/all interactions required for a Data Access Layer (DAL).  \n\nThis can be used with any implementation of a DAL that you like, and allows for proper decoupling of the DAL from your business logic.  The purpose is to allow a completely new DAL implementation to be constructed, and then replace the current one with minimal impact to the business logic layers of the system.\n\nGo to https://github.com/ProphetManX/ProphetsWay.BaseDataAccess for more information.",
+  "iconFile": "profile.png",
+  "id": "ProphetsWay.BaseDataAccess",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-09T03:50:34.423Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "7Rhe6YGHiGMq3qkIiZGPC9cztrhprbB3mlZaEayxVdNEiNU1I2K6/P/CYhhZ+AtkacYo/T5VVhZcJg40IruPqg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 119217,
+  "published": "2026-08-09T03:47:26.96Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# v3.0.0\n### Exceptions from your DAL now reach you unwrapped â€” read this before upgrading\nThis is the one change in this release that breaks quietly. Every one of the generic calls on ```BaseDataAccess```\nreaches your derived method through Reflection, and Reflection used to wrap anything that method threw in a\n```TargetInvocationException```. That wrapper is gone. Whatever your ```Get```, ```GetAll```, ```GetPaged```,\n```GetCount```, ```Insert```, ```Update``` or ```Delete``` throws now arrives at the caller as its own type with its\noriginal stack trace intact, and the same is now true of an exception thrown by an entity's parameterless constructor\nor by its identifier property setter.\n\nIf you wrote a handler that reaches through the wrapper, it will no longer match and your handling will simply stop\nrunning â€” there is no compiler error and no warning to tell you.\n\n```c#\n\t//no longer catches anything - the handler is now dead code\n\ttry { dal.Update(company); }\n\tcatch (TargetInvocationException ex) { Log(ex.InnerException); }\n\n\t//catch what your DAL actually throws\n\ttry { dal.Update(company); }\n\tcatch (SqlException ex) { Log(ex); }\n```\n\nSearch your solution for ```TargetInvocationException``` before you upgrade. If a call site wrapped one of these\nmethods, that is the code that has to change.\n\n### The method convention is now enforced strictly, and enforced before anything is written\nThe remaining breaking changes all fail loudly on the first call, so they will find you rather than the other way\naround.\n\nParameter matching is now exact. A convention method declared with a base class or interface parameter â€” \n```Insert(IBaseEntity item)``` standing in for every entity type â€” used to be matched by the Reflection binder and\nwill no longer be found. Declare the method once per entity type, with that entity type as the parameter.\n\nDeclared return types are validated *before* the method is invoked. ```GetAll``` and ```GetPaged``` must declare a\ntype assignable to ```IList<T>```, ```Get``` must declare ```T``` or a subclass of it, and ```GetCount```,\n```Update``` and ```Delete``` must declare ```int```. ```Insert``` remains unconstrained and may return anything,\nincluding ```void```. Previously a mis-declared ```Update``` or ```Delete``` ran to completion, wrote to the\ndatabase, and only then failed casting its result; that no longer happens.\n\n```static``` convention methods are no longer found. The lookup has always been documented as targeting the public\nsurface of your DAL, but ```static``` methods were incidentally reachable; they are not any more. Make the method a\npublic instance method.\n\nThe obsolete ```IBaseDataAccess<TIdType>``` and ```BaseDataAccess<TIdType>```, deprecated back in v2.1.0, have been\nremoved. The fix is the one the obsolete warning has been suggesting for four minor versions â€” drop the generic\nargument and use ```IBaseDataAccess``` / ```BaseDataAccess```.\n\n### Target frameworks consolidated\nNow targeting ```netstandard2.0;net48;net8.0;net9.0```, replacing ```net461;net471;net48;net50;net60;net70;net80;net90```.\nNo consumer is stranded: ```net461``` and ```net471``` resolve against ```netstandard2.0```, as do .NET 5, 6 and 7,\nall three of which are past end of support.\n\n### Fixed\nA struct entity silently received a default identifier from ```Get<T>```. The probe entity was boxed at the moment\nthe identifier was assigned, so the mutation landed on a copy that was then discarded and your ```Get``` method\nreceived an entity with an unset key â€” no exception, just the wrong row or no row. Struct entities now receive the\nidentifier they were asked for.\n\n```GetAll<T>``` and ```GetPaged<T>``` returned ```null``` when the derived method declared a return type that was not\nan ```IList<T>```, because the result was coerced with ```as```. A wrong return type is now reported as the wiring\nerror it is.\n\nAn identifier property with no set accessor produced a raw ```ArgumentException``` from the Reflection layer. It is\nnow reported as a convention error naming the entity and the property.\n\nA convention method hidden with ```new``` bound unpredictably, because the order Reflection returns same-named\nmethods in is unspecified. The hierarchy is now walked one level at a time, most derived first, so the method\nselected is the one a compile-time call against the same type would bind to.\n\n### Added\n```DataAccessConventionException``` replaces the generic ```Exception``` previously thrown for wiring errors, so\nthese can be caught and filtered distinctly from data errors. It carries the full specification of the convention in\nits own documentation â€” the method name and signature looked for, the visibility required, the return type each one\nmust declare, and how the identifier property is resolved for ```Get```. If you are writing a class that inherits\n```BaseDataAccess```, read that type first.\n\nIts messages render types the way you wrote them, so a signature reads as ```(Company, int, int)``` rather than\n```(Company, Int32, Int32)```, and a return type as ```IList<Company>``` rather than in namespace-qualified\nbacktick-arity form.\n\n```ProphetsWay.BaseDataAccess.Tests``` was added â€” the first automated coverage this library has had, 68 tests\npinning the convention, the dispatch behavior, and every fix listed above.\n\n### A note on visibility\nThe convention has always required a public instance method. That has not changed in this release; it is now stated\nin the documentation and covered by tests rather than left to be discovered.\n\n\n#2.5.0\n### Added another interface to identify a base \"Soft\" entity without an ID property\nAdded an interface that identifies an entity as \"Soft\" but doesn't have a specific \"Id\" property, this is meant to be used in\nconjunction with many-to-many tables, or a table that has a compound key and neither is a basic \"Id\" property that should be keyed off of.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#repository",
+    "commit": "ba6d0b70843e0dfb10d097aa62ec2203e127db91",
+    "type": "GitHub",
+    "url": "https://github.com/ProphetManX/ProphetsWay.BaseDataAccess"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "3.0.0-478.Alpha",
+  "version": "3.0.0-478.Alpha",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#ProphetsWay.BaseDataAccess.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3269,
+      "fullName": "ProphetsWay.BaseDataAccess.nuspec",
+      "length": 7633,
+      "name": "ProphetsWay.BaseDataAccess.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4004,
+      "fullName": "CHANGELOG.md",
+      "length": 10197,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5064,
+      "fullName": "README.md",
+      "length": 14393,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#lib/net48/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 5777,
+      "fullName": "lib/net48/ProphetsWay.BaseDataAccess.dll",
+      "length": 12800,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#lib/net8.0/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 5922,
+      "fullName": "lib/net8.0/ProphetsWay.BaseDataAccess.dll",
+      "length": 13312,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#lib/net9.0/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 5925,
+      "fullName": "lib/net9.0/ProphetsWay.BaseDataAccess.dll",
+      "length": 13312,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#lib/netstandard2.0/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 5786,
+      "fullName": "lib/netstandard2.0/ProphetsWay.BaseDataAccess.dll",
+      "length": 12800,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#profile.png",
+      "@type": "PackageEntry",
+      "compressedLength": 67638,
+      "fullName": "profile.png",
+      "length": 68585,
+      "name": "profile.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.09.03.50.44/prophetsway.basedataaccess.3.0.0-478.alpha.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "dal",
+    "data-access",
+    "data-access-layer",
+    "repository",
+    "abstraction",
+    "interfaces",
+    "decoupling"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

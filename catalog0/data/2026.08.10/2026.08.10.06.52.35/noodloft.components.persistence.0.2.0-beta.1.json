@@ -1,0 +1,171 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Lefteris Rentas",
+  "catalog:commitId": "73c9afee-bda9-4b8e-ad56-e69fdaf7f2c6",
+  "catalog:commitTimeStamp": "2026-08-10T06:52:35.7264723Z",
+  "copyright": "Copyright © Lefteris Rentas",
+  "created": "2026-08-10T06:49:47.39Z",
+  "description": "Save and load for Noodloft components. Source-generated JSON, pluggable stores, per-entry\n            versioning, and a merging save that does not wipe the state of scenes that are not loaded.\n            Configuration is never written to disk, so rebalancing takes effect on existing saves.",
+  "id": "Noodloft.Components.Persistence",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-10T06:52:24.977Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "XQ+bfg4qPJ+DX1rvFTOeW0DTdpCKR5kM7pEInpv4yB0bweuJvFj4cwoH/EObKfNnVcFnZfrOf0ffVQM84voHPQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 142881,
+  "projectUrl": "https://git.lefterisrentas.dev/LefterisRentas/Noodloft.Components",
+  "published": "2026-08-10T06:49:47.39Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "0.1.0 gave a game the ability to hurt things. It had no answer for why a player would want to. This\nrelease is the loop that sits on top of the damage seam: skills that level, items that carry stats and\na rarity, loot tables that decide what falls out of a monster, and — the piece that was actually\nmissing — the half of damage that produces a number rather than reducing one.\n\nTwo rules run through all of it, and they are the same rule. **Derived, never accumulated**: skill\nrewards and equipment stats are dropped by source and re-added from current state, because adding a\nmodifier per level-up passes every test that only counts upwards and then doubles a character on their\nfirst load. And **no random number generator inside an evaluator**: attacks take the roll as a\nparameter, loot takes an `IRollSource`, so both are pure functions of their inputs and a client and a\nserver given the same seed agree about what happened.\n\nThe networking layer from the relay work also lands here, undocumented until now.\n\nTagged `-beta.1` for a dependency reason rather than a confidence one. `Noodloft.Components.Games.Godot`\nnow exposes `GodotTokenStore : ITokenStore` and so depends publicly on `Noodloft.Identity.Client`,\nwhich has only ever published `0.0.1-alpha1`. A stable package depending on a prerelease is NU5104,\nand it hands consumers a dependency that can be unlisted out from under them. The label comes off when\nthat package goes stable; nothing else about this release is waiting on anything.\n\n### Added\n\n- **Skills.** `SkillSet` stands to `ProgressionReactiveComponent` exactly as `AttributeSet` stands to\n  `AttributeReactiveComponent`: a keyed container over real progressions, one save entry for the whole\n  set, and `OnSkillLevelUp(key, level)` re-raised with the key. A `SkillDefinition` carries\n  `SkillReward`s — \"+2 Armor per Mining level\" — applied to an `AttributeSet` under the per-skill\n  source `skill:{Key}`.\n\n  Rewards are **derived, never accumulated**. `ApplyRewards` drops each skill's modifiers by source and\n  re-adds them from the current level, so calling it once, three times, or after a load produces\n  identical stats. Adding a modifier per level-up instead passes every test that only goes up, then\n  doubles a character's stats the first time a save is loaded.\n\n  In the addon: `SkillSetNode`, `SkillSetResource`, `SkillEntryResource`, `SkillRewardResource`.\n\n- **The offensive half of damage.** `DefaultDamageEvaluator` starts from an amount and asks what the\n  target keeps; `DefaultAttackEvaluator` produces that amount in the first place, as\n  `(Power + Strength × StrengthFlatShare) × (1 + Strength / StrengthDivisor)`. `AttackerView` mirrors\n  `DamageableView`, `IAttackSource` mirrors `IMitigationSource`, and `AttributeAttackSource` reads the\n  stats live so a buff landing between two swings reaches the second one. `AttackOptions.StrengthFlatShare`\n  defaults to 0, making Strength a clean linear multiplier; `0.2` reproduces Skyblock's quadratic\n  `(base + Strength/5) × (1 + Strength/100)`.\n\n  No random number generator anywhere in it — `Attack` takes the roll as a parameter, so a hit is a\n  pure function of its inputs and resolves identically on a client and a server given the same roll.\n\n  In the addon: `AttackerNode`, `AttackResource`.\n\n- **Loot tables, Magic Find and Gathering Fortune.** A new `Loot` family — `LootTable`, `LootEntry`,\n  `LootContext`, `DefaultLootEvaluator` — plus `LootTableResource` and `LootEntryResource` in the addon.\n  Two table kinds: `Independent` (each entry rolls its own chance — a monster's drop list) and\n  `Weighted` (N picks from a pool — a chest).\n\n  **Magic Find is multiplicative and opt-in per entry.** Multiplicative so the stat is worth the same\n  proportion at both ends of the scale; opt-in so it raises the rare drop rather than the guaranteed\n  junk, which would otherwise make it mostly a way to get more junk and dilute what it was bought for.\n\n  **Gathering Fortune's fractional part is a chance, not a truncation.** 100 Fortune is exactly one\n  more of everything and 30 is a thirty percent chance of one more — truncating instead would make\n  every amount below 100 worth precisely nothing. Also opt-in, because 2.4 legendary swords is not a\n  thing anybody designed.\n\n  A reforged drop is always a single copy: a stack of five that shared one reforge is the bug that\n  forces it.\n\n- **`SeededRollSource`** — the evaluator takes an `IRollSource` rather than calling `Random.Shared`, so\n  loot is a pure function of table and seed. Deliberately **not** `System.Random`, whose sequence is\n  documented as unstable across .NET versions: a save that recorded a seed would produce different loot\n  after a runtime upgrade, and a client and server on different patch levels would disagree about what\n  dropped. This is xorshift128 written out in full, seeded through SplitMix32 — seeding only the first\n  word looks like it works and does not, because the early output is dominated by the untouched\n  constants and seeds 1 through 20 produce the same sequence.\n\n- **Items: base stats, rarity, reforges and skill requirements.** A new `Items` family — `ItemDefinition`,\n  `ReforgeDefinition`, `ItemRequirement`, `ItemCatalog`, `ItemInstanceStore`, `EquipmentSet` — plus\n  `ItemResource`, `ReforgeResource`, `ItemCatalogResource` and `EquipmentNode` in the addon.\n\n  Stats are derived and idempotent, same rule as skills: `ApplyStats` drops each slot's modifiers by\n  source and re-adds them from what is worn now. One source per slot (`equipment:weapon`), because\n  `RemoveModifiersFrom` works by source and sharing one would make re-deriving the weapon wipe the\n  boots.\n\n  Rarity scales reforges and nothing else. A Legendary sword is strong because its own stats say so;\n  making rarity multiply base stats too means every balance change has to be made twice.\n\n  `ItemDefinition.Value` is the item's worth in the abstract, not a price. A vendor applies its own\n  buy and sell margins to it, so an item that four shops stock is one number rather than four that\n  drift apart, and the gap between the two margins is where an economy lives — close it and buying\n  then selling becomes a free-money loop.\n\n  `ItemDefinition.Validate()` rejects a reforgeable stackable, and `ItemCatalog.Validate()` rejects a\n  reforge restricted to a slot no item uses. Both look entirely correct in an inspector and do nothing\n  at runtime.\n\n- **`ItemStack.InstanceId`** — **breaking**, and the thing every other item feature needed. A stack with\n  an identity never merges with anything, so two Heroic swords and one plain one are three stacks\n  rather than one. `InventoryOperation.AddUnique` / `RemoveUnique` name a specific copy; plain\n  `Remove(itemId, n)` now **skips copies that carry an identity**, so a recipe asking for \"a sword\"\n  cannot consume the reforged one the player is wearing.\n\n  The identity is opaque and lives on `ItemInstanceStore`, not on the stack. A stack lives in an array\n  of two hundred, most of them empty; hanging a reforge off each one turns a grid of value types into a\n  graph of allocations for a property almost nothing uses.\n\n  `InventorySlotSnapshot` gained `InstanceId`. Old saves load — the field defaults to null — but a save\n  written by 0.1.0 has no identities to lose.\n\n- **`AttackTiming`.** Attack speed is not a number a swing uses — it is a number *everything in* a\n  swing uses. A melee attack has at least four durations: the animation, the wind-up before damage, the\n  root, and the combo window. Scale three and the fourth desynchronises, and it never crashes — damage\n  simply lands after the animation ended.\n\n  So it is a type rather than a float. `Scale(seconds)` and `AnimationSpeed` come from one `Rate` by\n  construction, which is the only way \"the hitbox agrees with what is on screen\" stops being something\n  a caller has to remember. Durations divide, rates multiply.\n\n  `MaximumAttackRate` (4 by default) is load-bearing rather than defensive: far enough up the curve a\n  wind-up rounds below one frame, the hitbox turns on and off inside a single physics step, and the\n  attack stops hitting anything. The cap makes attack speed a stat that stops helping instead of a\n  weapon that stops working.\n\n- **`DamageOperation.CriticalMultiplier`.** Crit damage belongs to whoever swung. A rogue with 250%\n  crit damage hits everything for 250%; reading it off the target instead makes the same swing land\n  differently depending on which monster it hit. Null keeps the existing `DamageableOptions.CriticalMultiplier`\n  behaviour, so authored hits with no attacker behind them are unaffected.\n\n- **`StatNames`.** Constants for the stat keys the library's own adapters look for. `AttributeSet` keys\n  are ordinal, so `\"critchance\"` against a registered `\"CritChance\"` is not a lookup failure — it is a\n  stat that reads zero forever, and zero looks plausible for most of them.\n\n- **`PersistentComponentNode.OnRestored()`.** Restoring is deliberately silent: loading a character at\n  Mining 41 raises zero level-ups. Correct, and it meant derived state had no way to hear about a load\n  — the levels came back and the stats they paid for did not. Every persistent node gets the hook.\n\n- **Cloud saves.** `SyncedSaveStore` writes locally and mirrors to a server on a background worker, so\n  a save never costs a frame and a player with no connection keeps playing. Uploads coalesce per slot:\n  autosaving every 45 seconds while offline queues one pending write, not forty. Reads are local only;\n  call `PullAsync()` once after sign-in. `HttpRemoteSaveBackend` speaks four routes and takes a token\n  callback rather than a token, so refresh is somebody else's problem.\n\n  `SyncedSaveStore.PushAsync()` queues every local save the server has no newer copy of. This is what\n  rescues a write the last session made but quit before uploading — without it that save waits on disk\n  until the player happens to write the same slot again, which for a finished playthrough is never.\n\n  `NoodloftSaveManager` carries `CloudBaseUrl` and a `CloudAccessToken` callback, and\n  `NoodloftSessionNode.MirrorSavesToApi` wires the two together — the session node is the only thing\n  that owns a token.\n\n  Conflicts are last-write-wins by `SavedAtUtc`. Stated plainly because it is a real limitation: two\n  devices playing offline will lose one of the two sessions.\n\n- **Server-authoritative networking for the Arch adapter.** A binary replication protocol under\n  `Noodloft.Components.Games.Godot.Arch/Net/`, sitting on the same ECS the swarm already runs on.\n\n  `NetworkRole` is `Standalone`, `Server` or `Client`, and the systems are split along it:\n  `NetSnapshotSendSystem` / `NetSnapshotApplySystem`, `NetInputSendSystem` / `NetInputApplySystem`,\n  `NetSpawnSendSystem` / `NetSpawnSystem`, and `NetInterpolationSystem`, which smooths remote positions\n  on the rendered-frame stage rather than the fixed one.\n\n  The wire format is authored, not reflected. `INetComponentCodec` owns one component slice under a\n  stable `TypeId` byte — `Position2DCodec`, `Velocity2DCodec`, `HealthCodec`, `FactionCodec`,\n  `AnimatedCodec` — registered in a `NetComponentRegistry`, and `SnapshotMessages` fixes the payload\n  ids and header sizes as constants. `NetworkWriter` and `NetworkReader` are non-throwing little-endian\n  `ref struct`s over caller-owned memory: a truncated or hostile packet returns false rather than\n  throwing inside a receive loop.\n\n  `NetSpawnRegistry` maps an authored kind byte to the archetype and factory that builds it, so a\n  client constructs an entity it has never seen a class for. `NetworkEntityMap` keeps remote ids\n  separate from local `Entity` handles, and registering the same kind twice throws at registration\n  rather than producing two readings of the same byte at runtime.\n\n- **`RelayMultiplayerPeer`** — a `MultiplayerPeerExtension` that adapts Noodloft's WebSocket relay\n  framing to Godot's own multiplayer API, so `SceneMultiplayer` and everything built on it works\n  unchanged over the relay. Transfer mode and channel are accepted and retained because the Godot API\n  is expected to behave normally, but WebSocket delivery is always reliable and ordered and they cannot\n  loosen that; a lower-latency transport belongs behind this same contract.\n\n  `GodotNetTransport` is the single bridge between Godot's custom-packet layer and the ECS protocol.\n  Component state stays owned by the snapshot pipeline and is never also put on a\n  `MultiplayerSynchronizer` — two mechanisms replicating one value is two mechanisms disagreeing about\n  it.\n\n  In the addon: `RelayClientNode` (host/join lifecycle), `NoodloftSessionNode` (sign-in, and the only\n  thing that owns a token) and `NetworkedEntityNode`, which links an authored scene node to the\n  networked entity driving it. `NodeCaptureSystem2D` reads an authoritative `CharacterBody2D`'s\n  transform into ECS; `NodeSyncSystem2D` writes the other way for remote entities. Which direction a\n  transform flows is a property of the entity, not something each system guesses.\n\n- **`GodotTokenStore`** — encrypted token storage over `user://`, keyed on Godot's device identifier\n  combined with a random per-install seed. Web exports expose no device identifier, so there the\n  install seed is the whole of it. This keeps credentials off disk in plain text; it is not a\n  replacement for a platform keychain, and any platform that has one should use it instead.\n\n- **Documentation** — `docs/networking-blueprint.md` for the protocol and the role split.\n\n### Changed\n\n- **The supported engine range is now `[4.4.0, 5.0.0)`** rather than exactly `4.4.0`. The pin was\n  meant to stop NuGet resolving a GodotSharp newer than the engine a consumer actually runs, and it\n  did — along with stopping anyone on 4.5 or later from restoring at all.\n\n- **The Godot addon now needs `Noodloft.Components.Games.Godot.Arch`.** `NetworkedEntityNode` links a\n  scene node to an Arch entity, so the addon source no longer builds against the three core packages\n  alone. Games that unpack `addons/` and use none of the networking still need the package reference\n  for the addon to compile.\n\n- **`Noodloft.Components.Games.Godot` takes a public dependency on `Noodloft.Identity.Client`**, which\n  arrives transitively in any project referencing it. It is on nuget.org, so nothing extra is needed to\n  restore it.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#repository",
+    "commit": "34d8b8c4331c084044a1d08756a29f7bca8e6797",
+    "type": "git",
+    "url": "https://git.lefterisrentas.dev/LefterisRentas/Noodloft.Components.git"
+  },
+  "verbatimVersion": "0.2.0-beta.1",
+  "version": "0.2.0-beta.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#dependencygroup/net10.0/noodloft.components.games",
+          "@type": "PackageDependency",
+          "id": "Noodloft.Components.Games",
+          "range": "[0.2.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#dependencygroup/net10.0/noodloft.components",
+          "@type": "PackageDependency",
+          "id": "Noodloft.Components",
+          "range": "[0.2.0-beta.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#dependencygroup/net8.0/noodloft.components.games",
+          "@type": "PackageDependency",
+          "id": "Noodloft.Components.Games",
+          "range": "[0.2.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#dependencygroup/net8.0/noodloft.components",
+          "@type": "PackageDependency",
+          "id": "Noodloft.Components",
+          "range": "[0.2.0-beta.1, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#Noodloft.Components.Persistence.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6884,
+      "fullName": "Noodloft.Components.Persistence.nuspec",
+      "length": 16148,
+      "name": "Noodloft.Components.Persistence.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6876,
+      "fullName": "README.md",
+      "length": 15254,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#lib/net10.0/Noodloft.Components.Persistence.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 58735,
+      "fullName": "lib/net10.0/Noodloft.Components.Persistence.dll",
+      "length": 162304,
+      "name": "Noodloft.Components.Persistence.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#lib/net8.0/Noodloft.Components.Persistence.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55177,
+      "fullName": "lib/net8.0/Noodloft.Components.Persistence.dll",
+      "length": 147968,
+      "name": "Noodloft.Components.Persistence.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.06.52.35/noodloft.components.persistence.0.2.0-beta.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12989,
+      "fullName": ".signature.p7s",
+      "length": 12989,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "gamedev",
+    "components",
+    "save",
+    "serialization",
+    "persistence"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

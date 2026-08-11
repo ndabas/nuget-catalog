@@ -1,0 +1,163 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Egil Hansen",
+  "catalog:commitId": "fdc6299e-376a-4e89-84f8-fd6708c10af9",
+  "catalog:commitTimeStamp": "2026-08-10T15:45:02.152842Z",
+  "copyright": "Egil Hansen",
+  "created": "2026-08-10T15:42:10.84Z",
+  "description": "Event Hubs-specific stream token enrichment for Egil.Orleans.Messaging.",
+  "id": "Egil.Orleans.Messaging.Streams.EventHubs",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-10T15:44:43.943Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "nilPnRdUYhrrb+yzRWGB6a4bp/5F0RPC/TkUf9F+hjOD+wl/a3MPBJJBLSaO7G++Aoh9dLzK2RHF09nR4hfkOA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 62294,
+  "projectUrl": "https://github.com/egil/framework",
+  "published": "2026-08-10T15:42:10.84Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "BREAKING CHANGES:\n- prevent grain-derived stream ID collisions\n  Derive namespace-based explicit subscription IDs from the complete Orleans GrainId and expose the same helper to producers. Reject textual identities that do not round-trip instead of silently collapsing them.\n  Cover compound keys, hex-parseable strings, cross-kind collisions, Orleans binary serialization, and StreamId text parsing. Document producer wiring and migration.\n- split provider-specific messaging packages\n  Move Event Hubs stream enrichment into Egil.Orleans.Messaging.Streams.EventHubs so the core package no longer carries the Event Hubs dependency.\n  Add Egil.Orleans.Messaging.State.AzureStorage with Azure Table/Blob storage-aware state manager registration and failure classification for optimistic concurrency failures.\n  Rename WriteFailureKind to StorageFailureKind so write and clear recovery can share the same provider classification model.\n  Update CI to pack all messaging packages and document the companion package model.\n- make stream resume tokens configurable\n  Make MessageTracker fully optional for StreamManager registration and let each implicit or explicit subscription opt out of passing the tracked resume token to Orleans.\n  Remove the StreamCursor constructor that accepted StreamId so cursors are built from the stream namespace directly. Add tests and docs for the resume-token policy and include the outbox postman API plan.\n- split messaging tools by capability\n  Move messaging tools into capability namespaces and matching test folders, with Outboxes used to avoid a namespace/type name collision.\n  Replace StreamManager's AddSubscription/SubscribeAsync surface with explicit implicit/explicit configuration APIs and IImplicitStreamGrain forwarding through an attached grain component.\nNew Features:\n- coordinate outbox postman processing\n  Refactor outbox processing into dedicated dispatch, postman registry, and reconciliation collaborators.\n  Coordinate manual and timer-backed drains through a single active drain so callers wait for the current pass before processing the next pending snapshot. Preserve per-postman ordering while allowing different postmen to dispatch concurrently.\n  Remove the prototype OutboxProcessor2 implementation from the compiled package.\n- preserve stream token json types\n  Add an explicit JsonConverter registry for concrete StreamSequenceToken types and route StreamCursor and MessageTracker token payloads through that registry.\n  Register Event Hubs token converters from the enriched adapter setup so enriched checkpoints round-trip without downcasting provider metadata.\n- post outbox items concurrently\n  Dispatch pending outbox items concurrently on the Orleans activation scheduler and remove the thread-pool execution mode.\n  Background posting now allows delivery to interleave by default while durable acknowledgement and failure reconciliation remain non-interleaving unless explicitly opted in.\n- classify azure storage failures\n  Classify deterministic Azure Storage failures as non-persistence outcomes and keep ambiguous transient results on the read-back recovery path.\n  This lets StateManager skip unnecessary recovery reads for rejected mutations while preserving correctness for throttling, timeouts, and service failures.\n- add outbox postman helper APIs\n  Add built-in stream and grain postman helpers so common Orleans fan-out targets can use the outbox processor without hand-written dispatch callbacks.\n  Cover helper behavior through Orleans tests and fill validation coverage for keyed postman registration edge cases.\n- add keyed outbox postman services\n  Add IPostman<TMessage>, named postman attributes, IServiceCollection registration helpers, and an OutboxProcessor.AddPostman overload that resolves keyed postman services from the grain activation service provider.\n  Cover keyed registration, scoped multi-contract resolution, successful keyed dispatch, and keyed dispatch failure reconciliation.\n- add stream token tracker overloads\n  Allow MessageTracker callers to process stream sequence tokens directly with explicit stream namespace or provider-qualified namespace, and expose latest stream sequence token lookup for resume-token use cases.\n  Clarify stream manager tests by using distinct provider-name and namespace constants for explicit subscriptions.\n- make stream tracking optional\n  Allow grains to register StreamManager without providing a MessageTracker when they do not persist stream high-water marks.\n  The tracked overloads remain source-compatible and still supply resume tokens when a tracker snapshot is provided.\n- implement outbox processor stream flow\n  Implements the outbox processor registration and draining path, including postman dispatch, success acknowledgement, failure reconciliation, retry timer/reminder scheduling, and stream-backed integration coverage.\n  Adds outbox and stream receive telemetry plus focused Orleans in-process tests for stream delivery, error paths, resume behavior, JSON converter branches, and tracker semantics.\n- implement stream manager subscriptions\n  StreamManager now separates subscription configuration from activation-time subscription setup via RegisterStreamManager, AddSubscription, and SubscribeAsync. This lets grains await Orleans stream subscription establishment without blocking activation and keeps subscription failures visible.\n  MessageTracker now records receive-lag histograms for accepted enriched stream cursors and outbox tokens, with shared telemetry plumbing kept in MessagingTelemetry. The Messaging test suite adds an in-process Orleans cluster with memory streams covering ValueTask, Task, default error handling, and resume-token behavior.\n- add keyed state manager registration and remove write policy\n  Add InitializeStateManager(...) that resolves keyed IStateManagerFactory<T> by storage name, with IServiceCollection and ISiloBuilder helper APIs for keyed singleton registrations.\n  Refactor state management to StateManagerBase<T>/DefaultStateManager<T>, remove WritePolicy and force-write behavior, and drop reflection-based ETag mutation.\n  Update state manager tests and API design docs to match the new factory wiring and write semantics.\n- implement enriched event hub adapter token stamping\n  Implement EnrichedEventHubAdapter overrides to stamp traceparent on queued messages, create EnrichedEventHubSequenceToken from cached Event Hub messages, and return enriched stream positions that preserve offset/sequence/event index and optional traceparent.\n  Add focused tests for traceparent stamping behavior and enriched token construction from cached message metadata.\n- wire enriched event hub data adapter registration\n  Implement UseEnrichedDataAdapter extension to validate input and register EnrichedEventHubAdapter through the Event Hub configurator using Orleans Serializer from DI.\n  Add focused tests for null-argument validation and configurator callback registration.\n- implement StreamCursor enriched token accessors\n  Enable StreamCursor JSON converter attribute and implement TryGetEnqueuedTime, TryGetStreamProviderName, and TryGetTraceParent to expose enrichment metadata when backed by EnrichedEventHubSequenceToken.\n  Add focused tests for positive and negative cases across enqueued time, stream provider name, and traceparent access.\n- implement StateManager extension wrapper\n  Implement AsStateManager<T> to validate input and wrap IPersistentState<T> with StateManager<T> for grain-facing usage.\n  Add focused tests for successful wrapping and null-argument validation.\n- implement StateManager persistence workflow\n  Implement StateManager<T> state cache, read/write/clear operations, force-write ETag override, and conflict handling that reconciles equivalent persisted state before rethrowing non-equivalent failures.\n  Add focused tests for read refresh, successful writes, write-failure reconciliation behavior, rollback on conflicting writes, rollback when post-failure read fails, and VersionedState version stamping.\n- implement OutboxMessageEnvelope STJ converter factory\n  Enable JSON converter factory attribute on OutboxMessageEnvelope<T> and implement OutboxMessageEnvelopeJsonConverterFactory with closed generic converters for read/write round-trip serialization.\n  Add tests for attribute wiring, CanConvert behavior, round-trip serialization, and missing-token payload validation.\n- implement OutboxSequenceToken STJ converter\n  Enable JSON converter attribute on OutboxSequenceToken and implement OutboxSequenceTokenJsonConverter read/write paths. The converter now round-trips sequence, sender GrainId shape, timestamp, and epoch without requiring caller-side serializer options.\n  Add focused tests for converter attribute registration, round-trip behavior (including multiple GrainId key shapes), and payload validation for missing sender.\n- MessageTracker\n- Outbox<T> implemented\n- stub types with XML docs\nBug Fixes:\n- deliver enriched Event Hub tokens\n  Wrap Event Hubs batch containers so stream consumers receive broker enqueue time, provider name, and trace context on batch and per-event sequence tokens. Cover the cached-message and Orleans serialization pipeline deterministically.\n- preserve clear concurrency conflicts\n  Keep InconsistentStateException observable when clear recovery finds a missing record, while adopting the provider's recovered state. Document the throwing-path state contract and cover it with a deterministic regression test.\n- expose provider state as nullable\n  Annotate IStateManager<T>.State for storage providers that can expose null after reads or clears, and handle null recovery values without dereferencing them. Preserve Orleans activated defaults while documenting and testing both nullable and non-null missing-record shapes.\n- decouple Azure storage provider\n  Keep only Azure.Core as a runtime dependency of the Azure Storage state-manager companion. Move Table and Blob SDK references to tests and leave Orleans provider selection to consumers, avoiding unwanted provider and version coupling.\n- stabilize message tracker JSON schema\n  Pin every private tracker model property to its canonical wire name so serializer naming policies cannot change persisted state. Require both root collections so mismatched or malformed payloads fail instead of silently clearing deduplication state.\n- tolerate additive stream token JSON\n  Read cursor, discriminator-envelope, built-in token, and Event Hub token properties by name while ignoring unknown fields. Required fields, known value types, and duplicate properties remain strict so rolling upgrades gain forward tolerance without accepting ambiguous payloads.\n- preserve concurrent state after write failures\n  Adopt durable state after a successful recovery read before rethrowing mismatches and concurrency conflicts. This keeps recovered state paired with the refreshed ETag so retries cannot overwrite concurrent writes.\n- retry inherited reminder cleanup\n  Retain a reminder handle loaded from a previous activation before unregistering it, so a transient unregister failure can be retried by the next empty outbox drain.\n- reject duplicate outbox processors\n  Fail immediately when a grain activation attempts to register a second processor, preserving the original reminder component and its durable retry path. Document the one-processor invariant and cover different-type registration through the reminder DIM.\n- preserve active outbox reconciliation\n  Keep reconciliation ownership visible until callbacks complete so an interleaving empty post cannot cancel acknowledged work. Processing timeouts now accept a scoped TimeProvider, and tests use deterministic gates and clocks.\n- keep transient clocks out of persisted outboxes\n  Accept an explicit UTC append timestamp while preserving the system-clock convenience overload. Persisted outboxes no longer retain a TimeProvider, so serialization and rehydration need no clock re-registration.\n- prevent outbox drain handoff deadlock\n  Release the drain gate between background dispatch and non-interleaving reconciliation, and let a foreground drain finish any pending batch before taking a new snapshot. This prevents non-reentrant grain calls from blocking the reconciliation turn while preserving direct PostAsync completion semantics.\n- preserve outbox behavior after rehydration\n  Fall back to TimeProvider.System when Orleans rehydrates an outbox without its non-serialized clock. Document custom-provider re-registration and cover the Orleans deep-copy path so the first mutation no longer fails.\n- preserve sender timestamp in tracked outbox tokens\n  MessageTracker.LatestOutbox reconstructed the last accepted\n  OutboxSequenceToken using the receiver's Received wall-clock time as\n  the token Timestamp. Token equality includes Timestamp, so whenever\n  sender and receiver clocks differ the returned token did not equal the\n  token that was actually accepted, breaking equality-based consumers and\n  any logic reading the timestamp as sender time.\n  Outbox entries now store the sender-stamped timestamp of the last\n  accepted token alongside the receiver-side Received time (which remains\n  the basis for eviction). LatestOutbox returns the original timestamp.\n  JSON payloads written before the new property fall back to Received,\n  matching the previous behavior.\n- prune in-memory outbox attempt counters after reconciliation\n  The outbox processor tracks per-item dispatch attempt counts in an\n  in-memory dictionary keyed by item equality. Entries were only removed\n  when an item posted successfully, so items that left the outbox any\n  other way - dead-lettered or dropped in ReconcileFailedAsync, or removed\n  directly by the grain - kept their entries for the lifetime of the\n  activation, a slow memory leak invisible to the owning grain.\n  The processor now prunes counters for items no longer pending after\n  each reconciliation. A consequence is that an equal item enqueued after\n  its predecessor was dead-lettered starts a fresh attempt sequence\n  instead of inheriting stale counts.\n  Also documents the attempt-count semantics on ReconcileFailedAsync:\n  counts are per-activation and keyed by item equality, so retry and\n  dead-letter policies that must survive activation restarts need to\n  persist their own counters.\n- detect diverged outbox tails during write recovery\n  Outbox equality now compares the full first and last pending tokens,\n  including their timestamps, instead of only their sequence numbers.\n  Items are only appended at the tail, so two outbox histories that diverged\n  by adding different messages - for example duplicate grain activations\n  racing an ambiguous storage write - always differ in their highest pending\n  token. Comparing the full token lets the state-manager recovery read-back\n  distinguish such diverged states instead of mistaking them for a lost\n  response, which could silently drop the local activation's message.\n  Histories that diverged only by removals can still compare equal; recovery\n  then at worst re-delivers an already posted item (at-least-once) but never\n  loses a pending message. Equality remains O(1) and still ignores payloads.\n- arm outbox retry when a foreground post run fails\n  A failed PostAsync run - processing timeout, cancellation, or an exception\n  from an acknowledgement or reconciliation callback - previously skipped the\n  retry scheduling that normally happens after reconciliation. On a first-ever\n  foreground post no timer or reminder existed yet, so announced messages\n  stayed in the durable outbox until the next post or activation.\n  The processor now arms its retry timer and reminder before rethrowing the\n  post-run failure, but only on the failure path, so successful posts still\n  avoid the reminder registration write.\n- accept tokenless stream messages\n  Do not persist a stream tracking entry when Orleans delivers a null StreamSequenceToken. Without a token there is no high-water mark to compare, so tokenless stream messages are accepted without changing the tracker instead of causing later tokenless messages to look like duplicates.\n- harden outbox review behavior\n  Remove posted outbox tokens by identity so successful items after a failed gap can still be acknowledged. Also makes outbox token/envelope types Orleans-friendly with required init properties and rewrites the STJ converters to delegate through typed converters while preserving the existing JSON shape.\n- tighten stream subscription configuration\n  Fail fast when Orleans invokes an implicit stream subscription without a configured handler, and add explicit StreamId subscription overloads so explicit streams are not limited to the grain-keyed convention.\n  Clarify outbox ownership, first-match postman dispatch, thread-pool postman safety, and future provider-specific package boundaries in public docs.\n- fail fast for missing grain components\n  Throw clear configuration errors when implicit stream and outbox marker interfaces receive callbacks before their corresponding components have been attached.\n  This avoids silently swallowing stream subscription or reminder callbacks when a grain implements the marker interface but forgets to call the registration helper during activation.\n- resume streams from tracked cursors\n  Use the activation-time MessageTracker snapshot to provide provider-aware resume tokens when StreamManager attaches implicit handles, resumes explicit handles, or creates missing explicit subscriptions.\n  Add focused tests for provider-specific cursor lookup and the Orleans stream APIs that receive those tokens.\n- tighten messaging manager invariants\n  Fix stream subscription initialization so handles are collected without concurrent List mutation, repeated SubscribeAsync calls are rejected, and stream handlers receive nullable sequence tokens instead of relying on null-forgiving calls.\n  Recover StateManager clear failures with a read-back path, clamp negative receive-lag telemetry, validate malformed outbox JSON with JsonException, and document the intentional outbox equality fingerprint invariant.\n  Rename the deferred outbox processor activation API references to RegisterOutboxProcessor to align with the other activation-time helpers while leaving the implementation deferred.\n- restrict StreamCursor JSON tokens to built-in Orleans types\n  Limit StreamCursorJsonConverter to Orleans built-in stream sequence token types and remove custom token adapter serialization paths. Unsupported token kinds now throw a NotSupportedException with an actionable message that explains the stability rationale and points users to the GitHub issues page for feature requests.\n  Update StreamCursorJsonConverterTests to assert unsupported custom tokens and unknown token kinds fail with the new guidance message while keeping built-in token round-trip coverage.\nPerformance:\n- register outbox retry reminder lazily\n  PostInBackgroundAsync and follow-up drain scheduling no longer register the\n  durable reminder up front; they arm only the in-memory grain timer. The\n  reminder - which costs a storage write - is now registered only when a post\n  run fails or completes with items still pending, including when a background\n  dispatch or reconciliation callback throws. Unregistering also caches the\n  one-time lookup for a leftover reminder from a previous activation, so an\n  empty outbox no longer pays a reminder-table read on every successful drain.\n  Successful posts therefore incur no reminder I/O. The trade-off is that a\n  silo crash between scheduling a background post and the first failed run\n  loses the cross-activation retry trigger; pending items then wait for the\n  next activation's post instead of a reminder tick.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#repository",
+    "branch": "refs/heads/release/egil-orleans-messaging/v0.1",
+    "commit": "e0dfe33dd18dd1791491985604a940c2959f588e",
+    "type": "git",
+    "url": "https://github.com/egil/framework"
+  },
+  "title": "Orleans Messaging Event Hubs Extensions",
+  "verbatimVersion": "0.1.80",
+  "version": "0.1.80",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#dependencygroup/net10.0/egil.orleans.messaging",
+          "@type": "PackageDependency",
+          "id": "Egil.Orleans.Messaging",
+          "range": "[0.1.80, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#dependencygroup/net10.0/microsoft.orleans.streaming.eventhubs",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Streaming.EventHubs",
+          "range": "[10.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#Egil.Orleans.Messaging.Streams.EventHubs.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7572,
+      "fullName": "Egil.Orleans.Messaging.Streams.EventHubs.nuspec",
+      "length": 21069,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 638,
+      "fullName": "LICENSE",
+      "length": 1068,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5463,
+      "fullName": "README.md",
+      "length": 15230,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 28609,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.dll",
+      "length": 44544,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4748,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.xml",
+      "length": 27966,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.10.15.45.02/egil.orleans.messaging.streams.eventhubs.0.1.80.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "orleans",
+    "messaging",
+    "streams",
+    "eventhubs",
+    "event-hubs",
+    "egil"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

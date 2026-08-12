@@ -1,0 +1,220 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "G. Gordon Nasseri",
+  "catalog:commitId": "2db1865c-eaa4-4aac-90e2-9b29059ed9d5",
+  "catalog:commitTimeStamp": "2026-08-12T02:56:25.3081934Z",
+  "created": "2026-08-12T02:53:40.73Z",
+  "description": "A storage-neutral contract vocabulary for a Data Access Layer (DAL): entity marker interfaces, DAO interfaces composed by capability (CRUD, retrieve-all, paging), and one aggregate DAL interface for business logic to depend on, so an entire DAL implementation can be replaced with minimal impact on its consumers. Transaction, disposal and threading rules are specified on the interfaces themselves rather than left to each implementation.\n\nAlso included, and optional, is the abstract BaseDataAccess class: inherit it and it dispatches generic calls - Get, GetAll, GetPaged, GetCount, Insert, Update and Delete - onto the strongly typed methods of your own DAL by convention, using reflection. Implement IBaseDataAccess directly instead when reflection is not appropriate.\n\nGo to https://github.com/ProphetManX/ProphetsWay.BaseDataAccess for more information.",
+  "iconFile": "profile.png",
+  "id": "ProphetsWay.BaseDataAccess",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-12T02:56:22.45Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "/bPHrjhBVJLXiBI3hkz5rMfekYx+wjLfCl+RSV4F3iCPL6xRDqYVgZQBOMKjNan6c7dEGOlaPZLM+VWyTBNzrg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 197701,
+  "published": "2026-08-12T02:53:40.73Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# v3.0.0\n### Exceptions from your DAL now reach you unwrapped â€” read this before upgrading\nThis is the one change in this release that breaks quietly. Every one of the generic calls on ```BaseDataAccess```\nreaches your derived method through Reflection, and Reflection used to wrap anything that method threw in a\n```TargetInvocationException```. That wrapper is gone. Whatever your ```Get```, ```GetAll```, ```GetPaged```,\n```GetCount```, ```Insert```, ```Update``` or ```Delete``` throws now arrives at the caller as its own type with its\noriginal stack trace intact, and the same is now true of an exception thrown by an entity's parameterless constructor\nor by its identifier property setter.\n\nIf you wrote a handler that reaches through the wrapper, it will no longer match and your handling will simply stop\nrunning â€” there is no compiler error and no warning to tell you.\n\n```c#\n\t//no longer catches anything - the handler is now dead code\n\ttry { dal.Update(company); }\n\tcatch (TargetInvocationException ex) { Log(ex.InnerException); }\n\n\t//catch what your DAL actually throws\n\ttry { dal.Update(company); }\n\tcatch (SqlException ex) { Log(ex); }\n```\n\nSearch your solution for ```TargetInvocationException``` before you upgrade. If a call site wrapped one of these\nmethods, that is the code that has to change.\n\n### Your Data Access Layer must now implement ```Dispose```\n```IBaseDataAccess``` extends ```IDisposable```, so every implementation has to supply ```Dispose```. If you inherit\n```BaseDataAccess``` it is declared ```public abstract void Dispose();```, which means your class will not compile\nuntil you override it. That includes a Data Access Layer holding nothing disposable at all â€” you still write the\noverride, empty. Making it abstract rather than virtual is the point: an empty ```Dispose``` should be a decision you\nmade, not a default you inherited without reading.\n\n```c#\n\t//a DAL that owns no connection, context or transaction still writes this\n\tpublic override void Dispose() { }\n```\n\nThe quieter consequence is at your composition root. If you register ```IBaseDataAccess``` in a dependency-injection\ncontainer, the container now disposes your Data Access Layer at the end of the scope it was resolved in â€” it has no\nreason to have done so before. Nothing at your call sites changes, but the lifetime of the object underneath them\ndoes, and a Data Access Layer that was quietly outliving its scope will stop doing so. Registering it as a singleton\nis one way to control that; which lifetime is right is your call, but it is now a call you have to make.\n\n### The disposal contract is now specified\n```Dispose``` is idempotent â€” a second call, and every call after it, is a no-op that must never throw. Read that\nagainst the transaction members, which set the opposite precedent deliberately: calling ```TransactionCommit``` or\n```TransactionRollBack``` twice throws, because a repeated transaction call means the caller has lost track of its own\ncontrol flow, while disposing an already-disposed object is a normal thing for cleanup code to do.\n\nCalling any member *other than* ```Dispose``` on a disposed instance throws ```ObjectDisposedException```. That type\nderives from ```InvalidOperationException```, which is what the transaction members throw, and the overlap is\nintentional â€” one ```catch (InvalidOperationException)``` covers both \"you used this wrong\" cases rather than making\nyou write two handlers for the same class of mistake.\n\n```Dispose``` itself never throws, including when a rollback it performs fails. Throwing from ```Dispose``` masks\nwhatever exception was already in flight inside a ```using``` block, turning a diagnosable failure into a misleading\none, and an abandoned transaction is rolled back by the database anyway once the connection drops. A transaction still\nopen at disposal is **rolled back, never committed** â€” an unclosed transaction is an abandoned one, and abandoned work\nis not work you meant to keep.\n\nFinally: your Data Access Layer disposes what it created, and nothing else. If a caller hands it a connection, a\ncontext or a transaction, disposing the Data Access Layer must not dispose that resource â€” the caller still owns it.\nThat is where double-dispose bugs live, so it is now written down rather than assumed.\n\n### The transaction contract is now specified\nOne transaction per Data Access Layer instance. A second ```TransactionStart``` while one is already open throws\n```InvalidOperationException```, and so does a commit or rollback with none open. Transactions do not nest, and that\nis a decision rather than an omission â€” these three members are a scalpel for making a bounded batch of writes atomic,\nnot an ambient transaction system and not a unit-of-work framework.\n\nScope is the **instance**, not the connection. Two instances pointed at the same database do not share a transaction,\nand work done through one is not enrolled in the other's.\n\nA failed commit leaves no transaction open **and discards the writes made inside it**. Once ```TransactionCommit```\nreturns or throws, the instance has nothing open, so a failed commit must not be followed by ```TransactionRollBack```\nâ€” there is nothing left to roll back and that call throws.\n\n```c#\n\t//there is no transaction left to roll back - this catch block throws its own exception\n\ttry { dal.TransactionCommit(); }\n\tcatch (Exception) { dal.TransactionRollBack(); }\n```\n\nOutside a transaction every call auto-commits on its own, so you do not need one to make a single write durable. And\nambient transactions are left alone â€” these members neither create a ```TransactionScope``` nor suppress one, so\nwhatever your provider already does inside an enclosing scope keeps happening unchanged.\n\n### Documentation corrections â€” the first one could have cost you a debugging session\n```GetAll```, ```GetPaged``` and ```GetCount``` documented their ```item``` parameter as needing to be \"an instance of\nitself\". That was simply false. The generic dispatcher invokes your derived method with a literal ```null``` â€” \n```default(T)``` when the entity is a value type â€” so the parameter is a **type selector** and must never be read. An\nimplementer who trusted the old documentation and dereferenced it compiled clean and threw ```NullReferenceException```\nthe first time the call arrived through the dispatcher, with nothing in the build to warn them.\n\n```c#\n\t//throws when the call comes through the generic dispatcher - item is null\n\tpublic IList<Company> GetAll(Company item) => _ctx.Companies.Where(c => c.Region == item.Region).ToList();\n\n\t//the parameter selects the type and nothing else\n\tpublic IList<Company> GetAll(Company item) => _ctx.Companies.ToList();\n```\n\n```IBaseDao<T>.Get``` promised to \"return the passed Object\", which constrained instance identity for no reason.\nWhether an implementation populates the instance it was handed or materializes a fresh one is now explicitly\nunspecified and both conform â€” use the return value, and do not assume the argument was mutated.\n\n```Insert``` assigning the store-generated identifier back onto the entity, and ```Update```/```Delete``` returning 1,\nare now described as conventions an implementation is expected to honor rather than guarantees the library makes or\nverifies. ```0``` from an update or delete is correct for an identifier matching no row.\n\n```GetCount``` is documented as a required component of paging rather than a standalone feature â€” a pager cannot render\nwithout knowing the total it is paging over. If you want a count and do not need paging, declare your own count method\non your own Dao interface; that is the supported answer, not a gap.\n\n```IBaseEntity```, ```IBaseIdEntity<T>```, ```IBaseSoftEntity``` and ```IBaseSoftIdEntity<T>``` had no documentation at\nall and now do. Two points on them are worth reading even if you have been using them for years. ```Get<T>``` does\n**not** key on ```IBaseIdEntity<T>``` â€” the identifier is resolved by name, ```{TypeName}Id``` first and ```Id``` as\nthe fallback, so implementing the interface satisfies the fallback but an entity also exposing ```{TypeName}Id``` has\nthat one used instead. And the library reads none of ```CreatedDate```, ```UpdatedDate``` or ```DeletedDate```; soft\ndelete is entirely your implementation's behavior, and these interfaces only mark which entities take part in it.\n\n### The method convention is now enforced strictly, and enforced before anything is written\nThe remaining breaking changes all fail loudly on the first call, so they will find you rather than the other way\naround.\n\nParameter matching is now exact. A convention method declared with a base class or interface parameter â€” \n```Insert(IBaseEntity item)``` standing in for every entity type â€” used to be matched by the Reflection binder and\nwill no longer be found. Declare the method once per entity type, with that entity type as the parameter.\n\nDeclared return types are validated *before* the method is invoked. ```GetAll``` and ```GetPaged``` must declare a\ntype assignable to ```IList<T>```, ```Get``` must declare ```T``` or a subclass of it, and ```GetCount```,\n```Update``` and ```Delete``` must declare ```int```. ```Insert``` remains unconstrained and may return anything,\nincluding ```void```. Previously a mis-declared ```Update``` or ```Delete``` ran to completion, wrote to the\ndatabase, and only then failed casting its result; that no longer happens.\n\n```static``` convention methods are no longer found. The lookup has always been documented as targeting the public\nsurface of your DAL, but ```static``` methods were incidentally reachable; they are not any more. Make the method a\npublic instance method.\n\nThe obsolete ```IBaseDataAccess<TIdType>``` and ```BaseDataAccess<TIdType>```, deprecated back in v2.1.0, have been\nremoved. The fix is the one the obsolete warning has been suggesting for four minor versions â€” drop the generic\nargument and use ```IBaseDataAccess``` / ```BaseDataAccess```.\n\n### Target frameworks consolidated\nNow targeting ```netstandard2.0;net48;net8.0;net9.0```, replacing ```net461;net471;net48;net50;net60;net70;net80;net90```.\nNo consumer is stranded: ```net461``` and ```net471``` resolve against ```netstandard2.0```, as do .NET 5, 6 and 7,\nall three of which are past end of support.\n\n### Fixed\nA struct entity silently received a default identifier from ```Get<T>```. The probe entity was boxed at the moment\nthe identifier was assigned, so the mutation landed on a copy that was then discarded and your ```Get``` method\nreceived an entity with an unset key â€” no exception, just the wrong row or no row. Struct entities now receive the\nidentifier they were asked for.\n\n```Get<T>(null)``` answered \"not found\" instead of rejecting the call. A wrong-typed identifier has always thrown\n```ArgumentException``` â€” that is a caller mistake rather than a wiring error, which is why it is deliberately not a\n```DataAccessConventionException``` â€” but ```null``` escaped the rule, because the reflection layer converts it to\n```default``` for a non-nullable value type instead of refusing it. An entity keyed on ```int``` therefore probed for\nidentifier ```0``` and handed back whatever that found, in practice ```null```. Your bug came back as a plausible\nanswer, with no exception and nothing in the build to catch it. ```Get<T>``` now throws ```ArgumentException```\nnaming the property, its type and the entity type.\n\nThe test is on the **identifier property's type**, not on ```null``` itself. A reference type such as ```string```,\nor a nullable value type such as ```int?```, can hold ```null```, and for those ```null``` still reaches your\n```Get``` unchanged. Only a non-nullable value type rejects it.\n\n```c#\n\t//identifier property is int - used to return null, now throws ArgumentException\n\tdal.Get<Company>(null);\n\n\t//identifier property is string or int? - unchanged, null reaches your Get\n\tdal.Get<Account>(null);\n```\n\nIf you were passing ```null``` and relying on ```null``` coming back, that call now throws â€” behaviorally breaking,\nthough it is a narrow usage and almost certainly an accidental one, since the old behavior was concealing the mistake\nrather than offering a feature. None of this had any test coverage before now â€” the suite asserted on\n```ArgumentException``` nowhere at all, which is how it survived â€” and closing it took the suite from 111 tests to 115.\n\n```GetAll<T>``` and ```GetPaged<T>``` returned ```null``` when the derived method declared a return type that was not\nan ```IList<T>```, because the result was coerced with ```as```. A wrong return type is now reported as the wiring\nerror it is.\n\nAn identifier property with no set accessor produced a raw ```ArgumentException``` from the Reflection layer. It is\nnow reported as a convention error naming the entity and the property.\n\nA convention method hidden with ```new``` bound unpredictably, because the order Reflection returns same-named\nmethods in is unspecified. The hierarchy is now walked one level at a time, most derived first, so the method\nselected is the one a compile-time call against the same type would bind to.\n\n### Added\n```DataAccessConventionException``` replaces the generic ```Exception``` previously thrown for wiring errors, so\nthese can be caught and filtered distinctly from data errors. It carries the full specification of the convention in\nits own documentation â€” the method name and signature looked for, the visibility required, the return type each one\nmust declare, and how the identifier property is resolved for ```Get```. If you are writing a class that inherits\n```BaseDataAccess```, read that type first.\n\nIts messages render types the way you wrote them, so a signature reads as ```(Company, int, int)``` rather than\n```(Company, Int32, Int32)```, and a return type as ```IList<Company>``` rather than in namespace-qualified\nbacktick-arity form.\n\n```docs/feature-requests.md``` records the decisions this release deliberately did not make, and why â€” a published\nconformance kit for verifying an implementation against these contracts, nested transactions and savepoints, a general\nthread-safety contract, async members and ```IAsyncDisposable```, a standalone count capability that was considered and\n**rejected**, and splitting the transaction members onto their own interface. If something here looks like an\noversight, check there first; the reasoning is written down so you can judge whether the tradeoff still holds and raise\na feature request when it stops holding.\n\n```ProphetsWay.BaseDataAccess.Tests``` was added â€” the first automated coverage this library has had, 115 tests\npinning the convention, the dispatch behavior, the disposal and transaction contracts, and every fix listed above.\n\n### The XML documentation now ships with the package\nEverything above is written on the interfaces, and until now none of it reached you if you installed the package\nrather than read the repository. ```GenerateDocumentationFile``` had never been set here, so no XML documentation file\nwas produced and nothing was packed into the nupkg â€” not even member summaries. The file is now emitted for all four\ntarget frameworks and the SDK packs it beside each assembly, so your IDE has something to read. ```IBaseIdEntity<T>.Id```\npicked up the summary it was missing on the way, which leaves the public surface documented in full, and the dispatched\nmembers on ```IBaseDataAccess``` now name ```DataAccessConventionException``` and the return type each requires instead\nof leaving you to find that elsewhere.\n\nOne caveat, and it belongs to the tooling rather than the package. ```<summary>```, ```<param>```, ```<typeparam>```\nand ```<returns>``` surface reliably. ```<remarks>``` does not, and ```<remarks>``` is where the transaction, disposal,\nthreading and convention contracts actually live â€” Rider's quick documentation and VS Code's hover show it, while\nVisual Studio's tooltip historically has not. If a tooltip stops short of the contract, it was not left out; the source\nand this changelog remain the complete account.\n\n### A note on visibility\nThe convention has always required a public instance method. That has not changed in this release; it is now stated\nin the documentation and covered by tests rather than left to be discovered.\n\n\n#2.5.0\n### Added another interface to identify a base \"Soft\" entity without an ID property\nAdded an interface that identifies an entity as \"Soft\" but doesn't have a specific \"Id\" property, this is meant to be used in\nconjunction with many-to-many tables, or a table that has a compound key and neither is a basic \"Id\" property that should be keyed off of.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#repository",
+    "commit": "e4cbc2851e44c24dbf756fa6491d43d62b6f40f5",
+    "type": "GitHub",
+    "url": "https://github.com/ProphetManX/ProphetsWay.BaseDataAccess"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "3.0.0",
+  "version": "3.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#ProphetsWay.BaseDataAccess.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7448,
+      "fullName": "ProphetsWay.BaseDataAccess.nuspec",
+      "length": 19157,
+      "name": "ProphetsWay.BaseDataAccess.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7964,
+      "fullName": "CHANGELOG.md",
+      "length": 21129,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 9869,
+      "fullName": "README.md",
+      "length": 30150,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#lib/net48/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6418,
+      "fullName": "lib/net48/ProphetsWay.BaseDataAccess.dll",
+      "length": 14848,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#lib/net48/ProphetsWay.BaseDataAccess.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 15531,
+      "fullName": "lib/net48/ProphetsWay.BaseDataAccess.xml",
+      "length": 78900,
+      "name": "ProphetsWay.BaseDataAccess.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#lib/net8.0/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6574,
+      "fullName": "lib/net8.0/ProphetsWay.BaseDataAccess.dll",
+      "length": 15360,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#lib/net8.0/ProphetsWay.BaseDataAccess.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 15531,
+      "fullName": "lib/net8.0/ProphetsWay.BaseDataAccess.xml",
+      "length": 78900,
+      "name": "ProphetsWay.BaseDataAccess.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#lib/net9.0/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6573,
+      "fullName": "lib/net9.0/ProphetsWay.BaseDataAccess.dll",
+      "length": 15360,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#lib/net9.0/ProphetsWay.BaseDataAccess.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 15531,
+      "fullName": "lib/net9.0/ProphetsWay.BaseDataAccess.xml",
+      "length": 78900,
+      "name": "ProphetsWay.BaseDataAccess.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#lib/netstandard2.0/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6417,
+      "fullName": "lib/netstandard2.0/ProphetsWay.BaseDataAccess.dll",
+      "length": 14848,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#lib/netstandard2.0/ProphetsWay.BaseDataAccess.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 15531,
+      "fullName": "lib/netstandard2.0/ProphetsWay.BaseDataAccess.xml",
+      "length": 78900,
+      "name": "ProphetsWay.BaseDataAccess.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#profile.png",
+      "@type": "PackageEntry",
+      "compressedLength": 67638,
+      "fullName": "profile.png",
+      "length": 68585,
+      "name": "profile.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.12.02.56.25/prophetsway.basedataaccess.3.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "dal",
+    "data-access",
+    "data-access-layer",
+    "dao",
+    "repository",
+    "abstraction",
+    "interfaces",
+    "decoupling"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

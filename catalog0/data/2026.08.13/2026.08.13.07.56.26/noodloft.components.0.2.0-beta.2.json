@@ -1,0 +1,141 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Lefteris Rentas",
+  "catalog:commitId": "33d4d379-a57f-4a4a-87af-ae72874e4eff",
+  "catalog:commitTimeStamp": "2026-08-13T07:56:26.7079415Z",
+  "copyright": "Copyright © Lefteris Rentas",
+  "created": "2026-08-13T07:54:20.74Z",
+  "description": "The reactive component base every Noodloft component is built on: a model, a DTO, a pure\n            evaluator, and a three-state result that tells a no-op apart from a refusal. No dependencies.",
+  "id": "Noodloft.Components",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-13T07:56:25.313Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "c1k0LIN73h+BYSbuE6pHbO/g5hEO14W0QGJyYKWs5qRRLudYlmyRNOVFMM86Oc2jeIz8i2bG9PHsgsYYhfj3kg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 35469,
+  "projectUrl": "https://git.lefterisrentas.dev/LefterisRentas/Noodloft.Components",
+  "published": "2026-08-13T07:54:20.74Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "The half a shooter needs that 0.2.0-beta.1 did not have: a body that moves in three dimensions with\nthe client predicting it, a shot the server decides, and items whose copies carry state that is spent.\n\nPrediction is the reason most of this exists. A client that waits for the server before it moves feels\nbroken, and a client that moves without ever being corrected is a client that can walk through walls.\nBoth ends run the same `IMovementStep3D` at the same fixed delta, the client keeps its commands until\nthe server acknowledges them, and a disagreement rewinds and replays rather than snapping. Nothing\nhere trusts a client's position, its muzzle origin, or what it says it hit.\n\n### Added\n\n- **3D replication.** `Position3D`, `Velocity3D`, `Orientation` and `Motion3D` with their codecs,\n  `MotionSystem3D`, `NodeSyncSystem3D`, and `NetInterpolationSystem3D` for bodies that are not local.\n- **Prediction and reconciliation.** `NetPredictionSystem`, `NetReconciliationSystem`,\n  `PredictionHistory`, `InputCommand`, and `IMovementStep3D`/`KinematicMovementStep3D` — one step run\n  identically on both ends. `IPeerInputAcknowledgements` and the acknowledgement carried on each\n  snapshot are what let a client discard commands the server has already seen.\n- **Server-authoritative hitscan.** `Hitscan`, `IHitscanResolver`/`NodeHitscanResolver`,\n  `IHitscanDamage`/`BodyHitscanDamage`, `NetFireSystem` and `NetHitApplySystem`. A client sends that it\n  pulled a trigger; the server decides the ray, what it struck, and for how much.\n- **Per-copy item state.** Durability and charges on `ItemInstanceStore`, bounded by the item's current\n  definition at the moment of the write. See `docs/item-authority.md`.\n- **Economy.** `CurrencyReactiveComponent`, `TraderReactiveComponent` and their definitions.\n- **Vitals.** Zoned `BodyHealthReactiveComponent` and `HealingReactiveComponent`.\n- Relay: `RelayClientNode.ServiceToken` and `ServiceSecret`, so a headless process with nobody signed\n  in can host a session.\n\n- Source-aware gameplay abilities: immutable definitions/catalogs, per-source granted specs,\n  hierarchical owner tags, atomic resource costs, shared actor-level cooldowns, instant and\n  run-to-completion lifetimes, and exact cancellation on source or tag invalidation.\n- `EquipmentAbilityBinder` and `ItemDefinition.Abilities`, including exact installed-part sources in\n  `ResolvedItemAssembly`; actor, item, vehicle and effect grants all use the same reconciliation seam.\n- Godot `GameplayAbilitySystemNode` plus catalog/definition/grant/cost/pool resources, with item-source\n  binding and signals for grants, activations, endings, cooldowns and resources.\n- `SaveParticipants.ForGameplayAbilities`, persisting cooldown remainders and built-in resource\n  balances while re-deriving grants and dropping transient active state.\n- Catalog-backed item enchantments with tag compatibility, levels, conflicts, one-ultimate rules,\n  exact-instance ability grants, live equipment reconciliation, save persistence and Godot authoring\n  resources.\n- Socketed, nested item assemblies with authored compatibility tags, required sockets,\n  deterministic catalog-derived stats/requirements/weight/value, bounded acyclic graphs and\n  persistence containing links rather than calculated values.\n- `OwnedItemTransactions` for serialized inventory ↔ equipment ↔ assembly transfers and\n  `OwnedItemIntegrity` for trust-boundary audits.\n- Godot `ItemSocketResource`, assembly-aware `ItemResource`/`EquipmentNode`, and automatic stat\n  re-derivation when an equipped build changes.\n\n### Changed\n\n- `NoodloftSessionNode.Scope` now asks for `relay.api` as well as `aarf.play`. The relay is shared by\n  every game that uses it, so it is no longer behind one game's scope. A project overriding this\n  property must add `relay.api` or it will sign in and then be unable to host or join.\n\n### Security\n\n- Durability and charges are clamped to the definition on every write and again on `RestoreState`, so\n  an edited save claiming forty rounds in a thirty-round magazine does not become live state. Charges\n  are spent all or nothing: a burst that cannot complete is refused rather than half-applied.\n- An item carrying per-copy state must not stack. `Validate()` reports it, because a stack shares one\n  entry and firing from one copy would otherwise empty every copy in it.\n- Unknown/ungranted ability requests, malformed or oversized source sets, duplicated grants/tags,\n  unaffordable multi-resource costs and client-side Godot activation are rejected without partial\n  mutation. Cooldowns survive gear revocation, closing unequip/re-equip resets.\n- Enchantment requests accept only an owned instance id, catalog key and bounded level; effects and\n  grants are re-derived, malformed save entries are sanitized, and online clients cannot mutate\n  enchantments through `EquipmentNode`.\n- Duplicate instance creation, replayed unique inventory adds, duplicate identities in restored\n  inventories/equipment, spoofed equipment slots, dangling/cyclic assembly links and oversized item\n  identifiers are rejected or sanitized without partially applying state.\n- **Snapshots, spawns, despawns and avatar assignments are applied only from the authoritative peer.**\n  Every transport this library targets relays peer-addressed payloads, so a client could address\n  another client directly and author its world — teleporting entities, rewriting health, spawning and\n  deleting entities, or reassigning the victim's avatar. `NetSnapshotApplySystem` and `NetSpawnSystem`\n  now require `NetworkRole.Client` and check `NetIncomingPacket.SourcePeerId` against their immutable\n  `AuthorityPeerId` (`NetPeer.Server` by default). This rejects accidental listen-server registration\n  during configuration instead of trusting peer 1 to distinguish the host from itself.\n- Remote movement input is clamped to the unit disc in `NetInputApplySystem`. The wire format is two\n  independently clamped axes, so a peer writing both extremes moved 41% faster diagonally than the\n  bound `DefaultMovementIntentEvaluator` puts on a local device reading.\n- `NetMessageQueue` bounds each message id at `MaxQueuedPerMessage` (256 by default) and counts what\n  it drops. Only a handful of ids are ever drained, so any connected peer could previously grow the\n  queue without limit by repeating an id nothing reads.\n\n### Fixed\n\n- Snapshot and spawn packets are decoded completely into temporary records before any world mutation.\n  Malformed later records and duplicate network ids now reject the entire packet without partially\n  applying earlier records, and the receive loop no longer throws when a second decoding pass diverges.\n- A spawn batch whose factory returns a dead entity now rolls back the entities already built from\n  that batch, instead of leaving them mapped and replicated with the rest of the batch dropped.\n  `LastSpawnedCount` no longer reports entities a rollback removed.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json#repository",
+    "commit": "12e2293b33e06585cf328e1a8f030a9f9980b9a1",
+    "type": "git",
+    "url": "https://git.lefterisrentas.dev/LefterisRentas/Noodloft.Components.git"
+  },
+  "verbatimVersion": "0.2.0-beta.2",
+  "version": "0.2.0-beta.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json#Noodloft.Components.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3742,
+      "fullName": "Noodloft.Components.nuspec",
+      "length": 8095,
+      "name": "Noodloft.Components.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7575,
+      "fullName": "README.md",
+      "length": 16989,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json#lib/net10.0/Noodloft.Components.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4578,
+      "fullName": "lib/net10.0/Noodloft.Components.dll",
+      "length": 10240,
+      "name": "Noodloft.Components.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json#lib/net8.0/Noodloft.Components.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4581,
+      "fullName": "lib/net8.0/Noodloft.Components.dll",
+      "length": 10240,
+      "name": "Noodloft.Components.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.13.07.56.26/noodloft.components.0.2.0-beta.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12989,
+      "fullName": ".signature.p7s",
+      "length": 12989,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "gamedev",
+    "components",
+    "reactive"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

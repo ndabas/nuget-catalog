@@ -1,0 +1,180 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "G. Gordon Nasseri",
+  "catalog:commitId": "2741a40b-c6f3-45a8-bc25-d3ba5aaf6a8e",
+  "catalog:commitTimeStamp": "2026-08-14T04:09:07.4094813Z",
+  "copyright": "Copyright © Prophet's Way",
+  "created": "2026-08-14T04:06:20.933Z",
+  "description": "A storage-neutral contract vocabulary for a Data Access Layer (DAL): entity marker interfaces, DAO interfaces composed by capability (CRUD, retrieve-all, paging), and one aggregate DAL interface for business logic to depend on, so an entire DAL implementation can be replaced with minimal impact on its consumers. Transaction, disposal and threading rules are specified on the interfaces themselves rather than left to each implementation.\n\nAlso included, and optional, is the abstract BaseDataAccess class: inherit it and it dispatches generic calls - Get, GetAll, GetPaged, GetCount, Insert, Update and Delete - onto the strongly typed methods of your own DAL by convention, using reflection. Implement IBaseDataAccess directly instead when reflection is not appropriate.\n\nGo to https://github.com/ProphetManX/ProphetsWay.BaseDataAccess for more information.",
+  "iconFile": "profile.png",
+  "id": "ProphetsWay.BaseDataAccess",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-14T04:08:57.07Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "zyAm2xlq7uzB+QRj0qfLO7ztsuA0qqSa77oHB4DiCYocyXcTXoOKrteYPsblvooMIyW9YrvCb1y3UOsDghPkfg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 152426,
+  "projectUrl": "https://github.com/ProphetManX/ProphetsWay.BaseDataAccess",
+  "published": "2026-08-14T04:06:20.933Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# v3.1.0\n### Nobody is stranded â€” read this first\nThis release retargets the library to ```netstandard2.0;net10.0```, dropping the dedicated ```net48```, ```net8.0```\nand ```net9.0``` assets. That sounds like a package you can no longer install, and it is not. ```netstandard2.0``` is\nstill here, and it is consumable by .NET Framework 4.6.1 and later and by every .NET Core and .NET 5+ runtime. If you\nare on .NET Framework 4.8, .NET 8 or .NET 9 you still install this package, you still resolve an asset, and it still\nworks. There is nothing you have to do.\n\n### What does change is which assembly you bind\nIf you previously resolved the ```net48```, ```net8.0``` or ```net9.0``` asset, you now resolve ```netstandard2.0```.\nThat is behaviorally equivalent, and this is not a hopeful claim â€” it was checked. The library contains no conditional\ncompilation whatsoever, not a single ```#if``` in any of its eleven source files, and no package references at all.\n```netstandard2.0``` and ```net48``` both compile at C# 7.3. The assets you were resolving before and the asset you\nresolve now were the same compilation of the same code; only the folder name in the package differs.\n\n### Why now\n.NET 8 and .NET 9 both reach end of life on 10 November 2026, and .NET 10 is the current Long Term Support release.\nFrom here the library tracks Long Term Support releases only. The odd-numbered Standard Term Support releases carry an\neighteen-month window, which is not long enough to be worth a permanent asset in a package whose whole surface is\ninterfaces and one reflection dispatcher.\n\n### The test project still targets ```net48```, deliberately\nA release that drops ```net48``` from the library and keeps it in the tests looks like something that was missed. It\nwas not. ```Activator.CreateInstance<T>()``` wraps an exception thrown by a constructor on .NET Framework and does not\non .NET Core, which is the reason ```BaseDataAccessHelper``` handles ```TargetInvocationException``` at all â€” see the\nv3.0.0 notes on unwrapped exceptions for why that path matters to you. The ```net48``` test leg is the only thing that\nexercises it. Now that the library no longer ships a ```net48``` asset, that leg binds ```netstandard2.0```, which\nmeans it validates the exact assembly a .NET Framework consumer actually receives rather than a sibling build of it.\n\n### An entity can implement ```IBaseIdEntity<T>``` and still be rejected â€” the documentation now says so\nThe documentation on ```IBaseIdEntity<T>``` claimed that implementing the interface \"satisfies the fallback\" for\nidentifier resolution. That is true of an ordinary implementation and false of an **explicit** one. C# compiles an\nexplicit implementation to a non-public property whose reflected name is the interface-qualified form, so neither the\n```{TypeName}Id``` lookup nor the ```Id``` fallback finds it, and ```Get<T>``` throws\n```DataAccessConventionException``` before dispatching â€” on an entity the compiler has verified carries an identifier.\n\n```c#\n\t//compiles, and Get<Widget>(5) throws DataAccessConventionException\n\tpublic class Widget : IBaseIdEntity<int>\n\t{\n\t\tint IBaseIdEntity<int>.Id { get; set; }\n\t}\n\n\t//declare the identifier as an ordinary public member\n\tpublic class Widget : IBaseIdEntity<int>\n\t{\n\t\tpublic int Id { get; set; }\n\t}\n```\n\nThe same documentation was emphatic that a non-public *setter* is fully supported â€” a ```private set``` or ```init```\naccessor is written by reflection exactly as a public one is â€” while saying nothing about the property declaration\nitself needing to be public. Read together those two facts implied more leniency than exists, and in the one case that\nmatters they read backwards. The rule is now stated on ```IBaseIdEntity<T>```, ```DataAccessConventionException```,\n```IBaseDataAccess.Get``` and ```BaseDataAccess.Get```: the accessor may be hidden, the declaration may not.\n\n**No behavior changed.** This is how identifier resolution has always worked; what changed is that the shipped\ndocumentation now describes it. The XML documentation is packed inside the package, so the corrected text appears in\nIntelliSense as soon as you upgrade, and a characterization test was added to pin the behavior so the description\ncannot quietly drift away from it again.\n\n### Packaging metadata\n```<PackageProjectUrl>``` and ```<Copyright>``` were empty stubs and now carry values, so the nuget.org listing links\nback to the repository and states its copyright. Nothing about the assembly changed.\n\n### Verification\nAll 116 tests pass on both ```net48``` and ```net10.0```, 232 executions in total, and the build produces zero\nwarnings, unchanged from v3.0.0. The packed package contains exactly ```lib/netstandard2.0/``` and ```lib/net10.0/```.\nNo public member, signature or package reference changed in this release, and the only edits to source are XML\ndocumentation comments.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#repository",
+    "commit": "cce91bec96c7546f5b4fd1332ee0f5519a8f2ced",
+    "type": "git",
+    "url": "https://github.com/ProphetManX/ProphetsWay.BaseDataAccess"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "3.1.0-495.Beta",
+  "version": "3.1.0-495.Beta",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#ProphetsWay.BaseDataAccess.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3112,
+      "fullName": "ProphetsWay.BaseDataAccess.nuspec",
+      "length": 7035,
+      "name": "ProphetsWay.BaseDataAccess.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 9692,
+      "fullName": "CHANGELOG.md",
+      "length": 26100,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 10645,
+      "fullName": "README.md",
+      "length": 32260,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#lib/net10.0/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6620,
+      "fullName": "lib/net10.0/ProphetsWay.BaseDataAccess.dll",
+      "length": 15360,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#lib/net10.0/ProphetsWay.BaseDataAccess.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 16101,
+      "fullName": "lib/net10.0/ProphetsWay.BaseDataAccess.xml",
+      "length": 81278,
+      "name": "ProphetsWay.BaseDataAccess.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#lib/netstandard2.0/ProphetsWay.BaseDataAccess.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6455,
+      "fullName": "lib/netstandard2.0/ProphetsWay.BaseDataAccess.dll",
+      "length": 14848,
+      "name": "ProphetsWay.BaseDataAccess.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#lib/netstandard2.0/ProphetsWay.BaseDataAccess.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 16101,
+      "fullName": "lib/netstandard2.0/ProphetsWay.BaseDataAccess.xml",
+      "length": 81278,
+      "name": "ProphetsWay.BaseDataAccess.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#profile.png",
+      "@type": "PackageEntry",
+      "compressedLength": 67638,
+      "fullName": "profile.png",
+      "length": 68585,
+      "name": "profile.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.04.09.07/prophetsway.basedataaccess.3.1.0-495.beta.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "dal",
+    "data-access",
+    "data-access-layer",
+    "dao",
+    "repository",
+    "abstraction",
+    "interfaces",
+    "decoupling"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

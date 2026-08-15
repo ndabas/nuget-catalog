@@ -1,0 +1,176 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Lumoin and contributors",
+  "catalog:commitId": "c3c07ca2-cbc4-4463-a039-741cc3db98fd",
+  "catalog:commitTimeStamp": "2026-08-14T23:05:00.2081213Z",
+  "copyright": "Lumoin",
+  "created": "2026-08-14T23:02:11.077Z",
+  "description": "System.Formats.Cbor serialization adapters for Lumoin.Verisync message channels. Deterministic canonical CBOR for digest-stable encoding.",
+  "iconFile": "resources/lumoin-verisync-nuget-logo.png",
+  "id": "Lumoin.Verisync.Cbor",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-14T23:04:45.96Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "3C/ezaxxz59RPLoltlOPnSrVTZdLPwCsLu3X9LyOge+zb2gLl0hag3AtegldfmQC+u5IZoet3zDPfUtmm2mqZg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 57735,
+  "projectUrl": "https://github.com/lumoin/Lumoin.Verisync/",
+  "published": "2026-08-14T23:02:11.077Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Changes since version 0.0.7\n\nAdded:\n- QuePaxa consensus, as a transport-free safety core and a message-driven layer over it: the interval summary register, the recorder that enforces the round-one leader's reserved priority, the round rules, the proposer that acts on the first quorum to answer, and JSON codecs for the message family.\n- `QuePaxaVersionedRegister<TValue>`, a consensus register where every write is a fresh instance at the next version. The instance's leader is derived from the previous version's writer and never elected, writers activate on a hedging schedule, and a write reports `Committed`, `Superseded`, `Undecided` or `OutsideConfiguration`.\n- Dynamic membership. `ClusterId` and `QuePaxaConfiguration` carry the chain identity and an ordered member list; the membership governing a version is a field of the record decided at the version before it, so hosts derive it rather than being told it. `ReconfigureAsync` installs a change while carrying the committed value forward. A record naming another chain is refused on every path a record enters a host by.\n- Readiness reporting. `ReadReadinessAsync` reports what each member has learned, as `RegisterReadiness` and `MemberReadiness`, and separates a member that is behind from one that cannot be reached. An overload measures over a supplied membership, so the incoming side of a change is observable before the change commits. `QuePaxaConfiguration.Joining` and `Leaving` name the delta at a boundary.\n- Durable restore for the QuePaxa recorder, the versioned host and the Fast CASPaxos acceptor, each as a `ToState`/`FromState` pair with codecs, refusing every state its protocol cannot hold.\n- `QuePaxaVersionedRunner<TValue>`, a single-consumer loop that drives one host: it serves record requests, makes state durable before a reply leaves the process, learns disseminated records under a caller-named `LearnDurability`, and answers catch-up reads.\n- Dissemination has both legs. `PublishCommittedRecordDelegate<TValue>` carries the audience the register computed, which at a membership boundary is the union of the deciding and installed memberships, and `ReceiveCommittedRecordDelegate<TValue>` names the receiving side.\n- `HedgingSchedule` and `HedgedFastWriter<TValue>` put the Fast CASPaxos fast round on a delayed-activation schedule. No ballot, quorum rule or acceptor state changes; a delay of zero reproduces the unhedged behaviour.\n- `docs/quepaxa.md`: how to choose between the two registers, and the procedures for operating a changing membership.\n\nChanged:\n- The value-codec seam is one named, format-agnostic pair, `WriteValueDelegate<TWriter, TValue>` and `ReadValueDelegate<TSource, TValue>`, taken by every JSON and CBOR factory where each took a naked `Action` or `Func`. **Breaking** for a caller that stored a factory argument or result in an explicitly typed `Action`/`Func` variable; lambdas and method groups bind unchanged.\n- The CASPaxos change function is the named `ChangeRegisterValueDelegate<TValue>`, kept distinct from `ComputeRegisterValueDelegate<TValue>` because one composes inside the round and the other recomputes outside it. **Breaking** for a caller passing an explicitly typed `Func<TValue?, TValue>`.\n- A member version probe answers a `MemberVersionReport`, the version beside the identity the answering host asserts, and a readiness report refuses an answer naming another member. Two probe routes reaching one host would otherwise let one replica fill two slots of the report a decommission is gated on. The identity is the host's own claim and is not authentication. **Breaking** for every implementation of `ObserveMemberVersionDelegate`.\n- A versioned reply carries the host that produced it, and a register checks that the endpoint it aimed at one member was answered by that member. **Breaking** on the reply's shape and wire.\n- A versioned host is owned by at most one runner at a time and enforces it: while a runner holds the claim, mutating the host from outside throws. **Breaking** for a host that snapshotted or mutated a node beside its own runner.\n- The Raft surface carries `Term` and `LogIndex` where it carried bare `long` values, both bounded one below two to the fifty-third so a value survives a reader that parses JSON numbers as doubles. **Breaking** for every caller that constructs or reads these members, and for a peer that sent a value above the bound.\n- `RaftNode<TCommand>` filters every identity arriving from the wire against the configured membership before the term rule runs, so a non-member can neither complete an election nor raise a member's term.\n- `ChangeOutcome<TValue>` gains `AcceptedCount`, reporting how many acceptors accepted, which is what the fast-ballot piggyback rule needs. **Breaking** for positional construction, deconstruction or pattern matching.\n- The CBOR deserializer refuses a payload carrying data after the message. **Breaking** for a sender that padded its frames.\n- Dependency refresh across the toolchain; no library code or wire-format changes.\n\nFixed:\n- The write documentation promised an exception for a recorder answering for another instance or member; those replies are absorbed as that recorder's unavailability and surface as an undecided outcome. The documented throw is now the one the register makes: a round that decided a record carrying another version, refused before adoption.\n- Concurrent writers are checked for linearizability over real sockets, including across a minority partition, and socket assertions count answerers against a quorum floor rather than requiring every host to answer, which the protocol does not owe.\n- The channel readers gain `CancelPendingRead` and end gracefully on a canceled read, so a consumer can stop a call already in flight.\n- A catch-up read skips a host whose runner has stopped instead of abandoning the round at every host after it.\n- `ConsensusNode<TValue>.RunAsync` gates its durable write on what was last persisted rather than on whether the current request changed the acceptor, closing a window where a retransmission was answered from state that never reached the disk.\n- `FastCasPaxosRegister<TValue>.ProposeFastReaching` refuses a repeated acceptor index instead of counting it toward a quorum. **Breaking** for a caller that passed a list with repeats.\n- A versioned register allocates the proposer lane per proposal rather than per call, so a caller cannot put two values under one proposal key by retrying at a version it left undecided.\n- The packed SBOM records the packaged version, and the packages ship their XML documentation.\n\nSee full changelog at https://github.com/lumoin/Verisync/blob/main/CHANGELOG.md.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#repository",
+    "commit": "673aa70b1ae18bdf21b05aa49347c7e4a5cb8650",
+    "type": "git",
+    "url": "https://github.com/lumoin/Lumoin.Verisync"
+  },
+  "verbatimVersion": "0.0.8",
+  "version": "0.0.8",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#dependencygroup/net10.0/lumoin.verisync.core",
+          "@type": "PackageDependency",
+          "id": "Lumoin.Verisync.Core",
+          "range": "[0.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#dependencygroup/net10.0/system.formats.cbor",
+          "@type": "PackageDependency",
+          "id": "System.Formats.Cbor",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#dependencygroup/net10.0/lumoin.base",
+          "@type": "PackageDependency",
+          "id": "Lumoin.Base",
+          "range": "[0.0.9, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4431,
+      "fullName": "README.md",
+      "length": 10688,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#Lumoin.Verisync.Cbor.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3446,
+      "fullName": "Lumoin.Verisync.Cbor.nuspec",
+      "length": 8030,
+      "name": "Lumoin.Verisync.Cbor.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#resources/lumoin-verisync-nuget-logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26617,
+      "fullName": "resources/lumoin-verisync-nuget-logo.png",
+      "length": 26635,
+      "name": "lumoin-verisync-nuget-logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#_manifest/spdx_2.2/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3401,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json",
+      "length": 28510,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#lib/net10.0/Lumoin.Verisync.Cbor.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 908,
+      "fullName": "lib/net10.0/Lumoin.Verisync.Cbor.xml",
+      "length": 3030,
+      "name": "Lumoin.Verisync.Cbor.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#lib/net10.0/Lumoin.Verisync.Cbor.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3472,
+      "fullName": "lib/net10.0/Lumoin.Verisync.Cbor.dll",
+      "length": 8192,
+      "name": "Lumoin.Verisync.Cbor.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.14.23.05.00/lumoin.verisync.cbor.0.0.8.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

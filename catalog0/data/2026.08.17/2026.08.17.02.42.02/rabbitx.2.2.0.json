@@ -1,0 +1,228 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "jorg3roch4",
+  "catalog:commitId": "0c9286a2-432e-411e-87b2-02f3133ea75d",
+  "catalog:commitTimeStamp": "2026-08-17T02:42:02.7138495Z",
+  "copyright": "Copyright (c) 2025",
+  "created": "2026-08-17T02:39:23.427Z",
+  "description": "RabbitMQ abstraction library for .NET 10+ with resilience patterns, fluent configuration, RPC support, dead letter handling, and OpenTelemetry instrumentation. Built on RabbitMQ.Client 7.x.",
+  "iconFile": "icon-128x128.png",
+  "id": "RabbitX",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-17T02:41:27.28Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "minClientVersion": "6.0",
+  "packageHash": "0o6KOfsfyTKNmEXEJgm5wv9zEceC0m9nunHcQl+BBW70PeauIow7jWjeyqe9gEu3RdexBHvvDVT5oRjgKqDEtg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 154089,
+  "projectUrl": "https://github.com/jorg3roch4/RabbitX",
+  "published": "2026-08-17T02:39:23.427Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v2.2.0 - TLS and mutual TLS support: new TlsOptions section on ConnectionOptions (bindable from configuration and via the new UseTls/UseMutualTls fluent methods and TlsOptionsBuilder), mapped onto RabbitMQ.Client SslOption by the internal SslOptionFactory. Supports a private certificate authority as trust anchor (X509ChainTrustMode.CustomRootTrust), client certificates from a PKCS#12 file, the OS certificate store, or a caller-supplied delegate that is re-invoked per connection so certificates can rotate without a restart, and SASL EXTERNAL authentication (AuthenticationMechanism enum) where the broker derives identity from the client certificate. New fail-closed ConnectionOptionsValidator runs on BOTH AddRabbitX overloads (the IConfiguration overload previously performed no validation at all): TLS enabled without ServerName, TLS on port 5672, EXTERNAL without a client certificate, ambiguous certificate sources, an orphaned certificate passphrase, and deprecated protocol versions all fail at startup - as does the reverse case where TLS settings are present but Enabled is false, which would otherwise connect in plaintext while appearing configured for TLS. FIXED: ConnectionOptions.ConnectionTimeoutSeconds was documented and configurable but never mapped to ConnectionFactory.RequestedConnectionTimeout, so the configured value was ignored and the client default applied; it now also bounds the TLS handshake. Additive and non-breaking: configurations without a Tls section bind and behave exactly as before. v2.1.0 - Restored the type-erased raw-publish surface removed by mistake in 2.0.0 (IRawMessagePublisher, IPublisherFactory.CreateRawPublisher, RabbitMQPublisherFactory raw-publisher cache, RabbitMQPublisher<TMessage>.PublishRawAsync): it does not touch SQL Server, it is generic type-erased AMQP publish, and other consumers (e.g. DeadLetter replay) need it independently of the Outbox. Doc-comments updated to describe it as a general-purpose capability, no longer referencing the removed OutboxDispatcher. Also removed DapperDeadLetterStore — the only file in the DeadLetter drain feature that touched SQL Server/Dapper; AddDeadLetterDrain no longer auto-registers a default IDeadLetterStore, consumers wanting persistence for the drain must supply their own implementation. Dapper and Microsoft.Data.SqlClient NuGet package references removed from RabbitX and RabbitX.Tests — nothing in the library uses them anymore. RabbitMQ-handling surface (raw consumer pipeline, XDeathParser, DeadLetterDrainOptions, DeadLetterDrainHandler, native DLX config) is untouched and remains complete. MINOR release: additive restoration of previously-existing public API plus an internal-only DI behavior change, no public contract broken. v2.0.0 - BREAKING: removed Transactional Outbox (OutboxDispatcher, IOutboxStore, DapperOutboxStore, IOutboxWriter, IOutboxSignal, OutboxSignal, OutboxRow, OutboxOptions, AddOutboxDispatcher) and Consumer Inbox/Idempotency (IdempotentConsumerPipeline<T>, IConsumerUnitOfWork, ConsumerUnitOfWork, IInboxStore, DapperInboxStore, InboxIterationCounter, InboxOptions, AddIdempotentConsumerPipeline, AddIdempotentMessageHandler) primitives, plus the type-erased raw-publish surface used only by the Outbox dispatcher (IRawMessagePublisher, IPublisherFactory.CreateRawPublisher, RabbitMQPublisherFactory raw-publisher cache, RabbitMQPublisher<TMessage>.PublishRawAsync) and the now-orphaned rabbitx.inbox.dedup.hits counter. Reason: scope simplification — RabbitX is now a pure RabbitMQ integration library; message persistence, outbox dispatch, and consumer-side idempotency are the responsibility of each consuming service. IDbConnectionFactory and the internal DbConnectionAsyncExtensions.OpenIfClosedAsync helper were NOT removed — they were relocated from the RabbitX.Outbox namespace to the new RabbitX.Persistence namespace because DapperDeadLetterStore (DeadLetter feature) still depends on them; consuming services must update `using RabbitX.Outbox;` to `using RabbitX.Persistence;` for these two types. DeadLetter feature is unaffected otherwise. v1.7.1 - Connection-pool-exhaustion fix: the 6 remaining synchronous SQL connection opens (OutboxDispatcher.DrainBatchAsync/RunRetentionAsync, DapperDeadLetterStore.InsertIfNotExistsAsync/DeleteExpiredReplayedAsync, IdempotentConsumerPipeline.HandleAsync/TryCleanupAsync) now open their connection via the new internal DbConnectionAsyncExtensions.OpenIfClosedAsync helper, which awaits DbConnection.OpenAsync instead of blocking a thread-pool thread on the synchronous Open(). Under concurrent load (e.g. PaymentsRouter/PaymentsIntegration running ConsumerDispatchConcurrency=15 across 2 consumers each) the blocking Open() calls could starve the CLR thread pool over several hours and exhaust the SQL connection pool. Public API is untouched (IDbConnectionFactory.Create still returns IDbConnection); the helper does a runtime cast to DbConnection with a synchronous Open() fallback for non-DbConnection implementations. Wire format and transactional semantics (commit/rollback ordering, isolation level, idempotency dedup) are byte-identical to 1.7.0 — behavior-preserving, PATCH release. v1.7.0 - Dead-letter hardening: IDeadLetterStore.InsertIfNotExistsAsync now returns DeadLetterInsertResult { NewRow, Reopened, Duplicate } instead of bool (breaking, in-repo only — DapperDeadLetterStore is internal sealed). DapperDeadLetterStore rewrites the capture as an explicit IF-UPDATE-then-INSERT under UPDLOCK/HOLDLOCK: a previously Replayed/Discarded row that dies again is reopened (Status→Pending, DeathCount incremented, CapturedAt/XDeathRaw/Reason refreshed, replay bookkeeping nulled) and reported as Reopened; an unchanged Pending row is Duplicate. Three new OpenTelemetry counters: rabbitx.dlq.captured (tags queue, reason), rabbitx.dlq.redeaths (tags queue, reason), rabbitx.inbox.dedup.hits (tag queue). DeadLetterDrainHandler switches on the result to fire captured/redeaths; IdempotentConsumerPipeline fires dedup.hits on the duplicate branch. Wire format unchanged. Additionally, the dead-letter drain is always-on: removed DeadLetterDrainOptions.Enabled; AddDeadLetterDrain now registers RawConsumerHostedService unconditionally (availability of the admin endpoints is governed by the consuming service's authorization/RBAC, not a config toggle). v1.6.0 - Retry policy consolidation: NEW RabbitX:ConsumerDefaults:Retry configuration section — shared retry defaults inherited by every consumer with field-level fallback (per-consumer explicit value > ConsumerDefaults > C# default); fully-specified legacy configurations bind byte-identically, no behavior change. RetryOptions properties now use nullable backing fields with internal Is*Set tracking so \"omitted\" is distinguishable from \"set to the default value\". Jitter now uses the thread-safe Random.Shared (a shared new Random() instance corrupts under concurrency). PollyRetryPolicyProvider renamed to RetryDelayProvider; GetDelayForRetry now delegates to RetryOptions.GetDelayForAttempt (single canonical backoff formula; jitter still applied after the MaxDelay cap). REMOVED (breaking for unused API surface): RetryContext class, both IRetryPolicyProvider.CreateRetryPolicy overloads, and the Polly package dependency — all dead code with zero callers. Two-layer retry model (transport x-retry-count vs task-level deterministic-id retries) documented at the code seams. v1.5.0 - Dead-letter drain pipeline (CH-D): type-erased raw consumer (RawMessageContext, IRawMessageHandler, IRawMessageConsumer, IConsumerFactory.CreateRawConsumer, internal RawRabbitMQConsumer + RawConsumerHostedService) that maps Reject/Defer onto Retry so a DLX-less DLQ message is never destroyed. New DeadLetter/ folder: DeadLetterDrainOptions (ships disabled), IDeadLetterStore + DapperDeadLetterStore (INSERT...WHERE NOT EXISTS on (Queue, MessageId) + Replayed-only retention sweep), DeadLetterRow, XDeathParser, DeadLetterDrainHandler, DeadLetterIterationCounter, and the AddDeadLetterDrain DI extension which FORCES OnRetryExhausted=Requeue on the drain consumer and THROWS at startup if the drain consumer declares a DeadLetter section. Wire format unchanged; backward-compatible with RabbitX 1.4.x consumers. v1.4.1 - Bugfix: DapperOutboxStore.DeleteSentBeforeAsync now passes the ambient transaction to Dapper. Microsoft.Data.SqlClient 7.0.1 (new in 1.4.0) is strict about commands inheriting the connection's pending transaction, so the retention sweep was throwing InvalidOperationException (\"BeginExecuteNonQuery requires the command have a transaction...\"). Log spam only — no data loss. v1.4.0 - Consumer Inbox primitives (CH-C): InboxOptions, IConsumerUnitOfWork, IInboxStore, DapperInboxStore, InboxIterationCounter, IdempotentConsumerPipeline<T> (generic IMessageHandler decorator) and the AddIdempotentConsumerPipeline + AddIdempotentMessageHandler<T,THandler> DI extensions. MessageEnvelope.CreateReply now derives MessageId deterministically via the new DeterministicMessageId.For(Guid, string) overload so consumer-side Inbox dedup catches retried replies. Wire format unchanged; backward-compatible with RabbitX 1.3.0 consumers.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#repository",
+    "commit": "b2a8969dfb0b7bacbfa2471d8395c04ef15c5914",
+    "type": "git",
+    "url": "https://github.com/jorg3roch4/RabbitX"
+  },
+  "title": "RabbitX - RabbitMQ Integration for .NET",
+  "verbatimVersion": "2.2.0",
+  "version": "2.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[10.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/microsoft.extensions.diagnostics.healthchecks",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+          "range": "[10.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[10.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/opentelemetry.api",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Api",
+          "range": "[1.15.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#dependencygroup/net10.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#RabbitX.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4566,
+      "fullName": "RabbitX.nuspec",
+      "length": 11602,
+      "name": "RabbitX.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 637,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4137,
+      "fullName": "README.md",
+      "length": 10676,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#icon-128x128.png",
+      "@type": "PackageEntry",
+      "compressedLength": 22777,
+      "fullName": "icon-128x128.png",
+      "length": 22809,
+      "name": "icon-128x128.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#lib/net10.0/RabbitX.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 79068,
+      "fullName": "lib/net10.0/RabbitX.dll",
+      "length": 202240,
+      "name": "RabbitX.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#lib/net10.0/RabbitX.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 27635,
+      "fullName": "lib/net10.0/RabbitX.xml",
+      "length": 188383,
+      "name": "RabbitX.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.17.02.42.02/rabbitx.2.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "rabbitmq",
+    "messaging",
+    "queue",
+    "amqp",
+    "resilience",
+    "rpc",
+    "pubsub",
+    "dead-letter",
+    "retry",
+    "circuit-breaker",
+    "opentelemetry",
+    "tracing",
+    "metrics",
+    "net10"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

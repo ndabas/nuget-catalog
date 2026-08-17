@@ -1,0 +1,199 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Mibo.Core",
+  "catalog:commitId": "732635ff-6804-423d-8dd7-cf7a4f351ec1",
+  "catalog:commitTimeStamp": "2026-08-16T20:07:54.1334295Z",
+  "created": "2026-08-16T20:04:46.543Z",
+  "description": "Package Description",
+  "id": "Mibo.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-16T20:07:21.187Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "wngEdJ6C5JA9L/PN5ceZ6mnlgazE+YEQtsfMsqUIA0qQ2rzj2tjn20sq/2iZREEQKBMmJrZtE3etsngKjaICJw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 861434,
+  "projectUrl": "https://angelmunoz.github.io/Mibo",
+  "published": "2026-08-16T20:04:46.543Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Added\n\n- **MonoGame 3D:** `ModelParts.ofModel(model)` turns a content-pipeline model into per-part records ready for `meshSlice`/`instancedSlice` — each part draws straight from the model's shared buffers (no per-part buffer copies) with its slice offsets, its absolute bone transform, and its material; results are cached per model and must be treated as read-only. Static models only — skinned parts render in their bind pose (use `animatedModelInstanced` for those). `InstancedRenderContext` accepts a parts resolver, so grid renderers can instance content models directly with correct bones and offsets.\n- **MonoGame 3D:** `Draw.meshSlice`/`Draw.instancedSlice` draw a slice of a mesh within shared content-pipeline vertex/index buffers — pass the part's `vertexOffset`/`startIndex` (`0, 0` for self-contained buffers) and the mesh draws that part's own geometry instead of the first part's triangles. The offsets default to 0, so existing self-contained meshes call them unchanged. The mesh record must describe the part: `PrimitiveCount` is the part's triangle count and `Bounds` its local-space bounding sphere. Shared buffers with more than 65,536 vertices need a 32-bit index buffer (the merged-parts pipeline widens automatically).\n- **Adaptive:** deferred work — the adaptive counterpart of `Cmd`. `AdaptiveContext.Intents` takes `unit -> unit` work from `Update` (or any thread) and runs it at the moment the name says: `post` (after this step's `Update`, drained until empty so reaction chains settle before the frame is forced), `postNextFrame` (top of the next step), `postTask`/`postAsync` (background work; the completion returns on the owner thread where root writes are legal). `AdaptiveHeadless.Post` injects work without holding the `Update` context.\n- **Adaptive:** subscriptions — the adaptive counterpart of `Sub`. `AdaptiveInit.withSubscriptions` takes a keyed `amap` of `AdaptiveSub` specs (dynamic, state-driven subscription sets can use `AMap.custom`); the runner diffs it per step — gated on the map's version, so clean steps do no diff work — to attach, keep, or detach, and detaches everything on `Dispose`. Attach callbacks receive a posting surface: `Post` queues work for the frame boundary before `Update`, so input published right before a `Step` reaches the sim in that same step. `AdaptiveSub.ofObservable` and `AdaptiveSub.ofTimer` build subscriptions from the common sources, so most code never writes `Attach` by hand.\n- **Adaptive:** semantic input mapping — `InputMapper.subscribeAdaptive`/`subscribeStaticAdaptive` (both backends) build an `ActionState` from the `IInput` delta observables and an `InputMap`, writing it into a `cval<ActionState<_>>` root through the pre-step lane; no message, no dispatch. The write settles before `Update`, so the update phase and the frame force read the mapped actions like any other root. Edge events (`Started`/`Released`) accumulate across the deltas within a step via the new `ActionState.mergeEdges` (pure, unit-tested in Core); `Held`/`Values` stay last-wins. The subscription clears the consumed edges after `Update` (after each fixed sub-step's `Update`; a fixed-step frame with no sub-step defers the clear to the next sub-step, so the edges are never lost) and before the frame is forced, so `Update` reads each edge exactly once; no manual clearing is needed, and a manual `ActionState.nextFrame` write stays legal and free. Consume `Held`-style state as projections. The `IInputMapper` service registered by `withInputMapper` is registered only — nothing polls it; the docs now say so.\n- **Templates:** `Mibo.Templates` (the `mibo-2d`/`mibo-3d`/`mibo-mg-2d`/`mibo-mg-3d` starters) is now packed and published with each release, versioned from the repo changelog like the libraries.\n- **Templates:** adaptive starters — `mibo-2d-adaptive`/`mibo-3d-adaptive` (raylib) and `mibo-mg-2d-adaptive`/`mibo-mg-3d-adaptive` (MonoGame) scaffold the adaptive runtime: roots plus a derived projection built once, an update that writes roots, a pure frame pack, input through the adaptive input-mapper subscription, and `AdaptiveRaylibGame`/`AdaptiveMonoGameGame` host wiring. The existing starters keep their names and stay MVU.\n\n### Changed\n\n- **Docs:** reorganized around the two program runtimes — the MVU guides (Elmish, programs, commands, subscriptions, system pipeline, headless, MonoGame migration) live under their own section; a new Adaptive section mirrors the MVU coverage (overview, programs, intents, subscriptions, systems, scaling, services, headless, background work, derived state); and a new Mibo.Adaptive section documents the incremental-computation library as its own package. Runtime-specific patterns (composable systems, background work, pre-computed state) move under MVU; Patterns keeps the runtime-agnostic pages (pooled particles, layered rendering). The scaling guide splits per runtime — the MVU complexity ladder lives under MVU, a new adaptive scaling ladder under Adaptive. The v1 (raylib-only) archive leaves the sidebar and is linked from the front page instead. Docs now build on fsdocs 22.1.0.\n- **Breaking (experimental): Adaptive:** `AdaptiveProgram.Init` and the subscription projection now receive the new `AdaptiveFrameContext` (framework roots + `GameContext`, no work queue); only `Update` receives `AdaptiveContext` with `Intents` — the frame builder cannot defer work by construction.\n- **Breaking (experimental): Adaptive:** `AdaptiveHeadless.RunAsync` yields `StepOutcome<'Frame>` (`GameTime` + `Frame`) instead of `struct (GameTime * 'Frame)`.\n\n### Deprecated\n\n- **MonoGame 3D:** `Draw.mesh`/`Draw.instanced` are deprecated on MonoGame — they draw from buffer offset 0, which renders the first part's triangles for a mesh wrapping a part of a shared content-pipeline buffer. Use `meshSlice`/`instancedSlice` (see Added); raylib's `mesh`/`instanced` are unchanged.\n\n### Removed\n\n- **Breaking (experimental): Adaptive:** the restart machinery (`AdaptiveContext.RestartRequested`, `AdaptiveHeadless.Restart()`) — dispose of the runner and create a new one.\n\n### Fixed\n\n- **Input mapping (MonoGame):** the subscription mapper snapshots only the input devices the `InputMap`'s triggers reference — previously every input event (including the per-frame mouse-move event) polled the keyboard, the mouse, and four gamepads, even when the map binds keys only. Behavior is unchanged; the unmapped devices are simply not fetched.\n- **Input mapping:** `Started` in the subscription mapper's `buildActions` (both backends) is now a per-ACTION transition, matching core `ActionState.update`: it fires only when the action was NOT already held. Previously each binding press fired `Started` — pressing Left while A already holds the same action re-fired it — while `Released` only fired at full release, so an add-on-Started/subtract-on-Released consumer went +N/−1 and stuck (Defli3D's keyboard pan locked when mixing WASD with arrow synonyms). The `IInputMapper` service's poll loop applies the same transition rule now.\n- **Mibo.Adaptive:** the NuGet package now ships its own readme — including the credit note for its AdaptiveSlop origin — instead of the repo root readme.\n- **Raylib 3D:** alpha-blended billboards — particles and other transparent quads — no longer write depth, so a transparent billboard no longer hides the geometry or particles behind it.\n- **Raylib 2D:** full-circle ring outlines no longer show a radial line where the ring closes. Partial arcs keep their end caps.\n- **Raylib 2D:** filled triangles, triangle fans and triangle strips now render in any winding order. Clockwise point lists drew nothing on raylib while MonoGame rendered them; both backends now agree.\n- **MonoGame 2D:** ring outlines draw as two clean rings — the outline no longer fills in as a band, and full circles no longer show a radial seam where the ring closes. Partial arcs keep their end caps.\n- **MonoGame 2D:** sprites and shapes now keep their draw order when sampler-state commands are interleaved — text no longer renders behind shapes on top of it.\n- **MonoGame 2D:** flushing the shape batch no longer copies its vertices into a new array — scenes that flush often (HUDs that interleave text and shapes) stop producing garbage on every flush.\n- **MonoGame 3D:** cube, plane and cone primitives now face outward under the default cull mode — the cube no longer shows its interior and the plane no longer vanishes from one side.\n- **2D:** triangle fans now auto-close the rim on every backend — the last rim vertex connects back to the first, so a full convex rim fills its polygon. raylib previously left the wedge between the last and first rim vertex unfilled while MonoGame closed it.\n- **MonoGame 3D:** translucent materials, alpha-blended billboards and alpha-blended line draws now fade their tint with alpha — a material at `Opacity 0.3` shows 30% of its color over the background. They previously added the tint at full strength while only fading the background, so translucent tints now match the raylib backend.\n- **MonoGame (DirectX 12):** lines now render on the DX12 backend. Thin lines, line strips and 3D lines drew as filled shapes or vanished there — the DX12 runtime interprets line topologies as triangles. On that backend 2D lines now draw as thin quads and 3D lines as camera-facing quads, close to the native lines the other backends draw.\n- **Templates:** the starter agent files link to the MVU guides at their new locations. The docs reorganization moved Elmish, programs, commands, subscriptions, system, scaling, headless, services, composable systems and background work under the MVU section, and the old flat links in the shipped starters were dead.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#repository",
+    "commit": "993139b0573608f10e7cfeac1ac0df7a2436252e",
+    "type": "git",
+    "url": "https://github.com/AngelMunoz/Mibo"
+  },
+  "verbatimVersion": "4.3.0",
+  "version": "4.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#dependencygroup/net10.0/mibo.adaptive",
+          "@type": "PackageDependency",
+          "id": "Mibo.Adaptive",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#dependencygroup/net10.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.1.400, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#dependencygroup/net10.0/fsharp.umx",
+          "@type": "PackageDependency",
+          "id": "FSharp.UMX",
+          "range": "[1.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#dependencygroup/net8.0/mibo.adaptive",
+          "@type": "PackageDependency",
+          "id": "Mibo.Adaptive",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#dependencygroup/net8.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.1.400, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#dependencygroup/net8.0/fsharp.umx",
+          "@type": "PackageDependency",
+          "id": "FSharp.UMX",
+          "range": "[1.1.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#Mibo.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4532,
+      "fullName": "Mibo.Core.nuspec",
+      "length": 11086,
+      "name": "Mibo.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 447,
+      "fullName": "LICENSE",
+      "length": 845,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2692,
+      "fullName": "README.md",
+      "length": 6137,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#lib/net10.0/Mibo.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 384852,
+      "fullName": "lib/net10.0/Mibo.Core.dll",
+      "length": 699904,
+      "name": "Mibo.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#lib/net10.0/Mibo.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 34437,
+      "fullName": "lib/net10.0/Mibo.Core.xml",
+      "length": 212154,
+      "name": "Mibo.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#lib/net8.0/Mibo.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 384880,
+      "fullName": "lib/net8.0/Mibo.Core.dll",
+      "length": 699904,
+      "name": "Mibo.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#lib/net8.0/Mibo.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 34437,
+      "fullName": "lib/net8.0/Mibo.Core.xml",
+      "length": 212154,
+      "name": "Mibo.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.16.20.07.54/mibo.core.4.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

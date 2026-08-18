@@ -1,0 +1,269 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Allister Beharry",
+  "catalog:commitId": "f0039077-ad64-41ad-95e3-a93c58fd449c",
+  "catalog:commitTimeStamp": "2026-08-18T05:26:46.6514922Z",
+  "copyright": "Copyright (c) 2026 Allister Beharry",
+  "created": "2026-08-18T05:23:06.023Z",
+  "description": "A .NET library for retained-mode terminal user interfaces (TUIs) that focuses on performance and ease-of-use.",
+  "iconFile": "logo.png",
+  "id": "Jumbee.Console",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-18T05:26:44.1Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "hBEkSx2lNMxLBeLFzeOh/IpZ94x2U95IHHa3zRvOTYnF5mSH0g4f2Y6MWEGM0qHF2xca0MZhZZqujKuxcX9PZQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1800761,
+  "projectUrl": "https://github.com/allisterb/Jumbee.Console",
+  "published": "2026-08-18T05:23:06.023Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "0.2.0\n-----\nADDED\n\n  * UI.RestoreBuiltInHotKeys() - drops every hotkey an app registered with UI.RegisterHotKey, keeping the\n    library's own (Ctrl+Q, the Ctrl focus tier, F1). UI.Stop now calls it, so hotkeys are scoped to the\n    session that registered them, alongside the control list Stop already cleared.\n\n  * IScrollable - the opt-in that makes a framed control scroll. A ControlFrame owns the viewport, the\n    scrollbar and the offset; the control's side of the bargain is one honest answer, \"how tall is my content\n    at this width\", which is now IScrollable.MeasureHeight. Implemented by ListBox, Tree, TextEditor,\n    TextPanel, CodeEditor, MarkdownViewer, AsciiDocViewer and MermaidViewer.\n\n  * IScrollable.FocusRowChanged, with the RowSpan struct it carries. A control with a moving point of\n    interest - a selected item, a caret - raises it when that point moves, and the enclosing frame scrolls the\n    rows into view. It has a do-nothing default implementation, so a viewer with nothing to report simply\n    omits it. Declared as a plain field-like event, the compiler reports CS0067 if it is never raised, which\n    catches the mistake worth catching: a control that claims a moving selection and then lets it scroll off\n    screen.\n\n  * ControlFrame.ScrollIntoView(start, height) and the protected Control.ScrollIntoView, replacing three\n    private copies of the same clamp in ListBox, Tree and CodeEditor. Scrolls the minimum needed, does nothing\n    when the rows are already visible, and aligns a span taller than the viewport to its top.\n\n  * A frame now reveals a newly focused descendant automatically. Tab into a tall sidebar and the frame\n    scrolls the focused control into view with no code in the composite: the row is recovered by walking the\n    drawing-context chain, so it reads the layout's real positions and cannot drift from them the way\n    arithmetic in a composite would.\n\n  * Terminal-write telemetry. The console write runs off the render loop, so frame time never included it and\n    nothing reported it at all. UI.AverageWriteTime, AverageWriteWaitTime, WriteQueueDepth/Peak,\n    AverageFrameLatency and PeakFrameLatency now do, fed by ConsoleManager's Emit and paired back to their own\n    frame by ordinal. PerfHud gained write, wait and latency rows.\n\n  * ProcessMetrics.RenderTimeMsDrawnAvg, FrameLatencyMsAvg/Peak, LockContentionsPerSecond, RecordWrite and\n    ConsoleManager.ResetOutputTelemetry.\n\nCHANGED\n\n  * BREAKING: Control.FillsFrameViewport is removed, and frame scrolling is now opt-in rather than opt-out.\n    Previously a frame gave EVERY child an unbounded height unless it set FillsFrameViewport, and a control\n    that overrode neither that nor MeasureHeight resolved to the 1000-row size clamp - a scrollbar with a\n    thumb too small to draw over ~1000 rows of blank space, with nothing thrown, nothing logged, the content\n    drawn correctly at the top, and a snapshot of the visible area passing. The wrong answer was the one you\n    got by doing nothing.\n\n    To migrate:\n\n        Was                                          Now\n        --------------------------------------------------------------------------------\n        override FillsFrameViewport => true          delete the override (it is the default)\n        override MeasureHeight, wanted scrolling     implement IScrollable\n        neither, but relied on frame scrolling       implement IScrollable\n\n    A control that implemented neither and did not want scrolling needs no change. A third-party control that\n    relied on the old implicit default stops scrolling rather than scrolling wrongly, which is the better\n    direction to fail, but it is a real break.\n\n  * BREAKING: Control.MeasureHeight moved from a protected virtual to IScrollable.MeasureHeight, and is public\n    on the implementing control. It is deliberately not an explicit interface implementation: those are not\n    virtual, so the first subclass wanting its own measurement would have had to re-declare the interface.\n\n  * Control.OnMouseWheel's default now scrolls the nearest ENCLOSING scrolling frame, not just Frame. The\n    control under the pointer is almost never the one being scrolled - a button inside a panel of framed\n    sections has no frame of its own - so a wheel notch over it used to be dropped entirely.\n\n  * Slider takes the wheel only when it has focus, or when nothing enclosing it can scroll. A standalone\n    slider behaves as before; one inside a scrolling panel now passes the notch through instead of making the\n    panel nearly unscrollable and changing a value the pointer was only passing over.\n\n  * PerfHud: the frame row is renamed render and now averages the frames that actually drew (the old figure\n    was diluted by cheap idle frames, so it did not add up with the write/wait rows); locks is a contention\n    RATE over the rolling window rather than the lifetime total, so it returns to zero once contention stops;\n    the timing rows are grouped together; and the panel derives its height from the rows it emits rather than\n    a hand-kept constant that silently clipped the last metric when it fell behind.\n\nFIXED\n\n  * Tree reported no content height, so a framed Tree scrolled over the 1000-row clamp rather than its own\n    rows - a sliver of a thumb, and a scroll range with nothing in most of it. It had been scrolling by\n    accident for as long as it has existed, which is why nothing caught it; the test asserting that navigation\n    scrolls passed for the wrong reason. Tree now reports its real row count.\n\n  * A framed DataTable drew a dead scroll track and lost its own bottom border. It owns its viewport and draws\n    its own scrollbar, but declared neither of the old opt-outs, so the frame gave it the unbounded height,\n    took a column for a scrollbar whose thumb was too small to render, and clipped the table's last row out of\n    reach - the wheel is consumed by the table, so nothing could scroll it back. Framing a table for a border\n    and a title is the common case and now works.\n\n  * Tree's scroll-into-view lacked the guard ListBox had for a node taller than the viewport, so navigating to\n    one scrolled past its own first row and pushed the just-selected node off the top. Both now share one\n    implementation.\n\n  * Control.Dispose leaked the frame's UI.FocusChanged subscription. The Frame setter attached the frame to\n    both UI.ThemeChanged and UI.FocusChanged; Dispose detached only the first, so every framed control ever\n    created kept handling focus moves for the life of the process.\n\n  * ConsoleManager no longer commands the terminal in response to a terminal resize. AdjustBufferSize called\n    Resize, whose StandardConsole setter drives SetBufferSize/SetWindowSize - and those can fail or clamp\n    silently, so the size read back differed again next frame and the whole UI re-laid-out every frame. That\n    feedback loop is why AnsiTerminalConsole existed to route around it. Observing a resize now adopts it; the\n    console still syncs its own scroll buffer, so a full-screen UI keeps a host scrollbar off the app.\n\n  * The legacy console no longer collapses to a single cell. StandardConsole's Size setter shrank the window\n    to 1x1 as an intermediate step before resizing the buffer, and SafeConsole swallows failures - so if\n    either following call failed, the window was simply left at 1x1 and the app looked like it had vanished\n    while the process kept running. It now shrinks only to the target size.\n\n  * ChatPrompt is one row tall in a plain layout cell, and one column wider inside a frame. It reported its\n    single row as an IScrollable content height, which is honoured only under an unbounded parent, so unframed\n    it filled its cell; and being scrollable cost it a column of every frame's interior for a scrollbar that\n    could never appear. It states the row as an intrinsic height instead.\n\nEXAMPLES\n\n  * The 3D sandbox model viewer's sidebar scrolls, so it stays usable on a short terminal. It also gained a\n    \"Scale All\" slider that drives the three axis sliders together, a Reset in each of the Scale and Shear\n    sections (each undoing only its own section - the whole-transform reset is still Model > Reset transform\n    and the 0 key), and the mouse-wheel zoom direction is corrected: wheel up now zooms in.\n\n  * The agent harness demo's task list stopped round-tripping every style through markup text. It built a\n    markup STRING with Style.ToMarkup()/Color.ToMarkup() and let Markup parse it straight back through the\n    tokenizer, style parser and hex-colour parser - 57% of the whole demo's allocations. Emitting styled\n    Segments directly, and computing the pane height arithmetically rather than rendering it to count lines,\n    cut the demo's total allocations from ~482k to ~123k and its per-frame allocation by roughly half.\n\nDOCS\n\n  * New \"Scrolling\" section in docs/controls/Control Model.md - the canonical recipe, in the guide someone\n    framing a control actually opens rather than filed under composites. It names the failure mode outright\n    (\"a control that doesn't implement IScrollable is sized to the viewport and never scrolled\") and covers\n    the two things a frame will not do for you: focus within a control, and the column the scrollbar costs.\n\n  * The PerfHud counter table in docs/controls/Live Data.md is rewritten for the new metrics, with a section\n    on why latency is not a frame budget: render and write overlap, so throughput is bounded by whichever is\n    slower while latency is their sum.\n\n  * New internal design note at docs/internal/Scrolling.md recording why the old default was the broken one,\n    why the focus row is an event rather than a polled property, and what CS0067 does and does not enforce.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#repository",
+    "branch": "refs/heads/master",
+    "commit": "f57006229b18e28fdf12425e852eb42d8e0f2240",
+    "type": "git",
+    "url": "https://github.com/allisterb/Jumbee.Console"
+  },
+  "verbatimVersion": "0.2.0",
+  "version": "0.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#dependencygroup/net10.0/ntokenizers",
+          "@type": "PackageDependency",
+          "id": "NTokenizers",
+          "range": "[6.1.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#Jumbee.Console.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4785,
+      "fullName": "Jumbee.Console.nuspec",
+      "length": 11066,
+      "name": "Jumbee.Console.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/ColorCode.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 44815,
+      "fullName": "lib/net10.0/ColorCode.Core.dll",
+      "length": 123392,
+      "name": "ColorCode.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/ConsoleGUI.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 62625,
+      "fullName": "lib/net10.0/ConsoleGUI.dll",
+      "length": 115712,
+      "name": "ConsoleGUI.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/ConsolePlot.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 47052,
+      "fullName": "lib/net10.0/ConsolePlot.dll",
+      "length": 78848,
+      "name": "ConsolePlot.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/Jumbee.Console.Styles.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33059,
+      "fullName": "lib/net10.0/Jumbee.Console.Styles.dll",
+      "length": 60416,
+      "name": "Jumbee.Console.Styles.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/NTokenizers.Extensions.Spectre.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78036,
+      "fullName": "lib/net10.0/NTokenizers.Extensions.Spectre.Console.dll",
+      "length": 177152,
+      "name": "NTokenizers.Extensions.Spectre.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/RazorConsole.Core.Syntax.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20054,
+      "fullName": "lib/net10.0/RazorConsole.Core.Syntax.dll",
+      "length": 32256,
+      "name": "RazorConsole.Core.Syntax.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/Spectre.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 357172,
+      "fullName": "lib/net10.0/Spectre.Console.dll",
+      "length": 827904,
+      "name": "Spectre.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/Vezel.Cathode.AnsiControlSequenceBuilder.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29996,
+      "fullName": "lib/net10.0/Vezel.Cathode.AnsiControlSequenceBuilder.dll",
+      "length": 52224,
+      "name": "Vezel.Cathode.AnsiControlSequenceBuilder.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/VtNetCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 81139,
+      "fullName": "lib/net10.0/VtNetCore.dll",
+      "length": 184832,
+      "name": "VtNetCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/ConsolePlot.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 12472,
+      "fullName": "lib/net10.0/ConsolePlot.xml",
+      "length": 87077,
+      "name": "ConsolePlot.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/Jumbee.Console.Styles.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20632,
+      "fullName": "lib/net10.0/Jumbee.Console.Styles.xml",
+      "length": 191192,
+      "name": "Jumbee.Console.Styles.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/NTokenizers.Extensions.Spectre.Console.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9574,
+      "fullName": "lib/net10.0/NTokenizers.Extensions.Spectre.Console.xml",
+      "length": 174497,
+      "name": "NTokenizers.Extensions.Spectre.Console.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/Spectre.Console.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 72410,
+      "fullName": "lib/net10.0/Spectre.Console.xml",
+      "length": 923777,
+      "name": "Spectre.Console.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/Jumbee.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 402074,
+      "fullName": "lib/net10.0/Jumbee.Console.dll",
+      "length": 814592,
+      "name": "Jumbee.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#lib/net10.0/Jumbee.Console.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 106738,
+      "fullName": "lib/net10.0/Jumbee.Console.xml",
+      "length": 562569,
+      "name": "Jumbee.Console.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 395637,
+      "fullName": "logo.png",
+      "length": 395512,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2073,
+      "fullName": "README.md",
+      "length": 4196,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#THIRD-PARTY-NOTICES.TXT",
+      "@type": "PackageEntry",
+      "compressedLength": 3254,
+      "fullName": "THIRD-PARTY-NOTICES.TXT",
+      "length": 15757,
+      "name": "THIRD-PARTY-NOTICES.TXT"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.18.05.26.46/jumbee.console.0.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tui",
+    "terminal",
+    "console",
+    "ansi",
+    "ui",
+    "jumbee"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

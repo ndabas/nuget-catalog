@@ -1,0 +1,153 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "lhr",
+  "catalog:commitId": "0e1b3fed-b3d1-4aae-bf9a-d5622bff2211",
+  "catalog:commitTimeStamp": "2026-08-20T02:13:46.2803066Z",
+  "created": "2026-08-20T02:11:00.623Z",
+  "description": "Attach VSCode (or any DAP client) to your Jint engine over TCP. Build the engine however you already do — the debugger attaches to it afterwards, so your existing Jint configuration and `Engine`-typed code stay as they are. One Jint-native flag turns debugging on; with it off, attaching is inert and call sites are unchanged.",
+  "id": "LHR.JintDebugger",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-20T02:13:39.587Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "H2Hc0Y3n886nNzSjbaAxRPgfU77+SmbG6ueZwyhroMTZuFAAquMLUgaTuu+Sd5EM0uzhmpnyfuqyB2EM8lojcg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 100062,
+  "projectUrl": "https://gitee.com/lhrbu/LHR.JintDebugger",
+  "published": "2026-08-20T02:11:00.623Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "0.8.2: a breakpoint's `verified` flag now means something. Every breakpoint used to be reported verified, but whether one can actually fire depends on hitting an exact column, and Jint only tests that match at statement boundaries — so the column was inferred from the source text (\"first non-whitespace character on the line\"). That inference is right for ordinary statement lines and has no way to answer the question that matters: does this line contain a statement at all? Setting a breakpoint on each line of a nine-line script, four never fired and all four reported verified — a comment, a blank line, a closing brace, and the continuation line of a wrapped expression. The continuation line shows why text cannot decide this: it has content at a column the AST really does mention, as a sub-expression, and Jint never pauses on sub-expressions. VSCode draws a solid red marker on the strength of `verified`, so the user sees a confirmed breakpoint that never stops and concludes the code did not run. Breakpoint positions now come from the parsed script: the source is parsed once when registered (only with a debugger attached, cached per source, off the ExecutePreparedWithDebugger hot path) and breakpoints resolve against its statement starts. A line holding a statement binds there with the AST's exact column; a line inside an earlier statement's span snaps back to where that statement begins (that is the stop the user pointed at); a line merely sitting between statements — comment, blank, closing brace — snaps forward to the next one, since snapping back would land on a statement that has already run; a line past the last statement, or a source that does not parse, is refused with a reason instead of being reported verified. The corrected line travels back in the setBreakpoints response, which DAP allows precisely for this, and the editor moves its marker onto the line that will really stop. Also fixes a pre-existing defect on the other side of the same code: a breakpoint set before its source existed (a client configuring breakpoints at startup, or ExecuteInline before it writes its file) was registered at column 0 — correct only for an unindented statement — and likewise reported verified. Those now report unverified, so the editor draws a hollow marker, and are rebound to real statement positions once the source arrives, keeping their adapter-assigned ids; rewriting a source re-parses and rebinds too. `InferStatementStartColumn` is gone: both of its fall-backs returned column 0, which is exactly the never-matching registration this release removes. Tests 149 to 165, including fifteen covering each shape (comment, blank, continuation, closing brace, past-EOF, unparseable, indented column, deferred binding, deferred binding with nowhere to land, re-parse) — eight of which fail against the previous implementation — and one over a real DAP socket asserting that clicking a closing brace yields both a moved marker and an actual stop there.\n\n0.8.1 (behavioural change): with no debugger attached, the execute methods now reduce to the plain Jint call they wrap. 0.8.0 already bound no port and installed no hooks when debugging was off, but every execute still did two things that only serve a debug client — and both sat on the hottest path. Inline execution wrote the script to disk unconditionally (~200µs, against ~0.5µs to actually run a small script), and every entry point resolved its path to absolute via Path.GetFullPath (~174ns out of a ~470ns prepared execute). The file exists so an editor can open it and set breakpoints; the absolute path exists so breakpoint matching and editor focus can locate it. With no debugger there is no reader for either. Undebugged, ExecuteFileWithDebugger(p) is now exactly Evaluate(File.ReadAllText(p), source: p), ExecuteInlineWithDebugger(c, p) is Evaluate(c, source: p), and ExecutePreparedWithDebugger(h) is Evaluate(h) — overhead on the prepared path drops from 208ns to 24ns (+44% to +5%). Argument validation and the one engine-to-session lookup stay, at a few ns each. Two visible consequences: inline execution and PrepareInline no longer create a file when debugging is off, and the `source` label a script sees is the path you passed verbatim (matching raw Jint) rather than an absolute one, so relative paths are spelled differently in the two modes.\n\n0.8.0 (BREAKING): the library no longer constructs your engine — it attaches to one you built. `DebugEngine.Create` was the only way in, which meant it was also the only way to configure Jint: it exposed 4 options out of Jint's several dozen, so an existing `new Engine(o => o.Strict().AllowClr(...).Modules.RegisterModule(...))` could not be carried over, and every new option meant another parameter on an already 8-parameter method. It also hid `Engine` behind a `JintEngine` property, which forced `Engine`-typed helpers throughout a codebase to change signature. `DebugEngine` is removed; build the engine as you always have, add Jint's own `o.Debugger.Enabled = true`, then `using var dbg = engine.AttachDebugger();` and call `engine.ExecuteFileWithDebugger(path)` (also `ExecuteInlineWithDebugger`, `ExecutePreparedWithDebugger`, `PrepareFile`, `PrepareInline`) — all extension methods on `Engine`, so the type never changes. The `WithDebugger` suffix separates them in IntelliSense from Jint's own `Execute`/`Evaluate`, which behave very differently (these can open an editor and block for a debug client). Debugging on/off is Jint's flag alone, read rather than duplicated: Jint snapshots `Options.Debugger.Enabled` at construction and never re-reads it, so `JintDebuggerOptions` deliberately has no `Enabled` field and two settings can never disagree. With debugging off, `AttachDebugger` returns an inert object rather than null — no port, no hooks, no threads — so call sites read identically in debug and release builds and the flag appears exactly once, at construction. New `Detach()` (called by `Dispose`, idempotent) hands the engine back clean: the engine now outlives the session, so leaving Jint event handlers subscribed (firing on every statement, and pinning the whole DAP object graph against GC), the stepping cursor armed, or client breakpoints installed would return something that runs but misbehaves. After detaching the engine is fully usable and can be attached again, so a long-lived host can pay for a debugger only while someone is debugging. `JintDebuggerOptions` is now public and replaces the parameter list; Jint-side limits go through Jint's own `LimitRecursion`/`LimitMemory`/`TimeoutInterval`. All reflection into Jint internals is verified once at attach time and throws `JintDebuggerIncompatibleException` (naming the loaded Jint version) instead of degrading silently — previously a missing stop-on-entry field only logged a line and quietly stopped working. `debugger;` statements still pause: that promotion moved from construction to attach, which works because Jint does not snapshot `StatementHandling` the way it does `Enabled`; an explicit host choice is left alone. A failed attach (a taken port, typically) no longer leaves anything stranded: the session unwinds its own Jint event subscriptions and disposes the half-built DAP server, and `TcpListener`'s eagerly-allocated socket — held even when the bind fails — is now released explicitly rather than left to a finalizer. The engine is untouched and a retry on another port works. Normal shutdown also reclaims the listening socket now: DisposeAsync only called Stop(), which breaks the accept but leaves the handle to the finalizer — it is disposed after the accept loop unwinds (that order matters; disposing first would hand the still-running loop a disposed socket). `IsActive` and `Port` report the present, not construction time: after `Detach` they read false and null, since the session is gone and the socket is closed (reporting the old port would invite a connection that cannot succeed). Tests 106 → 144, covering detach residue (asserted on Jint's actual subscriber counts and stepping value), idempotent and concurrent teardown, re-attach without handler accumulation, failed-attach rollback, per-engine isolation under parallel attach, host-set breakpoints surviving detach, and canonical source labels across all three modes.\n\n0.7.0: uncaught script exceptions are no longer silent. A script that throws now reports the error and its JS stack to the Debug Console, and pauses in VSCode on a `stopped(reason: \"exception\")` with the call stack, locals, closures and `this` from the moment of the throw — objects stay expandable. Continue rethrows to the host, so host behaviour is unchanged. Host-side CLR exceptions out of interop are reported too (Jint's exception event never sees those); OperationCanceledException is passed through untouched as control flow. Only an \"Uncaught Exceptions\" filter is offered, on by default: whether an exception is caught cannot be known at throw time, so the scene is recorded then and the decision waits until the exception has actually escaped the execute — which makes the filter exact rather than a guess. Values are a snapshot because Jint recycles a frame's environment as it pops; watch/hover/REPL are therefore refused during such a pause, with an explanation. New `DebugEngine.Port` reports the actually bound port (useful with `port: 0`). New `Create(captureGlobalsOnUncaught:)`, default true, freezes the global scope on a crash so globals wired to live host state show their crash-time value; breakpoint pauses never read the global scope, so ordinary debugging cannot fire host accessors. Test suite grown from 58 to 106, including first-ever coverage of the pause handshake over a real DAP socket.\n\n0.6.1 (docs only, no behaviour change): corrects the `PreparedScript` sharing contract. The XML docs claimed a prepared handle was tied to the engine that created it and that cross-engine use was undefined. That is wrong: Jint documents `Prepared<Script>` as reusable and thread-safe and names it the supported way to share parse work between engines, and the handle's other fields are immutable strings — so one handle may be fed to any number of DebugEngine instances on any number of threads. (The engines themselves remain non-thread-safe; `JsValue` is what must not cross engines.) README also documents what PrepareScript actually amortizes beyond parsing.\n\n0.6.0: DtsGenerator now reads reference-type nullability via NullabilityInfoContext and emits `T | undefined` for nullable properties, method parameters, method returns and delegate members (value-type `T?` keeps emitting `T | null`; types compiled without NRT are unchanged). FIX: Generate() and WriteTo() are now idempotent — emission state used to live on the generator, so a second call emitted globals referencing interfaces it never declared. Internal: no dispose race on the client-ready gate during teardown, no leaked process handles from the VSCode launcher.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#repository",
+    "commit": "0a63b53cc3be81fb7b022672e810dd29d371ca0a",
+    "type": "git",
+    "url": "https://gitee.com/lhrbu/LHR.JintDebugger.git"
+  },
+  "verbatimVersion": "0.8.2",
+  "version": "0.8.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#dependencygroup/net10.0/jint",
+          "@type": "PackageDependency",
+          "id": "Jint",
+          "range": "[4.15.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#LHR.JintDebugger.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5431,
+      "fullName": "LHR.JintDebugger.nuspec",
+      "length": 12239,
+      "name": "LHR.JintDebugger.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 644,
+      "fullName": "LICENSE",
+      "length": 1081,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 12460,
+      "fullName": "README.md",
+      "length": 26950,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#lib/net10.0/LHR.JintDebugger.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 48527,
+      "fullName": "lib/net10.0/LHR.JintDebugger.dll",
+      "length": 111616,
+      "name": "LHR.JintDebugger.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#lib/net10.0/LHR.JintDebugger.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 17746,
+      "fullName": "lib/net10.0/LHR.JintDebugger.xml",
+      "length": 68788,
+      "name": "LHR.JintDebugger.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.20.02.13.46/lhr.jintdebugger.0.8.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "jint",
+    "javascript",
+    "debugger",
+    "dap",
+    "vscode"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Paul Clark (systemslibrarian)",
+  "catalog:commitId": "a6c28a61-39a1-4b4a-9ba2-35b03b2bd853",
+  "catalog:commitTimeStamp": "2026-08-19T22:47:10.638609Z",
+  "copyright": "Copyright (c) 2026 Paul Clark",
+  "created": "2026-08-19T22:43:56.767Z",
+  "description": "Defense-in-depth file upload pipeline for ASP.NET Core 8, 9, and 10. An 8-layer validation and encrypted-storage pipeline lifted from a production document-intake workflow: size + batch limits, extension allowlist, MIME / extension cross-check, magic-byte signatures, filename inspection, deep structural content validation (JPEG / PNG / WebP walkers + PDF pattern scan with FlateDecode-compressed stream inspection), pluggable virus scanning (Windows Defender or ClamAV), and AES-256-GCM envelope encryption with a per-file random DEK wrapped under an Argon2id-derived master KEK (RFC 9106 / OWASP 2024+). Includes a hardened reference download controller, image recompression to strip polyglot tails, secret-misconfiguration startup guards, and a SharpFuzz / AFL++ harness for the deep content validator. Multi-targets net8.0 / net9.0 / net10.0 — same source, same crypto posture, on every currently-supported .NET runtime. Honest limitations documented in KNOWN-GAPS.md; every security claim traces to source in SECURITY-ANALYSIS.md.",
+  "id": "SecureFileUpload.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-19T22:46:32.067Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "LW4sWhZNy9xJJR+SYWkY0Nop6l8OtJFbvr0c823BZ4x9J3YTpO3ESHs9WgW24w6g/TufoK4n/ykOz2KXpjB5HQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 337569,
+  "projectUrl": "https://github.com/systemslibrarian/secure-file-upload-dotnet",
+  "published": "2026-08-19T22:43:56.767Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v3.2.1 — documentation patch. No code, IL, or on-disk format change.\n\nAssemblyVersion stays at 3.2.0.0 — drop-in upgrade from 3.2.0.\n\n  • CORRECTED CONFIG KEY: the 3.2.0 notes and CHANGELOG documented the new\n    PDF object-stream switch as FileUpload:ContentValidation:RejectPdfObjectStreams.\n    The real key is FileContent:RejectPdfObjectStreams — AddSecureFileUpload()\n    binds FileContentValidatorOptions to the top-level \"FileContent\" section, so\n    every property on that options class is configured under that prefix. If you\n    set the documented key on 3.2.0, it silently did nothing and the default\n    (false) applied. The default is the recommended value, so no behavior was\n    lost unless you were deliberately opting IN to rejecting object streams.\n  • README documentation links are now absolute GitHub URLs. Relative markdown\n    paths (KNOWN-GAPS.md, SECURITY-ANALYSIS.md, docs/*, in-page anchors) do not\n    resolve on the NuGet gallery, so every doc link on the package page was dead.\n  • README now documents the 3.1.0 and 3.2.0 releases, which were missing from\n    the packaged copy, and corrects stale FileContent defaults in the sample\n    appsettings block (image dimension caps were still shown as the pre-3.2.0\n    10000 px / 40 MP values).\n\nv3.2.0 — token-aware PDF lexing, real-world false-rejection fixes.\n\nNo public API break. FileContentValidatorOptions gains RejectPdfObjectStreams;\nthree defaults change, all revertible by config.\n\nThis release merges the deep content validator rework from the production\nintake application this package was lifted from with the compressed-stream\nscanner that only existed here — neither side had both.\n\n  • PDF tokens are matched by extracting real name objects and decoding #xx\n    hex escapes, closing the /J#53 spelling bypass and removing /JSON false\n    positives. StripPdfStreamPayloads now treats \"stream\" as a lexical token\n    rather than a substring: a plain IndexOf matched inside comments, literal\n    strings, and names like /upstream, discarding the rest of the document\n    and hiding every dangerous token that followed.\n  • The FlateDecode compressed-stream scanner is driven by that same lexer\n    instead of its own substring search, and identifies threats by name\n    extraction. Object-stream interiors are now inspected with hex-escape\n    decoding for the first time.\n  • FileContent:RejectPdfObjectStreams defaults to FALSE. Object streams are standard in\n    PDF 1.5+, so rejecting them refused output from Word, Acrobat, browser\n    print, and every mainstream phone scanner app. Coverage does not regress\n    — their contents are now inflated and name-scanned.\n  • Post-EOI JPEG data is scanned but no longer rejected for failing to match\n    a recognized container; the old allowlist refused MPF second images,\n    Samsung Motion Photo SEF footers, and alignment padding.\n  • Image dimension caps raised to 30000 px / 300 MP. The previous values\n    false-rejected ordinary 48–200 MP smartphone photos. These guard against\n    decompression pixel bombs only.\n  • Image text threat scans are confined to metadata and comment segments,\n    so coincidental byte patterns in entropy-coded pixel data no longer\n    false-reject legitimate photos. Compressed PNG text chunks (zTXt, iTXt)\n    are inflated before scanning, with output bounds.\n  • Uploads are written to a temp file and moved into place, so an\n    interrupted write leaves no partial file. GetDecryptedFileStreamAsync\n    enforces storage-root containment and rejects reparse points in any path\n    component. Virus scan outcomes distinguish Disabled from Unavailable.\n  • SixLabors.ImageSharp pinned to [3.1.12,4.0.0): ImageSharp moved to a\n    commercial license at v4, which would push that obligation onto every\n    consumer. The range still admits 3.1.x security patches.\n  • No change to the 8-layer pipeline order, on-disk envelope formats,\n    Argon2id KEK derivation, or the legacy PBKDF2 decrypt fallback.\n\nv3.1.0 — fail-closed sanitization, user-bound download tokens, config guards.\n\nNo public API break — one optional constructor parameter added to\nFileAccessTokenService (DI-resolved; existing call sites compile unchanged).\nOne deliberate behavioral change, revertible by config:\n\n  • Image recompression now FAILS CLOSED (Gap 1). If the sanitizing\n    re-encode fails, the upload is rejected instead of falling back to the\n    original bytes — a header that parses but a decode that fails is the\n    exact shape of a crafted polyglot, and the old fallback silently kept\n    any appended tail on disk. Restore the pre-3.1.0 behavior with\n    FileUpload:RejectOnRecompressFailure=false.\n  • Download tokens can be cryptographically bound to the issuing user:\n    FileDownload:BindTokensToUser (default false). When enabled, the\n    authenticated user's identity is folded into the Data Protection\n    purpose chain — a token replayed by a different account fails\n    verification, and issuing a token on an unauthenticated request\n    throws. AddSecureFileUpload() now registers IHttpContextAccessor.\n  • User-facing error strings no longer echo HTML-active characters\n    (<, >, quotes) from attacker-controlled filenames — SanitizeForLog\n    neutralizes them so a consumer rendering FileUploadResult.Errors\n    without encoding cannot be handed markup.\n  • Windows Defender scan timeout now clamps with a lower bound of 1s\n    (matching ClamAV). A configured 0 previously made every scan time out\n    instantly — silently disabling scanning under fail-open availability.\n  • ClamAV MaxStreamBytes ≤ 0 now falls back to the 25 MiB default with a\n    warning instead of failing every scan.\n  • Supply chain: GitHub Actions pinned to commit SHAs; Dependabot enabled\n    for nuget + github-actions ecosystems.\n  • New HardeningV310Tests cover fail-closed/fallback recompression, valid\n    image round-trip, HTML-neutralized error output, and the token-binding\n    matrix (same-user resolve, cross-user replay rejection, anonymous\n    issuance refusal, unbound default round-trip).\n  • No change to the 8-layer pipeline order, on-disk envelope formats,\n    Argon2id KEK derivation, or legacy PBKDF2 decrypt fallback.\n\nv3.0.3 — defense-in-depth hardening (backward-compatible patch).\n\nNo public API break. AssemblyVersion stays at 3.0.0.0 so this is a drop-in\nupgrade from any 3.0.x line.\n\n  • Filename validation now NFKC-normalizes before all checks, defeating\n    fullwidth-Unicode disguises (U+FF0E '．' → '.'), fullwidth reserved\n    device names (ＣＯＮ.pdf), and fullwidth-disguised double-extensions.\n    Trailing dots and spaces are rejected (Windows path-strip evasion),\n    and a 255-character length cap is enforced. Legitimate non-ASCII\n    filenames (accented Latin, CJK, Cyrillic, Greek, etc.) pass through\n    unchanged — NFKC is identity on those.\n  • PDF deep validation gains hard caps against decompression-bomb and\n    polyglot adversarial inputs: per-stream decompression-ratio cap\n    (default 200x), per-file wall-clock timeout (default 2000 ms),\n    bounded nested-stream recursion depth (default 2 for /ObjStm), and\n    full CancellationToken propagation through the FlateDecode walker.\n  • Virus-scan availability mode is now an explicit configuration option:\n    VirusScan:FailClosedOnUnavailable (default false = prior fail-open\n    behavior; set true to reject the upload when the scanner cannot give\n    a verdict). Detection mode is always fail-closed regardless of this\n    flag. A uniform VIRUS_SCAN_SKIPPED security event is emitted in both\n    modes so operators can alert on a single signal.\n  • Crypto classification is now explicit: at-rest encryption is classical\n    AES-256-GCM (quantum-tolerant by key size for confidentiality, but no\n    PQ asymmetric layer). New SECURITY.md states the posture and the\n    deliberate separation from the PostQuantum.* family.\n  • New HardeningRegressionTests cover the filename evasion matrix (with\n    positive coverage for legitimate accented/CJK/Cyrillic/Greek names),\n    decompression-bomb rejection within the time budget, nested\n    FlateDecode recursion, cancellation propagation, fail-closed AV mode,\n    concurrent encrypted uploads, and PathHelper.IsPathUnderBase\n    resistance to encoded separators. Fuzz harness gains a triage\n    assertion that treats any \"Allowed\" verdict on a curated seed under\n    tests/Fuzz/seeds/ as a finding.\n  • No change to the 8-layer pipeline order, the v2 envelope encryption\n    format, the Argon2id KEK derivation, the PBKDF2 legacy decrypt\n    fallback, or the plaintext/DEK/KDF-input zeroing discipline.\n\nv3.0.2 — multi-targeting restored (net8.0; net9.0; net10.0).\n\nNo behavioral, on-disk-format, or crypto-posture changes from 3.0.1. The\n3.0.0 / 3.0.1 packages narrowed the target framework to net10.0 only,\nwhich forced consumers on currently-supported .NET 8 LTS or .NET 9 STS\nruntimes to either pin to the 2.x line or upgrade their host. This\nrelease re-publishes the same source as a multi-targeted package so any\nsupported .NET runtime can take 3.x.\n\n  • TargetFrameworks: net8.0;net9.0;net10.0.\n  • No conditional compilation needed — the entire pipeline already\n    compiled against the .NET 8 BCL (AesGcm two-arg constructor,\n    Rfc2898DeriveBytes.Pbkdf2 static, Encoding.Latin1, UTF-8 string\n    literals, Konscious Argon2id).\n  • AssemblyVersion stays at 3.0.0.0 so this is a drop-in upgrade with\n    no binding-redirect change required.\n  • README, install instructions, and badges updated to reflect the\n    restored multi-target support.\n\nv3.0.1 — documentation and code-hygiene patch.\n\nNo behavioral or breaking changes. Safe in-place upgrade from 3.0.0.\n\n  • README: new \"Deployment notes\" section covering the multi-instance Data\n    Protection key-persistence requirement (SetApplicationName +\n    PersistKeysToFileSystem / Azure Blob / KMS-backed key store) so download\n    tokens validate across replicas. Without this, load-balanced staff\n    requests can intermittently fail with DOWNLOAD_REJECTED_BAD_TOKEN.\n  • README: token-replay window explicitly documented along with the\n    mitigations already in the library (no-store cache, Referrer-Policy,\n    [Authorize], short default lifetime).\n  • README: small markdown-rendering fixes in the \"Issue a download token\"\n    sample so the example renders cleanly on the NuGet gallery page.\n  • Pruned the unused SanitizeForLog helper from SecureFileDownloadController\n    (left over from the pre-3.0.0 path-based input — opaque tokens don't\n    need user-input sanitization).\n  • AssemblyVersion stays at 3.0.0.0 so this is a drop-in upgrade with no\n    binding-redirect change required.\n\nv3.0.0 — hardened download-surface release.\n\nBREAKING CHANGES vs. 2.0.0:\n  • The reference download endpoint now accepts an opaque `fileToken` instead\n    of a storage-relative `relativePath` query parameter. Consumers must issue\n    tokens via `IFileAccessTokenService.CreateToken(...)` and pass that token to\n    `/staff/files/download?fileToken=...`.\n  • `AddSecureFileUpload()` now registers `IFileAccessTokenService` and the\n    reference controller/docs assume tokenized download links rather than\n    path-based file references.\n\nHighlights:\n  • Opaque, signed, time-limited download tokens backed by ASP.NET Core Data\n    Protection. Staff-facing URLs no longer expose storage-relative paths.\n  • Release validation now includes solution tests plus the runtime smoke harness\n    before pack/publish.\n  • Regression coverage expanded for download authorization, token tampering,\n    infected-file rejection, scanner fail-open semantics, and storage-root token\n    enforcement.\n  • Scanner outage logging now matches the actual `NotScanned` fail-open pipeline\n    behavior, avoiding misleading fail-closed wording in production logs.\n\nThe 8-layer upload pipeline, on-disk envelope formats, and Argon2id / PBKDF2\ndecryption compatibility are unchanged from 2.0.0.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#repository",
+    "branch": "main",
+    "commit": "907f61431524365a67a49cdf15250b33d3700f18",
+    "type": "git",
+    "url": "https://github.com/systemslibrarian/secure-file-upload-dotnet.git"
+  },
+  "title": "SecureFileUpload.Core — defense-in-depth file upload for ASP.NET Core 8 / 9 / 10",
+  "verbatimVersion": "3.3.0",
+  "version": "3.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net10.0/konscious.security.cryptography.argon2",
+          "@type": "PackageDependency",
+          "id": "Konscious.Security.Cryptography.Argon2",
+          "range": "[1.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net10.0/sixlabors.imagesharp",
+          "@type": "PackageDependency",
+          "id": "SixLabors.ImageSharp",
+          "range": "[3.1.12, 4.0.0)"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net8.0/konscious.security.cryptography.argon2",
+          "@type": "PackageDependency",
+          "id": "Konscious.Security.Cryptography.Argon2",
+          "range": "[1.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net8.0/sixlabors.imagesharp",
+          "@type": "PackageDependency",
+          "id": "SixLabors.ImageSharp",
+          "range": "[3.1.12, 4.0.0)"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net9.0/konscious.security.cryptography.argon2",
+          "@type": "PackageDependency",
+          "id": "Konscious.Security.Cryptography.Argon2",
+          "range": "[1.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#dependencygroup/net9.0/sixlabors.imagesharp",
+          "@type": "PackageDependency",
+          "id": "SixLabors.ImageSharp",
+          "range": "[3.1.12, 4.0.0)"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#SecureFileUpload.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6481,
+      "fullName": "SecureFileUpload.Core.nuspec",
+      "length": 15436,
+      "name": "SecureFileUpload.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#KNOWN-GAPS.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6588,
+      "fullName": "KNOWN-GAPS.md",
+      "length": 15283,
+      "name": "KNOWN-GAPS.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 652,
+      "fullName": "LICENSE",
+      "length": 1086,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 18378,
+      "fullName": "README.md",
+      "length": 52881,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#SECURITY-ANALYSIS.md",
+      "@type": "PackageEntry",
+      "compressedLength": 14942,
+      "fullName": "SECURITY-ANALYSIS.md",
+      "length": 40937,
+      "name": "SECURITY-ANALYSIS.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#SECURITY.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2065,
+      "fullName": "SECURITY.md",
+      "length": 4049,
+      "name": "SECURITY.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#lib/net10.0/SecureFileUpload.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 63483,
+      "fullName": "lib/net10.0/SecureFileUpload.Core.dll",
+      "length": 168448,
+      "name": "SecureFileUpload.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#lib/net10.0/SecureFileUpload.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 27136,
+      "fullName": "lib/net10.0/SecureFileUpload.Core.xml",
+      "length": 105602,
+      "name": "SecureFileUpload.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#lib/net8.0/SecureFileUpload.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 63472,
+      "fullName": "lib/net8.0/SecureFileUpload.Core.dll",
+      "length": 168448,
+      "name": "SecureFileUpload.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#lib/net8.0/SecureFileUpload.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 27136,
+      "fullName": "lib/net8.0/SecureFileUpload.Core.xml",
+      "length": 105602,
+      "name": "SecureFileUpload.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#lib/net9.0/SecureFileUpload.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 63468,
+      "fullName": "lib/net9.0/SecureFileUpload.Core.dll",
+      "length": 168448,
+      "name": "SecureFileUpload.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#lib/net9.0/SecureFileUpload.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 27136,
+      "fullName": "lib/net9.0/SecureFileUpload.Core.xml",
+      "length": 105602,
+      "name": "SecureFileUpload.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.22.47.10/securefileupload.core.3.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12990,
+      "fullName": ".signature.p7s",
+      "length": 12990,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspnetcore",
+    "security",
+    "file-upload",
+    "upload",
+    "antivirus",
+    "clamav",
+    "windows-defender",
+    "malware",
+    "encryption",
+    "aes-gcm",
+    "aes256",
+    "argon2id",
+    "kdf",
+    "rfc9106",
+    "validation",
+    "defense-in-depth",
+    "polyglot",
+    "pdf",
+    "owasp",
+    "net8",
+    "net9",
+    "net10"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Malte",
+  "catalog:commitId": "a70a0419-b0df-4ceb-93ae-3fd160e0fc10",
+  "catalog:commitTimeStamp": "2026-08-19T19:23:44.6617495Z",
+  "copyright": "Copyright © Malte",
+  "created": "2026-08-19T19:21:19.95Z",
+  "description": "A simple, free, open-source cron job / background task scheduler for .NET with a pluggable store. Core engine, in-memory store and build-time analyzer.",
+  "id": "DotnetCronner",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-19T19:23:24.217Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "A9ssdK1A3ij9Ifl0yW0Wj6GbWfdZrZunS0DBHdVOEEui1vm0V+/LB/aeRZz68+645BkTe+aSEMKGImtb/NvcAg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 115967,
+  "projectUrl": "https://github.com/nfMalde/DotnetCronner",
+  "published": "2026-08-19T19:21:19.95Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "[0.0.7] - 2026-08-19\n\nThe \"trust the lock\" release: the cross-process single-run guarantee was reviewed, the holes that review\nfound are closed (see *Fixed*), and the guarantee is now **exercised by contended tests against real\nPostgreSQL, SQL Server and Redis on every CI build** instead of being asserted in the README — plus the\nexecution id and the read-back the consumers' run-tracking needed to retire. Tests demonstrate the\nscenarios they cover, not the absence of others; the known residual limits (a job that ignores its\ncancellation token beyond the abandon margin, node clock skew for the time-compared stores, custom stores\nthat don't meet the contract) are documented under *Execution semantics* in the README.\n\nAdded\n- CronnerTaskContext.ExecutionId and ICronnerJobContext.ExecutionId — the id of the run in flight (the\n  CronnerJobExecution.Id of its history row), visible to the job body and to every hook of the run from\n  OnLockAcquire through the terminal event. Generated for every run even when history is off. A retry is a\n  new execution with a new id.\n- CronnerTaskContext.TryGetExecutionData<T>(out T) and ICronnerJobContext.TryGetExecutionData<T>(out T)\n  — read back what the job or an earlier hook of the same run placed in the execution-data slot, so a later\n  hook can augment the record instead of keeping its own copy.\n- CronnerTaskContext.LockTtl / CronnerTaskContext.KeepAliveInterval — the effective values in force, so a\n  consumer that tracks heartbeats can derive its staleness threshold instead of hardcoding one.\n- The lease rule. A keepalive renewal the store cannot answer (throws, or does not answer in time) is no\n  longer treated as \"still held forever\": the scheduler keeps the run alive while the last confirmed expiry\n  is ahead, retries at a tighter cadence (interval/4, ≥ 250 ms) with a per-attempt deadline, and abandons the\n  run — cancels it, fires OnLockLost — as soon as the next retry could not land before the lease lapses,\n  i.e. always *before* another instance can claim the task. A renewal answered false stays an immediate\n  loss. The scheduler also confirms a claim (one renewal) right before it starts a run and skips a task the\n  store no longer confirms as its own.\n- Orphaned history rows are closed. Right before recording a new run of a non-concurrent task the\n  scheduler finalizes that task's still-Running rows as Failed with CronnerExecutionErrors.Orphaned\n  (ICronnerStore.FinalizeOrphanedExecutionsAsync); a run abandoned for a lost/unconfirmable lock finalizes\n  its own row as Cancelled with CronnerExecutionErrors.LockLost.\n- Startup warnings when KeepAliveInterval is above LockTtl/2 (one failed renewal may force an abandon)\n  and an error when it is at or above LockTtl.\n- Shared, reusable lock contract tests (StoreLockContractTests, SchedulerExclusivityTests,\n  tests/DotnetCronner.Tests/Shared) that any custom store can be pointed at, and a new\n  tests/DotnetCronner.IntegrationTests project running them against PostgreSQL, SQL Server (READ COMMITTED\n  with and without snapshot) and Redis via Testcontainers (skipped without Docker, required in CI).\n\nChanged\n- Lock release goes through the new owner-conditional ICronnerStore.ReleaseLockAsync (after the outcome\n  is persisted) instead of an UpsertAsync with cleared lock fields; the engine never writes lock fields\n  through UpsertAsync any more.\n- OnLockLost now fires in two situations, both after the run was cancelled: a renewal was refused\n  (reclaimed elsewhere), or the lease could not be confirmed before it lapsed. A renewal refused because the\n  task is Cancelled (a cancel from another instance) is classified as a cancel — OnCancel, not\n  OnLockLost.\n- ICronnerClient.CancelTaskAsync no longer clears lock fields; a task running on another instance stops at\n  its next keepalive because shipped stores refuse to renew a cancelled task. The scheduler honours a\n  Cancelled state set in the store during a run when it writes the outcome.\n- The in-memory store preserves an existing row's lock fields on UpsertAsync, refuses to renew a\n  Cancelled task, and implements ReleaseLockAsync / FinalizeOrphanedExecutionsAsync.\n- CachedCronnerStore forwards the new store members (a default implementation would have run against the\n  decorator and never released a lock) and invalidates instead of caching the written object on UpsertAsync.\n- ICronnerJobContext gained members (ExecutionId, TryGetExecutionData) — breaking only for external\n  implementors of that interface; CronnerHookDispatcher now takes IOptions<CronnerOptions>.\n\nFixed\n- Same-process double run: the poll loop claimed up to MaxConcurrentTasks due tasks per tick regardless\n  of how many workers were busy. A claimed task waiting in the dispatch queue has no heartbeat, so one that\n  waited longer than LockTtl lost its lease and could be claimed — and run — a second time, even by the\n  same instance. The poll loop now claims only as many tasks as there are free workers, and a non-concurrent\n  task already running in the process is never started twice.\n- Stale snapshot could free someone else's lock: TriggerNowAsync, seeding at startup and\n  CancelTaskAsync read a job and wrote it back in full; a claim taken by another instance in between was\n  cleared (or its expiry regressed) by that write, and a third claim could run the task concurrently. Lock\n  fields are now written only by the lock primitives (see the Abstractions changelog); the in-memory store\n  enforces it, the EF Core and Redis stores do in their own releases.\n- A hanging RenewLockAsync (a store call that never returns and ignores its token) no longer lets the\n  lease lapse silently under a running task — every renewal attempt has its own deadline.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#repository",
+    "commit": "41f2b4b8d708add655d1cfa0a2b4f154eb33be36",
+    "type": "git",
+    "url": "https://github.com/nfMalde/DotnetCronner"
+  },
+  "verbatimVersion": "0.0.7",
+  "version": "0.0.7",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#dependencygroup/net10.0/dotnetcronner.abstractions",
+          "@type": "PackageDependency",
+          "id": "DotnetCronner.Abstractions",
+          "range": "[0.0.7, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#dependencygroup/net10.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.11, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#DotnetCronner.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3165,
+      "fullName": "DotnetCronner.nuspec",
+      "length": 7435,
+      "name": "DotnetCronner.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 14020,
+      "fullName": "README.md",
+      "length": 37988,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#analyzers/dotnet/cs/DotnetCronner.Analyzers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6433,
+      "fullName": "analyzers/dotnet/cs/DotnetCronner.Analyzers.dll",
+      "length": 13312,
+      "name": "DotnetCronner.Analyzers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#lib/net10.0/DotnetCronner.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 58187,
+      "fullName": "lib/net10.0/DotnetCronner.dll",
+      "length": 141312,
+      "name": "DotnetCronner.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#lib/net10.0/DotnetCronner.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 19062,
+      "fullName": "lib/net10.0/DotnetCronner.xml",
+      "length": 115104,
+      "name": "DotnetCronner.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.19.23.44/dotnetcronner.0.0.7.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "cron",
+    "scheduler",
+    "background-tasks",
+    "jobs",
+    "redis"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

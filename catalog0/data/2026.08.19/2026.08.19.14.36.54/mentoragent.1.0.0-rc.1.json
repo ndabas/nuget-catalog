@@ -1,0 +1,250 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Antonio Macrì",
+  "catalog:commitId": "c4b52040-ebfb-441f-9e86-245b0a289dbd",
+  "catalog:commitTimeStamp": "2026-08-19T14:36:54.0510782Z",
+  "created": "2026-08-19T14:33:07.363Z",
+  "description": "A Blazor Razor Class Library that adds an AI-powered floating chat assistant to any Blazor application, built on Microsoft Agent Framework. Supports multi-level agent orchestration (tools, handoff, group chat), page navigation, UI actions, contextual memory, streaming, voice, and security — all with zero boilerplate.",
+  "iconFile": "IconMA.png",
+  "id": "MentorAgent",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-19T14:36:45.55Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "mz9jVMVcfl7KTZc5nKK4U0ZKir0SdXbtdUrxRXOQp0mPZgcHvUzYdtbwyrls17HGNRwUifszCcw1fUo9Ugkwcg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 250884,
+  "published": "2026-08-19T14:33:07.363Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.0-rc.1\n\n\t\tThe first release candidate. No new features: this release is the result of a full QA campaign that took the test suite from 54 tests to 1.396 (plus 106 JavaScript assertions) and closed 39 findings, three of them security or unbounded-spend class. Nothing is left open. Every fix is pinned by a test that failed before it.\n\n\t\t=== Security - read this before upgrading ===================================\n\t\t- SECURITY - the MCP server published every [MentorAction], including actions restricted with RequiredRoles and actions marked RequiresConfirmation, with no gate at all. An MCP request carries no signed-in principal and nobody is watching it, so irreversible and role-restricted actions were callable by any client that could reach /mcp - an endpoint mapped with permissive CORS by default. Gated actions are now withheld from the MCP surface, and the withheld set is logged with each tool and the reason.\n\t\t- SECURITY - the same hole existed a second time for actions gated by the options.RequiresApproval predicate rather than by the attribute. How a host chose to protect an action is not the remote caller's business; both routes now fail closed.\n\t\t- BEHAVIOUR CHANGE - a gated action is no longer reachable over MCP, and there is no opt-in to publish it anyway. Enabling it would need an identity story for MCP callers that does not exist yet, and a flag whose only effect is to switch protection off is worse than the bug. Raised as a roadmap item instead.\n\n\t\t=== Unbounded spend =========================================================\n\t\t- FIXED - a [TeamTerminationCondition] on a Level-3 team removed the iteration cap instead of tightening it: the custom manager overrode ShouldTerminateAsync without calling base, and the base implementation is where MaximumIterationCount lives. A predicate that never fires - a typo, or a model phrasing its verdict differently - ran the group chat with no bound at all. Measured in the lab: 770 model calls against a MaxIterations of 2. Custom conditions now run in addition to the cap, never instead of it.\n\n\t\t=== Path B (options.Agent) now actually works ===============================\n\t\t- FIXED - on Path B the tool list was built, counted and logged - \"Coordinator built with 14 tools\" - and never sent to the model. The assistant had no application actions, no navigate_to, no invoke_ui_action and no memory tools, on every turn. Invisible, because a model with no tools simply talks. The list is now replayed through ChatClientAgentRunOptions, whose Tools union with the agent's own, so a host's own tools survive.\n\t\t- FIXED - Path B also received none of MentorAgent's instructions and none of the per-turn context (page, memory, RAG, skills). Now attached through UseAIContextProviders plus a per-request client factory, which adds rather than replaces: the host's persona stays the host's.\n\t\t- FIXED - a custom AIAgent could fail to start at all, and the user was told to reload the page.\n\t\t- FIXED - every Path B diagnostic was unreachable dead code, so the one configuration hardest to debug produced the least logging.\n\n\t\t=== Configuration that failed silently ======================================\n\t\t- FIXED - RagMinScore defaulted to 2, and cosine similarity is in [0,1]. On any vector store - Azure AI Search, Qdrant, pgvector - no document could ever clear the threshold: the search ran, the store billed for it, every result was discarded, and the only trace was a Debug line. The default is corrected and a mismatch now warns once per provider, naming the count, the threshold and the highest score actually seen.\n\t\t- FIXED - MaxSessionMessages = 0 (or negative, or an empty key in appsettings.json) threw while the coordinator was assembled. Two neighbouring options on the same class use 0 to mean \"no limit\", so writing it is not carelessness. Now guarded and read the same way.\n\t\t- FIXED - UseRag = true with no IMentorRagSource registered retrieved nothing and said nothing. RAG is the one feature with no visible failure: an unconsulted knowledge base and a working one produce the same fluent answer. It now warns at coordinator build.\n\t\t- FIXED - a RagSystemPromptTemplate whose {documents} placeholder was misspelled or translated dropped every document and still showed citation chips, so the user was shown sources the model never received. Now warns.\n\t\t- FIXED - a repeated assembly in ScanAssemblies - one wrongly chosen typeof(X).Assembly in a multi-project app - registered everything twice, and the duplicate handoff made the coordinator fail to build. Now deduplicated with a warning.\n\t\t- FIXED - \"Native HITL is enabled but no tool requires approval\" was logged below the level operators watch.\n\n\t\t=== Cost reporting was wrong in the direction that understates spend =========\n\t\t- FIXED - Azure OpenAI does not reliably populate the response model id. A blank id resolved to the configured cheap model, so every routed-to-strong turn was attributed - and priced - as if the cheap model had served it. Wrong precisely on the turns that cost the most.\n\t\t- FIXED - and when the provider does report one, it may be dated (gpt-4.1-2025-04-14 for a deployment named gpt-4.1). That produced a fifth dashboard row classified \"Other\", priced \"n/a\", while the configured model read 0 requests and the session total read 0,00 for a session that genuinely cost money. A dated id is now folded onto the configured or priced model by an exact trailing-date strip - never by prefix matching, which would price gpt-4.1-mini at gpt-4.1's rate.\n\t\t- FIXED - MentorAgent's own model calls (memory auto-capture, the safety check, the hosted-tool domain gate) bypassed the metering client entirely. Auto-capture runs on every turn, so a whole per-turn cost was invisible.\n\t\t- FIXED - a turn the user stopped vanished from the metrics completely, though the provider had billed it. It is now counted, with latency recorded because the clock genuinely ran, and its absent token counts disclosed through the new RequestsWithoutUsage rather than reported as zero. A fabricated zero would drag every per-request average down.\n\n\t\t=== Human-in-the-loop and gating ============================================\n\t\t- FIXED - answering a confirmation synchronously - an auto-approval policy, a pre-approved client - had its answer dropped and parked the turn forever with no error, because the event was raised before the waiter was registered.\n\t\t- FIXED - pressing Cancel returned the refusal to the model in the same shape as a tool that crashed, so the model followed its \"suggest an alternative\" rule and offered three ways to do the thing the user had just refused. Refusals now carry a structural marker (declined_by_user / stopped_by_user) and the instruction travels in the tool result itself.\n\n\t\t=== Session save and restore ================================================\n\t\t- API CHANGE - IMentorSessionManager's four methods all take the coordinator AIAgent as their first argument, and nothing public in any of the five packages returns one - so a documented, DI-registered API with worked examples in two READMEs was uncallable in every one of its methods. SerializeSessionAsync and RestoreSessionAsync are now on IMentorOrchestrator, which already owns the coordinator. Exposing the agent itself was rejected: running it directly bypasses the guardrails, the rate limiter and both gates.\n\t\t- FORMAT CHANGE - a snapshot is now stamped ({\"mentorAgentSession\":1,\"session\":...}) and anything else is refused before the live session is touched. Previously the framework's deserializer answered arbitrary JSON with a valid EMPTY session, which was then installed over a live conversation and cleared the widget too - the conversation disappeared from both the history and the screen, the call returned normally, and nothing was logged. Snapshots written by 1.0.0-preview.5 will be refused; discard them rather than migrating.\n\n\t\t=== Other corrections =======================================================\n\t\t- FIXED - a UI action requested by the model was executed against the page registrations captured before the model call, so navigating away mid-turn ran a handler closing over a disposed component. Registrations are now resolved at execution time, which also fixes the re-render case.\n\t\t- FIXED - tool results containing a tab or any other control character produced JSON the model could not parse.\n\t\t- FIXED - MentorAgent's own last_session bookkeeping was always the newest memory and therefore always took a slot under the default recency path - the entire block at MemoryContextCount = 1. It is still written and no longer injected.\n\t\t- FIXED - the evaluation report's quality numbers followed the build machine's locale, so the same failure printed as \"0,40 < 0,80\" or \"0.40 < 0.80\" depending on where it ran, and FailureReason is a string that ends up in an exception message. Machine-facing output is invariant-culture throughout.\n\t\t- FIXED - four of AgentCardInfo's five properties (IconUrl, Provider, DocumentationUrl and the version override) never reached the published A2A agent card. And Tags, documented as \"included in the Agent Card\", cannot be: the A2A specification attaches tags to individual skills, not to the card. Both the doc-comment and the README now say so plainly.\n\t\t- FIXED - the package shipped a second, stale copy of the widget stylesheet (1.444 lines against 2.484) and script under its own _content path, referenced by nothing.\n\t\t- Documentation: the memory tool is forget_all, not forget; the skills example no longer contradicts the documented tool-naming rule.\n\t\t- Documentation: a completeness audit compared the public surface against the READMEs — the opposite direction from the checks that existed, which only verified that documented names are real. It found two public IMentorOrchestrator members named in no README at all (CancelCurrentRequest, and RespondToApprovalAsync — the one a host calls to answer an approval from its own UI), and a metrics snapshot served over HTTP whose shape was documented nowhere, DeflectionRate included. Both now have reference tables and worked examples, and a test asserts every orchestrator member is shown being called.\n\n\t\t=== Known limitations =======================================================\n\t\t- On Blazor WebAssembly, SerializeSessionAsync and RestoreSessionAsync throw NotSupportedException naming the reason: the session lives in the server's DI scope. Returning null would have been worse, since null is the documented \"no conversation yet\". A server-side snapshot endpoint is a roadmap item.\n\t\t- The package stays pinned to Microsoft.Agents.AI 1.6.1. The July 2026 Agent Framework guide documents newer primitives (UseToolApproval, AgentMemory, the harness agent, the new evaluation types) that MentorAgent hand-rolls; nothing in it contradicts what these packages do. See COMPLIANCE-AF-2026-07.md - 37 surfaces, 0 divergent - and the roadmap for the adoption plan.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#repository",
+    "commit": "3b69060146ff19a08c88acbeae3616c3dde8fe3b",
+    "type": "git"
+  },
+  "title": "MentorAgent",
+  "verbatimVersion": "1.0.0-rc.1",
+  "version": "1.0.0-rc.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/mentoragent.abstractions",
+          "@type": "PackageDependency",
+          "id": "MentorAgent.Abstractions",
+          "range": "[1.0.0-rc.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/azure.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.OpenAI",
+          "range": "[2.9.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/azure.ai.projects",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.Projects",
+          "range": "[2.1.0-beta.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/azure.identity",
+          "@type": "PackageDependency",
+          "id": "Azure.Identity",
+          "range": "[1.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/microsoft.agents.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/microsoft.agents.ai.foundry",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Foundry",
+          "range": "[1.6.1-preview.260514.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/microsoft.agents.ai.hosting.a2a.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Hosting.A2A.AspNetCore",
+          "range": "[1.6.1-preview.260514.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/microsoft.agents.ai.workflows",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Workflows",
+          "range": "[1.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/microsoft.aspnetcore.components.authorization",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Authorization",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/microsoft.extensions.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/microsoft.extensions.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.OpenAI",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#dependencygroup/net10.0/modelcontextprotocol.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol.AspNetCore",
+          "range": "[1.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#MentorAgent.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5700,
+      "fullName": "MentorAgent.nuspec",
+      "length": 13703,
+      "name": "MentorAgent.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "LICENSE",
+      "length": 1092,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 59690,
+      "fullName": "README.md",
+      "length": 178111,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#lib/net10.0/MentorAgent.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 150066,
+      "fullName": "lib/net10.0/MentorAgent.dll",
+      "length": 387584,
+      "name": "MentorAgent.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.14.36.54/mentoragent.1.0.0-rc.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "blazor",
+    "blazor-server",
+    "blazor-auto",
+    "ai",
+    "chatbot",
+    "chat-widget",
+    "assistant",
+    "agent",
+    "multi-agent",
+    "handoff",
+    "group-chat",
+    "microsoft-agent-framework",
+    "openai",
+    "azure-openai",
+    "ollama",
+    "rag",
+    "retrieval-augmented-generation",
+    "mcp",
+    "model-context-protocol",
+    "a2a",
+    "agent-to-agent",
+    "signalr",
+    "voice",
+    "memory",
+    "skills",
+    "streaming",
+    "wasm",
+    "mentor",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Matthew Lorimor",
+  "catalog:commitId": "4121d1fa-248d-4f43-9866-f6e26a3b2bda",
+  "catalog:commitTimeStamp": "2026-08-19T13:09:17.5964537Z",
+  "copyright": "Copyright (c) Matthew Lorimor 2015",
+  "created": "2026-08-19T13:06:06.36Z",
+  "description": "A probabilistic data structures library for C#, ported from Tyler Treat's BoomFilters project for Go. Includes Bloom filters (classic, counting, deletable, inverse, partitioned, scalable, and stable), Cuckoo filters, Count-Min Sketch, HyperLogLog, MinHash, and Top-K.",
+  "iconFile": "icon.png",
+  "id": "MattLorimor.ProbabilisticDataStructures",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-19T13:09:11.67Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "sqmMNoztJRhOvPHEMO2iG79O3PVnB8z0/1UwqdyhCtWOG/pAEauceqmXBJRtx1uICkZP04g475G/OgSEvcpl0Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 246545,
+  "projectUrl": "https://github.com/mattlorimor/ProbabilisticDataStructures",
+  "published": "2026-08-19T13:06:06.36Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Added\n\n- **`SetSketchVariant.SetSketch2`**, the paper's second construction, selectable on any\n  `SetSketch`. Where the default draws an element's run of hash values as exponential\n  spacings, this cuts the exponential's domain into one interval per register and draws a\n  point from each. That leaves the registers correlated rather than independent, so the\n  estimators — all derived under independence — become approximations here where they are\n  exact for the default.\n  <br><br>\n  **Reach for it for small-set accuracy, not for speed.** Measured over 200 keyed streams\n  at 256 registers, whose nominal relative error is 6.25%, the second construction's\n  spread is 4.47% against the first's 7.12% at ten elements, 4.16% against 5.91% at a\n  hundred, and the advantage has gone by ten thousand (6.54% against 6.35%). The paper's\n  claim that the correlation helps small sets holds, clearly and monotonically.\n  <br><br>\n  The paper's *other* claim, that this construction is faster, holds here too, though it\n  took a second pass to earn. Testing an interval's start before spending a draw — sound,\n  since a point never falls below its interval — cuts random draws by 9.2%, but done\n  literally it costs two logarithms per interval and measured about 5% *slower*. Those\n  logarithms are avoidable: the test `ValueFor(gamma_i) <= L` unfolds to\n  `m - i < m * exp(-a * b^-L)`, whose right-hand side depends on nothing but the bound,\n  so it is computed when the bound moves — once every m updates — and each interval costs\n  one comparison. That turns the 5% deficit into roughly 6% quicker over 500,000\n  additions (median 37.9ms against 40.2ms over nine alternating runs, reproduced).\n  <br><br>\n  The merge stays exact under the correlated construction — register for register, the\n  sketch that adding both sets from the start would have built — and merging *across*\n  constructions is refused, since no single sketch draws its runs both ways. Sketches\n  using the default are unaffected in every respect, including their persisted bytes.\n  <br><br>\n  A sketch using the second construction writes a **new format version**, so a release\n  before this one cannot read it — the compatibility this library promises runs\n  backwards, not forwards. A sketch using the default writes the version it always\n  wrote, byte for byte, and stays readable by any earlier release: the version is raised\n  only for payloads that actually carry the new field, rather than for every `SetSketch`\n  to record a choice most of them did not make. (#121, #127)\n\n- **`DpswSketch`** and **`PrivateCountMinSketch`**, frequency estimation over a sliding\n  window that is differentially private (Wang, Wang and Chen, KDD 2024). The first\n  structures here whose contract is a privacy guarantee rather than an error rate.\n  `PrivateCountMinSketch` is a Count-Min Sketch whose counters start at a draw from a\n  normal distribution rather than at nought — the Gaussian mechanism at the sketch's\n  l2-sensitivity, giving event-level zero-concentrated differential privacy — and the\n  noise is drawn once at construction, so repeated queries cannot average it away.\n  `DpswSketch` cuts the stream into substreams, builds private sketches over nested\n  ranges chosen by a smooth histogram, and answers a window query by summing one sketch\n  per substream, splitting the budget so that everything covering any one item comes to\n  no more than the whole.\n  <br><br>\n  The privacy guarantee is the authors' theorem and nothing here proves it. What the\n  tests hold is the distribution the theorem assumes — variance of depth over budget to\n  within five percent, kurtosis within 0.2 of a Gaussian's three, tail masses within a\n  point at one, two and three deviations, variance scaling with the budget and the depth\n  and not the width — and the structural condition it rests on, that no item is charged\n  more than the whole budget. Estimates are two-sided: unlike a plain Count-Min Sketch\n  this can read below the truth, and below nought.\n  <br><br>\n  Small checkpoint factors are refused rather than merely discouraged. The budget for\n  the j-th checkpoint falls as the factor to the power of j while the range it covers\n  falls only as one minus the factor, so at 0.25 on a window of four thousand the\n  leanest sketch carries noise of half a million: over 351 query points the median error\n  was -46 and the fifth percentile -6150.\n  <br><br>\n  Both persist, and the seed never does. The counters already carry their noise, so a\n  payload of them reveals no more than the live structure does, while anyone holding the\n  seed could regenerate that noise, subtract it off, and recover the exact counts. A\n  `PrivateCountMinSketch` read back can be queried *and* can keep counting, because\n  adding touches no randomness. A `DpswSketch` read back draws a fresh unpredictable\n  generator for the substreams it goes on to build — sound because those cover records\n  disjoint from everything already counted, and privacy composes in parallel over\n  disjoint data — so it is resumable but no longer reproducible from its original seed.\n  Both readers refuse a payload whose counters are all exact integers, the shape of a\n  sketch written with no noise at all. (#104, #120)\n\n- **`TupleSketch`**, a `ThetaSketch` that carries a value alongside every distinct key,\n  so one pass answers both \"how many distinct users\" and \"what did they spend between\n  them\". The sampling is what makes both possible at once: a hash is kept when it falls\n  below the threshold, which happens with probability equal to the threshold, so the keys\n  kept are a uniform sample of the distinct keys and the values riding with them are a\n  uniform sample of the per-key totals. Where a theta sketch drops a repeated hash, this\n  folds the values the repeats carry, by sum, smallest or largest. Union, intersection\n  and difference fold the summaries of keys they share. Note that the total carries much\n  more error than the count when values are lopsided — the sample is uniform over keys\n  and not weighted by value — measured at up to 18% against the count's half a percent\n  when one key in a hundred was worth a thousand times the rest. (#106)\n\n- **`SetSketch`**, one sketch that estimates both how many distinct elements a set holds\n  and how much two sets have in common (Ertl, VLDB 2021). `HyperLogLog` does the first in\n  very little room and cannot do the second; MinHash does the second and spends four or\n  eight bytes on every component. This does both from the same registers, and a base\n  parameter dials between them: towards one the registers grow fine and it behaves like\n  MinHash, towards two they coarsen towards HyperLogLog, and cardinality estimation barely\n  notices either way. Registers combine under maximum, so merging is exact rather than\n  approximate — a merged sketch is register-for-register the sketch that adding both sets\n  would have built — and adding the same element twice changes nothing. Cardinality error\n  ran between 0.4% and 2.4% across seven orders of magnitude against the 1.56% that 4,096\n  registers implies. Its joint estimator beat the obvious one built from inclusion and\n  exclusion by between 1.2 and 2.1 times at every similarity tried, and beat MinHash's own\n  estimator with the same number of components on sets of different sizes — 0.0029, 0.0034\n  and 0.0038 against 0.0034, 0.0047 and 0.0056 — because MinHash counts only the registers\n  that agree while this also uses which way the disagreeing ones fall. Estimates Jaccard,\n  cosine, both inclusion coefficients, and the sizes of the union, intersection and both\n  differences. (#105)\n\n- **`SublimeCountMinSketch`**, per-item frequencies for a stream whose length is not known\n  in advance (Eslami, Bercea, Pagh and Dayan, SIGMOD 2026). A `CountMinSketch` has to be\n  sized before it has seen anything, and its error then grows in step with the stream.\n  This one starts at a single cache line per row and doubles as the stream grows, holding\n  about the square root of its length, so the error grows as the square root too;\n  expansion copies each array onto itself, so a key that hashed to a counter before an\n  expansion hashes to that counter or its copy afterwards and its count survives. Paying\n  for that in memory would defeat the point, so a count keeps its low bits in a short stub\n  and spends on a variable-length extension only when it outgrows one — packed alongside\n  its neighbours in the same cache line, in base three so that the one spare two-bit\n  pattern can mark where each one ends. The two parameters this depends on are retuned as\n  the sketch grows, using Chebyshev's inequality on the spread of extension lengths to\n  reject any tuning that would push more than three chunks in a hundred onto their\n  fallback. Counters settle at twelve to fourteen bits each against `CountMinSketch`'s\n  sixty-four. Given the same bytes and rows on the same skewed stream, it was out by 263\n  on average against a fixed sketch's 684 at a hundred thousand events, and 830 against\n  2,811 at a million — a margin that widens as the stream runs on. Supports deletions,\n  which `CountMinSketch` does not, and folds its arrays back in half once most of a\n  stream has been deleted, subtracting out a record of each expansion so that the counts\n  gathered before one are not counted twice on the way down. Persists as counts rather\n  than as its packed layout, so a payload survives any change to how counters are\n  packed. (#103)\n\n- **`MementoFilter`**, range emptiness for a set that keeps changing (Eslami and Dayan,\n  SIGMOD 2025). `Grafite` answers the same question but is built once and never updated;\n  this one inserts, deletes and grows, which is what makes a range filter usable behind a\n  B-tree. Each key is split into a prefix, which names a block, and a memento, the key's\n  own low bits giving its position inside that block. Storing the positions rather than\n  only the blocks is what lets it answer \"empty\" for a range that merely brushes occupied\n  data. Measured at 0.265% false positives on random empty ranges and 0.213% on ranges\n  placed immediately after each key -- the correlated workload that collapses heuristic\n  range filters does nothing here, because a memento cannot be gamed by choosing keys.\n  Keys sharing a block share a stored fingerprint, so the same 256,000 keys cost 41.0\n  bits each spread out and 20.5 packed. (#101)\n\n- **`InfiniFilter`**, a filter that grows with the data instead of being sized for it\n  (Dayan, Bercea, Reviriego and Pagh, SIGMOD 2023). Where `ScalableBloomFilter` handles\n  growth by stacking filters whose error rates add up, and `QuotientFilter` refuses once\n  full, this doubles one table in place: each entry pays for the extra address bit by\n  giving up one of its own fingerprint bits, so nothing is rehashed and the original keys\n  are never needed. A per-slot age counter means only the entries present for an\n  expansion pay for it, which keeps the false positive rate growing with the logarithm of\n  the item count rather than with the count — measured at 0.32%, 0.78% and 1.29% across a\n  hundredfold increase. Entries that run out of fingerprint move to a smaller table that\n  expands and sheds in turn, so the filter can keep growing indefinitely. Supports\n  deletes, which `ScalableBloomFilter` does not. (#100)\n\n- **`Grafite`**, a static range filter that answers \"is anything in [a, b]?\" (Costa,\n  Ferragina and Vinciguerra, SIGMOD 2024). Nothing here answered that before, and the\n  range filters that do bound their false positive rate empirically, on workloads that\n  do not resemble the keys; point the queries near the data, as real ones are, and those\n  rates collapse. Grafite's bound is a theorem about its hash and holds for any query\n  sequence, including one chosen by someone who has seen the keys but not the seed. Keys\n  are numbers rather than bytes, and the filter is built once from a known set like\n  `BinaryFuseFilter`. Stored in Elias–Fano at 14.6 bits per key for a 1% rate over\n  64-key ranges. Diverges from the authors' reference implementation by splitting a\n  query at block boundaries: the reference tests a straddling range as one interval,\n  which can report an occupied range empty about once in r such queries. (#99)\n\n- **`UltraLogLog`**, distinct counting that keeps what HyperLogLog discards (Ertl,\n  VLDB 2024). A HyperLogLog register remembers only the largest update value that\n  landed on it; this one also keeps two bits saying whether the positions just below it\n  were reached, which is worth 43% of the memory at equal accuracy against this\n  library's `HyperLogLog` — 24% against one that packs its registers into six bits.\n  Registers store an absolute bit position rather than a run length, so a sketch built\n  at a fine precision and merged into a coarser one is byte for byte the sketch that\n  precision would have built: sketches gathered at different precisions combine without\n  prior agreement, and a sketch can be shrunk after the fact. The estimator is Ertl's\n  FGRA, whose coefficients are computed from the one parameter they derive from rather\n  than transcribed. The martingale estimator is deliberately omitted: it does not\n  survive a merge. (#98)\n\n- **`VarOpt`**, a weighted sample of a stream that answers questions written after the\n  stream is gone (Cohen, Duffield, Kaplan, Lund and Thorup, SODA 2009). Every other\n  structure here fixes its question at ingest; this one keeps k items with adjusted\n  weights, and summing those weights over any predicate estimates that subset's true\n  weight without bias and at the minimum variance any k-item sample can achieve. The\n  total is not estimated at all: evictions hand the evicted weight to the survivors, so\n  the sampled weights sum to exactly the weight that went in. Merging follows the\n  paper's recurrence, which asks that every input keep at least as many items as the\n  result rather than that the k's match: a larger sample merges into a smaller one, an\n  unfilled sample merges into anything, and only the direction that would report\n  sampled items as exact is refused. (#97)\n\n- **`HeavyKeeper`**, the top-k of a stream found by contest rather than accounting\n  (Gong, Yang et al., USENIX ATC 2018): buckets hold one element's fingerprint and\n  count, mismatched arrivals decay the incumbent with probability b^-C, and the rare\n  lose. Errors are one-sided in the opposite direction from Count-Min's — absent\n  fingerprint collisions an estimate never exceeds the truth — and tracked heavy\n  hitters are counted nearly exactly. It does not merge; that is the price of the\n  contest, and `TopK` remains the structure for shards. Implements the authors'\n  reference inequality where Algorithm 1 as printed deadlocks admission, a\n  discrepancy recorded in the class documentation. (#96)\n\n### Fixed\n\n- Six persistence tests were passing on the checksum rather than on what they claimed to\n  check. `SetSketch`, `SublimeCountMinSketch` and `TupleSketch` each had tests that\n  corrupted a field and expected the reader to refuse it, but none repaired the trailing\n  CRC, so the frame was rejected before the guard was ever reached — and the guard could\n  be removed entirely without any of them failing. They now live in the hostile-payload\n  suite, which repairs the checksum so that a guard is what has to refuse them.\n\n\nFull history: https://github.com/mattlorimor/ProbabilisticDataStructures/blob/v6.2.0/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#repository",
+    "commit": "f536eb7e66a6ea897efb8e7c838e232402b46019",
+    "type": "git",
+    "url": "https://github.com/mattlorimor/ProbabilisticDataStructures"
+  },
+  "verbatimVersion": "6.2.0",
+  "version": "6.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#dependencygroup/net10.0/system.io.hashing",
+          "@type": "PackageDependency",
+          "id": "System.IO.Hashing",
+          "range": "[10.0.11, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#MattLorimor.ProbabilisticDataStructures.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7315,
+      "fullName": "MattLorimor.ProbabilisticDataStructures.nuspec",
+      "length": 17015,
+      "name": "MattLorimor.ProbabilisticDataStructures.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 29685,
+      "fullName": "README.md",
+      "length": 82790,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 1414,
+      "fullName": "icon.png",
+      "length": 1470,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#lib/net10.0/ProbabilisticDataStructures.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 97149,
+      "fullName": "lib/net10.0/ProbabilisticDataStructures.dll",
+      "length": 244224,
+      "name": "ProbabilisticDataStructures.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#lib/net10.0/ProbabilisticDataStructures.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 95717,
+      "fullName": "lib/net10.0/ProbabilisticDataStructures.xml",
+      "length": 526919,
+      "name": "ProbabilisticDataStructures.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.19.13.09.17/mattlorimor.probabilisticdatastructures.6.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "bloom-filter",
+    "cuckoo-filter",
+    "count-min-sketch",
+    "hyperloglog",
+    "minhash",
+    "topk",
+    "probabilistic-data-structures"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

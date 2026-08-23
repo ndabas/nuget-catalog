@@ -1,0 +1,162 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "DearVa",
+  "catalog:commitId": "32de27c3-cf8f-4577-b6f7-79987091977e",
+  "catalog:commitTimeStamp": "2026-08-23T06:28:52.814032Z",
+  "copyright": "Copyright 2025-2026 DearVa",
+  "created": "2026-08-23T06:25:52.96Z",
+  "description": "This is a extension package for LiveMarkdown.Avalonia that adds support for rendering Mermaid diagrams.",
+  "iconFile": "icon.png",
+  "id": "LiveMarkdown.Avalonia.Mermaid",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-23T06:28:29.437Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "1J1XgOHvnrWBz+x4Zs8Rj1x+Ny+Gni5uTGeJItLSZdFrKiI6SszWsTKmDWYCsugs7vroQXb2adTRgIvCWPaVrQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 135216,
+  "projectUrl": "https://github.com/DearVa/LiveMarkdown.Avalonia",
+  "published": "2026-08-23T06:25:52.96Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## LiveMarkdown.Avalonia v2.4.0\n\nv2.4.0 redesigns the document update pipeline to separate Markdown parsing from the `MarkdownRenderer` control lifecycle.\n\n**Many thanks to @JohnCampionJr for the high-quality PRs and patient communication!**\n\n> [!IMPORTANT]\n> This release contains source-breaking API changes for applications that observe rendered-state events or customize parser lifetime.  \n> The primary streaming API—`MarkdownBuilder`—remains supported and is still the recommended way to render live Markdown.\n\n## Why this changed\n\nPreviously, `MarkdownRenderer` was responsible for all of the following:\n\n- observing `ObservableStringBuilder`;\n- parsing Markdown asynchronously;\n- rejecting stale parse results;\n- updating the visual tree;\n- coordinating that work with attachment, measurement, and layout.\n\nCoupling parsing to the control lifecycle could cause newly realized or reattached controls—especially inside virtualized, variable-height chat views—to expose an incomplete visual tree during their first layout pass. The later size correction could then produce visible scroll jumps or disturb bottom anchoring.\n\nv2.4.0 separates these responsibilities:\n\n```text\nObservableStringBuilder\n    → MarkdownUpdateProducer\n    → MarkdownDocumentUpdate\n    → MarkdownRenderer\n```\n\nParsing can now complete independently of attachment, and a prepared document can be applied synchronously before the renderer’s first measure.\n\n## Existing streaming usage\n\nMost applications using `MarkdownBuilder` require no changes:\n\n```xml\n<md:MarkdownRenderer MarkdownBuilder=\"{Binding MarkdownBuilder}\" />\n```\n\n```csharp\nvar builder = new ObservableStringBuilder();\nrenderer.MarkdownBuilder = builder;\n\nbuilder.Append(\"Streaming **Markdown**...\");\n```\n\nThe built-in `MarkdownUpdateProducer` preserves the incremental change information supplied by `ObservableStringBuilder`, coalesces changes while parsing is in progress, and discards stale results when its builder or pipeline changes.\n\n## New document update model\n\nA renderable state is now represented by `MarkdownDocumentUpdate`, which contains:\n\n- the parsed `MarkdownDocument`;\n- its source version;\n- the incremental source change, when applicable.\n\nTwo update forms are available:\n\n- `MarkdownDocumentUpdate.Full` — a complete, independent document state;\n- `MarkdownDocumentUpdate.Incremental` — a state based on one exact previous update.\n\nIf an incremental update is applied without its expected predecessor, the renderer safely treats it as a full update.\n\nVersions only need to be ordered within a single producer. Different producers do not need globally unique or coordinated version numbers.\n\n## Caching or pre-parsing documents\n\nApplications may now parse and cache a document outside the renderer:\n\n```csharp\nvar update = await Task.Run(() =>\n{\n    var document = Markdown.Parse(\n        markdown,\n        MarkdownUpdateProducer.DefaultPipeline);\n\n    return new MarkdownDocumentUpdate.Full(document);\n});\n\n// Assign on the Avalonia UI thread.\nrenderer.DocumentUpdate = update;\n```\n\n`DocumentUpdate` is a DirectProperty and may also be stored in a view model and bound from XAML. This is particularly useful for conversation history and virtualized lists: cached render state can be applied synchronously before attachment and first measurement.\n\nA published `MarkdownDocument` must be treated as immutable.\n\nAvoid driving the same renderer through both `DocumentUpdate` and an active producer unless later producer updates are intentionally allowed to replace the manually assigned state.\n\n## Custom pipelines and producers\n\nThe shared default pipeline is now owned by `MarkdownUpdateProducer`:\n\n```csharp\nMarkdownUpdateProducer.ConfigurePipeline += builder =>\n{\n    // Configure the shared pipeline.\n};\n```\n\n`MarkdownRenderer.ConfigurePipeline` remains available as a compatibility proxy.\n\nThe default pipeline is shared and created lazily. Configuration must therefore be registered before `MarkdownUpdateProducer.DefaultPipeline` is first accessed. Unlike earlier releases, the callback is not invoked once per renderer.\n\nFor a renderer-specific pipeline, assign an application-owned producer:\n\n```csharp\nrenderer.UpdateProducer = new MarkdownUpdateProducer\n{\n    Pipeline = customPipeline,\n    MarkdownBuilder = markdownBuilder,\n};\n```\n\nAdvanced integrations may implement `IMarkdownUpdateProducer`. Implementations must:\n\n- publish `MarkdownDocumentUpdate` values;\n- synchronously replay the latest valid update when a subscriber attaches;\n- use the Avalonia UI thread for subscriptions, properties, and notifications;\n- publish a `Full` update whenever no valid incremental predecessor exists.\n\nThe renderer owns and disposes only its subscription. It does not own or dispose a custom producer.\n\n## Breaking API changes\n\n| Previous API | Replacement |\n|---|---|\n| `renderer.RenderedVersion` | `renderer.RenderedTextProjection?.SourceVersion` |\n| `RenderedTextProjectionChanged` | Observe `RenderedTextProjectionProperty` |\n| `TextSearchMatchesChanged` | Observe `TextSearchMatchesProperty` |\n\n`RenderedTextProjection` and `TextSearchMatches` are now Avalonia DirectProperties and can be observed or bound normally:\n\n```csharp\nvar subscription = renderer\n    .GetObservable(MarkdownRenderer.RenderedTextProjectionProperty)\n    .Subscribe(projection =>\n    {\n        // React to the authoritative rendered projection.\n    });\n```\n\nDispose the subscription with the lifetime of its consumer.\n\n## Inline-code interaction\n\n`MarkdownTextBlock` now exposes inline-code hit testing and geometry:\n\n```csharp\nvar codeInline = block.GetCodeInlineAt(point);\n\nif (codeInline is not null)\n{\n    var rects = block.GetCodeInlineRects(codeInline);\n}\n```\n\nThe returned rectangles match the painted chip background, include its padding, and remain separate when an inline-code chip wraps across multiple lines. `GetCodeInlineSpans()` is also available for advanced integrations.\n\n## Upgrade checklist\n\n- Keep using `MarkdownBuilder` for live or streaming Markdown.\n- Replace the removed rendered-state events with DirectProperty observation.\n- Replace `RenderedVersion` with `RenderedTextProjection?.SourceVersion`.\n- Register global pipeline configuration before first default-pipeline access.\n- Use an application-owned `MarkdownUpdateProducer` for per-renderer pipelines.\n- Cache `MarkdownDocumentUpdate` when pre-parsed history should be immediately available.\n- Treat every published `MarkdownDocument` as immutable.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#repository",
+    "commit": "3c76f5629d1c7cb78d51cd4d8cf36d9c6c1bf42f",
+    "type": "git",
+    "url": "https://github.com/DearVa/LiveMarkdown.Avalonia"
+  },
+  "title": "LiveMarkdown.Avalonia.Mermaid",
+  "verbatimVersion": "2.4.0",
+  "version": "2.4.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#dependencygroup/net10.0/livemarkdown.avalonia",
+          "@type": "PackageDependency",
+          "id": "LiveMarkdown.Avalonia",
+          "range": "[2.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#dependencygroup/net10.0/mermaider",
+          "@type": "PackageDependency",
+          "id": "Mermaider",
+          "range": "[0.8.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#LiveMarkdown.Avalonia.Mermaid.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3175,
+      "fullName": "LiveMarkdown.Avalonia.Mermaid.nuspec",
+      "length": 7950,
+      "name": "LiveMarkdown.Avalonia.Mermaid.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 11009,
+      "fullName": "README.md",
+      "length": 33650,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 2071,
+      "fullName": "icon.png",
+      "length": 2066,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#lib/net10.0/LiveMarkdown.Avalonia.Mermaid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 87783,
+      "fullName": "lib/net10.0/LiveMarkdown.Avalonia.Mermaid.dll",
+      "length": 224256,
+      "name": "LiveMarkdown.Avalonia.Mermaid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#lib/net10.0/LiveMarkdown.Avalonia.Mermaid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 16069,
+      "fullName": "lib/net10.0/LiveMarkdown.Avalonia.Mermaid.xml",
+      "length": 150449,
+      "name": "LiveMarkdown.Avalonia.Mermaid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.06.28.52/livemarkdown.avalonia.mermaid.2.4.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "markdown",
+    "avalonia",
+    "llm",
+    "flowchart",
+    "mermaid"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

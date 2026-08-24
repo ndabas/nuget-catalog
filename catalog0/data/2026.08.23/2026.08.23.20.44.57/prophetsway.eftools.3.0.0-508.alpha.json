@@ -1,0 +1,165 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "G. Gordon Nasseri",
+  "catalog:commitId": "b8f56f37-171d-417e-a16b-895db2952d6e",
+  "catalog:commitTimeStamp": "2026-08-23T20:44:57.155299Z",
+  "created": "2026-08-23T20:41:33.923Z",
+  "description": "A small library that is useful when utilizing EntityFramework for a Data Access Layer (DAL) while adhering to Business Layer to DAL decoupling.\n\t\t\t\nThis uses the paradigm explained in https://github.com/ProphetManX/ProphetsWay.BaseDataAccess.  See the README for more information.\n\nFor more information on this project, please go to https://github.com/ProphetManX/ProphetsWay.EFTools.",
+  "iconFile": "profile.png",
+  "id": "ProphetsWay.EFTools",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-23T20:44:37.29Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "FXcrwjAiTkPn/MrPCwk5gSJ+tRS971c8MKQ0BlH0tVpIij+Q9DEZYaJObPzs4GiY0zW8DPKRjtGpaY/QSQZK/Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 122120,
+  "published": "2026-08-23T20:41:33.923Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# v3.0.0\nNot yet published â€” nuget.org still serves 2.2.0 as the latest version of this package.  Everything below is a\nchange against that published 2.2.0 package.\n\nThis is a rewrite of the library on top of Entity Framework Core alone, and it breaks nearly every consumer.\nRead the whole entry before upgrading.  There are no compatibility wrappers and none are planned; if the\nmigration is not worth your afternoon, stay on 2.2.x, which continues to work exactly as it did.\n\n### Entity Framework 6 support is gone\nThe 2.2.0 package shipped two implementations chosen by target framework â€” EntityFramework 6.5.1 on the .NET\nFramework targets and EF Core on .NET 8 and 9 â€” and the two did not behave alike.  Most visibly, the EF6\n```Update``` was an upsert that would store a row that did not exist, while the EF Core one requires the row to\nbe there already.  The EF6 branch has been removed outright.  If you were relying on the upsert, you now need an\nexplicit ```Insert```.\n\n### Target frameworks collapse to net10.0\n```net461```, ```net471```, ```net48```, ```net80``` and ```net90``` are all gone and ```net10.0``` is the only\ntarget.  This is deliberate rather than incidental â€” this library is a thin layer over EF Core, and carrying\nruntimes EF Core itself no longer serves was costing more than it returned.  If you are on .NET Framework, .NET 8\nor .NET 9 you cannot restore this version and should remain on the 2.2.x line.  Entity Framework Core moves from\n9.0.4 to 10.0.11 alongside it.\n\n### ProphetsWay.BaseDataAccess moves from 2.5.0 to 3.2.0\nThree changes in that dependency reach you through this one.  ```IBaseDataAccess``` now extends ```IDisposable```,\nso every Data Access Layer has a ```Dispose``` and callers are expected to use one.  Exceptions thrown by your\nown Data Access Layer methods are no longer wrapped in ```TargetInvocationException``` on their way out of the\ndispatcher â€” if you were catching that wrapper and unwrapping ```InnerException```, catch the real exception type\ninstead.  And 3.2.0 annotates that package's contracts for nullable reference types, which changes what the\ncompiler can tell you rather than what runs.\n\nThe annotation that reaches an ordinary caller is on ```IBaseDao<T>```, whose ```Get``` every earlier version of\nthat package left null-oblivious:\n\n```c#\n\t// 2.5.0 and 3.1.0 â€” null-oblivious\n\tT Get(T item);\n\n\t// 3.2.0\n\tT? Get(T item);\n```\nNothing about the behavior is new â€” a ```Get``` for a row that is not there has always come back ```null``` â€” but\na call through your own ```ICompanyDao : IBaseDao<Company>``` now binds ```Company?``` instead of an oblivious\n```Company```, so a project with nullable enabled may see a ```CS8602``` where it previously saw nothing.  That is\na new warning and not a break: no signature changed, nothing you have compiled needs rebuilding, and a project\nwithout nullable enabled sees none of it.  If you implement ```IBaseDao<T>``` yourself rather than deriving from a\nbase in this library, read that package's own 3.2.0 entry as well â€” ```GetAll```, ```GetPaged``` and\n```GetCount``` gained an annotated parameter, and an implementation declaring a plain ```T``` there is now\nstricter than the interface allows and will report ```CS8767```.\n\nTaking 3.2.0 is also what let the last of this library's warning suppressions go.  Ten\n```#pragma warning disable CS8766``` pairs across eight files were holding down a diagnostic raised because the\nbases here declared the nullable ```Get``` return their documentation described while the interface they\nimplemented could not say the same thing.  Both sides agree now, so the suppressions are deleted rather than\nreplaced and no ```#pragma``` of any kind is left in the library â€” the compiler verifies what it was previously\nbeing asked to ignore.\n\n### BaseNonIdDao and BaseSoftNonIdDao keep their names but are different types\nThis is the change most likely to be missed, because these two names do not disappear.  They still resolve, so\nthe upgrade reads like a small refactor rather than a replacement.  In 2.2.0 these were:\n\n```c#\n\tBaseNonIdDao<T> : IBaseDao<T> where T: class, IBaseEntity\n\tBaseSoftNonIdDao<T> : BaseNonIdDao<T>, IBaseDao<T> where T : class, IBaseSoftEntity\n```\nThey are now built on a separate plumbing class, and the members underneath you are not the members that were\nthere before:\n\n```c#\n\tBaseNonIdDao<TEntity> : RootNonIdDao<TEntity>, IBaseDao<TEntity>\n\tBaseSoftNonIdDao<TEntity> : RootSoftNonIdDao<TEntity>, IBaseDao<TEntity>\n```\n```Get``` and ```Update``` were abstract and are now virtual with working defaults, so an existing override\nkeeps compiling while the code it overrides has changed underneath it.  ```Insert``` and ```Delete``` were\nconcrete and non-virtual and are now inherited virtual members with new implementations.  ```Context``` and\n```Dataset``` were public and are now protected.  The public ```EnsureBeginTransaction```,\n```EnsureTransactionCommit``` and ```EnsureTransactionRollback``` members are no longer on this surface.  In\ntheir place ```RootNonIdDao``` declares one new abstract member, ```MatchRow```, which returns the predicate\nidentifying a single row â€” so your derived class will at least fail to compile until you supply it, which is the\none piece of this the compiler will catch for you.\n\nThe migration is to rewrite the class onto the new keyless family described below, supplying ```MatchRow``` and\ndropping any overrides that no longer correspond to anything.  No wrapper preserving the old shape ships in this\nrelease, so there is nothing to fall back to and no reason to delay the rewrite.\n\n### BaseEFDataAccess takes one type parameter and is constructed differently\nThe published line documented ```BaseEFDataAccess<TContextType, TIdType>```.  That type no longer exists.  The\nidentifier type parameter was never used for anything the class did, and it is gone:\n\n```c#\n\tBaseEFDataAccess<TContext> : BaseDataAccess.BaseDataAccess, IBaseDataAccess where TContext : DbContext\n```\nThe class is now abstract, and its context constraint has been relaxed from ```BaseEFContext``` to\n```DbContext```, so any context you already have will do.  The protected ```Context``` property is typed\n```TContext``` rather than ```DbContext```, which means your derived layer sees its own context type without a\ncast.\n\nBoth public constructors are gone.  ```BaseEFDataAccess(string connectionString)``` and\n```BaseEFDataAccess(DbContextOptions options)``` are replaced by a single protected constructor that takes a\nbuilt context and a statement of who owns it:\n\n```c#\n\tprotected BaseEFDataAccess(TContext context, ContextOwnership ownership)\n```\nA derived layer that called ```: base(connectionString)``` must now build the context itself â€” or accept one\nfrom its caller â€” and say whether it is responsible for disposing it.\n\n### BaseEFContext no longer takes a connection string, and no longer picks a provider\n```BaseEFContext(string connectionString)``` has been removed; the ```DbContextOptions``` constructor is the\nonly one left.  On the EF Core side that removed constructor called ```UseSqlServer``` for you, which meant the\nlibrary chose your database provider.  It no longer does â€” whoever builds the options names the provider.  This\nalso removes the v2.0.0 behavior where omitting a connection string produced an in-memory context; build the\noptions with the provider you want, in-memory included.  Deriving from ```BaseEFContext``` is now optional, since\n```BaseEFDataAccess<TContext>``` accepts any ```DbContext```.\n\n### The Guid, Int and Long namespaces have been removed\n```ProphetsWay.EFTools.Guid```, ```ProphetsWay.EFTools.Int``` and ```ProphetsWay.EFTools.Long``` are gone, and\nwith them the 18 key-specific base classes they held â€” six in each namespace, being ```BaseDao```,\n```BaseGetAllDao```, ```BasePagedDao``` and their three soft-delete counterparts.  This is likely to be the first\nerror you see, and it is a blunter one than the rest of this release: ```using ProphetsWay.EFTools.Int;``` no\nlonger resolves, so the file stops compiling at the top rather than at the class.\n\nEvery one of the eighteen has a direct replacement in the open-key families described below, formed by moving the\nkey type out of the namespace and into a second type argument:\n\n```c#\n\t// 2.2.x\n\tusing ProphetsWay.EFTools.Int;\n\tpublic class UserDao : BasePagedDao<User>, IUserDao { /* â€¦ */ }\n\n\t// 3.0.0\n\tusing ProphetsWay.EFTools;\n\tpublic class UserDao : BasePagedDao<User, int>, IUserDao { /* â€¦ */ }\n```\n```Int.BaseDao<T>``` becomes ```BaseDao<T, int>```, ```Guid.BaseSoftPagedDao<T>``` becomes\n```BaseSoftPagedDao<T, Guid>```, ```Long.BaseGetAllDao<T>``` becomes ```BaseGetAllDao<T, long>```, and so on\nthrough all eighteen.  Constructor signatures are unchanged, so for most Data Access Objects the edit is the\n```using``` line and one type argument.  The library now lives entirely in the single ```ProphetsWay.EFTools```\nnamespace.\n\nOne collision disappears with them.  ```ProphetsWay.EFTools.Guid``` shadowed ```System.Guid``` in any file that\nimported it, which is why a ```Guid``` key sometimes had to be written out as ```System.Guid``` to compile at\nall.  That no longer happens.\n\nThe two bridge classes underneath the closures, ```RootBaseDao<T, TIdType>``` and\n```RootBaseSoftDao<T, TIdType>```, have been removed alongside them.  Both were marked\n```[EditorBrowsable(Never)]``` and were not meant to be named directly; if you did name one, there is no 3.0.0\nequivalent, and the replacement is to derive from whichever open-key family matches the capabilities your Data\nAccess Object interface publishes.\n\n### New: keyed Data Access Object families with an open key type\nThe key-specific bases required a value-type key, through a ```where TIdType : struct``` constraint on the\nbridge they closed over.  The new generic families drop it:\n\n```c#\n\tBaseDao<TEntity, TKey> : IBaseDao<TEntity> where TEntity : class, IBaseIdEntity<TKey>\n\tBaseGetAllDao<TEntity, TKey> : BaseDao<TEntity, TKey>, IBaseGetAllDao<TEntity>\n\tBasePagedDao<TEntity, TKey> : BaseDao<TEntity, TKey>, IBasePagedDao<TEntity>\n```\n```TKey``` carries no constraint at all, so a ```string``` key or a ```Nullable<int>``` key is now legal where\nbefore it was not expressible.  ```BaseSoftDao<TEntity, TKey>```, ```BaseSoftGetAllDao<TEntity, TKey>``` and\n```BaseSoftPagedDao<TEntity, TKey>``` are the soft-delete counterparts and manage the created, updated and\ndeleted timestamps as the 2.x soft classes did.\n\n### New: keyless Data Access Object families\nAn entity with no identifier â€” a join table, or one whose only key is a composite natural key â€” previously had\nto be presented through ```IBaseDao<T>``` whether its contract promised that or not.  Four types replace that\narrangement, and they split the plumbing from what you publish:\n\n```c#\n\tRootNonIdDao<TEntity> where TEntity : class, IBaseEntity\n\tBaseNonIdDao<TEntity> : RootNonIdDao<TEntity>, IBaseDao<TEntity>\n\tRootSoftNonIdDao<TEntity> : RootNonIdDao<TEntity> where TEntity : class, IBaseSoftEntity\n\tBaseSoftNonIdDao<TEntity> : RootSoftNonIdDao<TEntity>, IBaseDao<TEntity>\n```\nThe ```Root``` classes declare no capability interface, so a Data Access Object deriving from one publishes only\nthe members it chooses.  The ```Base``` classes add ```IBaseDao<TEntity>``` and no members, for the case where\nyou do want the full interface.  Reads are filtered, ordered and paged through overridable seams â€”\n```ApplyReadFilter```, ```ApplyStableOrder```, ```ApplyIncludes``` â€” and the row a write targets is identified by\nyour ```MatchRow``` predicate, which is translated to SQL rather than evaluated in memory.\n\n### New: ContextOwnership, and a real disposal contract\n```ContextOwnership``` is a two-value enum, ```Borrowed``` and ```Owned```, with **no default value you can fall\ninto** â€” the constructor makes you say which one applies.  A layer told ```Owned``` disposes the context along\nwith itself; one told ```Borrowed``` never touches it, because someone else will.\n\n```c#\n\tpublic enum ContextOwnership { Borrowed = 0, Owned = 1 }\n```\n```BaseEFDataAccess``` implements the disposal contract that ```ProphetsWay.BaseDataAccess``` 3.x specifies.\n```Dispose``` is sealed, idempotent and does not throw; it rolls back a transaction still open at the time; and\nit disposes the context only when it owns it.  Every other member throws ```ObjectDisposedException``` once the\nlayer has been disposed.  Override ```DisposeCore``` to release anything your own layer created.\n\n### Fixed: a failed Insert no longer leaves timestamps or an identifier on your instance\nA soft entity's ```Insert``` stamped the created and updated timestamps onto the caller's instance before\nattempting the write, so a ```SaveChanges``` that threw left you holding an instance that claimed to describe a\nstored row when nothing had been stored.  The subtler half of the same defect survived a successful save: the\nkeyed insert assigns the identifier, clears inverse navigations and detaches, all after the row is committed, and\nanything throwing in those steps left a real database identifier sitting beside a creation date naming no row.\nWrites now stamp a copy and write back to your instance only once the save has returned, so the state you are\nholding and the state of the database agree in both cases.\n\n### Fixed: TargetException on a committed write\nClearing inverse navigations read a collection navigation as though it were a single principal and reflected onto\nthe collection object itself, raising ```TargetException``` one statement after the row had already been\ncommitted.  The call appeared to fail while the write had in fact succeeded.  Collection and reference\nnavigations are now handled distinctly.\n\n### The whole surface, and a note on prerelease builds\nNothing transitional ships.  The library is twelve public classes and one enum: ```BaseEFContext``` and\n```BaseEFDataAccess<TContext>```; the keyed ```BaseDao```, ```BaseGetAllDao``` and ```BasePagedDao```; their\nsoft-delete counterparts ```BaseSoftDao```, ```BaseSoftGetAllDao``` and ```BaseSoftPagedDao```; the keyless\n```RootNonIdDao```, ```BaseNonIdDao```, ```RootSoftNonIdDao``` and ```BaseSoftNonIdDao```; and\n```ContextOwnership```.  All of them are in the ```ProphetsWay.EFTools``` namespace, and there is no longer any\nconditionally compiled code in the library at all.\n\nIf you tried an alpha or beta package cut while this line was still in development, you may have seen three\n```Legacy```-prefixed keyless classes, or the key-typed namespaces described above, sitting alongside the new\nfamilies.  Those were scaffolding internal to the development branch â€” the older classes were renamed for a\nhandful of commits so the new ones could take their names â€” and **none of them is part of 3.0.0**.  There is no\n```LegacyBaseNonIdDao<T>``` to migrate onto.  Plan on the generic families.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#repository",
+    "commit": "0da679ffbd9eab4c02357727bc377a37e01bd679",
+    "type": "GitHub",
+    "url": "https://github.com/ProphetManX/ProphetsWay.EFTools"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "3.0.0-508.Alpha",
+  "version": "3.0.0-508.Alpha",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#dependencygroup/net10.0/microsoft.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#dependencygroup/net10.0/microsoft.entityframeworkcore.inmemory",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.InMemory",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#dependencygroup/net10.0/microsoft.entityframeworkcore.sqlserver",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.SqlServer",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#dependencygroup/net10.0/prophetsway.basedataaccess",
+          "@type": "PackageDependency",
+          "id": "ProphetsWay.BaseDataAccess",
+          "range": "[3.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#ProphetsWay.EFTools.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6448,
+      "fullName": "ProphetsWay.EFTools.nuspec",
+      "length": 17205,
+      "name": "ProphetsWay.EFTools.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6378,
+      "fullName": "CHANGELOG.md",
+      "length": 16935,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 11931,
+      "fullName": "README.md",
+      "length": 33449,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#lib/net10.0/ProphetsWay.EFTools.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14577,
+      "fullName": "lib/net10.0/ProphetsWay.EFTools.dll",
+      "length": 32768,
+      "name": "ProphetsWay.EFTools.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#profile.png",
+      "@type": "PackageEntry",
+      "compressedLength": 67638,
+      "fullName": "profile.png",
+      "length": 68585,
+      "name": "profile.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.23.20.44.57/prophetsway.eftools.3.0.0-508.alpha.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

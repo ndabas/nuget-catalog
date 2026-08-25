@@ -1,0 +1,252 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "endpointsystems",
+  "catalog:commitId": "ce253d67-60ea-4754-b0bf-a3c47265ac35",
+  "catalog:commitTimeStamp": "2026-08-24T15:43:03.4157899Z",
+  "copyright": "Copyright © Endpoint Systems 2026. All rights reserved.",
+  "created": "2026-08-24T15:40:12.49Z",
+  "description": "Command-line XQuery 3.1/4.0 processor — query XML documents from the terminal",
+  "iconFile": "icon.png",
+  "id": "xquery4",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-24T15:42:53.007Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "+nCkeIf+cet4PzQ5uC8Oyz3kTo+99cJSElWSbhnpnBC+Fpnb6JzQZt2jMUPK3LOkBvuYVWVNqCOUf6O6KUtC+g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 4330371,
+  "projectUrl": "https://phoenixml.dev/",
+  "published": "2026-08-24T15:40:12.49Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "Six fixes to XPath 4.0 function behaviour, one to numeric rounding, and one new parser\noption. Four came from Martin Honnen's testing; the rest from an audit prompted by his\nreports, and from the conformance work that took QT3 from 76.56% to 95.11%.\n\n### `fn:highest` and `fn:lowest` take a collation second and a key third\n\nXPath 4.0 §14.5 declares three arguments — `$input`, `$collation`, `$key`. This engine\ndeclared arity 1-2 with the KEY second, so `highest#3` did not exist and\n`highest($seq, $key)` bound a function into the collation slot, where it was read as a\nstring and discarded. Reported by Martin Honnen.\n\nTwo further faults his examples could not show. Every key went through `Convert.ToDouble`,\nso any non-numeric input threw an unhandled `System.FormatException` and took the process\ndown — `highest((\"apple\",\"banana\"))` was a .NET crash, not an XQuery error. And\n`highest((1,5,3), \"…/collation/codepoint\")` returned the right answer by accident, having\nignored the collation entirely.\n\n### Adaptive serialization of arrays, from the `xquery` tool\n\n`[1,2]` printed as `12`, so `partition(…)` output looked wrong when the partitioning was\ncorrect. Martin narrowed this himself to a sequence-of-arrays serialization fault, which is\nexactly what it was.\n\nThe engine's own serializer had always been right; the CLI carried a SECOND copy in which\nthe two runtime representations were swapped — `object?[]` (a sequence) got array brackets\nwhile `List<object?>` (an array) was flattened. That is why the same query was correct\nthrough `xslt` and wrong through `xquery`.\n\n### `fn:all-equal`, `fn:all-different`, `fn:duplicate-values`\n\nThese take an optional collation as their second argument; none of the three had it, and\nall three compared the *lexical form* of the atomized value, so values of different types\ncompared equal whenever their strings matched — `all-equal((1, \"1\"))` was true. Numeric\npromotion is unaffected: `1`, `1.0` and `1e0` remain equal.\n\n### `fn:QName` accepts an `xs:anyURI` namespace\n\nF&O function conversion includes URI promotion, honoured everywhere the conversion\nmachinery runs. `fn:QName` hand-rolled its type check and rejected `xs:anyURI` — in exactly\nthe case the function exists for, since a namespace URI is the natural thing to hold in one.\n\n### XSD regex: character-class subtraction is no longer mistaken for POSIX syntax\n\n`[\\i-[:]]` — the canonical idiom for an NCName start character, and the most common use of\nsubtraction anywhere — was rejected as \"POSIX character class syntax is not supported\",\nagainst a pattern using no POSIX syntax at all. Both forms begin `[:`; the only thing\nseparating them is whether an unescaped `-` precedes the bracket.\n\n### Schema-defined simple types as `cast` / `castable` targets\n\n    import schema namespace s = \"…\" at \"…xsd\";\n    'IB123' castable as s:restrictedString\n\nfailed with `XPST0081: Unbound namespace prefix: s`. Two causes. `import schema namespace\np = \"uri\"` BINDS p in the statically known namespaces (§4.11) and the prefix was extracted\ninto the AST and never registered — so the prefix genuinely was unbound, and every use of\nit failed, not only casts. And types were modelled as a fixed enum of built-in XSD types\nwith no representation for a schema-defined one.\n\nFacet validation — pattern, enumeration, length, bounds, unions, lists — is delegated to\nthe schema provider rather than reimplemented. `instance of` and node tests against schema\ntypes still need typed value annotations and are not supported.\n\n### `fn:round-half-to-even` decides ties from the binary value\n\n    round-half-to-even(250.0250e0, 2)   gave 250.02, must be 250.03\n\nThe nearest double to 250.025 is 250.0250000000000056…, strictly above the midpoint, so it\nis not a tie. `Math.Round`'s double overload applies a decimal-style correction that\nmanufactures ties binary does not have. Rounding is now exact integer arithmetic over the\ndouble's mantissa and exponent, so a spurious tie is unrepresentable.\n\n### New: `XQueryParserFacade.NormalizeLineEndings`\n\nDefaults true, which is correct for a query file. XSLT sets it false: an XPath expression\nhas already been through an XML parser, where `&#xD;` inside a string literal is DATA that\nXML 1.0 §2.11 exempts from line-ending normalization. Applying XQuery's query-source rule\na second time rewrote it.\n\n### Notes\n\n`PhoenixmlDb.Core` moves to 1.6.7 (metadata prefix `phxm` → `dbxml`, prefix only). The\n`xquery` tool embeds the XSLT engine from the previous release, 1.6.6 in this train — the\nCLI needs `PhoenixmlDb.Xslt` for `fn:transform` and `PhoenixmlDb.Xslt` needs\n`PhoenixmlDb.XQuery`, so it trails by one by construction. The library itself depends only\non Core.\n\n### `fn:highest` and `fn:lowest` take a collation second and a key third\n\nXPath 4.0 §14.5 declares three arguments:\n\n    fn:highest($input     as item()*,\n               $collation as xs:string?                         := fn:default-collation(),\n               $key       as (fn(item()) as xs:anyAtomicType*)? := fn:data#1) as item()*\n\nThis engine declared arity 1-2 with the KEY second, so `highest#3` did not exist and\n`highest($seq, $key)` bound a function into the collation slot, where it was read as a string,\ndiscarded, and quietly produced an unkeyed answer. Reported by Martin Honnen.\n\nTwo further faults, which his examples could not have shown:\n\n- Every key went through `Convert.ToDouble`, so any non-numeric input threw an unhandled\n  `System.FormatException` and took the process down. `highest((\"apple\",\"banana\"))` was a\n  .NET crash, not an XQuery error.\n- `highest((1,5,3), \"…/collation/codepoint\")` returned `5` and looked right. It was right by\n  accident: the collation cast to a function, came back null, and was ignored.\n\nBoth now go through the machinery `fn:sort` already uses, so strings, dates and mixed numerics\norder correctly and the collation is honoured. Ties are unchanged — every item at the extreme\nis returned, in input order.\n\n### `fn:all-equal`, `fn:all-different` and `fn:duplicate-values` compare values\n\nThese take an optional collation as their second argument. None of the three had it, and all\nthree compared the *lexical form* of the atomized value, so values of different types compared\nequal whenever their strings matched:\n\n    all-equal((1, \"1\"))      was true    ->  now false\n    all-different((1, \"1\"))  was false   ->  now true\n\nNumeric promotion is unaffected: `1`, `1.0` and `1e0` remain equal. Under a collation,\n`fn:duplicate-values` reports the value **as first written** rather than the later occurrence\nthat revealed the duplication, matching `fn:distinct-values`.\n\nFound by auditing every collation-taking function after the `fn:highest` report. Not reported.\n\n### `fn:partition`'s result serializes as arrays from the `xquery` tool\n\nAdaptive output printed an array as its bare members — `12` rather than `[1,2]` — so Martin\nHonnen's `partition()` example produced `12/34/56/7` where Saxon produces `[1,2]` and so on.\nThe partitioning itself was fixed in 1.6.6; this is the other half of the same report, which\nhe had suspected: \"not sure whether the result is wrong or the serialization fails\". Both were.\n\nThe engine's own `XQueryResultSerializer` was correct and well covered. The CLI carries a\nSECOND serializer, and in it the two runtime representations were swapped: `object?[]` (a\nsequence) was given array brackets, while `List<object?>` (an array) fell through to the\nsequence branch and was flattened. Both directions are now corrected, and a\n`PhoenixmlDb.XQuery.Cli.Tests` project exists so the tool's serializer is covered at all — it\nhad no tests before.\n\nNot addressed: with `indent=\"yes\"` Saxon breaks array members across lines and this engine\nkeeps them on one. The values match; the whitespace does not.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#repository",
+    "commit": "59ebd8ac11cc313f50050188e035ff30fab19bee",
+    "type": "git",
+    "url": "https://github.com/phoenixmldb/phoenixmldb-xquery"
+  },
+  "verbatimVersion": "1.6.7",
+  "version": "1.6.7",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#xquery4.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3865,
+      "fullName": "xquery4.nuspec",
+      "length": 8828,
+      "name": "xquery4.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 742,
+      "fullName": "PACKAGE.md",
+      "length": 1372,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 15291,
+      "fullName": "icon.png",
+      "length": 17725,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/Antlr4.Runtime.Standard.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 86688,
+      "fullName": "tools/net10.0/any/Antlr4.Runtime.Standard.dll",
+      "length": 192000,
+      "name": "Antlr4.Runtime.Standard.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 137,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 183,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/J2N.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 231350,
+      "fullName": "tools/net10.0/any/J2N.dll",
+      "length": 590848,
+      "name": "J2N.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/Lucene.Net.Analysis.Common.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1336239,
+      "fullName": "tools/net10.0/any/Lucene.Net.Analysis.Common.dll",
+      "length": 5133312,
+      "name": "Lucene.Net.Analysis.Common.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/Lucene.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 648377,
+      "fullName": "tools/net10.0/any/Lucene.Net.dll",
+      "length": 1726464,
+      "name": "Lucene.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10799,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "length": 19976,
+      "name": "Microsoft.Extensions.Configuration.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/Microsoft.Extensions.Primitives.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17217,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Primitives.dll",
+      "length": 33288,
+      "name": "Microsoft.Extensions.Primitives.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/PhoenixmlDb.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 101993,
+      "fullName": "tools/net10.0/any/PhoenixmlDb.Core.dll",
+      "length": 197632,
+      "name": "PhoenixmlDb.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/PhoenixmlDb.XQuery.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 965793,
+      "fullName": "tools/net10.0/any/PhoenixmlDb.XQuery.dll",
+      "length": 2304512,
+      "name": "PhoenixmlDb.XQuery.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/PhoenixmlDb.XQuery.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 114620,
+      "fullName": "tools/net10.0/any/PhoenixmlDb.XQuery.xml",
+      "length": 844163,
+      "name": "PhoenixmlDb.XQuery.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/PhoenixmlDb.Xslt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 746413,
+      "fullName": "tools/net10.0/any/PhoenixmlDb.Xslt.dll",
+      "length": 1652224,
+      "name": "PhoenixmlDb.Xslt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/xquery.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1396,
+      "fullName": "tools/net10.0/any/xquery.deps.json",
+      "length": 5916,
+      "name": "xquery.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/xquery.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31316,
+      "fullName": "tools/net10.0/any/xquery.dll",
+      "length": 51712,
+      "name": "xquery.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/xquery.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 223,
+      "fullName": "tools/net10.0/any/xquery.runtimeconfig.json",
+      "length": 377,
+      "name": "xquery.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#tools/net10.0/any/xquery.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 844,
+      "fullName": "tools/net10.0/any/xquery.xml",
+      "length": 3163,
+      "name": "xquery.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13001,
+      "fullName": ".signature.p7s",
+      "length": 13001,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.15.43.03/xquery4.1.6.7.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "xquery",
+    "xml",
+    "query",
+    "cli",
+    "xpath",
+    "xquery4"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

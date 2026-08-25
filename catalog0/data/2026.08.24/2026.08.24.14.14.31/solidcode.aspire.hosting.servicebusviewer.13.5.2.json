@@ -1,0 +1,195 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Andrey Veselov",
+  "catalog:commitId": "97445719-fcd1-4981-8e0b-75bc8a38011e",
+  "catalog:commitTimeStamp": "2026-08-24T14:14:31.5817907Z",
+  "copyright": "Copyright © 2026 Andrey Veselov",
+  "created": "2026-08-24T14:11:50.05Z",
+  "description": "A reusable .NET Aspire hosting integration for the Service Bus Viewer container.",
+  "iconFile": "icon.png",
+  "id": "SolidCode.Aspire.Hosting.ServiceBusViewer",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-24T14:14:26.573Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "0NSLzwM9KyBNWQ/Xu31talYNitRCCm8NV5O7s+NeiRkk50ImvatE1xdNZk9AxA7D4P2kr7yUqn7Uy6n0UaDAsw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 44481,
+  "projectUrl": "https://github.com/VeselovAndrey/ServiceBusViewer",
+  "published": "2026-08-24T14:11:50.05Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# SolidCode.Aspire.Hosting.ServiceBusViewer\n\n`SolidCode.Aspire.Hosting.ServiceBusViewer` is a reusable .NET Aspire hosting integration for running [Service Bus Viewer](https://github.com/VeselovAndrey/ServiceBusViewer) as a container resource in an AppHost.\n\nBy default, the package uses the published GitHub Container Registry image:\n\n- `ghcr.io/veselovandrey/servicebusviewer:latest`\n\nIt targets container-based Aspire AppHosts and wraps the published Service Bus Viewer image with typed registration and configuration helpers.\nThe package ships assemblies for both .NET 8 and .NET 10, so it can be consumed by Aspire AppHosts targeting either runtime.\n\n## Install\n\nAdd the package to your AppHost project:\n\n```powershell\ndotnet add package SolidCode.Aspire.Hosting.ServiceBusViewer\n```\n\n## Usage\n\n### Basic usage\n\n```csharp\nusing SolidCode.Aspire.Hosting;\n\nvar builder = DistributedApplication.CreateBuilder(args);\n\nbuilder.AddServiceBusViewer(\"servicebusviewer\");\n\nawait builder.Build().RunAsync();\n```\n\nThe integration exposes Service Bus Viewer on container port `8080`. You can pin a host port and override the image tag during registration:\n\n```csharp\nbuilder.AddServiceBusViewer(\"servicebusviewer\", tag: \"0.40.4\", httpPort: 8081);\n```\n\n### Configure connection settings with `WithConnectionSettings(...)`\n\n`WithConnectionSettings(...)` is the convenience helper for setting the same runtime environment variables supported by the application itself in one call.\n\nIf you want the viewer to open directly against one subscription instead of starting with namespace browsing, pass `queueOrTopicName` and `subscriptionName` to `WithConnectionSettings(...)`:\n\n```csharp\nbuilder.AddServiceBusViewer(\"servicebusviewer\")\n\t.WithConnectionSettings(\n\t\tconnectionString: \"Endpoint=sb://namespace.servicebus.windows.net/;SharedAccessKeyName=MyPolicy;SharedAccessKey=KEY_VALUE;\",\n\t\tqueueOrTopicName: \"orders\",\n\t\tsubscriptionName: \"processor\");\n```\n\nIn that example, `queueOrTopicName: \"orders\"` identifies the parent topic and `subscriptionName: \"processor\"` selects the subscription under that topic, so the viewer starts in direct subscription access mode. \nUse only `queueOrTopicName` when you want direct queue access instead.\n\n> IMPORTANT: If the Service Bus connection string does not include management permissions, or if the Service Bus emulator management API connection is not configured,\n> you must provide either `queueOrTopicName` alone for direct queue access or both `queueOrTopicName` and `subscriptionName` for direct subscription access. \n> In that mode, the viewer connects only to the specified queue or subscription instead of browsing the full namespace.\n\nYou can use the same helper when you want to provide the connection strings yourself:\n\n```csharp\nbuilder.AddServiceBusViewer(\"servicebusviewer\", httpPort: 8080)\n\t.WithConnectionSettings(\n\t\tconnectionString: \"Endpoint=sb://host.docker.internal;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;\",\n\t\temulatorManagementConnectionString: \"Endpoint=sb://host.docker.internal:5300;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=SAS_KEY_VALUE;UseDevelopmentEmulator=true;\",\n\t\tqueueOrTopicName: \"orders\",\n\t\tsubscriptionName: \"processor\");\n```\n\nEquivalent individual helpers are also available:\n\n- `.WithConnectionString(...)`\n- `.WithEmulatorManagementConnectionString(...)`\n- `.WithQueueOrTopicName(...)`\n- `.WithSubscriptionName(...)`\n\nString and `ReferenceExpression` overloads are available for the connection-string helpers, so you can use either literal values or values derived from other Aspire resources.\n`WithConnectionSettings(...)` also provides both string and `ReferenceExpression` overloads.\n\n`AddServiceBusViewer(...)` returns `IResourceBuilder<ServiceBusViewerResource>`, so you can keep composing standard Aspire container configuration such as `.WithEnvironment(...)`, `.WithContainerName(...)`, and endpoint configuration methods.\n\n### Use with the Azure Service Bus Emulator container\n\nThis package does not provision the emulator for you. Create or register the emulator separately in your AppHost, then use the viewer helper against the emulator resource.\nSee the [Azure Service Bus Emulator documentation](https://learn.microsoft.com/azure/service-bus-messaging/test-locally-with-service-bus-emulator) for emulator setup details.\n\nIf your AppHost exposes emulator endpoints named `emulator` and `emulatorhealth` (the current Aspire defaults), use `.WithServiceBusEmulatorReference(...)` \nto derive both Service Bus Viewer connection strings automatically and add a dependency on the emulator resource:\n\n```csharp\nusing Aspire.Hosting.ApplicationModel;\nusing SolidCode.Aspire.Hosting;\n\nvar builder = DistributedApplication.CreateBuilder(args);\n\nIResourceBuilder<ContainerResource> serviceBusEmulator = builder.AddContainer(\n\t\t\"servicebus-emulator\",\n\t\t\"mcr.microsoft.com/azure-messaging/servicebus-emulator\",\n\t\t\"2.0.1\")\n\t.WithEndpoint(port: 5672, targetPort: 5672, name: \"emulator\")\n\t.WithHttpEndpoint(port: 5300, targetPort: 5300, name: \"emulatorhealth\");\n\nbuilder.AddServiceBusViewer(\"servicebusviewer\", httpPort: 8081)\n\t.WithServiceBusEmulatorReference(serviceBusEmulator);\n```\n\nThe helper generates emulator-style connection strings that use `RootManageSharedAccessKey`, sets both `SERVICEBUSVIEWER_CONNECTION_STRING` and `SERVICEBUSVIEWER_EMULATOR_MANAGEMENT_CONNECTION_STRING`,\nand waits for the emulator resource before starting the viewer container.\n\nIf your emulator resource uses different endpoint names, pass them explicitly:\n\n```csharp\nbuilder.AddServiceBusViewer(\"servicebusviewer\")\n\t.WithServiceBusEmulatorReference(\n\t\tserviceBusEmulator,\n\t\tmessagingEndpointName: \"messaging\",\n\t\tmanagementEndpointName: \"management\");\n```\n\n### Use with Aspire's Azure Service Bus hosting package\n\nIf your AppHost uses [Aspire's Azure Service Bus integration](https://aspire.dev/integrations/cloud/azure/azure-service-bus/azure-service-bus-host/), \nkeep using that package to provision or reference the Service Bus resource and then wire the resulting endpoints or connection string into Service Bus Viewer. \nSee the [Aspire Azure Service Bus hosting documentation](https://learn.microsoft.com/dotnet/aspire/messaging/azure-service-bus-integration) for the resource setup details.\n\nFor an Aspire-managed emulator resource, use `.WithServiceBusEmulatorReference(...)` so the viewer gets both the messaging and management connection strings automatically:\n\n```csharp\nusing SolidCode.Aspire.Hosting;\n\nvar builder = DistributedApplication.CreateBuilder(args);\n\nIResourceBuilder<AzureServiceBusResource> serviceBusResourceBuilder = builder.AddAzureServiceBus(\"servicebus\")\n\t.RunAsEmulator();\n\nbuilder.AddServiceBusViewer(\"servicebusviewer\")\n\t.WithServiceBusEmulatorReference(serviceBusResourceBuilder);\n```\n\nFor an Azure Service Bus namespace, pass the resolved namespace connection string into the viewer:\n\n```csharp\nusing SolidCode.Aspire.Hosting;\n\nvar builder = DistributedApplication.CreateBuilder(args);\n\nIResourceBuilder<AzureServiceBusResource> serviceBusResourceBuilder = builder.AddAzureServiceBus(\"servicebus\");\n\nbuilder.AddServiceBusViewer(\"servicebusviewer\")\n\t.WithConnectionString(serviceBusResourceBuilder.Resource.ConnectionStringExpression);\n```\n\n## Notes\n\n- The package version is aligned with the Aspire version it targets, and future releases will continue to carry the same version number as their target Aspire release.\n- The package is container-focused.\n- `.WithServiceBusEmulatorReference(...)` defaults to endpoint names `emulator` and `emulatorhealth`, matching the current Aspire Azure Service Bus emulator integration.\n- You can override those endpoint names when your AppHost uses a custom emulator resource shape.\n\n## Version history\n\n### 0.1.0 (2026-08-13)\n\n- Initial release of the Aspire hosting integration package.\n\nSee the [full changelog](CHANGELOG.md) for the complete package version history.\n\n## Copyright\n\nCopyright © 2026 Andrey Veselov.\n\nThis project is distributed under the [MIT License](https://github.com/VeselovAndrey/ServiceBusViewer/blob/main/LICENSE).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#repository",
+    "branch": "refs/heads/release",
+    "commit": "06872018fb1fd0b41ae277343e477064a56f16d2",
+    "type": "git",
+    "url": "https://github.com/VeselovAndrey/ServiceBusViewer"
+  },
+  "title": "Aspire Hosting for Service Bus Viewer",
+  "verbatimVersion": "13.5.2",
+  "version": "13.5.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#dependencygroup/net10.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#dependencygroup/net8.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#SolidCode.Aspire.Hosting.ServiceBusViewer.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3085,
+      "fullName": "SolidCode.Aspire.Hosting.ServiceBusViewer.nuspec",
+      "length": 9554,
+      "name": "SolidCode.Aspire.Hosting.ServiceBusViewer.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 123,
+      "fullName": "CHANGELOG.md",
+      "length": 144,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2579,
+      "fullName": "README.md",
+      "length": 8151,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 12953,
+      "fullName": "icon.png",
+      "length": 65911,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#lib/net10.0/SolidCode.Aspire.Hosting.ServiceBusViewer.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3906,
+      "fullName": "lib/net10.0/SolidCode.Aspire.Hosting.ServiceBusViewer.dll",
+      "length": 9728,
+      "name": "SolidCode.Aspire.Hosting.ServiceBusViewer.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#lib/net10.0/SolidCode.Aspire.Hosting.ServiceBusViewer.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1118,
+      "fullName": "lib/net10.0/SolidCode.Aspire.Hosting.ServiceBusViewer.xml",
+      "length": 9592,
+      "name": "SolidCode.Aspire.Hosting.ServiceBusViewer.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#lib/net8.0/SolidCode.Aspire.Hosting.ServiceBusViewer.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3905,
+      "fullName": "lib/net8.0/SolidCode.Aspire.Hosting.ServiceBusViewer.dll",
+      "length": 9728,
+      "name": "SolidCode.Aspire.Hosting.ServiceBusViewer.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#lib/net8.0/SolidCode.Aspire.Hosting.ServiceBusViewer.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1118,
+      "fullName": "lib/net8.0/SolidCode.Aspire.Hosting.ServiceBusViewer.xml",
+      "length": 9592,
+      "name": "SolidCode.Aspire.Hosting.ServiceBusViewer.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.24.14.14.31/solidcode.aspire.hosting.servicebusviewer.13.5.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspire",
+    "dotnet-aspire",
+    "servicebus",
+    "azure-service-bus",
+    "service-bus-viewer",
+    "development-tools"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

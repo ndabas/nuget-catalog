@@ -1,0 +1,208 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Brainograph",
+  "catalog:commitId": "10cffcaa-e682-4c4a-bb05-88176de0de66",
+  "catalog:commitTimeStamp": "2026-08-26T15:34:47.0229157Z",
+  "copyright": "Copyright © Brainograph 2026",
+  "created": "2026-08-26T15:31:41.81Z",
+  "description": "Brainograph shared kernel (rewrite, v2): frozen platform wire contracts (response envelope, DataProvider models/executor, entity bases, permission/role enums), JWT authentication, the exception-to-envelope map, and the envelope-typed BaseApiClient.",
+  "id": "Brainograph.Utilities",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-26T15:34:15.893Z",
+  "listed": false,
+  "packageHash": "KaXDjaXS0Lt/MihJ4RbpyWzvlG1mcRqh6u05A68EOaWHBMCd1NxMmiMFLyqwQ/q7gpg4hH8B+aa6RHeghPoGtw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 99771,
+  "published": "1900-01-01T00:00:00Z",
+  "releaseNotes": "6.17.0 — SuperAdmin is unrestricted, which is what the role already claimed to be. ClaimRequirementFilter — the filter behind every [HasPermission] on the platform — now passes any principal in role SuperAdmin without consulting the permission claims at all. AppRoleNames.SuperAdmin has always documented itself as \"the unrestricted admin principal\", but enforcement contradicted that: tokens are minted from personal UserPermission rows and NEVER from roles, so a SuperAdmin was refused any permission nobody had explicitly granted them. That is not a hypothetical — appending seventeen members in 6.14.0 left 0 of 41 principals holding any of them, so every newly gated endpoint answered 403 to everyone including SuperAdmin, with nothing logged; and because granting a permission requires holding it, the one principal who should have been able to repair the outage was locked out of repairing it. This ends that class of failure: a new catalogue member works for SuperAdmin the day it ships, and a SuperAdmin can always restore everyone else through the permission editor. SCOPE IS SUPERADMIN ONLY — SuperModerator holds nearly everything by seed but is deliberately denied the SuperAdmin-user permissions, and a blanket role bypass would have handed exactly those over; every other role still passes only on the grants it holds. DELIBERATE CONSEQUENCE, pinned by a test rather than left to be discovered: REVOKING a permission from a SuperAdmin now has no effect. A service picks this up when it re-pins; there is no deploy-order requirement and no wire-format change. PREVIOUSLY, 6.16.0 — ADDITIVE: one new ApplicationAdminPermission member, 196 PublishElement (bg-shared#9). It splits the manual withdrawal of a map element from editing one: PUT /api/elements/{id}/status in bg-gis was gated by UpdateElement — the same grant a librarian needs to fix a typo in a note — so anyone who could edit an element could also take it off the public map for every reader. That pairing only appeared when elements became publishable (bg-gis#7); the platform draws the line everywhere else (PublishArticle beside UpdateArticle, PublishPresentationFolder beside EditPresentationFolder). ONLY the manual half: Draft↔Published is DERIVED from whether the element has been dated and stays under UpdateElement, because dating an element is editing it — and the two halves already live on different endpoints, so enforcement is one attribute with no branching inside the action. Appended at the END after 195 ManageEditorialWorkflow, as the freeze contract requires: the ordinal IS the bit position PermissionClaimCodec packs into the compact `perms` claim, so inserting anywhere else silently remaps every grant already stored against a higher number. NO fleet-wide deploy-order requirement — Decode skips bits it does not recognise, so a service on an older Utilities reads this as ABSENT rather than throwing, and the five gating services that never mention it are unaffected. TWO things are required of whoever adopts it: bg-identity must deploy BEFORE bg-gis flips the attribute (otherwise the withdrawal endpoint fails closed for everyone, SuperAdmin included), and bg-identity must BACKFILL personal UserPermission rows — tokens are minted from personal grants and never from roles, so appending a member without a backfill leaves every principal without it and every gated endpoint 403s with nothing logged (measured when 6.14.0 appended seventeen members: 0 of 41 principals held any). Nothing existing changed; drop-in over 6.15.0. PREVIOUSLY, 6.15.0 — A DATE FILTER PARSES TO UTC. Every `search[]` filter carrying a VALUE against a DateTime column returned an unhandled 500, on every service that exposes a DataProvider list with a date column (bg-shared#8; reproduced live on POST /api/gis/api/elements/query). ParseValueSafe asked for DateTimeStyles.AssumeUniversal alone, which says only how to READ a string that carries no offset — the parse then still converted the result to local time and returned Kind=Local, and Npgsql will not accept a non-UTC DateTime for a `timestamptz` column (\"a UTC DateTime is required\"), which is what every service's audit columns are. Now AssumeUniversal | AdjustToUniversal, the flag that actually makes the value UTC. NOT DateTime.SpecifyKind(parsed, DateTimeKind.Utc): that relabels a value the parse has ALREADY shifted into local time, so it would silence the 500 and move the filter boundary by the server's UTC offset instead — silently, and only on servers that are not on UTC (measured at UTC+4: \"2023-05-01\" parsed to 2023-05-01T04:00). The Npgsql Testcontainers suite — which exists precisely because an InMemory provider hides provider-level failures — modelled its date as `public long CreatedAt` and so had no DateTime column to fail on; it now has one plus a nullable twin, and three tests confirmed red against the unfixed parse, asserted on the ROW SET rather than on Kind (a Kind assertion alone passes for the SpecifyKind mistake). No API change, and no change to any request that already worked. DateTimeOffset still has no branch and still falls through to Convert.ChangeType as a clean 400 — a different defect, left for its own change. Consumers must re-pin to pick this up. Drop-in over 6.14.0; no deploy-order requirement. PREVIOUSLY, 6.14.0 — ADDITIVE: seventeen new ApplicationAdminPermission members, 179-195, staging the AI-agent, article-tool and editorial-workflow surfaces. 179-182 are agent capabilities (UseAiKnowledgeChat, UseAiTeachingTools, UseAiArticleTools, UseAiAnalyticsTools; bg-aiagent ADR-0006 §1). 183-190 are one-per-functionality article-tool grants (WriteAiArticleDraft, ReviewAiArticle, VerifyAiClaim, ImproveAiArticle, UploadAiSourceBook, DeleteAiSourceBook, ManageAiSourceBooks, UseAiBookGrounding). 191-195 are the editorial workflow (ViewEditorialSection, ReviewArticle, AssignArticleReviewer, ApproveArticle, ManageEditorialWorkflow; bg-content ADR-0004 §9). Appended at the END after 178 UpdateUserPermissions, as the freeze contract requires — the ordinal is the bit position PermissionClaimCodec packs into the compact `perms` claim, so these numbers are a WIRE FORMAT. In particular 176 DeleteSystemGalleryItem is unmoved: it is published in 6.8.0-6.13.0 and has live grants persisted against it, and an earlier staging of this same work appended UseAiKnowledgeChat at 176 instead, which would have made every stored DeleteSystemGalleryItem grant decode as UseAiKnowledgeChat and shifted all seventeen members by one — a silent authorization remap that throws nowhere. NO deploy-order requirement: Decode already skips bits it does not recognise, so a service on an older Utilities reads these as ABSENT rather than throwing, and any endpoint gating on them fails closed for everyone (including SuperAdmin) until the consumer re-pins AND bg-identity seeds the grants. Nothing existing changed; drop-in over 6.13.0. PREVIOUSLY, 6.13.0 — ADDITIVE: two new ApplicationAdminPermission members, 177 ManageRoles and 178 UpdateUserPermissions (bg-identity#32). ManageRoles gates the role catalogue (POST/PUT/DELETE /api/Role plus PUT /api/Admin/Role/{id}/Permissions); UpdateUserPermissions gates PUT /api/Admin/User/{id}/Permissions. Both had been riding on permissions that meant something else — the role surface on UpdateSuperAdminUser (the highest privilege in the catalogue, borrowed because editing a role can escalate its every future holder) and the user-permission write on UpdateAdminUser (which means \"edit this person's details\", a different power from \"edit what they may do\"). Product wants SuperModerator to hold both, which was impossible while they were spelled UpdateSuperAdminUser. Appended at the END, as the freeze contract requires: the ordinal is the bit position PermissionClaimCodec packs into the compact `perms` claim, so inserting anywhere else silently re-grants every admin a different permission. NO deploy-order requirement: Decode already skips bits it does not recognise, so a service on an older Utilities reads these two as absent rather than throwing — only the service that GATES on them (bg-identity) needs this version. Nothing existing changed; drop-in over 6.12.0. PREVIOUSLY, 6.12.0 — An omitted pageSize is a default, not a 500. GetPagedSelectListAsync's page-size guard read `filter.PageSize <= 0 ? 100 : filter.PageSize!.Value`, but PageSize is `int?` and a lifted `null <= 0` evaluates to FALSE — so a null PageSize never took the 100 branch and hit the `.Value` on the other side, throwing InvalidOperationException(\"Nullable object must have a value\") before the query ever ran. Every consumer that forwards a caller-supplied DataProviderBaseModel therefore returned an unhandled 500 whenever the client simply omitted pageSize from the request body (proven live on bg-identity, which 500'd on every request; bg-content alone forwards the model in ~15 services). Null, zero and negative now all default to 100, and an explicitly positive PageSize is honored unchanged — which is exactly what this method's own summary has always documented, and matches PageNumber one line below, which was already null-safe. This RETIRES the frozen-quirk `<remarks>` note that pinned the throw as preserved legacy behavior: an unconditional 500 is not a contract any client can depend on. The file's other deliberate quirks (the BuildContains NRE on a null search text, the unknown-column silent skip) are untouched. The sibling Vue executor is unaffected — VueDataProviderBaseModel.PerPage is a non-nullable int defaulting to 0, so its `<= 0 ? 20` guard has always been reached. No API change; no change to any request that already sent a page size. Consumers must re-pin to pick this up. PREVIOUSLY, 6.11.0 — DataProvider filters return 400, not 500, on a bad value. Both executors parsed a client-supplied search value against the target column's type BEFORE deciding what to do with it, with no error handling: a malformed value on a typed column (non-numeric text for a numeric column, a bad enum name/Guid/date) let the underlying FormatException/OverflowException/ArgumentException/InvalidCastException escape as an unhandled 500, and — worse — an IsNotNull (or IsNull) filter with searchText:\"\" on a non-string column paid for a Convert.ChangeType(\"\", typeof(long)) that threw, even though those comparers never use the value. Separately, IsNull/IsNotNull on a NON-nullable value column reached Expression.Constant(null, typeof(int)), which throws at expression-build time — also a 500. All three now surface as a BadRequestException (HTTP 400) naming the column (and, for a parse failure, the offending value), across GenerateFilterExpression and both Vue-shape parse sites (single ColumnFilters and the ColumnFiltersMany IN loop); the value parse is now gated on the comparer so IsNull/IsNotNull skip it entirely. A malformed value is a client error, and a 400 that names the column is a better contract than a 500 or than silently returning unfiltered data as if it had been filtered. No change to any well-formed request. Consumers must re-pin to pick this up. PREVIOUSLY, 6.10.0 — Paged queries now run over a TOTAL order. Both DataProvider executors appended Skip/Take to whatever ordering the caller happened to supply, which was not necessarily deterministic: GetPagedSelectListAsync applied a sort ONLY when filter.Sort was non-empty, so a caller that omitted it paged over a completely unordered query (EF flags this — it was firing ~70 times a day in production); and GetVuePagedSelectListAsync fell back to CreatedAt desc, which silences the warning but is not unique, leaving rows that share a timestamp free to reorder between pages. PostgreSQL guarantees no row order without ORDER BY and may return a different one for the same query on the next call, so in both cases a row straddling a page boundary could be returned twice or skipped entirely — silently, with no error, presenting as items duplicating or vanishing while a user scrolls. Both executors now append the projected type's Id as a final sort key, after any caller ordering, making every page deterministic; types without an Id are unchanged. No API change and no change to which rows a correctly-sorted query returns — the caller's own sort still decides the order, the tiebreak only resolves ties it left open. PREVIOUSLY, 6.3.0 — No API change; the package now ships its XML documentation file and a buildTransitive props registering it as an AdditionalFiles input to the XML→OpenAPI source generator, so the response-envelope types (SuccessResponseModel<T>, ErrorResponseModel, ResponseModel, AppStatusCodes, etc.) document themselves in a consuming service's own OpenAPI document — .NET 10 discovers a ProjectReference's XML automatically, but not a package's. Bumped rather than repacking 6.2.0 in place, for the same NuGet-caching reason 3.1.0 records: 6.2.0 was already packed and published before this props file and XML doc file were added to its csproj, so a service restoring \"6.2.0\" from the feed silently gets the OLD package with neither asset. PREVIOUSLY, 6.2.0 — Additive + a mandatory-order rollout: adds PermissionClaimCodec (namespace Brainograph.Utilities.Authentication), a base64url bitset over the frozen ApplicationAdminPermission ordinals, and wires JwtAuthentication's OnTokenValidated to expand that single \"perms\" claim back into one ApplicationAdminPermission claim per grant, in memory, before any authorization filter runs. ClaimRequirementFilter, [HasPermission], User.HasPermission and bg-content's ArticleVisibility are UNCHANGED and keep matching the claim shape they already know. Motivation: tokens carried one claim per permission, so a SuperAdmin token was 5820 chars — it overflowed the 4096-byte browser cookie the dashboard stored it in (silently) and sat close to the 8 KB per-header proxy limit; the compact form is ~30 chars for all 174. Both wire formats are accepted, so old tokens keep working. DEPLOY ORDER IS MANDATORY: every service must be on 6.2.0 BEFORE bg-identity starts minting compact tokens, or permission checks fleet-wide see an empty grant set. No existing type changed; drop-in over 6.1.0. PREVIOUSLY, 6.1.0 — Additive: adds AppRoleNames (namespace Brainograph.Utilities.Models.EntityBase), the compile-time const mirror of the frozen AppAdminRole/AppUserRole names — one const per role plus AllAdmins (11-name CSV in enum order) and All (12 names: admins + User), for use in [Authorize(Roles = ...)], which accepts constants only. Also query-ready arrays: AllAdminNames / AllAdminNormalizedNames (11, ADMIN-ONLY — the admin gate) and AllNames / AllNormalizedNames (12, includes User — NOT an admin gate); plus UserNormalized (\"USER\") for EF NormalizedName predicates and Service, the S2S pseudo-role held deliberately outside the frozen enums. Pinned against the enums by AppRoleNamesTests. No existing type changed; drop-in over 6.0.0. PREVIOUSLY, 6.0.0 — Unified Users: audit actor columns (CreatedBy/ModifiedBy/DeletedBy) retyped bigint→Guid on IAuditableEntity and AuditableEntity<T>; adds PlatformIdentity (pinned uuid_v5 user-map namespace + Guid.Empty service principal). Epoch *At columns, entity PKs, enums, filters and the JWT surface unchanged.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#repository",
+    "commit": "8fa06e6a38fcca49fcde04fc33357882d1b6cdba",
+    "type": "git"
+  },
+  "verbatimVersion": "6.18.0",
+  "version": "6.18.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.identitymodel.tokens",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IdentityModel.Tokens",
+          "range": "[8.16.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#dependencygroup/net10.0/system.identitymodel.tokens.jwt",
+          "@type": "PackageDependency",
+          "id": "System.IdentityModel.Tokens.Jwt",
+          "range": "[8.16.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#Brainograph.Utilities.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7031,
+      "fullName": "Brainograph.Utilities.nuspec",
+      "length": 17461,
+      "name": "Brainograph.Utilities.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#buildTransitive/Brainograph.Utilities.props",
+      "@type": "PackageEntry",
+      "compressedLength": 383,
+      "fullName": "buildTransitive/Brainograph.Utilities.props",
+      "length": 645,
+      "name": "Brainograph.Utilities.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#buildTransitive/Brainograph.Utilities.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 1032,
+      "fullName": "buildTransitive/Brainograph.Utilities.targets",
+      "length": 2066,
+      "name": "Brainograph.Utilities.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#lib/net10.0/Brainograph.Utilities.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 46894,
+      "fullName": "lib/net10.0/Brainograph.Utilities.dll",
+      "length": 102912,
+      "name": "Brainograph.Utilities.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#lib/net10.0/Brainograph.Utilities.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 29128,
+      "fullName": "lib/net10.0/Brainograph.Utilities.xml",
+      "length": 127154,
+      "name": "Brainograph.Utilities.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.34.47/brainograph.utilities.6.18.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13008,
+      "fullName": ".signature.p7s",
+      "length": 13008,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

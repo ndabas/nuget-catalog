@@ -1,0 +1,773 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Suiye007",
+  "catalog:commitId": "b4d283ce-b7c3-492f-8e70-69a17616604e",
+  "catalog:commitTimeStamp": "2026-08-26T15:13:55.2770096Z",
+  "copyright": "Lord",
+  "created": "2026-08-26T15:11:16.72Z",
+  "description": "企业级推送与消息队列集成库。支持钉钉/企业微信/飞书消息推送、RabbitMQ 发布订阅与死信队列、Redis 分布式缓存与锁、多日志框架。",
+  "iconFile": "logo.jpg",
+  "id": "Lord.Service",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-26T15:13:48.74Z",
+  "licenseFile": "LordService.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "cjIc77lagbJJxbx/gVE+SNN80+1LCSjZtiRWZu5J27Du9u1QEQ9PzTr+cFRFl71/PJvxuY4YIadY6vvlrTVa+A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1756572,
+  "projectUrl": "https://gitee.com/suiye007/LordService",
+  "published": "2026-08-26T15:11:16.72Z",
+  "readmeFile": "LordService.md",
+  "releaseNotes": "7.10.14:\n- 【紧急修复】钉钉/飞书/企微推送内容为空（MQ 往返丢失构建状态）\n  - 根因：DingTalkMessage/LarkMessage/WeChatMessage 的 Build() 在 MQ 反序列化后被再次调用，\n    但私有字段 (_title/_items/_content) 不会被 JSON 序列化，而公开属性 (MarkdownInfo 等) 已有值——\n    Build() 因私有字段为 null 覆盖了反序列化的公开属性，内容变为默认标题\n  - 修复：Build() 新增 MQ 往返保护——反序列化后如果公开属性已有值（来自发布端 Build 结果），\n    直接返回，不覆盖。三个消息类（DingTalkMessage/LarkMessage/WeChatMessage）同步修复\n  - 回归测试：7 个（STJ 往返/带系统前缀/纯文本/Markdown 工厂方法/显式 Build），343/343 全绿\n- 【升级兼容】MQ 延迟队列声明 406 冲突处理（版本升级场景）\n  - 旧版本创建的延迟队列无 x-expires，新版本声明带 x-expires → 参数不匹配触发 406（Channel 关闭）\n  - 修复：DeclareRetryQueuesAsync 捕获 406，EnsureRetryInfrastructureAsync 设置 _retryDeclareConflict 标记，\n    后续声明不再带 x-expires，与已有队列参数一致，不再触发 406\n  - 升级后首次失败会触发 406 并切换兼容模式，后续正常；新建队列自动带 x-expires\n\n7.10.13:\n- 【优化】延迟退避队列懒声明 + x-expires 空闲自动删除（解决管理界面队列堆积）\n  - 懒声明：消费端启动不再创建延迟队列，首次消费失败发布前才幂等声明\n    （60s 窗口缓存避免高频失败重复声明 RPC）——从未失败的业务队列零残留\n  - x-expires：延迟队列空闲（空 + 无消费者 + 未重新声明）超时后 broker 自动删除，\n    默认 24 小时，IMQSettings.RetryQueueExpiration 可配（TimeSpan.Zero 禁用）\n  - 约束：过期时长必须大于最大延迟等级（默认 24h vs 最长 30m），消息等待期间不会被误删；\n    发布前总会声明（重置计时），延迟消息不丢失\n  - 新增测试：懒声明不创建队列 / 首次失败声明且带 x-expires / Zero 禁用，333/333 全绿\n\n7.10.12:\n- 【紧急修复】HttpFactory 序列化器对原始 JSON 字符串透传（修复推送内容全空）\n  - 根因：7.10.10 自定义 RestSharp 序列化器（委托 IJsonFormat）遗漏了内置 SystemTextJsonSerializer\n    对\"string 值 + JSON ContentType\"参数的原样透传逻辑——钉钉/飞书/企微推送走 AddJsonBody(string)\n    → AddStringBody(原始JSON)，原始 JSON 被二次序列化（加引号+转义），webhook 收到无效内容，推送内容全空\n  - 修复：Serialize(Parameter) 对 string 值且 ContentType 含 json 的参数原样返回；非 JSON 仍走序列化\n  - 回归测试：3 个（string 透传/对象序列化委托/真实 AddStringBody 参数结构），333/333 全绿\n\n7.10.11:\n- 【新功能】RabbitMQ 消费延迟退避重试（DLX + TTL 递增延迟）——统一退避语义，默认启用\n  - 消费失败（handler 返回 false）→ 发布到 {queue}.retry.exchange → 按重试轮次路由到\n    {queue}.retry.{level} 延迟队列（x-message-ttl + 死信指回原 exchange）→ TTL 到期自动回投原队列重试\n  - 重试轮次记录在 x-retry-count 头（消息属性随死信回投延续），达 RetryCount 上限进最终死信/丢弃\n  - 默认等级表 1s/5s/10s/30s/1m/5m/10m/30m；配置：UseMQ(mq => mq.RetryBackoffLevels(\"1s\",\"5s\"))\n    全局或 IMQSettings.RetryBackoffLevels（消息级）\n  - 与其他 MQ 统一：RocketMQ 由 broker %RETRY% 延迟等级天然接管（无需配置），RabbitMQ 由库内实现，\n    不再引入引擎专属开关（保持 IMQSettings 跨 MQ 一致性）\n  - 队列仍声明 x-delivery-limit（客户端从不 requeue，broker 计数不打断 TTL 回投，仅作极端兜底；\n    存量队列升级声明参数不变，不触发 406）\n  - 转发成功即 ack 原消息；转发失败进死信/丢弃（不 requeue 空转）；属性保留（加密标记/业务头/MessageId 等）\n  - 延迟队列为经典队列（TTL+死信延迟是经典能力），业务队列仍为 Quorum\n  - 死信订阅语义不变：达上限进 {queue}.dlx.queue 由 DlxReceiveAsync 处理，处理失败直接丢弃不循环\n- 【修复】HttpFactory 静态缓存未按 jsonFormat 隔离：不同 DI 容器以不同 UseJson 创建同 URL 工厂时，\n  后注册者会复用前者的 RestClient（序列化器绑定了 jsonFormat），请求体序列化静默用错引擎——\n  缓存 key 加入 |json:{类型名} 后缀；DisposeFactory 改前缀匹配清理全部变体\n\n7.10.10:\n- 【依赖加固】net6.0/net8.0 目标显式声明 System.Text.Json 9.0.0（修复 SystemTextJsonSerializer 加载 FileNotFoundException）\n  - 根因：RestSharp 112/113 的 net6/net8 资产引用 STJ 6.0.0.0/8.0.0.0（共享框架自带），但其高版本资产\n    （net9 编译，请求 9.0.0.0）若因部署目录残留/混入被加载，net6/net8 运行时无 9.0.0.0 → 必现崩溃\n  - 修复：net6.0（netstandard2.0 资产）与 net8.0（net8 资产）显式依赖 STJ 9.0.0，nupkg 传递依赖自动\n    输出 System.Text.Json.dll 9.0.0.0，任意 RestSharp 资产混入均可加载；net9/net10 共享框架自带无需\n  - 用户侧无需再手动加 System.Text.Json 引用；若部署目录曾残留高版本 RestSharp.dll，请一并清理\n\n7.10.9:\n- 【根本性改进】RocketMQ 消费重试次数交给 broker 记录（消息属性 RECONSUME_TIMES），移除客户端本地内存计数\n  - 旧实现：客户端 _retryCounts 字典按 MsgId 记次数 + 手动 Producer 转发 %DLQ%\n  - 问题：进程重启 / 消费者 Rebalance / 多实例集群消费时内存计数丢失或分散，同一消息被重复转发进 %DLQ%\n  - 新实现：失败时主动 SendMessageBackAsync 请求 broker 转投——未达 RetryCount 上限 -> %RETRY%{group}\n    按延迟等级（1s/5s/10s/30s/1m/2m/3m/4m/5m/6m/7m/8m/9m/10m/20m/30m/1h/2h）重投，等待下游服务恢复；\n    已达上限 -> broker 判定 RECONSUME_TIMES >= maxReconsumeTimes 原子转投 %DLQ%{group}\n  - 转投成功即 ack（offset 推进，无重复回调）；转投失败不 ack（下个消费周期重试，消息不丢失）\n  - 死信前缀白名单语义不变：已达上限且前缀不匹配 -> ack 丢弃，不进入 %DLQ%\n- 【关键修复】Consumer.EnableRetry 必须为 false（实测验证）\n  - NewLife 自动重试在 offset 不推进时对同一条消息无限重复回调并重复转投副本（真实 broker 实测 90 秒回调 4279 次、全部 rt=0）\n  - 重试动作由 HandleFailureAsync 统一接管，杜绝重复回调与 %RETRY% 副本堆积\n- 【删除】RocketMQMessageHelper.GetRetryDelay（客户端指数退避不再需要，broker 延迟等级接管重试节奏）\n- 【测试】死信前缀测试对齐新语义：达上限+前缀不匹配 -> ack 丢弃；未达上限/达上限+前缀匹配 -> SendMessageBack 转投失败不 ack（+6 测试，281/281 全绿）\n\n7.10.7:\n- 国密算法支持（SM4 对称 + SM2 非对称），基于 BouncyCastle\n- 多套加密并行注册（UseAES+UseSM4+UseSM2），IEncryptProviderFactory 按名称解析\n- 修复多套并行时 EncryptOption 单例覆盖（每个 Provider 独立配置实例）\n- 注册风格与 MQ 一致：UseEncryption(s => s.UseSM4(m => m.FromConfiguration()))\n- SM4: CBC+随机IV+Magic头+DoS防护；SM2: 单次上限检查+双密钥格式\n- 新增 11 个国密单元测试（加解密往返/随机IV/大数据/非法密钥/超限）\n\n7.10.6:\n- 【新功能】统一消息模型 PushMessage + 渠道适配器（钉钉/飞书/企业微信）\n  - 业务代码用 PushMessage 构建消息（渠道无关），推送时自动转换为各渠道 webhook JSON\n  - 切换渠道（钉钉→飞书→企业微信）业务代码零改动，只换 AddDingTalk/AddLark/AddWeChat 注册\n  - IApiPush 新增 Push(PushMessage)/PushAsync(PushMessage) 统一入口（默认接口实现）\n  - 支持 Markdown/Text/Link/ActionCard/FeedCard 五种消息类型\n- 【新功能】消息构建器统一接口 IMessageBuilder{T}（一致性）\n  - PushMessage/DingTalkMessage/LarkMessage/WeChatMessage 均支持 Add 字典、Add 实体、At 用户\n  - Add(IDictionary) 批量键值对、Add(TEntity) 属性自动转键值对\n  - 修复泛型重载决议问题（传入 Dictionary 时运行时分流，避免被当实体反射）\n- 【根本性改进】移除 RocketMQ 探针消息机制（LORD_SERVICE_DLQ_PROBE）\n  - 根因：探针用于创建 %DLQ% 主题，但 RocketMQ Consumer 会自动订阅 %RETRY%/%DLQ% 队列，探针被业务消费 → 解密失败 → 无限重试\n  - 验证：Consumer 订阅不存在的 Topic 时客户端会重试等待，失败消息转发时 Producer 发布（autoCreateTopic）自动创建 Topic，探针完全不需要\n  - 保留存量探针跳过检查（兼容清理旧版本积压）\n- 【看门狗】修复消费停滞检测误判：生产端正常无消息时被误判\"停滞\"导致每 5 分钟反复重建 consumer\n  - 主检查改为 consumer 连接活性（Active/Disposed），停滞检测改为 handler 卡死检测（处理中标记 _processingTick，30 分钟阈值）\n- 【看门狗】修复 Dispose 竞态：等待恢复任务结束再释放锁（避免 ObjectDisposedException）\n- 【语义修复】Consumer.Tags 恢复 null（RocketMQ 协议缺省=不过滤），移除 Array.Empty 赋值（空数组可能导致过滤语义变化）\n- 【新功能】消息级加密开关（IMQSettings.EnableEncryption + EncryptionPrefixes 前缀白名单）\n  - 无需敏感信息的消息可关闭加密（提升性能、避免加解密配置不匹配）\n  - 支持按队列名前缀白名单只加密部分队列（如 \"secret_;private_\"）\n  - 生产端与消费端使用相同队列名时自动保持一致的加密策略\n  - RocketMQConfig/RabbitMQConfig 提供全局默认值（Topic 驱动接口场景）\n- 【重构】提取 RocketMQMessageHelper（探针识别/重试退避）与 MQEncryptionHelper（加密策略），消除重复代码\n- 【新功能】UseMQ 全局加密配置（引擎无关：RabbitMQ/RocketMQ/未来 Kafka）\n  - mq.EnableEncryption(false) 全局关闭加密；mq.EncryptionPrefixes(\"secret_\", \"private_\") 白名单前缀\n  - 通过 PostConfigureAll 应用到所有已注册引擎，Factory 创建 settings 时自动继承\n  - RabbitMQ 生产/消费链路已接入加密开关（RabbitMQPush.ApplyEncryption / RabbitMQReceive.GetMessage）\n  - 优先级：IMQSettings（消息级） > UseMQ 全局配置 > appsettings 配置\n- 【新功能】RocketMQ Builder 新增 ACL/云厂商/SSL 链式配置\n  - WithAcl(accessKey, secretKey) Apache ACL 认证\n  - WithCloudProvider(Aliyun/Huawei/Tencent, ak, sk, extra) 云厂商托管\n  - WithSsl(true) SSL/TLS 开关\n- 【测试】新增 MQBuilder 全局加密配置测试 + RocketMQ Builder ACL 测试 + 全部 MQ 相关测试通过（42 个）\n- 【全面审查修复】Redis/加密/推送格式/工具类 30+ 个 bug\n  - 修复 DingTextFormat @所有人逻辑写反（未指定 users 时不再误 @全员）\n  - 修复 LarkTextFormat 富文本消息必然抛异常（style 对象缺属性名）\n  - 修复 Redis AddOrGetCacheItem 信号量超时破坏（Wait 返回值检查，防 SemaphoreFullException）\n  - 修复 Redis ClearAsync 误清整库（无前缀无 pattern 时拒绝清理，与同步版一致）\n  - 修复 Redis DateTime 时区偏移（保持 UTC Kind，不再 ToLocalTime）\n  - 修复 object 类型缓存读写不对称（读侧先还原原始值再走 JSON）\n  - 修复 RedisDistributedLock 前缀双冒号问题（TrimEnd(':')）\n  - AES-GCM 解密增加认证前长度上限（防内存 DoS）+ 密钥解码缓存（性能）\n  - RSA 加密增加单次上限检查（190 字节明确报错，提示用 AES）\n  - DES 启用时输出安全警告（56 位密钥可破解，仅建议兼容旧数据）\n  - 修复 DeepCopy 循环引用防护失效（AsyncLocal 深度计数，循环引用抛明确异常而非 StackOverflow）\n  - 修复 MemoryCache.Increment 类型判断（int/uint 等数值类型也能正确递增）\n  - 修复 TypeConvertUtil 数组/object 分支畸形 JSON 抛异常（统一返回 default）\n  - 修复 LarkTextFormat 卡片 config/header 序列化为字符串（改为对象结构）\n- 【HTTP 类库审查修复】性能/稳定性/易用性全面优化\n  - 修复 NetHttp SendAsync 无限递归 bug（调用自身导致死循环，单元测试捕获）\n  - 修复 NetHttp 流式响应生命周期 bug（response 提前 Dispose 导致流关闭）\n  - RestHttp 与 NetHttp 重试策略对齐：POST 默认不重试（防重复提交）+ 4xx 不重试（429 限流除外）\n  - IHttpRequest 新增 AllowRetryNonIdempotent（显式允许非幂等重试）\n  - IHttpStreamResponse 实现 IDisposable（流使用后可释放）\n  - AddJsonBody(string) 语义统一：原始 JSON 原样发送（修复二次转义问题）\n\n7.10.5:\n- IMQProvider 性能优化（懒加载缓存 Hub/Factory/IJsonFormat，避免重复 DI 解析）\n- 修复 RocketMQSettings 默认值点号问题（RocketMQ Topic/Group 不允许点号，改为下划线）\n- 文档新增 IMQProvider 使用指南（一站式入口 + 能力检查 + MQTT 扩展指引）\n\n7.10.4:\n- IMQProvider 新增细粒度能力检查（SupportsTransactionMessages/SupportsDelayedMessages/SupportsRequestReply/SupportsSql92Filtering/SupportsOrderedMessages）\n- IMQProvider 新增便捷方法（GetPublisher/GetSubscriber/GetHub/GetFactory），一站式获取所有 MQ 服务\n- 修复 RabbitMQ 事务消息\"静默降级\"问题（现在可通过 SupportsTransactionMessages 提前检查）\n- 修复 RabbitMQ 延迟消息\"静默降级\"问题（现在可通过 SupportsDelayedMessages 提前检查）\n- 新增 RocketMQCloudHelper 共享帮助类，减少 160+ 行重复代码\n\n7.10.3:\n- 修复 RocketMQPublisher 缺少 Producer 活性检查问题（添加 IsProducerAlive 双检锁，与 RocketMQPush 对齐）\n- 修复 EnsureFailedTopicAsync 中 Producer 资源泄漏（改用 finally 确保释放）\n- 抽取 ConfigureCloudProvider 到共享帮助类 RocketMQCloudHelper（减少 160 行重复代码）\n- 优化 CleanupExpiredRetryEntries 避免 LINQ 分配（改用 foreach 直接遍历）\n- 文档版本同步更新至 v7.10.3\n\n7.10.2:\n- 修复 RocketMQ 模块 116 个 nullable reference 警告（提升类库质量）\n- 修复 _retryCounts 字典无限增长问题（添加基于时间的自动清理机制）\n- 修复 _failedProducer 资源泄漏问题（Dispose 时正确释放）\n- 修复 _failedProducer 并发初始化竞态条件（双检锁保护）\n- 优化 typeNameCache 缓存淘汰策略（达到上限时清空重建，确保新类型能被缓存）\n- 修复 Tags 属性 null 赋值问题（改用 Array.Empty 兼容 C# 10）\n- 修复 Type.FullName 可能为 null 的问题（添加回退值）\n- 修复 message.Tags/Keys 可能为 null 的问题（添加默认值）\n\n7.10.0:\n- AES 加密改用随机 IV（每次加密生成新 IV，向后兼容旧数据）\n- 新增 Polly 8 弹性策略（LordResilience），MQ 连接重试改为指数退避+抖动\n- HTTP 重试改为指数退避+随机抖动（RestSharp + HttpClient 双实现）\n- 移除 RabbitMQFactory/RabbitMQService 终结器（消除 GC 线程死锁风险）\n- _timedOutTags 添加基于时间的自动淘汰（心跳中清理超过 5 分钟的泄漏条目）\n- 修复 LarkPush.PushAsync 空路径 bug（异步飞书推送发送到错误端点）\n- 修复 DingTalkPush/LarkPush 并发竞态条件（GetAuthentication 修改共享对象）\n- 修复 WeChatPush/LarkPush 死代码和 null 检查不一致\n\n7.0.8:\n- IMQHub 新增显式名称参数重载（PublishAsync/SubscribeAsync/SubscribeDeadLetterAsync）\n- 新增 MQNameAttribute，支持为消息类型指定自定义名称前缀\n- IMQHub 中文 XML 注释\n- RabbitMQ Prefix 前缀隔离（多系统共用 broker 时区分队列名）\n- RabbitMQ 消费端看门狗重写（心跳检测+无限重试+指数退避+Channel 重建）\n- 生产端 RabbitMQPush 新增 Channel 自动恢复机制\n- 死信队列（DLX）纳入看门狗保护\n- RSA 改为标准保密模式（加密用公钥，解密用私钥）\n- 默认加密算法从 DES 改为 AES\n- 修复缓存 AddOrGetCacheItem 默认值误判问题\n- 修复服务工厂缓存 token 污染问题\n- 修复消费端异常消息无限 requeue 问题\n- 移除 FreeRedis 支持（聚焦 StackExchange.Redis）",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#repository",
+    "commit": "36d31c098cb583a20ad395185ecbd32772edbde0",
+    "type": "git",
+    "url": "https://gitee.com/suiye007/LordService.git"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "7.10.18",
+  "version": "7.10.18",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/microsoft.extensions.logging.log4net.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Log4Net.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/newlife.rocketmq",
+          "@type": "PackageDependency",
+          "id": "NewLife.RocketMQ",
+          "range": "[3.1.2026.601, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/restsharp",
+          "@type": "PackageDependency",
+          "id": "RestSharp",
+          "range": "[113.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.25, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/system.runtime.caching",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.Caching",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net10.0/log4net",
+          "@type": "PackageDependency",
+          "id": "log4net",
+          "range": "[3.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/microsoft.extensions.logging.log4net.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Log4Net.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/newlife.rocketmq",
+          "@type": "PackageDependency",
+          "id": "NewLife.RocketMQ",
+          "range": "[3.1.2026.601, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/restsharp",
+          "@type": "PackageDependency",
+          "id": "RestSharp",
+          "range": "[112.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.25, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/system.runtime.caching",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.Caching",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net6.0/log4net",
+          "@type": "PackageDependency",
+          "id": "log4net",
+          "range": "[3.3.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[8.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/microsoft.extensions.logging.log4net.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Log4Net.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/newlife.rocketmq",
+          "@type": "PackageDependency",
+          "id": "NewLife.RocketMQ",
+          "range": "[3.1.2026.601, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/restsharp",
+          "@type": "PackageDependency",
+          "id": "RestSharp",
+          "range": "[113.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.25, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/system.runtime.caching",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.Caching",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net8.0/log4net",
+          "@type": "PackageDependency",
+          "id": "log4net",
+          "range": "[3.3.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/microsoft.extensions.logging.log4net.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Log4Net.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/newlife.rocketmq",
+          "@type": "PackageDependency",
+          "id": "NewLife.RocketMQ",
+          "range": "[3.1.2026.601, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/restsharp",
+          "@type": "PackageDependency",
+          "id": "RestSharp",
+          "range": "[113.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.25, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/system.runtime.caching",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.Caching",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#dependencygroup/net9.0/log4net",
+          "@type": "PackageDependency",
+          "id": "log4net",
+          "range": "[3.3.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#Lord.Service.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9067,
+      "fullName": "Lord.Service.nuspec",
+      "length": 26039,
+      "name": "Lord.Service.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#LordService.md",
+      "@type": "PackageEntry",
+      "compressedLength": 19755,
+      "fullName": "LordService.md",
+      "length": 61596,
+      "name": "LordService.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#content/favicon.ico",
+      "@type": "PackageEntry",
+      "compressedLength": 10055,
+      "fullName": "content/favicon.ico",
+      "length": 22486,
+      "name": "favicon.ico"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#contentFiles/any/net10.0/favicon.ico",
+      "@type": "PackageEntry",
+      "compressedLength": 10055,
+      "fullName": "contentFiles/any/net10.0/favicon.ico",
+      "length": 22486,
+      "name": "favicon.ico"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#contentFiles/any/net6.0/favicon.ico",
+      "@type": "PackageEntry",
+      "compressedLength": 10055,
+      "fullName": "contentFiles/any/net6.0/favicon.ico",
+      "length": 22486,
+      "name": "favicon.ico"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#contentFiles/any/net8.0/favicon.ico",
+      "@type": "PackageEntry",
+      "compressedLength": 10055,
+      "fullName": "contentFiles/any/net8.0/favicon.ico",
+      "length": 22486,
+      "name": "favicon.ico"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#contentFiles/any/net9.0/favicon.ico",
+      "@type": "PackageEntry",
+      "compressedLength": 10055,
+      "fullName": "contentFiles/any/net9.0/favicon.ico",
+      "length": 22486,
+      "name": "favicon.ico"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#docs/AI_QUICK_START.md",
+      "@type": "PackageEntry",
+      "compressedLength": 11889,
+      "fullName": "docs/AI_QUICK_START.md",
+      "length": 36146,
+      "name": "AI_QUICK_START.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#docs/MessageFormatGuide.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3124,
+      "fullName": "docs/MessageFormatGuide.md",
+      "length": 9116,
+      "name": "MessageFormatGuide.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#docs/PushServiceConfiguration.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2291,
+      "fullName": "docs/PushServiceConfiguration.md",
+      "length": 7369,
+      "name": "PushServiceConfiguration.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#docs/RedisCacheGuide.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7150,
+      "fullName": "docs/RedisCacheGuide.md",
+      "length": 25280,
+      "name": "RedisCacheGuide.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#docs/RedisDeadlockExample.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1813,
+      "fullName": "docs/RedisDeadlockExample.md",
+      "length": 4843,
+      "name": "RedisDeadlockExample.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#lib/net10.0/Lord.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 352609,
+      "fullName": "lib/net10.0/Lord.Service.dll",
+      "length": 1058816,
+      "name": "Lord.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#lib/net10.0/Lord.Service.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 52641,
+      "fullName": "lib/net10.0/Lord.Service.xml",
+      "length": 407634,
+      "name": "Lord.Service.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#lib/net6.0/Lord.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 352395,
+      "fullName": "lib/net6.0/Lord.Service.dll",
+      "length": 1058816,
+      "name": "Lord.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#lib/net6.0/Lord.Service.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 52641,
+      "fullName": "lib/net6.0/Lord.Service.xml",
+      "length": 407634,
+      "name": "Lord.Service.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#lib/net8.0/Lord.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 352212,
+      "fullName": "lib/net8.0/Lord.Service.dll",
+      "length": 1058816,
+      "name": "Lord.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#lib/net8.0/Lord.Service.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 52641,
+      "fullName": "lib/net8.0/Lord.Service.xml",
+      "length": 407634,
+      "name": "Lord.Service.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#lib/net9.0/Lord.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 352759,
+      "fullName": "lib/net9.0/Lord.Service.dll",
+      "length": 1059840,
+      "name": "Lord.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#lib/net9.0/Lord.Service.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 52641,
+      "fullName": "lib/net9.0/Lord.Service.xml",
+      "length": 407634,
+      "name": "Lord.Service.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#logo.jpg",
+      "@type": "PackageEntry",
+      "compressedLength": 13390,
+      "fullName": "logo.jpg",
+      "length": 13945,
+      "name": "logo.jpg"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.26.15.13.55/lord.service.7.10.18.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "RabbitMQ",
+    "Redis",
+    "钉钉",
+    "企业微信",
+    "飞书",
+    "消息推送",
+    "消息队列",
+    "分布式锁",
+    "缓存",
+    "日志",
+    "推送"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

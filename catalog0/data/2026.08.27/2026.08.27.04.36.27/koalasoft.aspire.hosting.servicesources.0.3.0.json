@@ -1,0 +1,228 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jonas Flodén",
+  "catalog:commitId": "ed11ccac-85bb-4e1b-9621-d8b109293001",
+  "catalog:commitTimeStamp": "2026-08-27T04:36:27.3763031Z",
+  "created": "2026-08-27T04:31:23.93Z",
+  "description": "Aspire hosting integration for configurable, per-developer service sources — e.g. a git checkout or a Kubernetes cluster.",
+  "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-27T04:35:33.957Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "KkDBSsRnzCSlnCL9k+I12iYehNz8LMsrialxbuPkp+QY2+R14osHIqn7IAbeVbdTuL+ZkxhODhGGI56+qx6ndw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 148044,
+  "projectUrl": "https://github.com/flojon/aspire-servicesources",
+  "published": "2026-08-27T04:31:23.93Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Breaking\n\n- **Removed the public `ServiceResource` type** (#62). `AddService()` used to return a\n  builder over a `ServiceResource` facade that was deliberately never added to\n  `builder.Resources`. It now returns a builder over the resource Aspire actually runs — a\n  `ProjectResource` for `local`, an Aspire container or executable resource for `container`\n  and `kubernetes`, or whatever an `ILocalResourceKind` returns.\n\n  `AddService()`'s declared return type is unchanged,\n  `IResourceBuilder<IResourceWithServiceDiscovery>` before and after, so call sites that\n  only pass the result to `WithReference(...)` or `GetEndpoint(...)` keep compiling. What\n  breaks is code that *names* the type:\n\n  ```csharp\n  // No longer compiles - the type is gone:\n  ServiceResource resource = builder.AddService(\"orders\").Resource;\n  if (builder.AddService(\"orders\").Resource is ServiceResource) { /* ... */ }\n  ```\n\n  An assembly compiled against `0.2.0` that references `ServiceResource` throws\n  `TypeLoadException` at runtime against this version. Recompile it.\n\n  To configure the resolved service, use the new `Configure<T>()`, or `As<T>()` when you\n  need the concrete resource type:\n\n  ```csharp\n  builder.AddService(\"orders\")\n      .Configure<IResourceWithEnvironment>(r => r.WithReference(ordersDb))\n      .Configure<IResourceWithWaitSupport>(r => r.WaitForCompletion(migrations));\n\n  IResourceBuilder<ProjectResource> web = builder.AddService(\"web\").As<ProjectResource>();\n  ```\n\n  These exist because most of Aspire's configuration extensions cannot bind to\n  `IResourceBuilder<IResourceWithServiceDiscovery>` at all, facade or not: `WithEnvironment`\n  is constrained to `IResourceWithEnvironment`, which `IResourceWithServiceDiscovery` does\n  not extend, so `service.WithEnvironment(...)` has never compiled — before or after — and\n  fails with `CS0311`. Reaching that API is what `Configure<T>` is for.\n\n  See **Changed** below for two things that keep compiling and change behavior: calls on the\n  returned builder that used to no-op, and the `kubernetes` resource rename.\n\n- **A satellite package now accepts only core versions within its own minor** (#79).\n  `KoalaSoft.Aspire.Hosting.ServiceSources.Java` and `.JavaScript` used to declare a floor on\n  `KoalaSoft.Aspire.Hosting.ServiceSources`, so NuGet was free to satisfy a satellite with any\n  later core, including one whose interfaces had moved:\n\n  ```xml\n  <!-- before: any core at or above this version -->\n  <dependency id=\"KoalaSoft.Aspire.Hosting.ServiceSources\" version=\"0.3.0\" />\n  <!-- after: this minor only -->\n  <dependency id=\"KoalaSoft.Aspire.Hosting.ServiceSources\" version=\"[0.3.0, 0.4.0-0)\" />\n  ```\n\n  The `-0` on the upper bound keeps the next minor's prereleases out as well as its release:\n  `0.4.0-alpha.0.1` sorts *below* `0.4.0`, so a plain `0.4.0` bound would still admit it. That\n  matters on the GitHub Packages preview feed, where every package is published as a\n  prerelease.\n\n  A satellite implements core's `ILocalResourceKind`, so a mismatched pair failed at run time\n  with `MissingMethodException`/`TypeLoadException` rather than at restore. The minor is the\n  boundary because that is where a breaking change ships while the version is below `1.0.0`.\n  A core patch still resolves, so core can be serviced without republishing every satellite.\n\n  If your AppHost references core and a satellite separately, moving core alone to the next\n  minor now fails restore with `NU1107` rather than building and throwing at startup. Move\n  both together, or drop the core reference and let the satellite bring core in for you —\n  which is what the README's install section now recommends, since one reference has no\n  second version to keep in step.\n\n### Added\n\n- `Configure<T>()` and `As<T>()`, for configuring the resource a service resolved to from\n  the AppHost that called `AddService()` (#62, fixes #53). `Configure<T>` is skipped\n  with a logged warning for the `url` and `kubernetes` sources, which run out of band;\n  `As<T>` throws for them.\n- A `kind` extension point for the `local` source: `ILocalResourceKind` and\n  `AddLocalKind(...)` let a satellite package teach `local` to run a non-.NET service\n  (#55, closes #41).\n- A `javascript` kind for the `local` source, in the satellite package\n  `KoalaSoft.Aspire.Hosting.ServiceSources.JavaScript` (#59, closes #44). After\n  `builder.UseJavaScript()`, a `local` service with `kind: javascript` is cloned like any\n  other and then run through `Aspire.Hosting.JavaScript`. Its `javascript:` block picks the\n  integration — `javascript`, `vite`, `nextjs`, `node` or `bun` — plus the package manager,\n  the app directory within the checkout, and the HTTP endpoint a consumer's\n  `WithReference(...)` resolves against.\n- A `java` kind for the `local` source, in the satellite package\n  `KoalaSoft.Aspire.Hosting.ServiceSources.Java` (#60, closes #45). After\n  `builder.UseJava()`, a `local` service with `kind: java` runs through the Aspire Community\n  Toolkit's Java integration. Its `java:` block selects exactly one run mode — a Maven goal,\n  a Gradle task, or a pre-built jar — and `mavenGoal`/`gradleTask` execute the repository's\n  own `mvnw`/`gradlew` wrapper, so a JDK is required on the machine but Maven or Gradle\n  itself is not.\n- Authentication for private git repositories, resolved through the developer's existing\n  git credential helpers (#56).\n- `AddService()` is exported to Aspire's Type System, so TypeScript AppHosts can call\n  `builder.addService('orders')` (#51).\n- Port bounds validation (1-65535) for the `kubernetes` source, matching the check the\n  `container` source already had (#40, fixes #23).\n\n### Changed\n\n- **The Java satellite accepts older Community Toolkit versions** (#80). Its floor was the\n  version it happened to be developed against rather than the oldest carrying the API it\n  calls, so consumers already on 13.3.0 were excluded for no reason. `WithMavenGoal`,\n  `WithGradleTask` and `WithWrapperPath` all first ship in\n  `CommunityToolkit.Aspire.Hosting.Java` **13.3.0**, so the floor moves from 13.4.0 to that.\n\n  Nothing changes for consumers on a newer version: NuGet takes the lowest version that\n  satisfies every constraint in the graph, so a floor only decides how far *back* a consumer\n  may go. The test suite runs against the floor rather than latest, for the same reason.\n\n  The JavaScript satellite's `Aspire.Hosting.JavaScript` floor was left alone by this change,\n  because it is part of the Aspire package family and has to move in step with core's\n  `Aspire.Hosting` rather than on its own. Both moved together later in this same release -\n  see **The Aspire floor moves from 13.4.6 to 13.5.2** (#112) below.\n\n- **Calls on an `AddService()` result that used to do nothing now take effect** (#62).\n  `IResourceWithServiceDiscovery` extends `IResourceWithEndpoints` and `IResource`, so every\n  Aspire extension constrained to those already bound to `AddService()`'s return type and\n  compiled:\n\n  ```csharp\n  IResourceBuilder<IResourceWithServiceDiscovery> service = builder.AddService(\"orders\");\n\n  service.WithHttpEndpoint(targetPort: 1234);   // compiles - before and after\n  service.WithExplicitStart();\n  service.ExcludeFromManifest();\n  service.WithAnnotation(annotation);\n  ```\n\n  Against the old facade these silently did nothing, because it was never in\n  `builder.Resources`. They now land on the real, registered resource and actually happen.\n  Nothing here stops compiling, so an AppHost carrying one of these calls changes behavior on\n  upgrade with no diagnostic: re-read any such call on an `AddService()` result as live\n  rather than inert.\n- **`kubernetes`-sourced resources are renamed from `{service}-portforward` to `{service}`**\n  (#62). Aspire keys service discovery off the resource name, so the old name published the\n  endpoint as `services__orders-portforward__…` and a consumer resolving `orders` never found\n  it. The name is user-visible, though: it is what the dashboard shows, so anything keying off\n  it — a `WithReference` by string, saved dashboard state, external log or trace queries\n  filtering on resource name — sees a rename.\n- Developer-config fields that a service's source does not use — `port` under a `local`\n  source, `context` under a `container` source — now fail fast with a\n  `ServiceSourcesConfigurationException` naming every offending field, instead of being\n  silently ignored (#43, fixes #24).\n- `local` services resolve eagerly during `AddService()` rather than at `BeforeStartEvent`,\n  because a real resource has to exist by the time `AddService()` returns (#62). Cold\n  checkouts still run in parallel — the first `AddService()` starts a prefetch for every\n  `local` service in the catalog — so wall-clock is unchanged. Consequences: a checkout\n  failure now throws from the failing `AddService()` call rather than being aggregated\n  across services, `ILocalResourceKind.Validate` no longer runs before any service has\n  touched the app model, and `AddLocalKind(...)` must be called before the first\n  `AddService()`.\n- Superseded preview packages are pruned from the GitHub Packages feed after each release,\n  keeping the five most recent (#68).\n- **The Aspire floor moves from 13.4.6 to 13.5.2** (#112, fixes #89). `Aspire.Hosting` and\n  `Aspire.Hosting.JavaScript` move together as one matched set — deliberately, because\n  `Aspire.Hosting.JavaScript` 13.4.6 is the half of the pair that breaks once `Aspire.Hosting`\n  reaches 13.5.x.\n\n  **Move your AppHost's own Aspire version with it.** In an AppHost still on 13.4.x this lifts\n  `Aspire.Hosting` to 13.5.2 on its own, while `Aspire.AppHost.Sdk`, `Aspire.Hosting.AppHost`\n  and the DCP and dashboard packages the SDK pins to it stay behind — a mixed Aspire family\n  that restore reports nothing about. Raise `Aspire.AppHost.Sdk` and\n  `Aspire.Hosting.AppHost` to 13.5.2 or later at the same time.\n\n### Fixed\n\n- **The published packages now carry the `polyglot` NuGet tag** (#112). It is what `aspire\n  add` reads to surface a package to non-C# AppHosts — the audience the Aspire Type System\n  exports elsewhere in this release exist for. Aspire's own targets append the tag, but\n  `obj/*.nuget.g.targets` imports those only in the per-framework inner builds, while `pack`\n  generates the nuspec from the cross-targeting outer pass: the tag was appended once per\n  inner build, each time to a property no nuspec was generated from, and all three packages\n  packed without it. Appended in `Directory.Build.targets` instead, under Aspire's own\n  condition so the two cannot both add it.\n\n- **A `kind: javascript` service no longer throws `MethodAccessException` when Aspire resolves\n  above the JavaScript integration** (#112, fixes #89). Both Aspire references are floors,\n  and NuGet resolves the highest floor in the graph: an AppHost on Aspire 13.5.x pulled\n  `Aspire.Hosting` up with it — transitively, through the `Aspire.Hosting.AppHost` reference\n  `Aspire.AppHost.Sdk` adds implicitly — while nothing lifted `Aspire.Hosting.JavaScript`\n  above the floor this package declared. 13.4.6 of it reaches into two of `Aspire.Hosting`'s\n  internal types across a friend-assembly boundary, and 13.5.x removes one and revokes access\n  to the other, so the pair restored and compiled clean and then threw the first time a\n  `javascript` service resolved.\n\n  Raising the floor settles it, and Aspire closed the coupling from its own side in 13.5.0:\n  from that release on, `Aspire.Hosting.JavaScript` references no `Aspire.Hosting` internals at\n  all, so a mismatched pair above it is ordinary API drift rather than a guaranteed crash.\n\n  The Java satellite was never affected — `CommunityToolkit.Aspire.Hosting.Java` carries its\n  own copy of the helper involved and reaches into no `Aspire.Hosting` internals either.\n\n- A service consumed by a *container* now works for every source except `url` (#62, fixes\n  #58). The resource returned by `AddService()` is registered with the app model, so DCP\n  creates the Service object a container-to-container reference needs. For `url`, a\n  `BeforeStartEvent` pre-flight now reports the unsupported combination clearly instead of\n  letting DCP fail with `Host endpoint ... should have an associated DCP Service resource`;\n  lifting that limitation is tracked as #72.\n\n### Documentation\n\n- nuget.org version and download badges, and a Preview builds section explaining that the\n  GitHub Packages feed needs a `read:packages` token (#67).\n- How to run several services out of one repository (#64).\n- The install section now says to add a satellite package *instead of* the core package\n  rather than alongside it, so an AppHost that uses one carries a single reference and has no\n  second version to keep in step (#79).\n- The guest-language section and the TypeScript sample now name the Aspire CLI version they\n  need, 13.6.0 or newer - the codegen fix they depend on is in no released CLI yet (#57).\n\nFull changelog: https://github.com/flojon/aspire-servicesources/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#repository",
+    "commit": "c12835022c6b218e3ca5d59e09bd969d0aa83b32",
+    "type": "git",
+    "url": "https://github.com/flojon/aspire-servicesources"
+  },
+  "verbatimVersion": "0.3.0",
+  "version": "0.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net10.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net10.0/libgit2sharp",
+          "@type": "PackageDependency",
+          "id": "LibGit2Sharp",
+          "range": "[0.32.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net10.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net8.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net8.0/libgit2sharp",
+          "@type": "PackageDependency",
+          "id": "LibGit2Sharp",
+          "range": "[0.32.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net8.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net9.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net9.0/libgit2sharp",
+          "@type": "PackageDependency",
+          "id": "LibGit2Sharp",
+          "range": "[0.32.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#dependencygroup/net9.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5701,
+      "fullName": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "length": 15106,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 645,
+      "fullName": "LICENSE",
+      "length": 1070,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 14026,
+      "fullName": "README.md",
+      "length": 40183,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 37511,
+      "fullName": "lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 88576,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 37191,
+      "fullName": "lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 88064,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 37584,
+      "fullName": "lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 88576,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.27.04.36.27/koalasoft.aspire.hosting.servicesources.0.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspire",
+    "dotnet-aspire",
+    "service-discovery",
+    "apphost",
+    "kubernetes",
+    "git",
+    "microservices",
+    "local-development",
+    "port-forward",
+    "polyglot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

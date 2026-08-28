@@ -1,0 +1,265 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "a064330b-4b50-44ae-b9e8-a9c4a83d1eb1",
+  "catalog:commitTimeStamp": "2026-08-28T11:42:24.9725326Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-08-28T11:38:00.363Z",
+  "description": "Observability defaults for the Stratara stack — ConfigureOpenTelemetry (HTTP, EF Core, RabbitMQ, runtime instrumentation; OTLP exporter) and ConfigureSerilog (structured logging, OTLP sink). Reference from every host.",
+  "iconFile": "icon.png",
+  "id": "Stratara.ServiceDefaults",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-28T11:42:10.613Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "LyS2bcuU9Io+2LbNvG3vpH/G6FGLRuYxyrMjpSzQMR4qYmCmhLXe4112W4B8VasYOwFca7fTEa8n5degOwFN3g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 88622,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-08-28T11:38:00.363Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Four findings a consumer team reported from production use, three defects found in the framework's\nown queue, and one found while fixing another. The thread running through them is the same: a\nmechanism that reported success while doing nothing. A signature that covered everything except the\npayload. A circuit breaker whose thresholds its own retry could never reach. A replay marking that\noutlived the replay. Two environment guards that admitted every environment name nobody had thought\nof. Each was documented as working, and each was believed.\n\n**Read the two rollout notes before upgrading a fleet**: bus-envelope signatures change, and a\nprojection replay marking already stuck from an earlier version does not clear itself on upgrade.\n\n### Added\n\n- **`ProjectionReplayOptions`** — configures how long a projection replay's active marking and\n  progress counters survive without renewal. Registered with its defaults by\n  `AddProjectionReplayState()`, so an existing host is leased without configuring anything.\n\n- **`AddTenantMembershipStoreFromContextFactory<TContext>()`,\n  `AddApiKeyStoreFromContextFactory<TContext>()` and `AddSettingStoreFromContextFactory<TContext>()`**\n  — register the identity-directory stores so that each operation takes a fresh database context from\n  `IDbContextFactory<TContext>` instead of sharing the request's.\n\n  The existing registrations share one context across every directory store in a request. A database\n  context serves one operation at a time, so directory work issued concurrently within a scope — two\n  role checks together, a lookup racing a page load — fails on whichever arrives second, and the\n  failure surfaces at the call site that lost the race rather than the one that introduced the\n  concurrency. Sharing also means a store's own commit commits whatever else the consumer has left\n  unsaved on that context.\n\n  Both registrations now state what they cost, because the choice runs both ways: with a context per\n  operation neither of those applies, and in exchange a store write no longer takes part in a\n  transaction opened on the consumer's own scoped context. Calling both registrations for the same\n  store leaves whichever ran first in place; they do not compose.\n\n  Nothing changes for a consumer who does not adopt them — the existing registrations behave exactly\n  as before, and remain the default.\n\n### Fixed\n\n- **Appending on behalf of a subject that names no tenant now fails.** Of the five sources the store\n  consults to decide which tenant an event belongs to, four rejected an absent tenant and the append\n  failed rather than guessing. The fifth — the subject you supply yourself through\n  `AppendOnBehalfOfAsync` — was taken as given, so passing one with an empty tenant id recorded an\n  event owned by nobody and encrypted against nobody. An erasure never reaches such an event. The\n  call now throws `ArgumentException` naming the stream and the event, and records nothing.\n  **Breaking** where a consumer passes a subject sourced from aggregate state that a stream written\n  before the field existed left empty — that call site is the defect, and the exception message\n  identifies it.\n\n- **A newly created tenant now owns itself.** The framework's tenant-creation event did not declare\n  the tenant it creates as the event's data owner, so ownership fell through to the acting session:\n  a tenant created by an operator was owned by the *operator's* tenant, while a caller who happened\n  to point the session at the new id first got a tenant that owned itself. The same operation\n  produced two different owners depending on whether the caller knew to take an undiscoverable\n  detour. **Breaking** in recorded data: tenants created after adopting this version are owned by\n  themselves. Streams already written are untouched, no payload changed, and no migration is\n  required — the event's serialized JSON is byte-identical.\n\n- **An abandoned projection replay no longer suppresses publication forever.** While a replay is\n  active the framework suppresses publication, so replayed history does not re-trigger side effects.\n  That marking was only ever cleared by the process that set it, so a kill, a container stop, an\n  out-of-memory kill or a reboot left it standing with nothing to clear it — and while it stands,\n  every command is recorded instead of sent while the caller receives an identifier and a success\n  response, and the outbox never drains. The marking and its progress counters are now held on a\n  lease that the replay renews each time it reports progress: a replay that stops without clearing\n  them stops renewing them, and they lapse on their own.\n\n  The lease defaults to 300 seconds and is configurable through the new `ProjectionReplayOptions`.\n  Set it longer than your slowest stretch between two progress reports — a shorter lease lapses while\n  the replay is still running and resumes publication against half-rebuilt read models. Erring long\n  only delays the clearing of a marking whose replay already died.\n\n  **One action on upgrade:** a marking already stuck from before this version was written without an\n  expiry and does not gain one. Clear it once — an explicit deactivation, or let the next replay's\n  own completion clear it. Upgrading alone does not free a host that is stuck today.\n\n- **The outbox drain no longer spins on a batch it cannot deliver.** The worker read a batch, handed\n  it to the dispatcher, and read again until a batch came back empty — but an entry is only removed\n  once the bus has accepted it, so a batch nobody could deliver came back identical every time. Two\n  ordinary conditions reached it: an unreachable broker, and a projection replay in progress. Either\n  turned a drain pass into a hot loop against the database, and because the command drain never\n  returned, the event drain that follows it never started. A drain pass now handles one batch and\n  ends; undelivered entries stay stored and are retried on the next interval.\n\n  Two shifts to know about. **`outbox.published` now counts what the bus accepted** rather than what\n  was read from storage — it is emitted by the dispatchers, which know the answer, instead of by the\n  worker, which did not. The instrument name and its `outbox.kind` tag are unchanged, but the values\n  drop to the truth, so an alert threshold calibrated against the inflated numbers needs revisiting.\n  And **a large stored backlog now drains at one batch per polling interval** rather than in a single\n  pass — with the defaults, twenty thousand entries a minute, and both the batch size and the\n  interval are configurable.\n\n\n\n- **Two environment guards now admit Development only, instead of refusing Production only.**\n  `IsProduction()` recognises exactly one name. Everything else fell through — Staging, QA, UAT,\n  Preview, and, because the check is by name, `Production-EU` and `prod` as well.\n\n  **Missing broker credentials** no longer fall back to the `guest` account outside Development.\n  Previously any non-Production host silently connected as `guest`, which matters where the broker\n  runs in the same container or network with a default configuration.\n\n  **The no-op email sender** can no longer be registered outside Development. It returns success for\n  every operation without an exception or a log entry, so on a staging host a registered user never\n  received a confirmation link, the account stayed unconfirmed, and external-login auto-linking then\n  failed for that user. What gets reported is \"OIDC linking doesn't work on staging\"; the cause is a\n  dropped mail three steps earlier.\n\n  **Breaking for hosts that relied on either fall-through**, which is the point of the change. Both\n  escape hatches already exist and are explicit — set `RABBITMQ_USERNAME=guest` and\n  `RABBITMQ_PASSWORD=guest` to use the default account deliberately, and register your own\n  `IEmailSender<TUser>` to drop mail outside Development. The framework ships no no-op sender for\n  that case, because a shipped no-op is indistinguishable at every call site from a working one.\n\n- **The message-bus circuit breaker can now open.** It could not — not rarely, but never. The breaker\n  required ten failures inside a sixty-second window while the retry in front of it backs off to a\n  sixty-second cap, so once the backoff had grown at most one failure landed per window and the tenth\n  was never counted. Measured over a simulated hour of uninterrupted failure: sixty-three attempts,\n  no circuit opening at all. The window is now derived from the retry's own delay cap instead of being\n  chosen independently of it, and five failures inside a ten-minute window open the circuit.\n\n  **Nothing you can observe was broken, and nothing you rely on changes.** Retries remain unbounded,\n  the backoff is unchanged, and traffic still succeeds once the broker recovers without you writing\n  any retry — the retry sits in front of the breaker and retries the broken-circuit signal too. What\n  changes is what a sustained outage *looks like*: an open circuit in logs and metrics, which is a\n  state you can alert on. If your broker goes down for minutes, expect new breaker-state events.\n\n  Worth saying plainly: the framework documented this protection and did not have it. An operator who\n  built an alert on breaker state got an alert that could never fire, and the code comment describing\n  the behaviour described something that never happened.\n\n### Security\n\n- **A bus-envelope signature now covers the payload, not only the identity claims.** The canonical\n  form a signature was computed over was, for an event bundle, everything except the events — the\n  record has three fields and one of them is the signature. That is correct for the threat it was\n  built for, which is *minting* a session context. It does not answer *transplanting* an observed\n  signature onto different events, which was never raised.\n\n  The attack is not \"replay the same message\" — duplicates are ordinary, delivery is at-least-once\n  and handlers are already idempotent. It is: observe one signed message, publish a new one carrying\n  that exact session context and arbitrary events, and the canonical form is unchanged, so the\n  signature verifies and strict mode accepts it. The attacker cannot reach a tenant they have never\n  observed, which is a real limit. They can inject arbitrary events into any tenant they *have*\n  observed one message from — the projection worker writes them into that tenant's read models, and\n  the saga worker reacts to them and can issue commands as that actor. Two of the three actors this\n  mechanism was designed to stop plausibly hold read access as well as publish access.\n\n  The canonical form now covers a digest of the payload — the events for a bundle; the command body\n  and the envelope id for a command, both of which were transmitted and unsigned. It is built from\n  field values, never by re-serializing, so a message that has been on the wire projects to exactly\n  what its publisher signed.\n\n  **Fields are now length-prefixed.** They were joined with a separator that two attacker-controlled\n  fields are allowed to contain, so content could be shifted across a field boundary without\n  changing the canonical form — altering which command type is dispatched while the signature still\n  verified, defeating the guard the type name is signed for.\n\n  **Rollout — this is the migration the three modes exist for, and the first time it is needed.**\n  Signatures produced by an older publisher stop verifying. Move the fleet through **permissive**\n  mode: publishers upgrade first, consumers follow, then strict is safe again. Upgrading both sides\n  straight into strict will reject in-flight messages.\n\n- **The integrity start-up warning now fires outside development, not only in production.** It was\n  governed by whether the host was *named* `Production`, so a host called `Production-EU` or `prod`\n  ran with unsigned envelopes and no warning. It is now governed by whether the host is in\n  development, which also surfaces the deviation on staging and QA.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#repository",
+    "commit": "ce1938a8c76864c8a00c42911f377eab44b3b5fb",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "3.4.0",
+  "version": "3.4.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/stratara.shared",
+          "@type": "PackageDependency",
+          "id": "Stratara.Shared",
+          "range": "[3.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/destructurama.attributed",
+          "@type": "PackageDependency",
+          "id": "Destructurama.Attributed",
+          "range": "[5.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/microsoft.extensions.http.resilience",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http.Resilience",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/microsoft.extensions.servicediscovery",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ServiceDiscovery",
+          "range": "[10.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.15.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.15.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.EntityFrameworkCore",
+          "range": "[1.15.1-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.http",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Http",
+          "range": "[1.15.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.runtime",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Runtime",
+          "range": "[1.15.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/rabbitmq.client.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client.OpenTelemetry",
+          "range": "[1.0.0-rc.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/serilog.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "Serilog.Extensions.Hosting",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/serilog.formatting.compact",
+          "@type": "PackageDependency",
+          "id": "Serilog.Formatting.Compact",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/serilog.settings.configuration",
+          "@type": "PackageDependency",
+          "id": "Serilog.Settings.Configuration",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/serilog.sinks.async",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Async",
+          "range": "[2.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/serilog.sinks.console",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Console",
+          "range": "[6.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/serilog.sinks.file",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.File",
+          "range": "[7.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#dependencygroup/net10.0/serilog.sinks.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.OpenTelemetry",
+          "range": "[4.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#Stratara.ServiceDefaults.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5994,
+      "fullName": "Stratara.ServiceDefaults.nuspec",
+      "length": 15082,
+      "name": "Stratara.ServiceDefaults.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1692,
+      "fullName": "README.md",
+      "length": 3335,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#lib/net10.0/Stratara.ServiceDefaults.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7045,
+      "fullName": "lib/net10.0/Stratara.ServiceDefaults.dll",
+      "length": 16384,
+      "name": "Stratara.ServiceDefaults.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#lib/net10.0/Stratara.ServiceDefaults.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1526,
+      "fullName": "lib/net10.0/Stratara.ServiceDefaults.xml",
+      "length": 4685,
+      "name": "Stratara.ServiceDefaults.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.11.42.24/stratara.servicedefaults.3.4.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "opentelemetry",
+    "otel",
+    "serilog",
+    "observability",
+    "logging",
+    "tracing",
+    "metrics",
+    "hosting",
+    "service-discovery",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Florian Verdonck, Jindřich Ivánek, David Schaefer",
+  "catalog:commitId": "7dec3327-4243-44ec-93f1-86a2c8d389cb",
+  "catalog:commitTimeStamp": "2026-08-28T08:11:19.4749213Z",
+  "copyright": "Copyright © 2026",
+  "created": "2026-08-28T08:07:00.243Z",
+  "description": "Companion library to format using fantomas tool.",
+  "iconFile": "fantomas_logo.png",
+  "id": "Fantomas.Client",
+  "isPrerelease": true,
+  "lastEdited": "2026-08-28T08:10:40.88Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "7hRSR+DZ9BKEUw9YC6XdeNHdXQQbcgiWW1NIx1nVOoxZoGWYuGlvelTo8JrmU7HHlLWOAKmvh22nwWidhHZTDw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 91787,
+  "projectUrl": "https://fsprojects.github.io/fantomas/",
+  "published": "2026-08-28T08:07:00.243Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Added\n\n- `FantomasToolLocator.createForVersion` and `FantomasToolLocator.daemonArgument`. Fantomas 8.0 added `fantomas daemon` beside `fantomas --daemon`, and a client that knows which version it found now asks for the daemon the way that version spells it. The command arrived in `8.0.0-alpha-016`, so that release and everything after it is asked by command and everything before it by flag, prereleases included; a version string that cannot be parsed falls back to the flag. `createFor` is unchanged, still asks with the flag, and still works against every Fantomas there has ever been, so a caller that has no version in hand needs to change nothing. [#3416](https://github.com/fsprojects/fantomas/pull/3416)\n- `FantomasService.ConfigurationWarnings`, an event raised for every format request with the settings in the resolved configuration that Fantomas could not act on: a `fsharp_`-prefixed setting the daemon's version does not have, or a setting carrying a value it cannot parse. Formatting still succeeds using defaults, so without this the setting quietly does not apply. The event is raised with an empty `Problems` array when nothing is wrong, so a subscriber can clear what it reported earlier, and it is raised on the thread the daemon's message arrived on rather than on the caller's. Only Fantomas 8 daemons send these; against an older daemon the event never fires, so no version check is needed. See [Formatting from an editor with Fantomas.Client](https://fsprojects.github.io/fantomas/docs/end-users/FantomasClient.html). [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- `ConfigurationWarning`, `ConfigurationProblem`, `ConfigurationProblemCode` and `ConfigurationProblemSource`, the types carried by that event, and `Methods.ConfigurationWarning`, the JSON-RPC method they arrive on. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- `RunningFantomasTool.ConfigurationWarnings`, for callers driving `FantomasToolLocator.createFor` themselves rather than going through `LSPFantomasService`. The handler has to be registered before the connection starts listening, so `createFor` wires it up; its own signature is unchanged. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- `LSPFantomasService(log)`, a constructor overload taking an `Action<FantomasLogLevel, string>`, and the `FantomasLogLevel` it reports at. It says which Fantomas a folder resolved to and where it was found, when none could be found at all, and when a daemon is started or fails to start. None of that fits in a `FantomasResponse`, and a tool resolved from the `PATH` formats exactly as successfully as the version a repository pins, so until now nothing told those two apart. A delegate rather than a logging abstraction, so this package keeps its three dependencies and a host adapts it to whatever it already has. The parameterless constructor is unchanged and logs nothing. [#3440](https://github.com/fsprojects/fantomas/pull/3440)\n\n### Changed\n\n- Bump `StreamJsonRpc` to `2.25.29`. [#3393](https://github.com/fsprojects/fantomas/pull/3393)\n- Breaking: no longer binary compatible with `0.11.0`. `FantomasService` gained a member, `RunningFantomasTool` gained a field, and several discriminated unions are structs now. None of that changes how any of them is written or matched, but an assembly compiled against `0.11.0` has to be rebuilt. [#3401](https://github.com/fsprojects/fantomas/pull/3401) [#3407](https://github.com/fsprojects/fantomas/pull/3407)\n- Breaking: `FantomasService` gained the `ConfigurationWarnings` member, and `RunningFantomasTool` gained a field. Source-breaking only for code that *implements* `FantomasService` or *constructs* `RunningFantomasTool`; code that only calls either of them needs no source change. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- The `DaemonCreationFailed` response no longer reports \"found a compatible version but no daemon could be launched\". The cache state behind that message cannot arise now that a version is forgotten along with the folders pinned to it, and a cache handed that state resolves the tool again rather than reporting it. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- Breaking: `Methods` carries `RequireQualifiedAccess` now, so `open Fantomas.Client.Contracts.Methods` no longer compiles and the literals are reached as `Methods.FormatDocument`. Source-breaking only for code that opened the module; a call site that already qualified is unaffected. [#3402](https://github.com/fsprojects/fantomas/pull/3402)\n- Breaking: `FantomasVersion` carries an internal case now, so it can no longer be constructed or pattern matched from outside the package, and `override ToString` renders the bare version for display. Every value comes out of `FantomasToolLocator.findFantomasTool` and is folded to the one shape daemons are cached under, which is what makes that shape a fact rather than a hope: the two places that resolve a version used to normalise separately, and had they ever drifted apart the same Fantomas would have got two daemon processes. Nothing in the API takes a version string, so a caller passes the value along to `daemonArgument` or `createForVersion` as it received it. [#3440](https://github.com/fsprojects/fantomas/pull/3440)\n- The installed Fantomas is found with `dotnet tool list --format json` where the SDK offers it, which is 9.0.100 and later, rather than by reading the table that command prints for a person. That table's layout belongs to the SDK, and a change to it would stop Fantomas being found at all; the JSON names a schema version of its own. An SDK that refuses the flag is read from the table exactly as before, and which of the two applies is settled once per process. [#3440](https://github.com/fsprojects/fantomas/pull/3440)\n\n### Fixed\n\n- Opening a second folder that pins the same Fantomas version started a second daemon and dropped the first one from the cache without disposing it, leaving an orphaned process behind for the rest of the session. Daemons are keyed by version, so a running one for that version is now reused. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- A daemon that failed to start left every folder resolved to its version pinned to a version with no daemon behind it, which answered `CompatibleVersionIsKnownButNoDaemonIsRunning` for the rest of the session rather than trying again. Those folders are forgotten along with the version, so the next request resolves the tool from scratch. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- A Fantomas resolved from the `PATH` counted as a different version from the same Fantomas resolved from a `dotnet-tools.json`, and got a second daemon: `fantomas --version` prints `Fantomas v8.0.0+<commit>` where `dotnet tool list` prints `8.0.0`. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- When a daemon failed its handshake, the standard error quoted in the reported message was whatever had arrived by then rather than all of it, so the lines explaining the failure were usually missing. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- Two format requests in flight for the same file could deliver their configuration warnings in either order, so an empty one could clear problems that were still current. Nothing on the wire says which request a warning belongs to, so a client could not sort them out. The daemon now serves one request at a time per file; different files are unaffected. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- A daemon whose connection had ended was still handed out while its process lingered, so every request against it failed against a daemon the cache still believed in. Liveness now means the process is up and the connection has not ended. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- Replacing a crashed daemon started it the way whichever folder noticed the crash resolves now, rather than the way the daemon it replaces was started, so a daemon shared by two folders could come back under a different working directory. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- The version a tool manifest reports and the version `fantomas --version` prints are now folded to one casing before being compared, so a prerelease label written two ways no longer resolves to two daemons. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- The version handshake with a freshly started daemon had no timeout. A process that started but never answered held up every later request, because daemons are resolved on a single mailbox. It is now given 30 seconds, after which it is killed like any other failed handshake and reported as `Daemon did not answer the version request within 30000 ms.` rather than a bare timeout message. [#3401](https://github.com/fsprojects/fantomas/pull/3401)\n- An unexpected error while resolving a daemon, such as a broken pipe while reading what `dotnet tool list` printed, ended the mailbox that every folder is served from. Nothing reported it, and because a request waits on that mailbox without a timeout, formatting stopped answering at all for the rest of the session rather than failing. Such an error is now reported like any other, and the daemons already running are kept. [#3440](https://github.com/fsprojects/fantomas/pull/3440)",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "b67bc668cdfc0c17d995d036db15e78a72ececce",
+    "type": "git",
+    "url": "https://github.com/fsprojects/fantomas"
+  },
+  "verbatimVersion": "0.12.0-beta-001",
+  "version": "0.12.0-beta-001",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#dependencygroup/.netstandard2.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.0.100, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#dependencygroup/.netstandard2.0/semanticversioning",
+          "@type": "PackageDependency",
+          "id": "SemanticVersioning",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#dependencygroup/.netstandard2.0/streamjsonrpc",
+          "@type": "PackageDependency",
+          "id": "StreamJsonRpc",
+          "range": "[2.25.29, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#dependencygroup/.netstandard2.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#dependencygroup/.netstandard2.0/system.collections.immutable",
+          "@type": "PackageDependency",
+          "id": "System.Collections.Immutable",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#dependencygroup/.netstandard2.0/system.diagnostics.diagnosticsource",
+          "@type": "PackageDependency",
+          "id": "System.Diagnostics.DiagnosticSource",
+          "range": "[10.0.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#dependencygroup/.netstandard2.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.3, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#Fantomas.Client.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4011,
+      "fullName": "Fantomas.Client.nuspec",
+      "length": 11014,
+      "name": "Fantomas.Client.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 630,
+      "fullName": "README.md",
+      "length": 1553,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#fantomas_logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 4069,
+      "fullName": "fantomas_logo.png",
+      "length": 4179,
+      "name": "fantomas_logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#lib/netstandard2.0/Fantomas.Client.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 63915,
+      "fullName": "lib/netstandard2.0/Fantomas.Client.dll",
+      "length": 122880,
+      "name": "Fantomas.Client.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#lib/netstandard2.0/Fantomas.Client.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4072,
+      "fullName": "lib/netstandard2.0/Fantomas.Client.xml",
+      "length": 13653,
+      "name": "Fantomas.Client.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.28.08.11.19/fantomas.client.0.12.0-beta-001.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12995,
+      "fullName": ".signature.p7s",
+      "length": 12995,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "F#",
+    "fsharp",
+    "formatting",
+    "beautifier",
+    "indentation",
+    "indenter"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

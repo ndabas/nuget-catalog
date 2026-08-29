@@ -1,0 +1,213 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Immanuel R",
+  "catalog:commitId": "fcff5793-05da-4586-bd52-c124e58016db",
+  "catalog:commitTimeStamp": "2026-08-29T10:57:03.2962959Z",
+  "copyright": "Copyright © 2022-2026 Immanuel",
+  "created": "2026-08-29T10:53:40.597Z",
+  "description": "A self-contained OAuth 2.1 and OpenID Connect provider for ASP.NET Core. Two lines in Program.cs give you authorization code + PKCE, refresh tokens, client credentials, the device grant, PAR, introspection, revocation, dynamic client registration, RP-initiated logout and a discovery document any standard OIDC library can configure itself from. Multi-tenant, runs on SQLite, MySQL or PostgreSQL, and ships its own sign-in, consent and admin UI. Pair it with Ark.oAuth.Client for the application side.",
+  "iconFile": "ark_logo.png",
+  "id": "Ark.oAuth.Oidc",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-29T10:56:50.097Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "X7vrAmYE9yxsMuD8VPcMae1c27OG4LXiFn2elSaZ5v0FurJcZ9ALHCQwZ9Eqk6AWxlMmD7wo8uGTMfJLz35E4Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2585580,
+  "projectUrl": "https://github.com/ir-dev/ark-oauth-oidc",
+  "published": "2026-08-29T10:53:40.597Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "2.0.3 — back-channel logout, sign-out that covers the whole browser, and a dependency graph that\nis only what this package uses.\n\n* **Back-Channel Logout 1.0.** A client that registers a backchannel_logout_uri is now POSTed a\n  signed logout token when a session it took part in ends — an RP-initiated logout, a revoked\n  refresh token, or an account deactivated mid-session. The token is the §2.4 artefact: typ\n  \"logout+jwt\", the backchannel-logout event claim, sub and sid, and deliberately no nonce, so a\n  client cannot be handed one where an ID token was expected.\n* **A client that is down cannot stop a user signing out.** The sessions are revoked at this\n  server before the first notification goes out, every delivery runs in parallel behind its own\n  timeout, and a refusal is written to the audit trail as a warning rather than raised. The worst\n  outcome of an unreachable client is an application cookie that outlives the IdP session — which\n  is exactly the state every deployment was in before this existed.\n* **Clients are notified because they took part, not because they still hold a token.** A\n  session_clients row is written the first time a session issues a client an authorization code or\n  approves its device request. Deriving that list from live refresh tokens instead would miss\n  every client that never asked for offline_access — most of them — and every client whose tokens\n  have expired while its own application cookie is still valid.\n* **Registering for it.** backchannel_logout_uri and backchannel_logout_session_required are\n  accepted through dynamic client registration (§3.1 metadata: absolute, no fragment, https unless\n  loopback), on POST /api/oauth/v1/provision/client, and in the admin console's client editor. A\n  client with no URI is simply never notified, so nothing changes for clients that do not ask.\n* **Signing out now ends every session in the browser, not just the newest.** The session cookie\n  holds one sid and each sign-in overwrites it, so on a shared machine the previous person's\n  session stayed live in the database — with its refresh tokens, and with them still signed in at\n  every application they had opened — while /oauth2/logout ended only the session the cookie\n  happened to name. A long-lived ark_idp_bid cookie now identifies the user agent, sessions record\n  which browser they were created in, and logout ends all of them. It carries no identity of its\n  own: it is a random value that means nothing without the session rows pointing at it.\n* **Discovery now tells the truth about logout.** backchannel_logout_supported and\n  backchannel_logout_session_supported are advertised. frontchannel_logout_supported and\n  frontchannel_logout_session_supported, which were advertised as true against an endpoint this\n  server has never had, are now false — a client that reads the document no longer configures a\n  logout flow that cannot work.\n* **The signed-out page says what actually happened**: how many sessions and accounts were ended\n  when it was more than one, how many applications were signed out with you, and — named rather\n  than hidden — how many could not be reached and may still be open.\n* New settings under ark_oauth_server:Oidc, all defaulted to the behaviour above:\n  EnableBackChannelLogout (true), BackChannelLogoutTimeoutSeconds (5), LogoutTokenLifetimeSeconds\n  (120), SignOutAllBrowserSessions (true) and SignOutAcrossTenants (true). The last is worth a\n  look if one browser is expected to hold sessions in several tenants at once: the browser cookie\n  is one per deployment, not one per tenant.\n* **Dependencies are now what this package actually uses.** Ark.EfCore, Azure.Identity and\n  BouncyCastle are gone. Nothing here ever used a type from Ark.EfCore — it was acting purely as a\n  carrier for the EF packages it happened to depend on, which meant the EF version was decided by\n  somebody else's release, was pinned at 8.0.x on a net9.0 target, and dragged in a SQL Server\n  provider stack (Microsoft.Data.SqlClient and its native SNI runtime) that nothing in this\n  package can select. EF Core 9.0.x and the Sqlite, MySQL and PostgreSQL providers are now named\n  directly. SQL Server is deliberately absent: Provider \"sqlserver\" fell through every branch of\n  OnConfiguring and left the context with no provider configured, so it has never been a working\n  option and shipping the client library implied otherwise.\n\nMigration: existing databases need 00005, which adds clients.backchannel_logout_uri and\nclients.backchannel_logout_session_required, sessions.browser_id, and the session_clients table.\nEvery change is additive and defaulted — existing clients register no logout URI and are not\nnotified, and sessions that predate the column have no browser to name and are treated as their\nown. On SQLite it is applied on start-up and recorded in ark_schema_history, so there is nothing\nto run by hand. Only the SQLite scripts ship in this package: on MySQL or PostgreSQL the\nequivalent ALTER TABLE and CREATE TABLE are still yours to apply, and skipping them fails the same\nway a missing 00004 did — the entities carry columns the tables do not.\n\n2.0.2 — provisioning, activation, branding, and self-applying schema updates.\n\n* **Provisioning API.** POST /api/oauth/v1/provision/client registers an application, creates or\n  reuses a user, and adds the user-client access mapping in one call. An existing client name is\n  refused with HTTP 409 and code \"client_exists\" and nothing is written — a live application's\n  redirect URIs are never silently rewritten. An existing user is reused and mapped, which is what\n  happens when somebody is given their second application. A user this creates signs in\n  immediately on ark_oauth_server:DefaultPw; pass send_activation_email to email a link instead.\n* **Activation, at two levels.** Applications already had is_active; accounts now have one too.\n  POST /api/oauth/v1/activation/client and /activation/user switch either off, and revoke what has\n  already been handed out — a deactivated client loses its refresh tokens, a deactivated user\n  loses their sessions and refresh tokens — so the switch takes effect now rather than whenever\n  they happened to expire. The switch is honoured through the plain client/user upsert too.\n* **Sign-in says which level is off.** A deactivated application names itself on the authorization\n  endpoint; a deactivated account gets \"Your account has been deactivated…\" on the sign-in page.\n  Both only after the password has been verified, so the single deliberately-vague message for\n  every credentials failure — and with it the page's resistance to account enumeration — is\n  unchanged.\n* **Pending schema scripts run on start-up.** The scripts in Migration/{provider}/up were an\n  operator's job after every upgrade, and skipping one failed quietly and specifically: without\n  00004 the entity carried users.is_active and the table did not, so /api/oauth/v1/user/list\n  answered a bare 500 and the console's Users grid came up empty with nothing saying why. The\n  bootstrap now applies what is pending and records it in ark_schema_history.\n* **Nothing is replayed.** A database that predates the history table is measured rather than\n  replayed: each script is checked against the live schema and one whose tables and columns are all\n  present is recorded as a baseline without executing. 00003 rewrites every client that holds no\n  secret — right for a 2.0.0 upgrade, wrong for anything after it — so that distinction is the\n  whole point. A database created by EnsureCreated on this version records all four and runs none.\n* **Provisioning and Activation have their own console page**, /{tenant}/admin/provisioning, linked\n  from a navigation bar in the console's top bar and restricted to the administrator account\n  (AdminUser:Username, or a principal carrying an \"admin\" claim). It carries the provisioning form,\n  both activation switches, and the state of every client and account at once.\n* **The page writes the curl for you.** Fill either form in and the equivalent command appears,\n  carrying the values that are in the forms — the provisioning body, the activation body, and a\n  client_credentials token step. The secret is the one thing the page cannot read back, so a button\n  mints a new one for the machine client and drops it straight into the command.\n* **Client logos.** Uploaded in the client editor or at provisioning time and inlined as a data\n  URI, so nothing has to be hosted. The sign-in page header now carries the host logo and the\n  client logo together, and lays itself out for two marks, one, or none — the previous header\n  showed only the client's, with the host's relegated to the footer. The console's top bar shows\n  the same lockup, and the client grid shows each client's mark.\n* **The client setup page can run the flow.** /{tenant}/oauth2/integrate/{client_id} gained a live\n  authorization code + PKCE section: it generates a real verifier and S256 challenge in the\n  browser, runs the request in an embedded iframe ending at the redirect_uri you pick, and shows\n  the token-exchange command for the code that comes back.\n* The interactive pages now send Content-Security-Policy: frame-ancestors 'self' — clickjacking\n  protection they did not have, and what lets the setup page frame the authorization endpoint.\n* The management API's list endpoints report a failure as { error, msg } like every other endpoint\n  instead of an empty 500, and /api/migration/v1/sql now reports whether the script it ran actually\n  worked rather than always answering \"executed\".\n\nMigration: existing databases need 00004, which adds users.is_active. It is one additive, defaulted\ncolumn, so every existing account stays active. This version applies it on start-up, so there is\nnothing to run by hand, and a database created by this version already has it.\n\n2.0.1 — maintenance release.\n\nNo API or protocol change over 2.0.0. Rebuilt and republished so the package on nuget.org matches\nthe 2.0.0 source tree exactly, and to carry the packaging fixes below. Consumers on 2.0.0 can\nupgrade with no code change; the 2.0.0 notes apply unchanged and are kept below.\n\nPackaging: the package icon (ark_logo.png) and the readme are packed at the root of the .nupkg, so\nnuget.org and the Visual Studio package manager show both. The icon is referenced through\nPackageIcon rather than the deprecated PackageIconUrl, and is included with an empty PackagePath so\nit lands at the package root on a non-Windows build too.\n\n2.0.0 — the standards release.\n\n* Full OAuth 2.1 / OpenID Connect protocol core: discovery, JWKS with two-phase key rotation,\n  authorization code + PKCE (S256 only, required for public clients), refresh token rotation,\n  client credentials, device authorization grant (RFC 8628), pushed authorization requests\n  (RFC 9126), introspection (RFC 7662), revocation (RFC 7009), dynamic client registration\n  (RFC 7591/7592), RP-initiated logout, and issuer identification (RFC 9207).\n* Access tokens now follow RFC 9068 (typ: at+jwt, client_id, jti, scope).\n* Codes and refresh tokens are stored as SHA-256 hashes; replay of either is treated as compromise\n  and revokes the derived tokens or the whole refresh-token family.\n* Per-client setup page at /{tenant}/oauth2/integrate/{client_id}, generated from the client's own\n  registration, with copy-paste config for the Ark client, the raw ASP.NET Core handler,\n  oidc-client-ts, Authlib and go-oidc.\n* Sign-in and consent pages load no third-party resources and work under a strict CSP.\n* The admin console now ships inside this package, at /{tenant}/admin — tenants, clients, users,\n  scopes, claims and the access mapping, with no view, stylesheet or script to copy into the host.\n  Its CSS and JS are served from the assembly at /ark-admin/asset/{file}. Point\n  ark_oauth_server:Admin:SignOutUrl at your own sign-out route, since only the host can drop its\n  own authentication cookie. The v1 console at /oauth/{tenant}/v1/server/{client}/manage is still\n  served and no longer developed.\n\nBreaking / migration: the administrator account seeded into a new database now comes from\nark_oauth_server:AdminUser (Username, Password, Name) instead of the compiled-in \"admin\" / \"admin\".\nPassword is required, falls back to DefaultPw, and a value left as a <<placeholder>>\ncounts as unset — seeding stops with a message naming the setting rather than creating an account\nwhose credentials are published in the release notes of every deployment. Existing databases are\nuntouched: the section is only read while the schema is being created.\n\nThe implicit grant, the hybrid flow and the resource owner password\ncredentials grant are not supported. The v1 /oauth/{tenant}/v1/... routes still work and keep their\nrequest and response shapes, but now delegate to the protocol core — so codes issued there are\nsingle-use, expire, and have their PKCE verifier checked. Existing databases must run migration\n00003 (GET /api/migration/v1/sql?action=up&name=00003_sql.sql), which adds the protocol state\ntables and RFC 7591 metadata columns, seeds the scope catalogue, and adopts each tenant's existing\nRSA key as its active signing key with kid = tenant_id, so tokens already issued keep validating.\n\nPackaging: the package no longer ships application content or static web assets into consuming\nprojects, and now carries a readme, an SPDX license expression and a symbol package.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#repository",
+    "branch": "main",
+    "commit": "301b5fd84152de39c10c4d270acd77567a7d21f1",
+    "type": "git",
+    "url": "https://github.com/ir-dev/ark-oauth-oidc"
+  },
+  "title": "Ark Identity Server — OAuth 2.1 / OpenID Connect provider",
+  "verbatimVersion": "2.0.4",
+  "version": "2.0.4",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0/microsoft.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore",
+          "range": "[9.0.19, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0/microsoft.entityframeworkcore.sqlite",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.Sqlite",
+          "range": "[9.0.19, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0/microsoft.identitymodel.jsonwebtokens",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IdentityModel.JsonWebTokens",
+          "range": "[8.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0/microsoft.identitymodel.protocols.openidconnect",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IdentityModel.Protocols.OpenIdConnect",
+          "range": "[8.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0/mysql.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "MySql.EntityFrameworkCore",
+          "range": "[9.0.17, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0/npgsql.entityframeworkcore.postgresql",
+          "@type": "PackageDependency",
+          "id": "Npgsql.EntityFrameworkCore.PostgreSQL",
+          "range": "[9.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0/system.identitymodel.tokens.jwt",
+          "@type": "PackageDependency",
+          "id": "System.IdentityModel.Tokens.Jwt",
+          "range": "[8.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#dependencygroup/net9.0/ark.net.util",
+          "@type": "PackageDependency",
+          "id": "ark.net.util",
+          "range": "[1.0.4.14, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#Ark.oAuth.Oidc.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6582,
+      "fullName": "Ark.oAuth.Oidc.nuspec",
+      "length": 16129,
+      "name": "Ark.oAuth.Oidc.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#lib/net9.0/Ark.oAuth.Oidc.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2524009,
+      "fullName": "lib/net9.0/Ark.oAuth.Oidc.dll",
+      "length": 3176448,
+      "name": "Ark.oAuth.Oidc.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#lib/net9.0/Ark.oAuth.Oidc.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25475,
+      "fullName": "lib/net9.0/Ark.oAuth.Oidc.xml",
+      "length": 101115,
+      "name": "Ark.oAuth.Oidc.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#ark_logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 6498,
+      "fullName": "ark_logo.png",
+      "length": 7250,
+      "name": "ark_logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7620,
+      "fullName": "README.md",
+      "length": 18897,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.29.10.57.03/ark.oauth.oidc.2.0.4.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "oauth",
+    "oauth2",
+    "oauth2.1",
+    "oidc",
+    "openid",
+    "openid-connect",
+    "identity",
+    "identity-provider",
+    "idp",
+    "identity-server",
+    "authentication",
+    "authorization",
+    "jwt",
+    "jwks",
+    "pkce",
+    "sso",
+    "single-sign-on",
+    "aspnetcore",
+    "security"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

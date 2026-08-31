@@ -1,0 +1,162 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "katlangorg",
+  "catalog:commitId": "81571bb3-a41e-4b9b-b2bb-2883cdaa11a4",
+  "catalog:commitTimeStamp": "2026-08-31T05:02:56.6861072Z",
+  "copyright": "Copyright © Logics Research Centre SIA and contributors",
+  "created": "2026-08-30T17:38:27.24Z",
+  "deprecation": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#deprecation",
+    "reasons": [
+      "Legacy"
+    ]
+  },
+  "description": "KatLang is a domain-specific programming language for calculations. This package provides the core parser, evaluator, and semantic model.",
+  "id": "KatLang",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-31T05:02:35.7Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": false,
+  "packageHash": "rVYdVqtlIewlKE+TT/AD75VaSBGgPP+Lf42tnRzez1guyBGSL7W7H7WVqh2E0xUvr92L/jE1aHKrwgXs1cWU6A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 383718,
+  "projectUrl": "https://katlang.org/",
+  "published": "1900-01-01T00:00:00Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Removes the library's built-in default HTTP module downloader, completing the module-loading boundary work below: previously, constructing the (already internal) ModuleLoader without a downloader silently substituted an internal HttpClient-based fetcher — a second, hidden transport beside the one documented RunOptions.DownloadCode contract, whose default redirect-following could fetch from a host that the allowlist check (applied to the source-written URL only) never saw. That fallback was no longer reachable through any supported public entry point after the internalization below; this release deletes it outright, so the invariant is now structural: KatLang performs no ambient HTTP downloading, every ModuleLoader construction path requires a non-null explicit downloader delegate, and module source transport is host-supplied through RunOptions.DownloadCode (RunOptions.AllowedHosts continues to govern which source-written load targets are handed to that delegate, while transport behavior — redirects included — is owned by the host implementation). Supported module-loading capability is unchanged for properly configured hosts, source without load continues to parse and run without any downloader, load without a configured downloader keeps its established structured unavailability diagnostic (DiagnosticCode.LoadElaborationUnavailable), and no KatLang language semantics changed. Removes the public ModuleLoader type from the API surface (it is now internal); like the ParameterDetector/ImplicitArgumentResolver removal below, this is an intentional breaking NuGet API change, not backward-compatible for code that referenced it, while no KatLang language semantics changed. ModuleLoader.ElaborateAsync performed load elaboration only — an even more incomplete stage than the two passes removed below: a loader-only tree has had no parameter detection (a spliced module's declared parameter references remain unresolved names, so its functions cannot bind their arguments and fail where the engine computes the value), no implicit-argument resolution, and no property-exposure finalization. Module loading remains fully available through the supported complete pipeline: Parser.ParseAsync and KatLangEngine.RunAsync with RunOptions.DownloadCode (and RunOptions.AllowedHosts), where a downloader that completes synchronously — for example over an in-memory source map — keeps the whole elaboration synchronous exactly as the removed type did. Removes the public ParameterDetector and ImplicitArgumentResolver types from the API surface (they are now internal); this is an intentional breaking NuGet API change, not backward-compatible for code that referenced them, while no KatLang language semantics changed. These two types were incomplete individual stages of the front-end elaboration pipeline and could not independently reproduce authoritative engine elaboration: composing Detect and Resolve without the internal property-exposure resolution stage produced an AST whose Property.Exposure metadata stayed at its default Exported value, and because the evaluator trusts that stored flag, such a partially elaborated tree could observably diverge from engine-parsed source — most sharply, `open` could expose a local-only property that KatLang hides. The supported coherent public entry points remain available and unchanged: Parser.Parse / Parser.ParseAsync return fully elaborated programs (structural preflight, load handling, parameter detection, implicit-argument resolution, and property-exposure resolution always run together), KatLangEngine.Run / RunAsync and the evaluate conveniences execute source end-to-end, SemanticModelBuilder consumes elaborated parse results, and the Evaluator.Run family still evaluates preconstructed host ASTs exactly as supplied. No public replacement facade for composing individual elaboration stages is added. Adds stable structured error identity at the engine/host boundary so hosts classify failures by code instead of parsing English messages: every KatLang-produced front-end Diagnostic now carries a machine-readable Diagnostic.Code (new public DiagnosticCode enum, one value per semantic family — lexical errors, syntax, declarations, open forms, markers, parser budgets, source-processing limits, module loading; externally constructed diagnostics keep the explicit Unspecified default), and KatLangError exposes Code (new public KatLangErrorCode enum covering both front-end and evaluation families), Source (the original structured EvalError preserved by reference, context wrappers included; null for front-end errors), and IsResourceLimit. EvalError.Code is the authoritative fail-loud mapping from every concrete evaluation-error variant to its facade family (contextual wrappers resolve to the underlying family; ArityMismatch, VariadicArityMismatch, and BadArity share one arity family; parser and evaluator bad-open-form failures share BadOpenForm), and the existing structural resource-limit classifier EvalError.IsResourceLimit is promoted to public API unchanged (nine evaluation resource-limit families; cancellation still throws OperationCanceledException and is never an error value). Codes are additive classification metadata: human-readable messages, severities, spans, CLI rendering, evaluation semantics, and the Diagnostic positional constructor/Deconstruct shapes are unchanged. Because Code is an init-only record property, it deliberately participates in Diagnostic equality, hashing, and the synthesized ToString (which now includes Code); this is a behavioral compatibility change for consumers relying on those record operations, while existing binaries and source using the positional construction/deconstruction surface remain compatible. Enum names and numeric values are stable append-only contract. The executable language specification now pins the structured diagnostic code of every parse-error case, and the module loader classifies nested-module parse rejections by structured code instead of message substrings. Changes exponentiation precedence so `^` binds tighter than prefix `-` and `not` on the base/left side while the exponent still accepts unary expressions directly and power remains right-associative: `-2 ^ 2` is now `-4`, `(-2) ^ 2` is `4`, and `2 ^ -2` remains `0.25`. This is an intentional source-semantics compatibility change: existing code that used an unparenthesized negative power base must add parentheses to preserve that meaning. Migrates KatLang's numeric core from System.Decimal to IEEE 754 System.Numerics.Decimal128 (.NET 11): numbers carry 34 significant decimal digits with an exponent range of about ±6144, literals parse directly into Decimal128, and every math function (trig, logarithms, roots, powers) computes in Decimal128 natively — the former double round-trip and its 15-significant-digit result normalization are removed, so transcendental results such as Math.Sin(1) now retain full precision and large trigonometric arguments are computed directly in Decimal128 without conversion through binary64/double. Math.Pi is Decimal128's correctly rounded 34-digit constant; the former Math.E / e constant surface is replaced by Math.Exp(x) / exp(x), which delegates directly to Decimal128.Exp. Division/modulo by a zero-valued divisor and zero raised to a negative integer power remain errors; all other numerics follow IEEE 754 — overflow saturates to an infinity (the NumericOverflow error kind is removed), domain violations produce NaN, and NaN, ±Infinity, and -0 are ordinary values (ordering comparisons with NaN are false; structural equality, distinct, and contains treat NaN as one value). Public API types that exposed decimal (Result.Atom, atom projections, RunResult.Success.Atoms, EvaluateToAtoms, RunFlat, Token.NumValue, Expr.Num, Pattern.LitInt, BoundedOutputWriter.AppendAtom) now expose Decimal128; this is an intentional breaking change with no compatibility mode. Math.RandomInt now draws uniformly in the integer domain via rejection sampling and requires whole-number bounds within ±1e34 (the exactly-representable consecutive-integer domain); range bounds are validated identically on the synchronous and asynchronous evaluation paths; and host-built literal patterns (Pattern.LitInt) match by the same structural numeric equality as ==, so a NaN literal pattern matches a NaN value. Editor-facing Math metadata now uses authoritative descriptor parameter names (including radians, value/digits, value/base, and atan2's y/x order), and PropertyInfo.AliasTarget exposes the canonical qualified target and display signature only for resolved predefined aliases.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "b403b9da567fb54657da77f2e71d3a078408b200",
+    "type": "git",
+    "url": "https://github.com/katlangorg/katlangnet"
+  },
+  "title": "KatLang",
+  "verbatimVersion": "0.8.189",
+  "version": "0.8.189",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#KatLang.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4189,
+      "fullName": "KatLang.nuspec",
+      "length": 9709,
+      "name": "KatLang.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 656,
+      "fullName": "LICENSE",
+      "length": 1108,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#NOTICE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "NOTICE",
+      "length": 1458,
+      "name": "NOTICE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#PATENTS",
+      "@type": "PackageEntry",
+      "compressedLength": 1265,
+      "fullName": "PATENTS",
+      "length": 3525,
+      "name": "PATENTS"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3877,
+      "fullName": "README.md",
+      "length": 9070,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#lib/net11.0/KatLang.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 357988,
+      "fullName": "lib/net11.0/KatLang.dll",
+      "length": 1052672,
+      "name": "KatLang.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.05.02.56/katlang.0.8.189.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12994,
+      "fullName": ".signature.p7s",
+      "length": 12994,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "katlang",
+    "dsl",
+    "calculations",
+    "mathematics",
+    "physics"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kerberos SA",
+  "catalog:commitId": "2032ac9e-c96d-49f1-ae2b-35ec0bfc25ec",
+  "catalog:commitTimeStamp": "2026-08-30T16:57:41.8266865Z",
+  "copyright": "Kerberos SA © 2025–2026",
+  "created": "2026-08-30T16:53:59.343Z",
+  "description": "Reusable .NET 10 package that wraps ASP.NET Core Identity with cookie and JWT auth, Google OAuth, a pluggable e-mail provider, a multi-tenant model with dynamic RBAC (roles + module permissions), and secure defaults — wired up with a single AddMyIdentity call. JWT and Google OAuth secrets are supplied by the consumer (never shipped in the package).",
+  "id": "MyIdentity",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-30T16:57:36.76Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "uJ6HVrXWEZJpT7JB3/HtwuUD7cuJ38Mf3E3yWGG26sSoNdgEjmjcEtnPg31N65OL8JHVJuI6A9gNzB2g5DUCzg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 289399,
+  "published": "2026-08-30T16:53:59.343Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v4.2.0: opt-in. One new public member (a virtual describer method) and constructor changes on two services that are source- but not binary-compatible -- read on before assuming \"nothing to do\". MyIdentityPermissionOptions.AllowDelegatedRoleConfigurationRead (default false) lets a caller who is NEITHER SystemAdmin NOR TenantAdmin read their own tenant's role configuration -- three KINDS of read, six method overloads in total: tenant-role listings (GetTenantRolesAsync, both overloads), by-name/existence lookups (FindTenantRoleAsync, and ExistsAsync's two overloads, which delegate to FindTenantRoleAsync and so inherit its gate), and a role's own permission matrix (GetRolePermissionsAsync) -- provided the permission decision point grants them Read on IdentityModuleCode. That is not a new concept: IdentityModuleCode + Modify has delegated USER administration since 4.0.0-alpha.7; this extends the same module code to a second permission level for role CONFIGURATION. Nothing about it is writable: CreateAsync, UpdateAsync, DeleteAsync, SaveRolePermissionsAsync and the two granular matrix writes are untouched, gated by their own separate helper exactly as before, and who HOLDS a role (GetUsersAffectedByRoleAsync, GetUserIdsAffectedByRoleAsync) stays administrator-only, because that answers a question about PEOPLE, not configuration. Left at its default false, WHO can read behaves exactly as it did in 4.1.0, with one exception that ships regardless of the flag: GetRolePermissionsAsync's denial wording for a non-admin, non-delegated caller (and, separately, for a TenantAdmin with no resolvable tenant) changed either way -- see PERM-8 below. The warning that matters most: until this release the library never once consulted IdentityModuleCode with Read alone -- but a stored Modify or Execute grant on that module has always also satisfied a Read check (the fixed D4 implication: Modify/Execute imply Read), so a deployment that granted IdentityModuleCode:Modify to delegate user administration (the alpha.7 pattern) already granted the equivalent of Read on it too -- turning this flag on makes the library start honoring BOTH that Read-shaped Modify/Execute grant and any literal Read grant made for unrelated purposes. Audit Read, Modify, AND Execute on your IdentityModuleCode before turning this on. Two guarantees a consumer running its own permission decision point should know before relying on this: an unauthenticated caller is denied before anything else runs, checked directly against the current-user accessor and never delegated to the PDP; and the SystemAdmin/TenantAdmin short-circuit never consults the PDP at all, so a broken or overly strict custom implementation can at worst keep the delegated reader out, and can never lock an administrator out of their own tenant's role screen. MyIdentityPermissionAdminService's AND MyIdentityRoleService's constructors EACH gain two new OPTIONAL parameters, IMyIdentityPermissionService and MyIdentityPermissionOptions, both defaulting to null exactly like the IMyIdentityScopeValidator parameter 4.0.0-alpha.9 added to MyIdentityPermissionAdminService the same way -- MyIdentityRoleService needed them so its delegated-read gate asks the PDP against the same object graph that authenticated the caller, never one resolved from a separately created scope. Source-compatible, but NOT binary-compatible: an optional argument's default is baked into the CALLER's compiled IL, so a consumer assembly compiled against 4.1.0 that constructs either service by hand does not silently keep working against 4.2.0's MyIdentity.dll -- it must recompile, because the old constructor signature it was compiled against no longer exists standalone. Once recompiled, passing neither new argument reproduces the previous release's behavior exactly, same as resolving either service through AddMyIdentity's DI container, which needs no change at all. PERM-8 closed in the same pass, and it changed TWO denials, not one: GetRolePermissionsAsync's admin gate passes the SAME two override messages to both of RequireAdminCallerAsync's parameters, so both the non-admin-non-delegated denial (previously \"Only administrators can manage role assignments.\") and the TenantAdmin-with-no-resolvable-tenant denial (previously \"You cannot manage permission assignments without a tenant.\") now read the role-CONFIGURATION-axis message instead of the role-ASSIGNMENT-axis wording they inherited before -- a message that deliberately does NOT name the tenant's configured module code, saying only \"the identity module\", generically. Same ErrorCode (PermissionDenied) for both, different text -- visible to a consumer who shows or diffs either message. If you localize by subclassing MyIdentityMessageDescriber (this library's only supported localization path), override the new AccessDeniedRoleConfigurationRead() -- BlazorExample's own describer subclass already does, as the pattern to copy. Read UPGRADE.md section 37. Everything else is as 4.1.0 left it: dependencies are unchanged at 10.0.11 (Microsoft.AspNetCore.Authentication.Google, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.AspNetCore.Identity.EntityFrameworkCore, Microsoft.EntityFrameworkCore.SqlServer); the ASP.NET Core shared framework is consumed through a frameworkReference, so Identity core, Blazor Components(.Authorization), Data Protection and the configuration binders are not package dependencies. Consumers coming from 3.x: the v3.x -> v4.0 migration is UNCHANGED and still lives in UPGRADE.md sections 1-4 (breaking-change overview, EF Core schema migration, the per-tenant role model, and the code changes to make), with sections 5-6 as the pre-production checklist. Sections 7-37 are the per-release changelog and are historical: you do not walk them one by one, you migrate from 3.x to this release once. The scope limits are unchanged and are the same ones TECHNICAL_OVERVIEW.md section 11 states: two-factor authentication is not shipped (the login status carries a forward-compatible RequiresTwoFactor signal, but there is no enrollment or verification surface); tenant isolation is enforced by the SERVICE LAYER and not by a global query filter, so ad-hoc queries you write outside the services are yours to scope; SaveRolePermissionsAsync and UpsertRolePermissionAsync are last-writer-wins on the same cell, with no typed conflict detection; and security events go to ILogger only, with no persistence seam for non-repudiation. Each of those is a deliberate boundary, documented where it bites, not an omission discovered late.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#repository",
+    "commit": "aaaed874986e5e07c840404941f11c00b866a2cf",
+    "type": "git"
+  },
+  "title": "Kerberos.MyIdentity",
+  "verbatimVersion": "4.2.0",
+  "version": "4.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.google",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.Google",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#dependencygroup/net10.0/microsoft.aspnetcore.identity.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#dependencygroup/net10.0/microsoft.entityframeworkcore.sqlserver",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.SqlServer",
+          "range": "[10.0.11, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#MyIdentity.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3622,
+      "fullName": "MyIdentity.nuspec",
+      "length": 8414,
+      "name": "MyIdentity.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 12715,
+      "fullName": "README.md",
+      "length": 33645,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#lib/net10.0/MyIdentity.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 167259,
+      "fullName": "lib/net10.0/MyIdentity.dll",
+      "length": 464896,
+      "name": "MyIdentity.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#lib/net10.0/MyIdentity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 90733,
+      "fullName": "lib/net10.0/MyIdentity.xml",
+      "length": 452433,
+      "name": "MyIdentity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.30.16.57.41/myidentity.4.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "identity",
+    "authentication",
+    "authorization",
+    "blazor",
+    "aspnetcore",
+    "jwt",
+    "google-oauth",
+    "multitenant",
+    "rbac",
+    "saas"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

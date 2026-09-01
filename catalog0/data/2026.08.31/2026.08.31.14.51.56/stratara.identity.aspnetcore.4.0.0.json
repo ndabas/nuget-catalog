@@ -1,0 +1,215 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "e32965c7-0f7c-42b8-93ac-c5cf543ceaec",
+  "catalog:commitTimeStamp": "2026-08-31T14:51:56.2554942Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-08-31T14:48:41.157Z",
+  "description": "Channel-agnostic ASP.NET Core identity wiring for the Stratara stack — AddAspNetIdentity and AddAspNetIdentityWithSignInManager extensions, IStrataraSignInManager wrapper, EF stores, i18n'd failure messages, optional passkey support, external-login OpenID Connect + JWT-bearer helpers, and hardened JIT external-login provisioning. Consumers wire their own AuthenticationStateProvider (Blazor Server, MAUI, etc.).",
+  "iconFile": "icon.png",
+  "id": "Stratara.Identity.AspNetCore",
+  "isPrerelease": false,
+  "lastEdited": "2026-08-31T14:51:19.217Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "suhAW1MeCfFTfE+zlh6O0XmAKqAjHyqdTaFUhpX5F6AxUChPB3b7nh9Ati7xh+DZ4b6v6Dm6LRguY7+Ibe98JA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 128652,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-08-31T14:48:41.157Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Changed\n\n- **`AddBusEnvelopeIntegrity` gains a base64-string overload, and the start-up warning stops naming\n  one that did not exist.** When integrity is enabled with no signer registered, the probe told the\n  operator to call `AddBusEnvelopeIntegrity(\"<base64-key>\")`. No such overload existed — the two that\n  did take an `Action<BusEnvelopeIntegrityOptions>` or an `IConfiguration`. The message sent whoever\n  was fixing the problem looking for an API that was not there.\n\n  The message now names the overloads that exist, and the one it promised has been added, because it\n  was the right shape: `SharedKey` is a `byte[]`, which configuration binding cannot produce from a\n  string, so the `IConfiguration` overload binds the mode and leaves the key to a second call.\n\n  ```csharp\n  services.AddBusEnvelopeIntegrity(\n      builder.Configuration[\"BUS_ENVELOPE_SIGNING_KEY\"]!,\n      BusEnvelopeIntegrityMode.Permissive);\n  ```\n\n  It rejects a malformed base64 string and a key shorter than 32 bytes at registration, where a host\n  can still fix it, rather than at the first signed message. Read the key from a secret store or an\n  injected environment variable — not from a checked-in `appsettings.json`, which signs for anyone who\n  can read the repository.\n\n- **BREAKING: encrypting at a level that claims isolation, with no identifying dimension at all, is\n  now refused outside development.** `TenantScoped` claims that a value is encrypted under\n  a key belonging to that tenant. On an aggregate that has none, that was never true: an event row's\n  tenant is not nullable, so a tenant-less aggregate supplied the empty identifier and every such\n  value across every subject resolved to one scope —\n  `TenantScoped:00000000-...-000000000000:00000000-...-000000000000` — and therefore one key. Erasing\n  one subject would have erased all of them, so crypto-shredding was unavailable at that level while\n  the annotation implied it was there, and nothing reported the difference.\n\n  A guard for the same mistake already existed and refused a *null* tenant. It could not fire on the\n  event path, which never produces null. It was one condition away from the case it was written for.\n\n  **A coarser scope than the level names is not refused.** A user-scoped value carrying only a tenant\n  resolves to a per-tenant key — weaker than the name suggests, but it separates tenants, and the\n  framework binds an event's payload to its stream's owner exactly that way. Only the collapse to a\n  single system-wide key is refused.\n\n  **Migration: use `DataSensitivityLevel.Confidential`** for data that genuinely has no tenant. It\n  claims one system-wide key and no isolation, which is what was happening anyway — the difference is\n  that it says so.\n\n  In development the same encryption warns and proceeds, so local work continues while the mistake\n  stays visible. **Decryption is untouched:** values already written into that scope decrypt exactly\n  as before, because a refusal on the read path would destroy access to data rather than protect it.\n\n- **BREAKING: `IMessageBus` gains `EnsureSubscriptionAsync`, and a subscription can now be created\n  without consuming from it.** A broker delivers only to queues that already exist, and until now the\n  only way to create one was `SubscribeAsync` — which also starts reading, so a queue could not exist\n  before the worker that reads it was ready. On a topic carrying more than one subscription that is a\n  silent loss: `event-bundle` carries the projection and the saga subscription, and one bound queue is\n  enough for a publish to be confirmed. A worker that binds a few seconds later misses everything\n  published in between, no outbox row is written, nothing retries, and nothing logs. Two workers\n  starting twenty seconds apart on a fresh broker is enough.\n\n  ```csharp\n  var ids = app.Services.GetRequiredService<IMessagingIdentifier>();\n  var bus = app.Services.GetRequiredService<IMessageBus>();\n\n  await bus.EnsureSubscriptionAsync(ids.EventBundleTopic, ids.EventBundleSubscription);\n  await bus.EnsureSubscriptionAsync(ids.EventBundleTopic, ids.EventBundleSagaSubscription);\n  ```\n\n  Call it from whichever process publishes first, before its first publish. Worker queues are durable,\n  so it only matters on a broker that has never seen them — a new environment, a rebuilt host, a CI\n  run. **Nothing calls it for you:** the framework cannot know your start-up order or which processes\n  publish, and a protection that holds in one topology while silently failing in another is the defect\n  this fixes, not a fix for it.\n\n  *What it costs:* an established subscription retains until something consumes, where before the\n  message was dropped. A queue whose worker never starts will grow.\n\n  *If you implement `IMessageBus` yourself*, add the member. Azure Service Bus implements it as a\n  no-op, and that is the whole implementation for any transport whose subscriptions are provisioned\n  before the application runs. A transport that cannot establish a subscription ahead of its consumer\n  should throw rather than return successfully — RabbitMQ does exactly that for client subscriptions\n  (`default-*`), whose queues are exclusive and auto-deleting and would vanish before a handler\n  attached. `Stratara.Testing.InMemoryMessageBus` now retains for an established subscription and\n  replays on attach, so a test cannot pass on start-up ordering that production fails.\n\n- **BREAKING: an event's owner now comes from its stream, not from the session that wrote it.**\n  Every event records a subject — the tenant whose key encrypts its payload and whose erasure reaches\n  it. Resolution consulted the owner already recorded on the stream *only* when the aggregate\n  implemented `ITenantAggregate`. For any other aggregate it fell through to the session, so a stream\n  written by two tenants ended up with entries owned by whoever happened to write them.\n\n  `ITenantAggregate` adds exactly one member — `Guid TenantId { get; set; }` — so that a rehydrated\n  aggregate carries its tenant as a property. It is a statement about the shape of the class, not\n  about whether the stream has an owner. Every entry has one either way, which is why the condition\n  was testing the wrong thing.\n\n  **What it cost.** Erasure became incomplete: erasing one tenant shredded its key while the other\n  tenant's entries on the same stream stayed readable, so neither erasure covered the aggregate. And\n  because each event is decrypted with the subject recorded on its own entry, once one key was\n  shredded the aggregate could no longer be rebuilt **at all** — a lawful erasure in one tenant broke\n  a shared aggregate for everyone.\n\n  After this change, once a stream has a recorded owner every later event carries the same owner,\n  whatever session appends it. The acting session is still recorded separately as the actor.\n  Consumers that genuinely want an event attributed to a different subject keep the explicit route,\n  `AppendOnBehalfOfAsync`, which outranks everything — the difference is that shared ownership is now\n  something a consumer states rather than something the absence of an interface produces.\n\n  **Nothing stops compiling.** Events simply start being attributed differently, so a consumer\n  relying on the old behaviour gets no compile-time warning — which is the whole reason for this\n  note. If you deliberately appended to one stream from several tenants, those appends now land on\n  the stream's first owner.\n\n  **Existing mixed-ownership streams are not repaired.** Their recorded entries keep the owners they\n  were written with; only new appends follow the stream's first owner. The store does not rewrite\n  recorded events, by design. A consumer with such a stream still has an erasure that does not cover\n  all of it, and this change does not fix that retroactively — you can find them by looking for one\n  stream whose entries carry differing tenant ids.\n\n  **The framework's own `Tenant` aggregate is affected too.** `Tenant` is a plain `IAggregate` — a\n  tenant does not belong to a tenant — so its streams previously took the session's tenant on\n  non-creation events and now take the owner recorded at creation. This is not only a consumer's\n  behaviour changing.\n\n  The cost is one extra read on the write path, bounded by the existing per-batch cache: at most one\n  transaction plus two queries per distinct existing stream per `SaveChanges`, regardless of how many\n  events that batch appends to it. A first append to a stream that does not exist yet costs one\n  query, and `ITenantAggregate` aggregates are unchanged.\n\n- **BREAKING: a user with several active memberships and no valid selection now receives no tenant\n  claim.** Previously the framework picked one for them — the first of the active memberships sorted\n  by `TenantId`. `OrderBy` on a `Guid` compares byte groups in an order of its own, so the winner was\n  not the oldest membership, not the alphabetically first tenant and not the user's primary one. It\n  was an artefact of Guid comparison semantics, and whatever a user expected, it was not that.\n\n  A user with **exactly one** active membership is unaffected and keeps resolving to that tenant. A\n  user with a **valid stored selection** is unaffected. What is removed is only the guess.\n\n  **Nothing stops compiling.** A multi-tenant user simply stops receiving a claim they used to\n  receive, and the symptom is authorization failures downstream rather than an error naming the\n  cause — which is why this note exists. A host that supports multi-tenant users must obtain a\n  selection through `SetActiveTenantAsync` and offer a route reachable without a tenant claim to\n  obtain it on.\n\n  Distinguishing the two no-claim cases is a `GetMembershipsAsync` call: no active memberships means\n  no access at all, several means a tenant has not been chosen. They call for opposite responses, and\n  showing a multi-tenant user \"you have no access\" is the mistake worth guarding against. See\n  [Tenant Membership](https://docs.stratara.tech/guides/tenant-membership.html).\n\n  **The removed behaviour never matched the specification.** The `tenant-directory` requirement has\n  said \"otherwise no claim at all\" since it was written; the implementation emitted a claim anyway.\n  A consumer relying on it was relying on a defect — which does not make the break less real for\n  them, but does explain why it is being removed rather than specified. The requirement's scenario\n  hedged with \"deterministic rather than arbitrary\", which a Guid sort satisfies while defeating the\n  sentence above it; that scenario is replaced with one that states the outcome.\n\n- **`StackExchange.Redis` moves to `3.x` in the published dependency graph.** `Stratara.Infrastructure`\n  and `Stratara.Outbox.RabbitMQ` now declare `StackExchange.Redis` `3.1.31`, up from `2.13.10`. Both\n  packages use it on a runtime path — the distributed cache registration, the outbox lock and the\n  projection replay state — so this reaches consumers: an application pinning `StackExchange.Redis`\n  `2.x` will have to move with it. The framework's own use of the client is unchanged and the\n  behaviour is covered by the Redis integration suite.\n\n- **Test-support toolchain moved to xunit v3 `4.0.0`.** `xunit.v3`, `xunit.runner.visualstudio` and\n  `Microsoft.Testing.Extensions.CodeCoverage` moved together, because xunit v3 `4.0.0` is the first\n  release shipping a Microsoft.Testing.Platform v2 variant — which is what the CodeCoverage\n  extension has required since `18.1.0`. This affects how the framework tests itself and does not\n  change any published package's surface.\n\n- **Dependency refresh across the package family.** 58 pinned versions moved to their current\n  releases: the .NET 10 stack (Entity Framework Core, `Microsoft.Extensions.*`, ASP.NET Core\n  authentication and identity) to `10.0.11`, OpenTelemetry to `1.18.0`, `Microsoft.Extensions.*`\n  resilience and service discovery to `10.9.0`, `Microsoft.IdentityModel.*` to `8.22.0`, plus\n  Serilog, Npgsql, RabbitMQ.Client and Azure.Messaging.ServiceBus. These are the versions the\n  published packages now declare, so a consumer resolving Stratara picks them up transitively.\n\n### Removed\n\n- **BREAKING: the six deprecated members held for the major are gone.** Every one shipped with a\n  named successor and at least one minor version of overlap; this is the second half of that promise.\n  A consumer still calling one stops compiling, at the call site, with the successor named in the\n  deprecation message it has been seeing since the member was deprecated.\n\n  | Removed | Package | Replace with |\n  |---|---|---|\n  | `ISnapshotRepository.GetAsync(Guid, long?, CancellationToken)` | `Stratara.Abstractions` | `GetAsync(streamId, aggregateTypeName, toVersion, ct)` |\n  | `ISnapshotRepository.GetLatestVersionOrDefaultAsync(Guid, CancellationToken)` | `Stratara.Abstractions` | `GetLatestVersionOrDefaultAsync(streamId, aggregateTypeName, ct)` |\n  | the two implementations of the above | `Stratara.EventSourcing.EntityFrameworkCore` | — |\n  | `AddNpsqlWriteDbContextFactory<TDbContext>()` | `Stratara.EventSourcing.EntityFrameworkCore` | `AddNpgsqlWriteDbContextFactory<TDbContext>()` |\n  | `UseAuthorizationExceptionTo403()` | `Stratara.Infrastructure` | `AddStrataraProblemDetails()` + `app.UseExceptionHandler()` |\n\n  The `aggregateTypeName` the snapshot overloads now require is the value the framework itself passes,\n  `aggregateType.GetQualifiedTypeName()` — not new information a caller has to invent. A type-less\n  lookup could return a snapshot written for a *different* aggregate type sharing the stream id, which\n  was then deserialized into the requested type and yielded corrupt or default state; that is why the\n  overloads were deprecated and why they are now gone.\n\n  `AddNpsqlWriteDbContextFactory` was the original misspelling — no `g` in `Npgsql`. It forwarded\n  verbatim to the correctly-spelled name from `3.2.0` onward. Adding the `g` is the whole migration.\n\n- **BREAKING: `UseAuthorizationExceptionTo403()` and the middleware behind it are removed, and the\n  replacement answers in a different shape.** This is the one removal that is not a\n  signature-for-signature substitution, so it gets its own paragraph rather than a table row.\n\n  The removed middleware mapped an authorization refusal and a tenant-access denial to a bare `403`\n  with no body. `AddStrataraProblemDetails()` in `Stratara.ServiceDefaults.AspNetCore` maps the same\n  two refusals — plus validation failures — to one RFC 7807 problem shape, so a host that migrates\n  gains a response body it did not have. Both lines are needed: the registration alone does nothing\n  without `app.UseExceptionHandler()` in the pipeline.\n\n  A host that wants neither the middleware nor the problem shape can map the refusals itself.\n  `AuthorizationException` and `TenantAccessDeniedException` are both declared in\n  `Stratara.Abstractions`, so a host's own exception handler catches them without referencing the\n  mediator or infrastructure packages.\n\n  The two must never have been registered together — the middleware answered first and the handler\n  never saw the exception. That trap goes with the middleware.\n\n- **If you implement `ISnapshotRepository` yourself, nothing breaks at compile time.** Removing a\n  member from an interface leaves an implementor with two methods that no longer implement anything;\n  the compiler does not complain about an extra method, so there is no error to hunt. Delete them at\n  leisure.\n\n### Security\n\n- **The SQLitePCLRaw advisory `GHSA-2m69-gcr7-jv3q` is resolved and no longer suppressed.**\n  The High-severity advisory against `SQLitePCLRaw.lib.e_sqlite3` 2.1.11 was reached transitively\n  through `Microsoft.EntityFrameworkCore.Sqlite` — used by the `Stratara.Testing.EntityFrameworkCore`\n  test-support package, never on a shipped runtime path — and had no patched version to move to, so\n  it was suppressed in the build audit. Entity Framework Core `10.0.11` resolves a patched\n  `lib.e_sqlite3`, and both suppression entries have been removed. The repository now carries no\n  audit suppressions at all.\n\n### Documentation\n\n- **The signature scope documented for bus-envelope integrity now matches what 3.4.0 signs.**\n  `BusEnvelopeIntegrityOptions`, `IBusEnvelopeSigner` and `SECURITY.md` still described the\n  pre-3.4.0 projection — identity only, `CommandTypeName + \"|\" + SessionContextJson` for a command\n  and `SessionContextJson` for an event bundle — and told adopters the payload body was not bound,\n  down to advising an extra integrity check at the application layer. Since 3.4.0 the canonical\n  projection covers every field of the message except the signature itself, with the command body\n  and the carried events covered as SHA-256 digests and every field length-prefixed. All three now\n  state that, the application-layer advice is gone, and the `[EncryptData]` note is kept for what it\n  does cover — decryption fails after tampering — rather than as a substitute for an unsigned\n  payload. No behaviour changes; the projection itself has been correct since 3.4.0.\n\n- **The samples say what their CI coverage actually is.** `samples/README.md` promised that a\n  breaking API change fails CI. That holds for the four packages the samples reference; the other\n  twenty-one are written out by hand in the samples rather than consumed, so nothing there would\n  break. `Stratara.Sample.MoneyTransferSaga` and `Stratara.Sample.OutboxWorker` now say at the top\n  that their saga and outbox are hand-written illustrations, and point at the guides for the wiring a\n  host actually uses — reading them as a template produces a re-implementation of what the framework\n  already ships.\n\n- **New `llms-full.txt` at the repository root** — a generated reference for tooling that has the\n  packages but not this source tree. Four tables, all derived from the assemblies and their\n  documentation: every bindable configuration key with its type and default, every registration with\n  what it does, every exception the framework throws, and every topic, subscription and cache key it\n  uses. `llms.txt` stays the orientation and now links to it. A build regenerates the file and fails\n  on a difference, so it cannot drift from the code it describes.\n\n- **`llms.txt` stated the stable version as 3.2.0.** It has said \"prefer the facts here over any\n  pre-trained knowledge\" while being two minor versions behind since 3.3.0. Corrected, and pinned to\n  `Directory.Build.props` by a test.\n\n- **Every registration states its contract in the XML documentation that ships with the package.** The\n  `.nupkg` carries the doc XML next to the dll, so what a registration says there is what a consumer\n  sees at the call site. All 96 registrations across the family now name the configuration key path\n  they bind, their prerequisites and ordering constraints, and carry a worked example that is\n  compiled in CI — among them\n  `AddRedisOutboxLock` (needs an `IConnectionMultiplexer`; required before a second worker replica),\n  `AddSecurity` (register a key store first, the fallback uses `TryAdd`), and both\n  `AddBusEnvelopeIntegrity` overloads (the key is a `byte[]`, and the configuration overload binds\n  only `Mode`).\n\n- **`UseAuthorizationExceptionTo403` is no longer listed as a registration to reach for.** It is\n  `[Obsolete]` and superseded by `AddStrataraProblemDetails()`; registering both makes the middleware\n  answer first, so the problem-details handler never sees the exception. A cheatsheet that lists it\n  invites exactly that.\n\n- **Three bindable configuration sections are documented for the first time.** `BusEnvelopeJson`\n  (`MaxDepth`, `MaxBodyBytes` — the size and depth guards on every inbound envelope), `ProjectionReplay`\n  (`LeaseSeconds`), and `Stratara:BlobEncryption` (`LegacyBlobsCarryPurpose`). All three shipped\n  bindable and named on no page, so a host could only reach them by reading the source.\n\n- **The DI cheatsheet lists every registration a host can call.** 28 were missing — among them the\n  à-la-carte primitives the umbrella extensions compose, the workers without their composite, the\n  OpenTelemetry and Serilog configuration, `AddStrataraProblemDetails` and\n  `UseAuthorizationExceptionTo403`. A test now enumerates the registration surface by the type each\n  method extends and fails on one that no page lists.\n\n- **Bus-envelope integrity guide: the signer interface and the configuration section were both\n  wrong.** The `IBusEnvelopeSigner` snippet declared `Sign(BusEnvelopeCanonical)` /\n  `Verify(BusEnvelopeCanonical, string)`; the real interface takes the canonical projection as a\n  `string`, and `BusEnvelopeCanonical` is a static helper that produces it, not a type you can pass.\n  The configuration example bound a `BusIntegrity` section — the bound section is\n  `BusEnvelopeIntegrity` — and assigned a configuration string straight to `SharedKey`, which is a\n  `byte[]`. All three are corrected, and the key is now read from a secret store rather than\n  `appsettings.json`.\n\n- **Bus and topic names in the outbox guides are the ones the framework actually uses.** Both guides\n  described a routing model of `stratara.commands.{appName}` / `stratara.events.{appName}`. The\n  defaults are `command`, `heavy-command`, `event-bundle` and `notifications` with their matching\n  subscriptions, all overridable through the `Messaging:Topics` configuration array. An operator who\n  provisioned a broker from those pages created topics nothing publishes to. The RabbitMQ guide now\n  carries the full table and the override shape; the Azure Service Bus guide points at it and notes\n  that Service Bus entities must be provisioned up front.\n\n- **`[EncryptData]` payload encryption is no longer described as conditional on integrity mode.** The\n  encryption guide claimed the bus carries ciphertext \"when `BusEnvelopeIntegrityOptions.Mode != Off`\".\n  Payloads are serialized through `ISecureJsonSerializer` on the way out regardless; integrity mode\n  decides whether envelopes are *signed*, not whether payloads are *encrypted*.\n\n- **The log-event ID allocation table lists every bucket again.** The reference page and the\n  `LogEvents` XML doc both stopped short of the current allocation — the page at `113_999`, the XML\n  doc at `110_999` — while `TenantIsolation` (114_000s), `ExternalLoginProvisioning` (115_000s) and\n  `ApiKeys` (116_000s) already existed. That table is what a consumer reads to pick a\n  non-colliding range for its own events. `Stratara.Diagnostics`'s README carried the same stale list.\n\n- **The DI cheatsheet covers the registrations it was missing.** New sections for the write-store\n  context factories, `AddWriteStore`, `AddCommandAuditing`, the health checks, and — the two that\n  cost the most when unknown — `AddRedisOutboxLock`, without which a second outbox-worker replica is\n  not safe, and `AddProjectionReplayState`, which is what leases a projection-replay marking.\n\n- **`OutboxOptions.BatchSize` no longer describes the drain loop 3.4.0 removed.** The XML doc still\n  claimed the worker keeps fetching batches until the table is drained and that the value caps\n  per-query memory pressure rather than throughput. A cycle takes one batch of each kind and ends,\n  and entries the bus did not accept are retried on the next interval — so `BatchSize` together with\n  `PollingIntervalSeconds` is exactly what sets the drain rate (20 000 entries a minute with the\n  defaults). The doc now says so, and says which knob to raise for a large backlog.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#repository",
+    "commit": "e266c12f717b74fd645eb46dafc27f0a1c37c13a",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "4.0.0",
+  "version": "4.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#dependencygroup/net10.0/stratara.identity.core",
+          "@type": "PackageDependency",
+          "id": "Stratara.Identity.Core",
+          "range": "[4.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#dependencygroup/net10.0/stratara.shared",
+          "@type": "PackageDependency",
+          "id": "Stratara.Shared",
+          "range": "[4.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.openidconnect",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.OpenIdConnect",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#dependencygroup/net10.0/microsoft.aspnetcore.identity.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#dependencygroup/net10.0/microsoft.identitymodel.jsonwebtokens",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IdentityModel.JsonWebTokens",
+          "range": "[8.22.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#dependencygroup/net10.0/system.identitymodel.tokens.jwt",
+          "@type": "PackageDependency",
+          "id": "System.IdentityModel.Tokens.Jwt",
+          "range": "[8.22.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#Stratara.Identity.AspNetCore.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 10255,
+      "fullName": "Stratara.Identity.AspNetCore.nuspec",
+      "length": 26063,
+      "name": "Stratara.Identity.AspNetCore.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2890,
+      "fullName": "README.md",
+      "length": 7391,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#lib/net10.0/Stratara.Identity.AspNetCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27669,
+      "fullName": "lib/net10.0/Stratara.Identity.AspNetCore.dll",
+      "length": 66560,
+      "name": "Stratara.Identity.AspNetCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#lib/net10.0/Stratara.Identity.AspNetCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 12763,
+      "fullName": "lib/net10.0/Stratara.Identity.AspNetCore.xml",
+      "length": 80039,
+      "name": "Stratara.Identity.AspNetCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#lib/net10.0/de/Stratara.Identity.AspNetCore.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2378,
+      "fullName": "lib/net10.0/de/Stratara.Identity.AspNetCore.resources.dll",
+      "length": 6144,
+      "name": "Stratara.Identity.AspNetCore.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.08.31.14.51.56/stratara.identity.aspnetcore.4.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspnetcore",
+    "identity",
+    "authentication",
+    "authorization",
+    "asp-net-identity",
+    "sign-in",
+    "jwt",
+    "passkey",
+    "oidc",
+    "openid-connect",
+    "external-login",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

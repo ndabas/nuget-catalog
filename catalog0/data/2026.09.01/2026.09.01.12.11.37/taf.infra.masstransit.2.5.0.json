@@ -1,0 +1,223 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "TAF",
+  "catalog:commitId": "0feb2288-ec0a-441e-8323-9fd2fad91376",
+  "catalog:commitTimeStamp": "2026-09-01T12:11:37.7932787Z",
+  "copyright": "Copyright (c) 2025 TechAppForce",
+  "created": "2026-09-01T12:09:00.477Z",
+  "description": "A comprehensive abstraction layer over MediatR and MassTransit that provides unified Command, Query, and Event handling patterns with support for both local (in-process) and distributed (message broker) execution. Features include CQRS pattern implementation, context-aware messaging, multi-tenant support, automatic handler registration, and support for multiple message brokers (RabbitMQ, Azure Service Bus, Amazon SQS).",
+  "iconFile": "icon.png",
+  "id": "TAF.Infra.MassTransit",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-01T12:11:36.83Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "ZqxeeJWejCKYMxRmFGcYoDE8LFsI6A+Wy/um8xC61j0gpas15lEbijeAc7wVD1hUoNEHbTjX/n3OXpJO+qlZjw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 68667,
+  "projectUrl": "https://https//codelab.techextensor.com/webprojects/taf_infra/TAF.Infra.MassTransit",
+  "published": "2026-09-01T12:09:00.477Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v2.5.0 - Multi-role registration on RegisterUserCommand (BREAKING):\n\t\t\t- Role (string?) is REMOVED, replaced by Roles (List<Guid>?) carrying role IDs.\n\t\t\t  A caller assigning one role sends a one-element list; there is no separate single-role\n\t\t\t  field.\n\t\t\t- Closes a silent drop: a nested-user payload naming several roles had no field to travel\n\t\t\t  in, so CRUD discarded it and Identity registered the user with only the platform\n\t\t\t  baseline while still reporting success.\n\t\t\t- Ids rather than names because that is what both producers already hold — a form bound\n\t\t\t  to an entity child relationship carries the RoleId foreign key, and a role picker holds\n\t\t\t  the id of the row it listed. Resolution is therefore a single lookup with no per-entry\n\t\t\t  branching, and ids survive a role being renamed.\n\t\t\t- BREAKING for anyone setting Role — it no longer compiles. Send Roles instead.\n\t\t\t  Supersedes the unreleased 2.2.32 / 2.3.0 / 2.4.0 iterations of this contract.\n\n\t\t\tv2.2.29 - Second-level retry and circuit breaker (WP-07):\n\t\t\t- UseScheduledRedelivery at 5/15/30 minutes. UseMessageRetry handles the blip that clears in\n\t\t\t  milliseconds; this handles the dependency down for minutes (a gateway, a database failover)\n\t\t\t  instead of burning the fast retries and dead-lettering a message that would have succeeded.\n\t\t\t  GUARDED on MassTransitSettings.UseMessageScheduler - scheduled redelivery needs a scheduler and\n\t\t\t  fails at RUNTIME, not startup, without one.\n\t\t\t- UseCircuitBreaker (15% trip threshold over a 1-minute window, 10-message floor, 5-minute reset)\n\t\t\t  so an outage does not turn into every queued message retrying against it at once.\n\n\t\t\tv2.2.28 - Bus-registration hook, so services can enable the transactional outbox:\n\t\t\t- MessageBusConfiguration.ConfigureBus (Action<IBusRegistrationConfigurator>) and a matching\n\t\t\t  optional parameter on AddMessageBus(IConfiguration, ...). Invoked inside AddMassTransit BEFORE\n\t\t\t  Using*(), which is where the outbox must be registered to wrap the transport pipelines.\n\t\t\t- Exists because AddEntityFrameworkOutbox<TDbContext> is generic over the caller's DbContext,\n\t\t\t  which this package cannot see.\n\t\t\t- Purely additive and OPT-IN: left unset, bus configuration is byte-for-byte what it was. Services\n\t\t\t  without a database, or without the outbox tables, are unaffected.\n\n\t\t\tv2.2.27 - Gate B: plan-entitlement enforcement on the consume path (Filters/):\n\t\t\t- PlanEntitlementConsumeFilter<T> registered ONCE at bus level, so it covers every receive\n\t\t\t  endpoint. Messages consumed off the bus bypass the CRUD pipeline and therefore Gate A, so without\n\t\t\t  this an annotated command was a hole in enforcement.\n\t\t\t- OPT-IN: only types carrying [RequiresEntitlement(\"key\", level)] are checked; everything else\n\t\t\t  passes untouched. Gating by default would put every internal command in the platform behind\n\t\t\t  entitlement resolution.\n\t\t\t- FAILS OPEN: no tenant/app headers (system and service-to-service traffic), an unreachable\n\t\t\t  provider, or any unexpected error all allow the message through.\n\t\t\t- PlanEntitlementDeniedException is added to the retry policy's Ignore list: a denial is permanent,\n\t\t\t  and retrying it only burns the budget before parking a message that could never succeed.\n\t\t\t- IPlanEntitlementProvider defaults to NullPlanEntitlementProvider (grants everything) via\n\t\t\t  TryAddSingleton, so services without an entitlement source keep starting normally; a service that\n\t\t\t  registers a real provider overrides it.\n\t\t\t- Requires TAF.Infra.Licensing 1.4.0.\n\n\t\t\tv2.2.26 - EntitlementChangedEvent identifiers are now nullable:\n\t\t\t- TenantId, AppId, PackageVersionId and FeatureId are all Guid? so one event shape can address\n\t\t\t  either cache tier: (TenantId, AppId) clears the per-subscription entry, PackageVersionId clears\n\t\t\t  the grant map shared by every tenant on that version, and FeatureId lets the consumer resolve\n\t\t\t  which versions grant it.\n\t\t\t- BREAKING for anyone who constructed it with non-nullable TenantId/AppId in 2.2.25.\n\n\t\t\tv2.2.25 - Billing lifecycle events (Events/Billing/):\n\t\t\t- SubscriptionStatusChangedEvent: subscription id, tenant, app, From/To state, reason, OccurredAt.\n\t\t\t  Published through the transactional outbox in the same transaction as the status write, so a\n\t\t\t  consumer can never observe a status the database did not commit.\n\t\t\t- EntitlementChangedEvent: busts cached entitlements for a (tenant, app) pair so plan and status\n\t\t\t  changes take effect immediately rather than at the next TTL expiry.\n\t\t\t- NEW DEPENDENCY: TAF.Infra.Licensing 1.0.0, for the SubscriptionState enum carried on the event.\n\t\t\t  Consumers upgrading to 2.2.25 pick it up transitively.\n\n\t\t\tv2.2.24 - EventConsumer no longer swallows handler failures (billing reliability, WP-05):\n\t\t\t- Handler exceptions are collected and rethrown as an AggregateException so MassTransit's retry\n\t\t\t  policy engages, instead of ACK-ing a message whose work never happened. Previously a failed\n\t\t\t  side-effect was lost silently.\n\t\t\t- Handlers now run SEQUENTIALLY rather than in parallel. A retry therefore re-runs every handler\n\t\t\t  for the event, so all event handlers must be idempotent.\n\t\t\t- The dead `if (handlers != null)` guard is replaced by a count check, so the\n\t\t\t  \"No handler found for distributed event\" warning is finally reachable.\n\t\t\t- New kill-switch MassTransitSettings.PropagateHandlerFailures (default true); set it to false to\n\t\t\t  restore the old swallow behaviour by configuration rather than redeploy.\n\n\t\t\tv2.2.23 - Carry DisplayName through the create-app chain:\n\t\t\t- AppEnvironmentProvisionedEvent gains DisplayName so metadata can forward the app's\n\t\t\t  display name to IdentityService (previously AppInfo.DisplayName fell back to AppName).\n\n\t\t\tv2.2.22 - Create-App lifecycle events (Events/AppLifecycle/):\n\t\t\t- AppCreationRequestedEvent  (taf_crud → taf_metadataservice): app id + name + owner tenant + creating user.\n\t\t\t- AppEnvironmentProvisionedEvent (taf_metadataservice → IdentityService): carries the generated EnvironmentId forward.\n\t\t\t- AppCreationCompletedEvent (IdentityService → *): signals the create-app identity cascade committed.\n\n\t\t\tv2.2.21 - CorrelationId Items bridge for cross-service tracing:\n\t\t\t- ContextHelper.SetFromHttpContext now reads HttpContext.Items[CorrelationId] in step 3\n\t\t\t  so every GetContext() call within a request returns the same CorrelationId that\n\t\t\t  CorrelationIdMiddleware resolved and pushed to Serilog LogContext.\n\t\t\t- Without this, middleware and controller each called Guid.NewGuid() separately,\n\t\t\t  producing two different CorrelationIds — breaking cross-service Kibana tracing.\n\n\t\t\tv2.2.20 - CommandConsumer logging and BusContext propagation fix:\n\t\t\t- LogDebug → LogInformation for \"Processing\" and \"Successfully processed\" in both CommandConsumer classes\n\t\t\t  so consumer activity is visible in Kibana at default (Information) log level\n\t\t\t- BusContext properties (CorrelationId, TenantId, UserId, AppId, EnvironmentId) pushed onto\n\t\t\t  ILogger.BeginScope before handler dispatch so all downstream logs carry correlation context\n\t\t\t- scope renamed to serviceScope to avoid shadowing the log scope variable\n\n\t\t\tv2.2.19 - Carry nested person fields on RegisterUserCommand:\n\t\t\t- RegisterUserCommand now carries PersonDetails (Dictionary<string, object?>) lifted\n\t\t\t  from the nested PersonId payload (MiddleName, DOB, Gender, EducationQualification, …)\n\t\t\t- Lets the Identity consumer fully populate TABD_Person instead of only FirstName/LastName\n\t\t\t- Additive, backward compatible\n\n\t\t\tv2.2.18 - Added AppSubscriptionProvisionedEvent:\n\t\t\t- Added Events/Identity/AppSubscriptionProvisionedEvent.cs\n\t\t\t- Published by Identity after an app subscription is provisioned (role + env links);\n\t\t\t  consumed by Metadata to copy the app's AppObjectAccess (owner tenant + TAB defaults)\n\t\t\t  to the subscribing tenant. An event (pub/sub) because the trigger is cross-service.\n\n\t\t\tv2.2.17 - Added Identity subscription-created event:\n\t\t\t- Added Events/Identity/IdentitySubscriptionCreatedEvent.cs\n\t\t\t- Published by CRUD when TABD_Subscriptions is inserted; consumed by Identity to\n\t\t\t  assign the App Administrator role and create user/tenant environment links\n\n\t\t\tv2.2.16 - Default to TAB platform tenant when no tenant header is provided:\n\t\t\t- ContextHelper.SetFromHeaders falls back to PlatformConstants.TAB_TENANT_ID when\n\t\t\t  the TenantId header is missing/empty (mirrors the TAB environment default)\n\n\t\t\tv2.2.15 - Carry the caller's access token on BusContext:\n\t\t\t- BusContext.AccessToken holds the raw Authorization header value\n\t\t\t- ContextHelper.SetFromHeaders captures the inbound Authorization header\n\t\t\t- Lets service-to-service SDK calls relay the user's bearer token so\n\t\t\t  downstream services can enforce [Authorize] without breaking internal calls\n\n\t\t\tv2.2.14 - Add context fields to RegisterUserCommand:\n\t\t\t- RegisterUserCommand now carries TenantId, AppId, EnvironmentId (Guid?) from the originating BusContext\n\t\t\t- Allows Identity service consumer to apply proper tenant/app/env isolation when registering cross-service users\n\n\t\t\tv2.2.13 - Add publish timeout to fail fast when RabbitMQ is unreachable:\n\t\t\t- CommandBus.PublishAsync and EventBus.PublishAsync now time out after PublishTimeoutSeconds (default 5s)\n\t\t\t- Prevents API from hanging while MassTransit retries the broker connection internally\n\t\t\t- IsBrokerException extended to also catch MassTransit.RabbitMqConnectionException (outer exception)\n\t\t\t- MessageBrokerSettings.PublishTimeoutSeconds configurable via MessageBus:Settings:PublishTimeoutSeconds\n\n\t\t\tv2.2.12 - RabbitMQ connection failure returns HTTP 503:\n\t\t\t- CommandBus.PublishAsync and EventBus.PublishAsync now wrap RabbitMQ.Client exceptions as MessageBrokerException\n\t\t\t- ExceptionToErrorMapper maps MessageBrokerException to HTTP 503 SERVICE_UNAVAILABLE\n\t\t\t- Previously broker failures returned a generic HTTP 500\n\n\t\t\tv2.2.11 - Re-pack to materialize HeaderConstants.ServiceName in the binary:\n\t\t\t- The 2.2.9 release notes added Constants/HeaderConstants.ServiceName in source, but the 2.2.9 / 2.2.10 packed assemblies shipped without the constant (source change post-dated the pack).\n\t\t\t- 2.2.11 re-packs the current source so ServiceName is actually present at runtime. No source-level changes from 2.2.10.\n\n\t\t\tv2.2.10 - Cross-service register-user bridge (CRUD → Identity):\n\t\t\t- Added Commands/Identity/RegisterUserCommand.cs (request/response shape)\n\t\t\t- Added Commands/Identity/RegisterUserCommandResponse.cs\n\t\t\t- Added Constants/ServiceNameConstants.cs (target-service entry-assembly names for queue routing)\n\n\t\t\tv2.2.9 - Added shared log-property key for service identifier:\n\t\t\t- Added Constants/HeaderConstants.ServiceName so log-context property keys can be sourced from a single canonical constant across services (Rule 13).\n\n\t\t\tv2.2.7 - Added EnvironmentSyncCommand for Identity env DB fan-out (Phase 2):\n\t\t\t- Added Commands/Identity/EnvironmentSyncCommand.cs\n\t\t\t- Added Constants/SyncActionsConstants.cs\n\n\t\t\tv2.2.6 - Added Identity sync events for CRUD-to-Identity pipeline:\n\t\t\t- Added Events/Identity/IdentityUserCreatedEvent.cs\n\t\t\t- Added Events/Identity/IdentityUserUpdatedEvent.cs\n\t\t\t- Added Events/Identity/IdentityRoleCreatedEvent.cs\n\t\t\t- Added Events/Identity/IdentityRoleUpdatedEvent.cs\n\t\t\t- Added Events/Identity/IdentityUserRoleAssignedEvent.cs\n\t\t\t- Added Events/Identity/IdentityUserRoleRemovedEvent.cs\n\t\t\t- Added Events/Identity/IdentityUserEnvironmentLinkedEvent.cs\n\t\t\t- Added Events/Identity/IdentityUserEnvironmentUnlinkedEvent.cs\n\t\t\t- Added Events/Identity/IdentitySubscriptionUserCreatedEvent.cs\n\n\t\t\tv2.2.5 - Added SettingsChangedEvent:\n\t\t\t- Added Events/Settings/SettingsChangedEvent.cs\n\t\t\t- Published by CRUD when TABD_Settings is modified\n\t\t\t- Consumed by TAF.Infra.Configuration for instant local cache invalidation across all services\n\t\t\t- Carries AppId, EnvironmentId, and optional Key that changed\n\n\t\t\tv2.2.1 - JWT Authentication Patch:\n\t\t\t- Removed TenantId extraction from JWT claims (TenantId comes from headers only)\n\t\t\t- UserId extraction from JWT \"sub\" claim remains unchanged\n\t\t\t- JWT UserId takes precedence over UserId header when authenticated\n\n\t\t\tv2.2.0 - JWT Authentication Support:\n\t\t\t- Added SetFromHttpContext() method to ContextHelper for JWT claim extraction\n\t\t\t- Automatic UserId extraction from JWT \"sub\" claim when user is authenticated\n\t\t\t- JWT claims take precedence over HTTP headers for UserId\n\t\t\t- Backward compatible - existing SetFromHeaders() method unchanged\n\t\t\t- All services using this package can now seamlessly integrate JWT authentication\n\n\t\t\tv2.1.0 - Platform Constants and Default Environment Support:\n\t\t\t- Added PlatformConstants with TAB platform identifiers (TAB_TENANT_ID, TAB_APP_ID, TAB_ENVIRONMENT_ID)\n\t\t\t- ContextHelper now auto-applies default TAB environment when EnvironmentId header is missing\n\t\t\t- Auto-generates CorrelationId if not provided in headers\n\t\t\t- All services automatically use TAB platform environment for operations without explicit environment header\n\n\t\t\tv2.0.0 - Initial release featuring:\n\t\t\t- Unified CQRS pattern with Commands, Queries, and Events\n\t\t\t- Dual execution modes (local via MediatR, distributed via MassTransit)\n\t\t\t- Support for RabbitMQ, Azure Service Bus, Amazon SQS, and In-Memory brokers\n\t\t\t- Built-in context propagation for multi-tenant scenarios\n\t\t\t- Automatic handler discovery and registration\n\t\t\t- Configurable retry policies and error handling\n\t\t\t- Type-safe message contracts and handlers",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#repository",
+    "commit": "3e0106c58331cbd21a9bc3e20de9261a88825b30",
+    "type": "git"
+  },
+  "verbatimVersion": "2.5.0",
+  "version": "2.5.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/taf.infra.contract",
+          "@type": "PackageDependency",
+          "id": "TAF.Infra.Contract",
+          "range": "[1.11.7, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/taf.infra.licensing",
+          "@type": "PackageDependency",
+          "id": "TAF.Infra.Licensing",
+          "range": "[1.6.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/masstransit",
+          "@type": "PackageDependency",
+          "id": "MassTransit",
+          "range": "[8.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/masstransit.amazonsqs",
+          "@type": "PackageDependency",
+          "id": "MassTransit.AmazonSQS",
+          "range": "[8.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/masstransit.azure.servicebus.core",
+          "@type": "PackageDependency",
+          "id": "MassTransit.Azure.ServiceBus.Core",
+          "range": "[8.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/masstransit.rabbitmq",
+          "@type": "PackageDependency",
+          "id": "MassTransit.RabbitMQ",
+          "range": "[8.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/mediatr",
+          "@type": "PackageDependency",
+          "id": "MediatR",
+          "range": "[13.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/microsoft.aspnetcore.http.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Http.Abstractions",
+          "range": "[2.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/microsoft.aspnetcore.http.features",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Http.Features",
+          "range": "[5.0.17, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#dependencygroup/net8.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.3, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#TAF.Infra.MassTransit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6203,
+      "fullName": "TAF.Infra.MassTransit.nuspec",
+      "length": 16371,
+      "name": "TAF.Infra.MassTransit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4469,
+      "fullName": "README.md",
+      "length": 15578,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 4287,
+      "fullName": "icon.png",
+      "length": 5076,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#lib/net8.0/TAF.Infra.MassTransit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 38497,
+      "fullName": "lib/net8.0/TAF.Infra.MassTransit.dll",
+      "length": 99328,
+      "name": "TAF.Infra.MassTransit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.01.12.11.37/taf.infra.masstransit.2.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "CQRS",
+    "MediatR",
+    "MassTransit",
+    "MessageBus",
+    "Commands",
+    "Queries",
+    "Events",
+    "RabbitMQ",
+    "Microservices",
+    "Distributed",
+    "Architecture",
+    "DDD",
+    "EventDriven",
+    "Azure",
+    "ServiceBus",
+    "AmazonSQS"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

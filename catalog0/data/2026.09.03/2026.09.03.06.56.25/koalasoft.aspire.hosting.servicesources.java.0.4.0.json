@@ -1,0 +1,211 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jonas Flodén",
+  "catalog:commitId": "7a718f7e-d841-48fe-a5b4-154a0ea5abff",
+  "catalog:commitTimeStamp": "2026-09-03T06:56:25.8697982Z",
+  "created": "2026-09-03T06:53:38.447Z",
+  "description": "Java support for KoalaSoft.Aspire.Hosting.ServiceSources — lets an AddService() \"local\" source clone and run a Java service (Maven goal, Gradle task, or a jar) via the .NET Aspire Community Toolkit's Java integration.",
+  "id": "KoalaSoft.Aspire.Hosting.ServiceSources.Java",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-03T06:56:11.567Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "ZpIA5BfzgsUQbb+8r92f13//gt2wlARspBX/SnVs5Zx513+L1iJPBzMecIgJfQrR6el4ugrqMRnC7f7Lzssz7g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 85030,
+  "projectUrl": "https://github.com/flojon/aspire-servicesources",
+  "published": "2026-09-03T06:53:38.447Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Breaking\n\n- **Each source's settings move into a block named for that source in `servicesources.local.json`**\n  (#161). A field written directly on a service's entry is no longer read, and is reported rather\n  than ignored. Move each entry's fields under the source they belong to:\n\n  ```json\n  { \"services\": { \"orders\": { \"source\": \"local\", \"path\": \"/src/orders\" } } }\n  ```\n\n  becomes\n\n  ```json\n  { \"services\": { \"orders\": { \"source\": \"local\", \"local\": { \"path\": \"/src/orders\" } } } }\n  ```\n\n  `source` itself is unchanged, so pinning a source from the environment —\n  `ServiceSources__Services__orders__Source=container` — needs no edit. Overriding a *field* from a\n  higher layer gains the block segment: `ServiceSources__Services__orders__Local__Ref`.\n\n- **`git` on `PATH` is now required for a managed `\"local\"` checkout** (#85), and `LibGit2Sharp`\n  is gone from the package. Clone, fetch and checkout shell out to the `git` executable, the same\n  \"a tool you already have\" trade the `\"kubernetes\"` source makes with `kubectl`. Install `git` 2.7\n  or newer; a service pointed at your own directory with `path` needs none. In exchange, about\n  **23 MB of `runtimes/`** leaves every consumer's build output, plus 32 MB in `~/.nuget/packages`.\n  Nothing in `servicesources.yaml`, `servicesources.local.json` or the public API changes.\n\n- **Core and both satellite packages have to move together** (#79). A satellite pins core to its\n  own minor, so an AppHost that references core and a satellite separately cannot take core `0.4.0`\n  while holding a `0.3.x` satellite: restore fails with `NU1107`. The bound shipped in `0.3.0`, and\n  `0.4.0` is the first minor to cross it. Move both, or drop the core reference and let the\n  satellite bring core in for you.\n\n### Added\n\n- **`servicesources.local.json` can be overridden without editing it** (#69). The per-developer\n  source selection is now read through the AppHost's own `IConfiguration`, with the file registered\n  as the *lowest*-precedence source in the standard chain under the key\n  `ServiceSources:Services:<service>`. `appsettings.json`, `appsettings.{Environment}.json`, user\n  secrets, environment variables and the command line all override it, so a single run can pick a\n  different source — `ServiceSources__Services__orders__Source=url dotnet run` — and CI can pin\n  every service from the environment with no file present at all. Named profiles come from the same\n  mechanism: `appsettings.Cluster.json` plus `--environment Cluster`. The file is authored exactly\n  as before and keeps its own `services` root on disk, but its per-entry shape does change in this\n  release — see the #161 entry above. It joins the chain on the first ServiceSources call the\n  AppHost makes, so reading these keys yourself does not depend on how many services precede it\n  (#171).\n\n- **A malformed entry fails every `AddService()` call, not just the one that read it** (#161). The\n  developer configuration is read once per builder and the result reused. Only the configuration\n  error is remembered: an `IOException` from a file something else held open for a moment is left\n  for the next caller to retry.\n\n- **A deferred cold checkout shows the clone's own progress** (#131). A `\"local\"` service whose\n  checkout is deferred used to sit in `Checking out` for however long its repository took, with no\n  way to tell a slow clone from a stuck one. The State column now carries git's own account of it —\n  the phase, that phase's percentage, and the bytes transferred while a pack is arriving\n  (`Receiving objects 48% · 18.54 MiB`) — and every line git writes reaches the service's console\n  logs. Needs no opt-in beyond `builder.UseDeferredCheckout()`. Silence is normal: git reports no\n  progress for work that finishes inside its own delay threshold, and none at all for a clone from a\n  local path, so a small repository can go from `Checking out` straight to running. A prefetched\n  clone on the eager path now runs under `--progress` too, so a failure carries the lines git wrote\n  before it.\n\n- **`builder.UseDeferredCheckout()` moves a cold `\"local\"` checkout past AppHost startup**\n  (#130, #159). Opt-in, off by default. A `\"local\"` service whose managed checkout does not\n  exist yet is registered against the path that checkout will have, held back with Aspire's\n  explicit-start behaviour, cloned while the AppHost runs, and started once its checkout lands. The\n  dashboard comes up immediately instead of after every clone, and a clone that fails costs one\n  service rather than the whole AppHost. All three `\"local\"` kinds that own a managed checkout are\n  covered — `dotnet`, `java` and `javascript`.\n\n  The caveat is the `dotnet` kind's, and it is why the call is opt-in: Aspire reads a project's\n  launch profile during composition, when a deferred service has no repository on disk.\n  **Environment is restored** once the clone lands — the profile's `environmentVariables` are\n  applied before the resource starts, and only where the AppHost has not already set the same key,\n  so a deferred service does not run as `Production` while every warm run of it runs as\n  `Development`; `DOTNET_ENVIRONMENT` and `DOTNET_LAUNCH_PROFILE` are set as Aspire sets them on a\n  warm run. **Endpoints cannot be restored**, since ports are allocated during composition, so\n  declare any you need:\n\n  ```csharp\n  builder.UseDeferredCheckout();\n\n  var orders = builder.AddService(\"orders\").WithHttpEndpoint();\n  ```\n\n  A service that declares none is *not* refused: the landed profile is read after the clone and a\n  shortfall reported then, quoting the `applicationUrl` it found and what to add. The line above is\n  correct on a warm checkout too.\n\n  Nothing else about a run changes: a checkout that already exists takes the eager path, as do\n  `path` overrides, and `aspire publish` and manifest generation clone first as they always have. A\n  satellite registering its own kind opts in through `ILocalResourceKind.ResolveDeferred()` and\n  `SupportsDeferredCheckout(rawConfig)`, both of which default to declining — the README documents\n  the pair. `appType: node` and `appType: bun` are deferred only when the catalog guarantees a\n  `package.json` (`runScript` is set, or `packageManager` names one); every other `appType` is\n  deferred unconditionally.\n\n- **`GetServiceEndpoint()`, a portable way for a consumer to name a resolved service's endpoint**\n  (#160). The endpoint *name* a service exposes was decided by whichever source resolved it, so a\n  consumer's `GetEndpoint(\"https\")` resolved only while that service happened to sit on a source\n  that produced an `https` endpoint. Switching one service from `\"local\"` to `\"kubernetes\"`\n  therefore broke an unrelated consumer, and broke it late — a `FailedToStart` on the **consumer**,\n  naming a service the consumer never changed. `GetServiceEndpoint()` asks for *the* endpoint the\n  service exposes — `https` if there is one, else `http`, else its only endpoint — and survives a\n  source switch. It is exported to Aspire's Type System as `getServiceEndpoint()`, so a\n  guest-language AppHost has the same spelling. `GetEndpoint(\"<scheme>\")` keeps working and stays\n  the right call for an endpoint you added yourself; the README says which to reach for.\n\n- **`scheme` on the `kubernetes` and `container` config blocks** (#160). Both hardcoded `http`,\n  which was not merely a naming choice: `kubectl port-forward` is a byte-transparent TCP tunnel, so\n  a pod serving TLS is reachable at `https://localhost:<port>` and a consumer handed an `http://`\n  URL for it cannot connect at all. Set `scheme: https` in `servicesources.yaml` and the service\n  exposes an endpoint named `https` whose URL says so; it defaults to `http`. For `\"kubernetes\"` a\n  developer can override it in `servicesources.local.json` alongside a `port` override; for\n  `\"container\"` it is catalog-only, exactly as `container.port` is. Certificate hostname validation\n  is the one thing a tunnel cannot fix, and the README says so.\n\n### Changed\n\n- **A `kind` handler that declines deferral late now clones in turn rather than in parallel**\n  (#76). Only affects third-party `ILocalResourceKind` implementations; no AppHost change, and\n  neither built-in satellite is affected. Returning `null` from `ResolveDeferred` after\n  `SupportsDeferredCheckout` answered `true` is still honoured — what changed is the price. The\n  checkout prefetch now acts on `SupportsDeferredCheckout` and leaves such a service out of the\n  clones it starts ahead of demand, so a late decline is cloned inline, alone, on the\n  `AddService()` thread. Nothing breaks: the service still resolves and still starts. A kind that\n  can decide from its options block alone should answer in `SupportsDeferredCheckout`, where the\n  answer is free.\n\n- **A malformed entry fails the AppHost even when nothing uses that service** (#161). Key\n  validation moved from `AddService()`, which only ever saw the services an AppHost asks for, to the\n  point the configuration is read, which sees every entry in it. An unknown or misplaced key in an\n  entry no `AddService()` call names now stops the run, where before it waited for the day that\n  service was added — deliberate, because the checkout prefetch clones `local`-sourced entries\n  nothing has asked for yet (see #76), so a typo used to buy a clone. A key whose *shape* is wrong\n  is reported on the same walk. Validation stays shape-only and never consults `servicesources.yaml`,\n  so an entry naming a service the catalog does not describe still loads, and is still reported by\n  `AddService()`.\n\n- **A blank value means \"no value\", not an empty string** (#161). Every string field inside a\n  service's blocks is read as absent when it is blank or whitespace, which is what makes\n  `ServiceSources__Services__orders__Local__Path=` a working *unset* for a field a lower layer\n  configured — configuration can add a key but never remove one, so blanking it is the only gesture\n  available. `int?` fields were the only ones behaving this way before. One consequence worth\n  knowing: `\"url\": \"\"` under `source: url` falls back to the catalog's `url.url` instead of failing\n  with \"no url configured\".\n\n- **A missing `servicesources.local.json` is no longer an error by itself** (#69). It used to fail\n  immediately, naming the path; now that the file is one layer of a chain, its absence is ordinary,\n  so the failure moved to the point where a service genuinely has no source. Two errors are raised\n  there instead of one: \"nothing is configured anywhere\", which names the key, the file path it\n  looked for and every source consulted, and \"this service has no source\", which names\n  `ServiceSources:Services:<service>:source` and the environment variable that would set it.\n\n- **SSH repository URLs now work** (#85). `git@host:org/repo`, `host:org/repo` and `ssh://...`\n  were previously refused at resolution time with a message pointing at the HTTPS equivalent,\n  because LibGit2Sharp's bundled binaries had no SSH transport. They are now handed to `git` as\n  written and resolved by your SSH agent and `~/.ssh/config`. Because nothing may block the AppHost\n  on a prompt, SSH runs with `BatchMode=yes` unless you set your own `GIT_SSH_COMMAND`: an\n  un-agented passphrase-protected key, or a host not yet in `known_hosts`, fails immediately rather\n  than waiting. Connect once by hand to settle either.\n\n- **Credential resolution is `git`'s own** (#85). Every `credential.helper` you have configured is\n  consulted by git exactly as it is for a `git clone` you type yourself, so helper ordering, per-URL\n  config and `credential reject` all behave as git documents them.\n  `SERVICESOURCES_GIT_USERNAME`/`SERVICESOURCES_GIT_TOKEN` are supplied as a helper of last resort,\n  so they never override one you configured; if a configured helper's credential is refused, the\n  command is re-run once with those helpers cleared so the environment token still gets its turn.\n  The per-process credential cache is gone, so a rotated token takes effect on the next resolution\n  with nothing to clear.\n\n- **`ServiceSourcesConfigurationException` prints as its message, not as a stack dump** (#125).\n  These are raised from `AddService()` and normally end the AppHost unhandled, so the runtime's\n  rendering of them *is* the error output — and it buried the sentence naming the fix under three\n  nested inner-exception blocks and a stack trace per level, about thirty lines for a failed private\n  clone. `ToString()` now prints the message plus one `caused by:` line per cause, and names\n  `SERVICESOURCES_FULL_ERRORS=1` whenever it dropped anything; set that for the runtime's complete\n  dump. `Message`, the `InnerException` chain and `StackTrace` are untouched, but anything logging\n  one of these exceptions logs the summary unless that variable is set.\n\n- **A clone or fetch that never resolved a credential says so** (#125), instead of reporting\n  authentication as the likely cause. When no credential helper yields anything and neither\n  `SERVICESOURCES_GIT_TOKEN` nor `SERVICESOURCES_GIT_USERNAME` is set, `git` falls through to asking\n  a human and finds prompting disabled (`could not read Username for '<host>': terminal prompts\n  disabled`) — a client-side dead end that never reached the host, so blaming a rejected token sent\n  developers hunting for one they never had. The usual real cause is a credential helper that\n  resolves in your shell but not in the environment the AppHost process inherits. A failure that did\n  carry a credential keeps the old wording.\n\n- CI type-checks the TypeScript export surface on every PR (#88). `samples/DemoAppHostTypeScript`\n  regenerates its Aspire Type System SDK from the branch's own source tree — `aspire.config.json`\n  resolves this package from `src/`, not from a published version — and compiles it under strict\n  `tsc`, against a pinned Aspire CLI. Nothing else here compiles what these packages export to\n  guest languages: the export test asserts the `[AspireExport]` attribute is *present*, and\n  `aspire restore` exits 0 even when the TypeScript it just wrote does not compile.\n\n- Smoke tests cover the configuration layers and the `\"local\"` source (#180), so the precedence\n  chain #69 introduced is exercised end-to-end rather than only in unit tests.\n\n### Fixed\n\n- **`UseDeferredCheckout()` stops the AppHost cloning `\"local\"` services it never adds** (#76).\n  The speculative checkout prefetch could not know which services an AppHost would add, so every\n  `\"local\"` entry with no checkout yet was cloned on the first `AddService()` call: a config listing\n  ten `\"local\"` services in front of an AppHost that adds two paid eight cold `git clone`s, and the\n  only remedy offered was to trim the file. A service that would be deferred if it were added is now\n  left out of the speculative set and clones itself when it is added instead. Deferral being off, or\n  refused (publish mode, a kind that cannot build its resource without reading the repository),\n  keeps the old speculative clone, which is what stops cold clones running one after another on the\n  composition thread — the tax #2 removed.\n\n  Two other entries left the speculative set with it, neither ever cloned into: a checkout that\n  already exists, and a `local.path` override. So the unused-checkout notice is now about clones\n  that were actually paid for, where before a stale `path` override for a service the AppHost never\n  adds was reported at startup as a checkout that had failed.\n\n- **A `WaitFor` on a `\"url\"`-sourced service no longer hangs the consumer forever** (#170). Aspire\n  honours a wait by watching the waited-on resource until it reports `Running`, and a `\"url\"`\n  service has no resource for Aspire to run — so nothing ever published a state, and a consumer that\n  wrote `.WaitFor(service)` sat in `Waiting` for the life of the run, with no error and no timeout.\n  The resource now declares Aspire's `IResourceWithoutLifetime`, which Aspire's wait machinery\n  filters on, so the wait is **dropped rather than satisfied**. `WaitFor`, `WaitForStart` and\n  `WaitForCompletion` are all covered, as is the `WaitForStart` that `AddConnectionString` adds on\n  the AppHost's behalf. A **container** consumer that only waits on a url-sourced service now starts\n  too, where before it failed with a bare `FailedToStart` and nothing logged; one that\n  `WithReference`s it is still refused up front, as before (#58). Each dropped wait is reported in\n  the same startup warning as the service's skipped `Configure` calls, naming the call and the\n  consumer (`skipped WaitFor from 'storefront'`).\n\n  **Read before upgrading:** a `WaitFor` on a service that resolves `\"url\"` now starts the consumer\n  immediately, and does not check that the URL is reachable. It regains its full meaning the moment\n  the service is switched back to a source that runs locally. Every other source is unchanged.\n\n- **A blank `path` no longer turns the AppHost's own directory into the service's checkout**\n  (#161). An empty `path` — written that way, or blanked from a higher layer — resolved through\n  `Path.GetFullPath(\"\", appHostDirectory)` to the AppHost directory itself, which was then adopted\n  as the checkout and used with no clone and no fetch, so the service ran against whatever happened\n  to be there. A blank `path` is absent, and the service gets its managed checkout.\n\n- **A service whose entry names no source says so** (#161). An entry carrying only its blocks, and\n  one whose `source` a higher layer blanked, both bind `source` to the empty string and were\n  reported as `has source '', which is not implemented yet` — pointing at a missing feature rather\n  than at the entry. Both now raise the same \"has no source configured\" error as an entry that is\n  absent altogether, which names the key, the file and the environment variable that would set it.\n\n- **A `source` is matched the way every other key in an entry is** (#161, #167). Service, block\n  and field names all arrive through `IConfiguration`, which compares keys case-insensitively; the\n  source value was compared ordinally, so `ServiceSources__Services__orders__Source=Local` was\n  reported as `has source 'Local', which is not implemented yet` — naming a missing feature rather\n  than the capital L. All four source names now match in any casing, and the unknown-source message\n  is reworded to name the sources that do exist. A service spelled `\"Local\"` also used to be dropped\n  from the prefetch's set of clones and cloned alone. `kind` names stay case-sensitive with their\n  \"did you mean\" hint, since those are an open registry satellite packages contribute to.\n\n- **A service entry written as a value instead of a block is reported, not dropped** (#161). The\n  likeliest slip in moving off the flat shape — `{ \"services\": { \"orders\": \"local\" } }`, the old\n  shortest entry with the `source` key left off — carries no keys to check, so it passed validation,\n  bound to null and was dropped by the dictionary binder, and the run failed with\n  `'ServiceSources:Services' is empty in every configuration source`, of a file that plainly named\n  the service. It is now refused with the rest of the entry's checks, and a value naming a source is\n  answered with the key it belongs under.\n\n- **A value that cannot bind to its field is reported as a configuration error** (#161). A `port`\n  written as `\"abc\"`, or blanked with a space rather than left empty, reached the binder and\n  surfaced as `InvalidOperationException: Failed to convert configuration value at '…' to type\n  'System.Int32'` — from a layer nothing treats as a configuration problem, and naming a CLR type\n  rather than the field. It is now refused at read time, saying what the field takes. A whitespace\n  value gets an answer of its own naming the character, so a tab or a non-breaking space is not\n  reported as the space it looks like, and it is refused for a string field as well as a numeric\n  one: a whitespace `local.path` was read as absent and sent the service to its managed checkout\n  instead of the developer's directory.\n\n- **A rejected key is named by its configuration key path, not by a file** (#161). Entries are\n  validated across the whole configuration chain, so the key a message is about may have been\n  contributed by appsettings, user secrets, an environment variable or the command line rather than\n  by `servicesources.local.json` — a CI machine carrying a stale\n  `ServiceSources__Services__orders__Local__Path` being the case that costs the most to find. Every\n  message now ends with the key path and its environment spelling.\n\n- **Managed checkouts no longer inherit the AppHost repository's MSBuild and NuGet settings**\n  (#119). A checkout is cloned into `<AppHostDirectory>/.servicesources/checkouts/<service>/`,\n  and MSBuild, NuGet, the .NET SDK host and analyzer configuration all find their settings by\n  walking *up* — so another team's repository was built under rules written for yours. Central\n  package management failed a checkout's restore with `NU1008`; a `packageSourceMapping` could\n  silently confine it to the wrong feeds; an `.editorconfig` could raise its analyzers to errors;\n  a `global.json` applied your SDK pin. `.servicesources/` now carries six tool-managed files that\n  stop those walks, refreshed on upgrade. A checkout bringing its own keeps its own.\n\n  **Read before upgrading:** package source mapping is now *off* inside checkouts, including\n  mappings from your user- and machine-level `nuget.config`, because NuGet's `<clear />` discards\n  everything accumulated above it. Set `SERVICESOURCES_KEEP_PACKAGE_SOURCE_MAPPING=1` to keep it\n  enforced. The README documents each barrier and where its coverage stops.\n\n- **The TypeScript AppHost sample no longer needs an unreleased Aspire CLI** (#88). The README put\n  the floor for `samples/DemoAppHostTypeScript` at CLI **13.6.0**, which is not released. Nothing in\n  the package changed — the requirement was stale. Measured against released **13.5.3**: the\n  generated SDK type-checks clean under strict `tsc` and the sample runs end-to-end. Aspire's codegen\n  omits the `*Promise`/`*PromiseImpl` wrapper pair for a bare Aspire interface return\n  (microsoft/aspire#19507) — the six `TS2552` errors the README warned about — but emits it when\n  the interface appears as an extension-method *receiver*, which the eight `[AspireExport]` shims\n  added in `0.3.0` declare, so they carry it for `addService` too. The real floor is **13.5.3**, for\n  an unrelated reason: an older CLI pins its generated host project below this package's 13.5.2\n  Aspire floor and fails `aspire restore` with `NU1605`.\n\n- **A misspelled `services` key in `servicesources.local.json` is named, rather than read as an\n  empty file** (#122). Only the file's `services` subtree is read, so `{ \"service\": { ... } }`\n  contributed nothing and the failure arrived as \"no service sources are configured\" — a description\n  of an empty file, handed to a developer looking at a populated one. When nothing is configured\n  anywhere and the file has no `services` key, a root key within two edits of `services` is now\n  named:\n\n  ```\n  No service sources are configured: '/src/apphost/servicesources.local.json' has a top-level key\n  'service'. Did you mean 'services'?\n  ```\n\n  Unrecognized root keys are still allowed — the file is entitled to carry keys of its own, and only\n  `services` crosses into the AppHost's configuration. A root key differing from `services` only by\n  case is read as the key itself, since configuration keys are case-insensitive.\n\n### Documentation\n\n- **Who builds a `\"local\"` checkout, and when** (#81). Aspire does, on every start: a `dotnet`\n  service is launched with `dotnet run` from inside the checkout, so a cold clone compiles on\n  first use and a checkout whose `ref` moved is recompiled rather than served from the previous\n  ref's binaries. Measured, along with the two things to know when it goes wrong — the compiler's\n  output goes to the resource's console in the dashboard rather than the AppHost's, and two `path`\n  services sharing a `ProjectReference` inside one repository can collide over that project's\n  build output. Nothing in the package changed.\n\nFull changelog: https://github.com/flojon/aspire-servicesources/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#repository",
+    "commit": "4599882c8ad5ed1878f6d174ed1d578e432abf4d",
+    "type": "git",
+    "url": "https://github.com/flojon/aspire-servicesources"
+  },
+  "verbatimVersion": "0.4.0",
+  "version": "0.4.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net10.0/koalasoft.aspire.hosting.servicesources",
+          "@type": "PackageDependency",
+          "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+          "range": "[0.4.0, 0.5.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net10.0/communitytoolkit.aspire.hosting.java",
+          "@type": "PackageDependency",
+          "id": "CommunityToolkit.Aspire.Hosting.Java",
+          "range": "[13.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net8.0/koalasoft.aspire.hosting.servicesources",
+          "@type": "PackageDependency",
+          "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+          "range": "[0.4.0, 0.5.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net8.0/communitytoolkit.aspire.hosting.java",
+          "@type": "PackageDependency",
+          "id": "CommunityToolkit.Aspire.Hosting.Java",
+          "range": "[13.3.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net9.0/koalasoft.aspire.hosting.servicesources",
+          "@type": "PackageDependency",
+          "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+          "range": "[0.4.0, 0.5.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#dependencygroup/net9.0/communitytoolkit.aspire.hosting.java",
+          "@type": "PackageDependency",
+          "id": "CommunityToolkit.Aspire.Hosting.Java",
+          "range": "[13.3.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#KoalaSoft.Aspire.Hosting.ServiceSources.Java.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 10321,
+      "fullName": "KoalaSoft.Aspire.Hosting.ServiceSources.Java.nuspec",
+      "length": 26393,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.Java.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 645,
+      "fullName": "LICENSE",
+      "length": 1070,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 26506,
+      "fullName": "README.md",
+      "length": 77162,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#lib/net10.0/Aspire.Hosting.ServiceSources.Java.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10691,
+      "fullName": "lib/net10.0/Aspire.Hosting.ServiceSources.Java.dll",
+      "length": 26624,
+      "name": "Aspire.Hosting.ServiceSources.Java.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#lib/net8.0/Aspire.Hosting.ServiceSources.Java.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10694,
+      "fullName": "lib/net8.0/Aspire.Hosting.ServiceSources.Java.dll",
+      "length": 26624,
+      "name": "Aspire.Hosting.ServiceSources.Java.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#lib/net9.0/Aspire.Hosting.ServiceSources.Java.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10694,
+      "fullName": "lib/net9.0/Aspire.Hosting.ServiceSources.Java.dll",
+      "length": 26624,
+      "name": "Aspire.Hosting.ServiceSources.Java.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.03.06.56.25/koalasoft.aspire.hosting.servicesources.java.0.4.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspire",
+    "dotnet-aspire",
+    "service-discovery",
+    "apphost",
+    "java",
+    "maven",
+    "gradle",
+    "spring-boot",
+    "microservices",
+    "local-development",
+    "polyglot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

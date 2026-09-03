@@ -1,0 +1,153 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Digital Samhandling",
+  "catalog:commitId": "ed02e6c5-30dd-4950-b581-c876bc1290f8",
+  "catalog:commitTimeStamp": "2026-09-02T13:29:05.2116584Z",
+  "created": "2026-09-02T13:26:13.417Z",
+  "description": "Useful methods and classes for cross-cutting concerns in Altinn applications",
+  "id": "Arbeidstilsynet.Common.Altinn",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-02T13:28:49.733Z",
+  "listed": true,
+  "packageHash": "C+l6TZ9ZuctN/GfMLX+nwzAxA8t6+TixHEeqw6PaF8mtciIRAaKmyoeAP0rlPzQGSfyMfBsn4fmYbCdKaGJRcA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 348490,
+  "projectUrl": "https://github.com/Arbeidstilsynet/dotnet-common",
+  "published": "2026-09-02T13:26:13.417Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).\n\n## [Unreleased]\n\n### Added <!-- for new features. -->\n\n### Changed <!--  for changes in existing functionality. -->\n\n### Deprecated <!--  for soon-to-be removed features. -->\n\n### Removed <!-- for now removed features. -->\n\n### Fixed <!-- for any bug fixes. -->\n\n### Security <!-- in case of vulnerabilities. -->\n\n## 4.0.0\n\n### Changed\n\n- **BREAKING**: Replaced the hand-written Altinn HTTP clients and hand-copied models with [Kiota](https://learn.microsoft.com/openapi/kiota/)-generated clients and models, generated from Altinn's OpenAPI specifications. The specifications ship with the package, and the generated clients are exposed for local adaptation under `Arbeidstilsynet.Common.Altinn.Storage`, `.Events`, `.Authentication`, `.Correspondence`, `.Dialogporten` and `.Apps`.\n- **BREAKING**: The `IAltinn*Client` and adapter ports are unchanged in shape but now exchange the generated models. `AltinnInstance` becomes `Storage.Models.Instance`, `AltinnQueryResponse<T>` becomes `Storage.Models.InstanceQueryResponse`, `AltinnSubscription` becomes `Events.Models.Subscription`, `AltinnCorrespondenceOverview` becomes `Correspondence.Models.CorrespondenceOverviewExt`, `CorrespondenceResponse` becomes `Correspondence.Models.InitializeCorrespondencesResponseExt`, and `DialogportenLookupResponse` becomes `Dialogporten.Models.V1CommonIdentifierLookup_ServiceOwnerIdentifierLookup`.\n- **BREAKING**: `AltinnConfiguration` no longer exposes `AuthenticationUrl`, `StorageUrl`, `EventUrl`, `CorrespondenceUrl`, `DialogportenUrl` or `AppBaseUrl`. It now carries an explicit `Environment` (`AltinnEnvironment.Production`, `Tt02` or `Local`) from which every base URL is derived, plus an optional `Overrides` for testing against a mock server.\n- **BREAKING**: The Altinn instance to target is no longer inferred from the host environment alone. Production always targets production and rejects overrides; Staging defaults to TT02 and logs any override as a startup warning; every other host environment (Development, Test, QA, …) must state its target explicitly and throws at registration if it does not. `AltinnEnvironment.Local` preserves the previous local-development behaviour.\n- **BREAKING**: `MaskinportenConfiguration.MaskinportenUrl` moved to `AltinnUrlOverrides.MaskinportenUrl`, so that every URL override is subject to the same rules.\n- **BREAKING**: The token provider now follows the resolved Altinn target rather than `IsDevelopment()`. A local test token can no longer be paired with TT02 URLs.\n- **BREAKING**: `IAltinnEventsClient.Unsubscribe` returns `Task` rather than `Task<HttpResponseMessage>`. `IAltinnAdapter.UnsubscribeForCompletedProcessEvents` accordingly returns `false` only when the subscription does not exist, and propagates any other failure instead of reporting `false` for every non-success status.\n- **BREAKING**: `IAltinnStorageClient.GetInstance` takes a `Guid` rather than an `InstanceRequest`, and calls the storage API's guid-only endpoint. Altinn keeps the two-segment form that also requires an instance owner party id only for backwards compatibility. `GetInstanceData` still takes the party id, because data elements are only addressable through the older form.\n- **BREAKING**: `InstanceQueryParameters` is replaced by `InstanceQuery`, which composes the generated query parameters with the `X-Ai-InstanceOwnerIdentifier` header rather than mirroring them. Parameters added to the storage specification now appear as soon as the client is regenerated. `AltinnDateTimeQuery` becomes a set of helpers producing the comparison expressions the generated parameters take as strings.\n- **BREAKING**: Errors surface as Kiota's `ApiException` rather than `HttpRequestException` or `AltinnHttpRequestException`. Both adapters still return `null` for a missing resource.\n- **BREAKING**: All client and adapter methods accept an optional `CancellationToken`.\n- `CorrespondenceRequest` now carries the generated correspondence models, and its multipart upload uses the field names and casing declared by the specification.\n\n### Removed\n\n- **BREAKING**: `HostEnvironmentExtensions` (`CreateDefaultAltinnConfiguration`, `GetMaskinportenUrl`, `GetAltinnPlattformUrl`, `GetAltinnAppBaseUrl`). Base URLs are resolved from `AltinnConfiguration.Environment` instead.\n- **BREAKING**: The hand-written response models under `Model/Api/Response` (`AltinnInstance`, `AltinnQueryResponse<T>`, `AltinnSubscription`, `AltinnCorrespondenceOverview`, `CorrespondenceResponse`, `DialogportenLookupResponse`) and the hand-written correspondence request DTOs, all superseded by the generated models.\n- **BREAKING**: `MappedQueryParameterAttribute` and `MappedRequestHeaderParameterAttribute`. Query parameters are now mapped explicitly rather than by reflection over attributes.\n\n### Fixed\n\n- The generated apps and authentication clients could not build a URL at all, because Kiota only emits the `baseurl` path parameter when a specification declares a server and neither specification does. The token exchange sits on the critical path for every authenticated call, so this would have failed on the first request. The specifications are normalised as part of client generation.\n- The generated storage and apps clients indexed instances by a `Guid` where Altinn expects an integer party id, because both specifications contain paths that collide at the same position in the request-builder tree and Kiota silently merged them.\n- The Maskinporten token request ignored its `CancellationToken`, because the bespoke HTTP layer it used had no way to accept one. That layer is now gone entirely.\n- The correspondence multipart upload sent its form fields in camelCase where the specification declares PascalCase. Form binding is case-insensitive, so this was latent rather than broken.\n\n### Notes\n\n- The generated clients are scoped to the functional area each high-level client serves rather than the whole specification: instances for storage and apps, subscriptions for events, and dialogs for Dialogporten. Endpoints outside those areas are not generated, so reaching one means widening the filter in `package.json` and regenerating.\n- The OpenAPI specifications are no longer shipped inside the package. They are inputs to client generation only, and remain versioned in the repository alongside the code generated from them.\n- `Model/Api` retains only the types that have no generated counterpart: `AltinnCloudEvent`, `InstanceRequest`, `InstanceDataRequest`, `InstanceQuery`, `AltinnDateTimeQuery`, `MaskinportenTokenResponse` and `AuthenticationTokenProvider`. In particular `AltinnCloudEvent` must not be replaced by the generated `Events.Models.CloudEvent`: the events specification models `specversion` as an object rather than the string Altinn actually sends, so binding a real event to the generated model throws and an `[ApiController]` returns a 400. That would break subscription setup outright, since Altinn requires a success response to its `platform.events.validatesubscription` event before activating a subscription.\n- Correspondence and Dialogporten publish a specification per environment. Both TT02 specifications are a strict superset of their production counterparts, so a single client is generated per API from TT02; generating one per environment would split the public model types. A production application may therefore see a `404` from an endpoint that has not yet been released to production. `npm run check:spec-drift` fails if production ever declares a path or schema that TT02 lacks.\n- The generated models are Kiota `IParsable` types, not `System.Text.Json` POCOs. Deserialising them with `JsonSerializer` silently yields empty objects, and serialising them with it does not reproduce Altinn's JSON: enums become integers, unset properties are emitted as nulls, and free-form maps such as `Instance.DataValues` gain an extra `additionalData` level that no serializer option removes. The README covers this under \"Returning generated models from your own API\".\n\n## 3.2.4\n\n### Changed\n\n- changed(deps): Applied minor and patch updates to dependencies\n\n## 3.2.3\n\n### Fixed\n\n- fix(altinn): `GetNonCompletedInstances` now handles per-instance summary failures by logging a warning and continuing with remaining instances.\n- fix(altinn): replaced generic `InvalidOperationException` throws in instance summary flow with custom exceptions containing instance-specific context.\n\n## 3.2.2\n\n### Fixed\n\n- fix(altinn): `GetSpecification` no longer throws `NullReferenceException` when `DataValues` is `null` on an `AltinnInstance`\n\n## 3.2.1\n\n### Changed\n\n- chore(altinn): Updated default URL mapping for development environment to match new altinn studiocli setup.\n\n## 3.2.0\n\n### Added\n\n- feat(altinn): Added `Validated` property to `AltinnSubscription` response model, indicating whether the subscription has been validated by Altinn.\n\n## 3.1.1\n\n### Fixed\n\n- fix(altinn): added necessary null checks when converting an altinn instance to metadata\n\n## 3.1.0\n\n### Added\n\n- feat(altinn): Enhace `AltinnMetaData` to include dialogId and all DataValues which come from an altinn instance.\n- feat(altinn): Added ``AltinnDialogportenClient`` to support communication with dialogporten. Can be injected via ``IAltinnDialogportenClient`` and requires a maskinporten integration with the following altinn scope to work: `altinn:serviceowner`. Right now the client only supports one method to retrieve a dialogId based on an instanceId.\n- fix(extensions): make all methods in `HostEnvironmentExtensions` publicly available\n\n## 3.0.0\n\n### Removed\n\n- **BREAKING**: Removed dependency on `Arbeidstilsynet.Common.AspNetCore.Extensions`\n\n### Changed\n\n- Added `FrameworkReference` to `Microsoft.AspNetCore.App` for ASP.NET Core types\n\n## 2.6.1\n\n### Changed\n\n- changed(deps): Applied minor and patch updates to dependencies\n\n## 2.6.0\n\n### Added\n\n- feat(altinn): Added ``AltinnCorrespondenceClient`` to support posting correspondences, with and without attachments. Can be injected via ``IAltinnCorrespondenceClient`` and requires a maskinporten integration with the following altinn scope to work: `altinn:correspondence.write`. It is also possible to retrieve a correspondence by ID.\n- feat(altinn): Added ``AltinnMeldingerAdapter`` to make usage of the ``IAltinnCorrespondenceClient`` easier. Can be injected via ``IAltinnMeldingerAdapter``.\n\n### Changed\n\n- feat(maskinporten): Updated MaskinportenConfiguration to also support jwt token generation which includes a key identifier (`kid`) instead of only supporting identification by a certificate chain.\n\n## 2.5.0\n\n### Changed\n\n- changed(deps): Applied minor and patch updates to dependencies\n\n## 2.4.2\n\n### Fixed\n\n- Fixed a bug where a partial altinn configuration would overwrite defaults.\n\n## 2.4.1\n\n### Changed\n\n- chore: moved package to nuget.org\n\n## 2.4.0\n\n### Added\n\n- feat(altinn): Differentiate between structured data and the main content of the instance.\n  - Implements the StructuredData configuration from AltinnApp 2.4.0.\n  - Adds DataType and Id from the Altinn DataElement to the FileMetadata of the AltinnDocument.\n\n## 2.3.0\n\n### Added\n\n- feat(altinn): Enhanced ``AltinnEventsClient`` to support retrieving details for a subscriptions. Also updated ``IAltinnAdapter`` to implement a convenience method for getting these details.\n\n## 2.2.0\n\n### Changed\n\n- changed(deps): Applied minor and patch updates to dependencies\n\n## 2.1.0\n\n### Added\n\n- feat(altinn): Enhanced ``AltinnEventsClient`` to support Unsubscribing. Also updated ``IAltinnAdapter`` to implement a convenience method for unsubscribing.\n\n## 2.0.2\n\n### Added\n\n- feat(altinn): Added function to return only metadata for non completed instances (in order to not download attachments)\n\n## 2.0.1\n\n### Changed\n\n- changed(deps): Updated internal package referances (remove prerelease version)\n\n## 2.0.0\n\n### Changed\n\n- changed(deps): Major dotnet updated (v10)\n\n## 1.4.0\n\n### Changed\n\n- changed: using \"structured-data\" as default dataType for MainDocument.\n\n## 1.3.2\n\n### Added\n\n- chore: added extension methods to create a Dictionary based on `AltinnMetadata`.\n\n## 1.3.1\n\n### Fixed\n\n- fix: add nullable declarations to `AltinnCloudEvent` dto to enable usage in a dotnet Controller.\n\n## 1.3.0\n\n### Changed\n\n- changed: split up package to only contain logic to communicate with Altinns API. All logic with is only relevant for altinn apps was moved to the new AltinnApp package.\n\n## 1.2.0\n\n### Changed\n\n- fix(deps): use correct version range to only support Microsoft version 8.* packages\n\n## 1.1.0\n\n### Fixed\n\n- fix: move complete action to new \"Apps Client\" since all mutable instance actions must go through Apps Api instead of Storage Api\n\n## 1.0.0\n\n### Added\n\n- feat: add altinn token provider and clients to handle token exchange\n\n## 0.0.4\n\n### Changed\n\n- chore: enhance altinn metadata with process started / ended\n\n## 0.0.3\n\n### Changed\n\n- chore(renovate): all non major update\n\n## 0.0.2\n\n### Changed\n\n- chore(altinn-adapter): update FileMetadata model to return an enum of FileScanResults instead of a string\n\n## 0.0.1\n\n### Added\n\n- **API Clients** to be used to consume public Altinn APIs\n  - `Storage Api Client` for the storage API (Instance Data)\n  - `Event Api Client` for the event API (Subscriptions)\n- **Extension Methods** for common Altinn operations\n  - `InstanceExtensions` - Extract GUID, app name, and party ID from instances\n  - `DataClientExtensions` - Simplified form data retrieval and element deletion\n  - `AssemblyExtensions` - Load and deserialize embedded JSON resources\n- **Abstract Data Processors** for handling form data changes\n  - `BaseDataProcessor<T>` - Base class for type-specific data processing\n  - `MemberProcessor<T, TMember>` - Process changes to specific object members\n  - `ListProcessor<T, TItem>` - Handle list/collection changes with item-level processing\n- **Country Code Lookup Service** (`ILandskodeLookup`)\n  - Country anmes and dial codes for 238 countries\n- **Altinn Options Provider** for country dropdowns\n  - `LandOptions` for Altinn dropdowns etc.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#repository",
+    "commit": "2dce54d2e77857fcb74feb0a6330ec178ea0f759",
+    "type": "git"
+  },
+  "verbatimVersion": "4.0.0-alpha5",
+  "version": "4.0.0-alpha5",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#dependencygroup/net10.0/microsoft.extensions.http.resilience",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http.Resilience",
+          "range": "[10.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#dependencygroup/net10.0/microsoft.identitymodel.jsonwebtokens",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IdentityModel.JsonWebTokens",
+          "range": "[8.19.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#dependencygroup/net10.0/microsoft.identitymodel.tokens",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IdentityModel.Tokens",
+          "range": "[8.19.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#dependencygroup/net10.0/microsoft.kiota.bundle",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Kiota.Bundle",
+          "range": "[2.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#Arbeidstilsynet.Common.Altinn.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5689,
+      "fullName": "Arbeidstilsynet.Common.Altinn.nuspec",
+      "length": 15666,
+      "name": "Arbeidstilsynet.Common.Altinn.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2869,
+      "fullName": "README.md",
+      "length": 6418,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#lib/net10.0/AT.Common.Altinn.Publish.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 255145,
+      "fullName": "lib/net10.0/AT.Common.Altinn.Publish.dll",
+      "length": 862208,
+      "name": "AT.Common.Altinn.Publish.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#lib/net10.0/AT.Common.Altinn.Publish.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 69800,
+      "fullName": "lib/net10.0/AT.Common.Altinn.Publish.xml",
+      "length": 1221458,
+      "name": "AT.Common.Altinn.Publish.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.02.13.29.05/arbeidstilsynet.common.altinn.4.0.0-alpha5.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12990,
+      "fullName": ".signature.p7s",
+      "length": 12990,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

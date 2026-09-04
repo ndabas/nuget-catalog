@@ -1,0 +1,158 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Thomas Buck",
+  "catalog:commitId": "297c615d-ea5f-47db-8deb-f1405f8dea67",
+  "catalog:commitTimeStamp": "2026-09-04T00:09:50.8797453Z",
+  "copyright": "Copyright © 2019 - Present RaisedApp and contributors; fork © 2026 Thomas Buck",
+  "created": "2026-09-04T00:06:39.163Z",
+  "description": "An alternative SQLite storage for Hangfire. Maintained fork of RaisedApp/Hangfire.Storage.SQLite that modernises the SQLite dependency stack and remediates CVE-2025-6965.",
+  "id": "tbbuck.Hangfire.Storage.SQLite",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-04T00:09:46.9Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "CU4KI73ajfGS4BVunkbh6wQOPFFCsJi69VMaQWVaw9HDjLkLSktRQZ+ZeecUMN1PsRdjYbc/ayIaRPF1fH/QMg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 70886,
+  "projectUrl": "https://github.com/tbbuck/Hangfire.Storage.SQLite",
+  "published": "2026-09-04T00:06:39.163Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "0.6.0-beta (tbbuck fork)\n      - Open pooled connections FullMutex instead of NoMutex. This is the real cause of the\n        \"out of memory\" storms 0.5.2-beta only partially addressed. NoMutex is SQLite's\n        multi-thread mode -- no internal serialisation at all -- so two threads on one\n        handle is undefined behaviour: double-freed statements, a freed db handle,\n        SQLITE_MISUSE, and ultimately a glibc \"double free or corruption\" abort. Pooled\n        connections cannot be guaranteed single-threaded: a context returns to the pool on\n        Dispose and is immediately leasable while distributed-lock timer callbacks, and\n        dispatchers abandoned by a non-graceful Hangfire stop, may still hold it.\n      - HangfireDbContext.IsAlive now tests the native handle rather than the wrapper\n        reference. sqlite-net's SQLiteConnection stays a valid object after its connection\n        is closed, so a connection closed by any route other than our own Dispose passed\n        the old \"Database != null\" check and was leased out dead.\n      - SQLiteDistributedLock.Dispose waits for an in-flight heartbeat via\n        Timer.Dispose(WaitHandle); plain Dispose() does not cancel a callback that has\n        already started. The callback also stands down instead of re-arming after disposal.\n      - SQLiteDistributedLock.Release pulses waiters in a finally, so a failed release no\n        longer blocks every thread queued on that resource for the full lock timeout.\n      - Retry.Execute attempts the action once before honouring the cancellation token; it\n        previously skipped the work entirely when handed an already-cancelled token.\n      - A storage-level shutdown token, cancelled on SQLiteStorage.Dispose, is threaded\n        through every Retry call site so background work stops retrying against a pool\n        that is being torn down.\n      - RemoveServer is retried like its neighbours; it runs on the shutdown path, where a\n        single transient failure stranded the server row and aborted orderly shutdown.\n      0.5.3-beta (tbbuck fork)\n      - Produce debugging symbols via <IncludeSymbols>true</IncludeSymbols> and <SymbolPackageFormat>snupkg</SymbolPackageFormat>\n      0.5.2-beta (tbbuck fork)\n      - Fix connection-pool poisoning that surfaced as endless\n        \"SQLite.SQLiteException: out of memory\" storms plus NullReferenceExceptions.\n        The message was never a memory condition: sqlite3_errmsg() returns the literal\n        string \"out of memory\" for a NULL handle, so it really meant \"this connection\n        was closed underneath you\".\n        * PooledHangfireDbContext.Dispose was not idempotent. A second Dispose() on the\n          same context either enqueued it to the pool twice (letting two threads share\n          one non-thread-safe SQLiteConnection) or, when the pool was full, set PhaseOut\n          and closed a connection that was still in the pool — poisoning every later\n          caller until the process restarted. Dispose is now guarded by a lease flag.\n        * SQLiteStorage.CreateAndOpenConnection now discards and replaces any pooled\n          context whose connection has been closed, instead of handing out a corpse.\n        * SQLiteStorage.EnqueueOrPhaseOut no longer re-pools a dead context, and its\n          capacity test uses an interlocked counter rather than ConcurrentQueue.Count,\n          which is a snapshot and let concurrent disposals overshoot PoolSize.\n        * SQLiteStorage.Dispose drains the pool instead of iterating it and nulling the\n          field, which raced concurrent callers into a NullReferenceException.\n      - SQLiteDistributedLock now logs the SQLite result code alongside the message, so\n        \"out of memory\" can no longer be mistaken for a memory diagnosis.\n\n      0.5.1-beta (tbbuck fork)\n      - Fix AccessViolationException / storage corruption in SQLiteDistributedLock: the lock\n        heartbeat now runs on its own dedicated connection instead of sharing the caller's\n        non-thread-safe (NoMutex) connection (upstream issue #79).\n\n      0.5.0-beta (tbbuck fork)\n      - Security: remediate CVE-2025-6965 (SQLite < 3.50.2, High/CVSS 7.2) by dropping the\n        bundled SQLitePCLRaw.lib.e_sqlite3 2.1.11 native library.\n      - Replace sqlite-net-pcl 1.9.172 + SQLitePCLRaw.bundle_green 2.1.11 with sqlite-net-pcl\n        1.11.272-beta, which depends on SQLitePCLRaw.core 3.0.3 and ships the patched\n        SourceGear.sqlite3 3.50.4.5 native engine (SQLite 3.50.4).\n      - No public API changes; the ORM surface is unchanged.\n\n      0.4.3 (thanks to @itsC-Ramesh)\n      - Upgrade projects to .NET 8.0 (LTS).\n      - Update dependencies (Hangfire 1.8.23, Newtonsoft.Json 13.0.4).\n      - Explicitly referenced SQLitePCLRaw.bundle_green 2.1.11 to resolve NETSDK1206 RID-related warnings.\n      - Support for modern Hangfire 1.8 background process registration (GetStorageWideProcesses).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#repository",
+    "commit": "f6b59f7ab2d7090a6bd16c5eb2d08876a52328d5",
+    "type": "git",
+    "url": "https://github.com/tbbuck/Hangfire.Storage.SQLite"
+  },
+  "title": "Hangfire Storage SQLite (tbbuck fork)",
+  "verbatimVersion": "0.6.0-beta",
+  "version": "0.6.0-beta",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#dependencygroup/.netstandard2.0/hangfire.core",
+          "@type": "PackageDependency",
+          "id": "Hangfire.Core",
+          "range": "[1.8.23, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#dependencygroup/.netstandard2.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#dependencygroup/.netstandard2.0/sqlite-net-pcl",
+          "@type": "PackageDependency",
+          "id": "sqlite-net-pcl",
+          "range": "[1.11.272-beta, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#tbbuck.Hangfire.Storage.SQLite.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2796,
+      "fullName": "tbbuck.Hangfire.Storage.SQLite.nuspec",
+      "length": 6407,
+      "name": "tbbuck.Hangfire.Storage.SQLite.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 636,
+      "fullName": "LICENSE",
+      "length": 1066,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2815,
+      "fullName": "README.md",
+      "length": 6338,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#lib/netstandard2.0/Hangfire.Storage.SQLite.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 49636,
+      "fullName": "lib/netstandard2.0/Hangfire.Storage.SQLite.dll",
+      "length": 121344,
+      "name": "Hangfire.Storage.SQLite.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.00.09.50/tbbuck.hangfire.storage.sqlite.0.6.0-beta.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Hangfire",
+    "Hangfire-Storage",
+    "Hangfire-Extension",
+    "SQLite"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

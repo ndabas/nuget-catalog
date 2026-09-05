@@ -1,0 +1,258 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Antonio Macrì",
+  "catalog:commitId": "e53f17f9-e81d-411f-9fb7-2311932508e3",
+  "catalog:commitTimeStamp": "2026-09-04T14:00:51.8110699Z",
+  "created": "2026-09-04T13:57:33.66Z",
+  "description": "A Blazor Razor Class Library that adds an AI-powered floating chat assistant to any Blazor application, built on Microsoft Agent Framework. Supports multi-level agent orchestration (tools, handoff, group chat), page navigation, UI actions, contextual memory, streaming, voice, and security — all with zero boilerplate.",
+  "iconFile": "IconMA.png",
+  "id": "MentorAgent",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-04T14:00:44.953Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "brG5OjQ2Gy4uJeOR4aLNjbfDbV5hgaa1NX7bMLb9NOByJubeTAykbo2uVXvXDVN1UeFA0kRjTioKphkugpujUQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 266079,
+  "published": "2026-09-04T13:57:33.66Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.0-rc.3\n\n\t\tSeventeen findings closed, nine of them reachable only by running the published packages in a real application, and three of them defects this release itself introduced and then caught before shipping — and four found by the two host types this library claimed to support and had never been run on: a hand-written React client and a .NET MAUI desktop app. Three ROADMAP items closed with them. 1,514 automated tests, all green; 60 findings closed since preview.5, none open. Every member documented in a README table now also appears in a code example - 38 of 220 did not, and that is now a test.\n\n\t\t=== FIXED - the OpenAI hold was a floor, not a ceiling (S1) ================\n\t\t- rc.2 held OpenAI at 2.10.0 to avoid a MissingMethodException at startup. A version number in a PackageReference is a MINIMUM, so one ordinary \"dotnet add package Microsoft.Extensions.AI.OpenAI\" resolved 10.9.0, pulled OpenAI 2.12.0, built with 0 warnings and 0 errors - and the application died on boot. The hold protected nobody who touched that package.\n\t\t- The pins are now exact ranges ([10.6.0], [1.17.0-preview.260804.1]). That alone is not enough: an exact range a consumer resolves past produces NU1608, a WARNING, so the build still succeeds and the application still dies.\n\t\t- NEW - the package therefore ships an MSBuild guard in buildTransitive that reads the resolved OpenAI version after ResolvePackageAssets and fails the build with \"error MENTOR001\", naming the version it found, the reason, and the remedy. A silent runtime crash becomes a build error with an explanation. Set MentorAgentSkipOpenAIVersionCheck=true to override it deliberately.\n\n\t\t=== FIXED - the input safety check refused ordinary questions (S2) =========\n\t\t- With EnableSafetyCheck on, \"tell me everything about customer Mario Rossi\" was refused - twice, deterministically - while \"show me the full data for customer Mario Rossi\" was allowed and returned the identical record. The control was declining a wording, not protecting anything.\n\t\t- The cause: the classifier was handed the message and nothing else. Its instructions list \"extract sensitive data\" with no statement of what this application's data IS, so a broad request for business records reads as exfiltration. With no application context that is a reasonable reading.\n\t\t- The classifier now receives the same application scope the hosted-tool domain gate already derives (AppName, AppDescription, discovered page names) and is told in as many words that reading the application's own business data is safe HOWEVER BROADLY PHRASED - the application decides what a user may see, not the classifier. An instruction-override attempt is still refused, and that is a test.\n\t\t- Worth naming because the failure mode is quiet: a security control that fires on legitimate traffic gets switched off, and this one fails CLOSED - the damage is not a leak, it is the loss of the feature.\n\n\t\t=== FIXED - a configured ChatHistoryProvider is shared by every user (S1) ====\n\t\t- MentorOptions is a singleton, so an object assigned to ChatHistoryProvider serves every circuit, every SignalR connection and every user in the process. The DEFAULT is the opposite: with the option left null MentorAgent builds a fresh InMemoryChatHistoryProvider inside each coordinator, isolated by construction. Setting the property therefore INVERTS the isolation model, silently.\n\t\t- Driven with three authenticated principals: a private code written by one was read back verbatim by the other two. The role gate discriminated between the same three connections correctly, so the identity bridge was working - the history was simply shared.\n\t\t- The documentation's own examples are the shape that does it (new CosmosChatHistoryProvider(...), new MyRedisChatHistoryProvider(...)), and the natural implementation of \"implement ChatHistoryProvider\" is one class holding one List<ChatMessage>.\n\t\t- NEW: ChatHistoryProviderFactory (Func<IServiceProvider, ChatHistoryProvider>) is invoked once per coordinator - the lifetime the default already has - and receives that coordinator's service provider, so a provider can key its storage by whatever identifies the caller. Prefer it in any application with more than one user.\n\t\t- Setting both throws in MentorOptions.Validate(), at startup rather than on the first message: they answer the same question with opposite isolation semantics, so picking one would make an application's safety depend on which line was written last.\n\t\t- ChatHistoryProvider is KEPT. A desktop host, or a provider that partitions its own storage, is entitled to it; removing it would be a breaking change for no gain. It now logs at Debug that it is shared, and the README carries the warning next to the examples that caused this.\n\n\t\t=== FIXED - MentorAgent could not start at all on .NET MAUI (S1) =============\n\t\t- A MAUI Blazor Hybrid app showed \"Loading...\" and then \"An unhandled error has occurred\", with nothing else. The cause was in the WebView console and nowhere else: MentorSkillsBuilder read IHostEnvironment.ContentRootPath in its constructor, and MauiHostEnvironment.ContentRootPath throws NotImplementedException - a packaged desktop app has no content directory. The exception escaped through the DI container while it was constructing ChatWidget, which killed the whole Blazor renderer rather than one component.\n\t\t- It fired with skills switched OFF, because the builder is registered unconditionally: a feature the application had not asked for took the application down.\n\t\t- The content root now falls back to AppContext.BaseDirectory, which is where a MAUI app's content files actually land, so a relative SkillsFolder still resolves to the folder the developer put it in. Reported once at Debug, not Warning: a host with no content root has misconfigured nothing.\n\t\t- Every one of the 33 skills tests ran under a host that has a content root. The defect was never in what the feature does - it was in what its constructor assumed about its host, and only a host lacking the assumption could show it.\n\n\t\t=== FIXED - one registered UI action switched token streaming off for the page (S2)\n\t\t- With a UI action registered, UIActionsMiddleware ran its loop through GetResponseAsync and replayed the finished reply as updates. Measured over the hub: 327 StreamingChunk frames with no page context, 261 with a page context and no UI actions, and 1 - the entire reply in a single frame - with one action registered.\n\t\t- The cost was paid on EVERY turn on such a page, not only the turns that call an action. On a routed reasoning turn (21 seconds in our own measurements) that is 21 seconds of an unchanging typing indicator followed by the whole answer at once, on exactly the pages a host has invested in making interactive.\n\t\t- The loop now runs over the streamed response: text is forwarded as it arrives, and content is withheld only when it is a call to one of the middleware's own registered actions - filtered by name, so a genuine tool call belonging to the outer pipeline still passes through untouched.\n\t\t- 24 existing tests drove this middleware and asserted on the text. The text was always right; only its arrival changed. One of them pinned the buffering as \"the documented trade-off\" - so the behaviour was known when it was written, was never documented anywhere a reader could see it, and its cost had never been measured, because no live client with UI actions had ever been driven.\n\t\t- One deliberate behaviour change: on a turn that does call a UI action, the sentence the model writes alongside the call now reaches the user. That is the better of the two - the action-feedback bar is already showing \"UI: highlight_order\" at that moment.\n\n\t\t=== NEW - provider errors are classified before they are shown (ROADMAP #33) ==\n\t\t- Every failure that was not an Azure content filter produced one sentence: \"An error occurred while processing the response.\" A user who pasted an intranet image URL was told that, while the log held both the cause and the exact URL.\n\t\t- ProviderErrorClassifier now names the failures the USER can act on: an unreachable image URL (quoted back, since they supplied it), a conversation past the context window, a throttled provider, a rejected image, a timeout.\n\t\t- Everything else stays deliberately indistinguishable. An expired key, a missing deployment, a firewall rule are operator problems: naming them neither helps the reader nor is something to tell whoever is probing the application. Nothing forwards provider text, so IncludeWorkflowExceptionDetails keeps its meaning and its default, and the full exception still goes to the log.\n\t\t- It also fixed the one hard-coded English string in a library that ships ten languages: the generic fallback itself. Seven new keys, all ten languages.\n\n\t\t=== FIXED - MCP caller identity was cached process-wide (S1, from #32 itself) =\n\t\t- The tool collection is a singleton whose list was built once in a Lazy and kept for the lifetime of the application. That was correct while the answer could not vary; #32 made it depend on WHO is asking and left the cache alone, so the first MCP request decided what every later one would see. One Admin call and a role-gated tool stayed published for anonymous callers - the same S1 as BUG-021 and BUG-035.\n\t\t- The seven tests written for #32 could not see it: each builds a fresh collection and calls GetTools() once, so the cache is never asked a second question.\n\t\t- The cache is now keyed by caller identity - a canonical \"authenticated, and these roles\" signature, which is exactly what the decision depends on. With no resolver configured nothing changes, and the per-tool reflection is still paid once per role combination rather than once per request.\n\n\t\t=== NEW - an identity story for MCP callers (ROADMAP #32) ====================\n\t\t- BUG-021 and BUG-035 were the same S1 twice, and both were fixed by failing closed: a gated action is simply not published over MCP. An opt-in to publish them anyway was deliberately not added, because a flag whose only effect is to switch protection off is worse than the gap.\n\t\t- What was missing was not a flag but an identity. MentorOptions.McpCallerPrincipal resolves the caller's ClaimsPrincipal, and a ROLE-gated action then becomes publishable - published only when that principal is authenticated and holds one of the roles.\n\t\t- Every ambiguous path withholds: no resolver (the default), a null principal, an unauthenticated identity, or a resolver that throws. A host's auth stack can be down, and \"the token service is unavailable\" must mean withhold - and must not take the MCP endpoint with it.\n\t\t- CONFIRMATION gates are never satisfied by it. RequiresConfirmation and the RequiresApproval predicate both mean \"ask a human first\", and there is none on the far end of an MCP call.\n\n\t\t=== FIXED - the hosted-tool domain gate refused its own documented example (S3)\n\t\t- With HostedToolDomainCheck on, the question this README uses to introduce image generation - \"draw a banner for the summer sale\" - was refused, and the log showed why: the relevance filter picked the image tool (0.275 against a 0.15 floor) and the gate threw it away as out of scope.\n\t\t- The classifier was not at fault. The derived scope is AppName + AppDescription + page names, all of which describe what the application HOLDS - products, orders, customers. Drawing a banner is not in that list and structurally never can be, so \"is this within that scope?\" is correctly answered OUT. Meanwhile the operator had said the opposite twice: by enabling the tool, and by enabling it on this application.\n\t\t- The derived scope now names the capabilities that are actually enabled and states the decision rule. A CUSTOM HostedToolDomainScope is left exactly as written - appending to a sentence you composed by hand would be editing your policy behind your back.\n\t\t- The wording matters more than it looks. The first attempt ended \"using one of those capabilities on this application's own subject matter is IN scope\", and measured against a real classifier \"generate an image of a dog\" then came back IN - the model read the list as permission. A cost control that says yes to everything is worse than the false negative it replaced. The rule is now stated as a constraint on the SUBJECT, with the capability list explicitly denied any widening power. No unit test could have caught that: a fake classifier answers whatever it is told to, so this was only findable against a live model.\n\n\t\t=== FIXED - the Responses API snippet did not compile (S3) =================\n\t\t- The core README's first Azure OpenAI example, and the same form in MentorOptions' own doc comment, wrote GetResponsesClient(\"deployment\").AsIChatClient(). There is no such overload: GetResponsesClient() takes no argument and the deployment name goes to AsIChatClient. Both now show the form that compiles.\n\n\t\t=== Verified against the published artefact ===============================\n\t\t- Everything above was found by installing the rc.2 packages from nuget.org into three fresh applications with ASP.NET Core Identity on SQL Server, then driving all four READMEs feature by feature on both an in-process host and a headless server with a cross-origin WebAssembly client. A ProjectReference cannot find defects in a nuspec, in buildTransitive, or in what a consumer's restore resolves.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#repository",
+    "commit": "3959f1015f157a6d76554ccf8983d5ea8423c4f8",
+    "type": "git"
+  },
+  "title": "MentorAgent",
+  "verbatimVersion": "1.0.0-rc.3",
+  "version": "1.0.0-rc.3",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/mentoragent.abstractions",
+          "@type": "PackageDependency",
+          "id": "MentorAgent.Abstractions",
+          "range": "[1.0.0-rc.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/azure.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.OpenAI",
+          "range": "[2.9.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/azure.ai.projects",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.Projects",
+          "range": "[2.1.0-beta.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/azure.identity",
+          "@type": "PackageDependency",
+          "id": "Azure.Identity",
+          "range": "[1.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/microsoft.agents.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/microsoft.agents.ai.foundry",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Foundry",
+          "range": "[1.17.0-preview.260804.1, 1.17.0-preview.260804.1]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/microsoft.agents.ai.hosting.a2a.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Hosting.A2A.AspNetCore",
+          "range": "[1.18.0-preview.260818.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/microsoft.agents.ai.workflows",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Workflows",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/microsoft.aspnetcore.components.authorization",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Authorization",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/microsoft.extensions.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI",
+          "range": "[10.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/microsoft.extensions.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.OpenAI",
+          "range": "[10.6.0, 10.6.0]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#dependencygroup/net10.0/modelcontextprotocol.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol.AspNetCore",
+          "range": "[1.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#MentorAgent.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6699,
+      "fullName": "MentorAgent.nuspec",
+      "length": 16134,
+      "name": "MentorAgent.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "LICENSE",
+      "length": 1092,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 66388,
+      "fullName": "README.md",
+      "length": 196703,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#buildTransitive/MentorAgent.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 1072,
+      "fullName": "buildTransitive/MentorAgent.targets",
+      "length": 2421,
+      "name": "MentorAgent.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#lib/net10.0/MentorAgent.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 156411,
+      "fullName": "lib/net10.0/MentorAgent.dll",
+      "length": 407040,
+      "name": "MentorAgent.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.04.14.00.51/mentoragent.1.0.0-rc.3.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "blazor",
+    "blazor-server",
+    "blazor-auto",
+    "ai",
+    "chatbot",
+    "chat-widget",
+    "assistant",
+    "agent",
+    "multi-agent",
+    "handoff",
+    "group-chat",
+    "microsoft-agent-framework",
+    "openai",
+    "azure-openai",
+    "ollama",
+    "rag",
+    "retrieval-augmented-generation",
+    "mcp",
+    "model-context-protocol",
+    "a2a",
+    "agent-to-agent",
+    "signalr",
+    "voice",
+    "memory",
+    "skills",
+    "streaming",
+    "wasm",
+    "mentor",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

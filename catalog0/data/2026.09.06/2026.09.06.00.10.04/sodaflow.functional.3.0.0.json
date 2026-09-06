@@ -1,0 +1,163 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "MorseCode Software LLC",
+  "catalog:commitId": "d09ecb5a-2564-4892-a38a-addda23883ba",
+  "catalog:commitTimeStamp": "2026-09-06T00:10:04.4598916Z",
+  "created": "2026-09-06T00:06:10.603Z",
+  "description": "SodaFlow Functional - Functional constructs for C#.",
+  "id": "SodaFlow.Functional",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-06T00:09:48.75Z",
+  "licenseExpression": "BSD-3-Clause",
+  "licenseUrl": "https://licenses.nuget.org/BSD-3-Clause",
+  "listed": true,
+  "packageHash": "66nXLrTDIBzoZmGj5n+Mq6QzOgi5gkBVIuOw12V4Z0oQfS3uL+q5I5O+dljl/onkcsZDB0wXiO808JaMnx4FLg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 394332,
+  "projectUrl": "https://github.com/MorseCode-Software/SodaFlow",
+  "published": "2026-09-06T00:06:10.603Z",
+  "releaseNotes": "3.0.0\n\nBREAKING: Unit is a readonly struct rather than a sealed class. It is a type\nwith exactly one value, so a struct is what it should always have been:\nnothing to allocate, nothing to be null, and nothing to reference-compare.\nIt now implements IEquatable<Unit>, IComparable<Unit>, IStructuralEquatable\nand IStructuralComparable, and ToString returns \"()\".\n\nThis breaks in both directions. In source, Unit u = null no longer compiles,\nand neither does anything else which treated it as a reference. In binary, a\ngeneric instantiated over Unit - Stream<Unit>, StreamSink<Unit>, Func<Unit>\n- is a different type at runtime once Unit is a struct, so an assembly\ncompiled against the old one will not bind against this. Recompile rather\nthan mix.\n\nThe == operator no longer asks whether either side is null, because neither\nside can be. Two Units are equal, and that is the whole of it.\n\nEverything else here is a cleanup with no effect on behavior: nullable\nannotations completed, the build made warning-free, and the vendored\nJetBrains annotations replaced by a reference to the package they came from,\nwhich is not redistributed.\n\n2.0.0\n\nBREAKING: WhereMaybe and AllMaybeOrNone are gone, renamed to WhereSome and\nAllSomeOrNone. Both did exactly what the new names say, under old ones that\nnamed the type where every other member here names the case that has a value.\nRename the calls; nothing else about either changed. These are renames and not\ndeprecations because the package is days old and there is no installed base\nworth carrying the old names for.\n\nNew: a Maybe<T> vocabulary large enough to use without falling back to Match\nfor everything.\n\nBuilding one: Maybe.SomeIf(condition, value) and its lazy overload turn an\nif/then which produces a value in one branch and nothing in the other straight\ninto a Maybe<T>. Maybe.SomeNotNull, and the ToMaybe / ToNullable extension\nmethods, bridge to and from null references and Nullable<T>. SomeNotNull is\ndeliberately not what Some does: Some(null) still contains null, which is what\nlets Maybe<string> tell no value apart from the value null.\n\nWorking with one: ValueOr, ValueOrDefault, ValueOrThrow, OrElse, Where,\nSelect, and Lift for two, three and four inputs. Select and Where complete the\nset the compiler looks for, so query syntax now works over a Maybe<T> - the\nSelectMany it needed was already there.\n\nAcross an await: MapAsync, BindAsync and WhereAsync on Maybe<T>, for when the\nwork is asynchronous, and the same operators on Task<Maybe<T>> - along with\nMap, Bind, Where, Match, OrElse, ValueOr, ValueOrDefault and ValueOrThrow - so\na chain which starts asynchronously can be continued without awaiting in the\nmiddle of it. MatchAsync only ever covered the consuming side. Nothing runs on\nthe empty path, which returns one cached completed task per type rather than\nallocating per miss.\n\nThere is deliberately no Maybe<Task<T>> to Task<Maybe<T>> conversion: that\nshape almost always means Map was used where MapAsync was meant, and shipping\nthe repair would make the mistake easier to keep.\n\nSequences: Choose to map and filter in one step, an AllSomeOrNone overload\ntaking the mapping function, ToEnumerable, and FirstOrNone, LastOrNone,\nSingleOrNone and ElementAtOrNone for the LINQ operators whose OrDefault forms\ncannot say whether they found anything, and MinOrNone, MaxOrNone and\nAggregateOrNone for the ones which throw on an empty sequence rather than\nanswer at all. MinOrNone and MaxOrNone skip nulls the way Min and Max do, since\nComparer<T>.Default sorts null before everything; a sequence of nothing but\nnulls has nothing to compare and gives no value, where LINQ gives null. SingleOrNone still throws when there is\nmore than one element, exactly as SingleOrDefault does: that is a contradicted\nassumption rather than a missing answer.\n\nParsing and lookup, replacing bool Try...(v, out result) with\nMaybe<TResult> Try...(v): TryParse for every numeric type, plus Boolean, Char,\nGuid, DateTime, DateTimeOffset, TimeSpan and Uri, on string; TryParseEnum and\nTryParseDefinedEnum, the second of which rejects the undeclared numbers\nEnum.TryParse accepts; and TryGetValue on IReadOnlyDictionary<TKey, TValue>.\n\nMaybe.FromTryGet adapts any other method of that shape, including ones this\npackage has never heard of, and the TryGet delegate types it takes are public.\n\nNullable reference types are enabled. The annotations say what the members\nalready documented: a null string parses as no value, a null sequence counts as\nempty, a null dictionary has no entry, a null comparer means the default one,\nand ValueOrDefault answers with something that may be null.\n\nSomeNotNull and ToMaybe now take T? for a reference type, which is the point of\nthem - whether the reference is null is the question they are asked.\n\nNullability is carried by the type argument, as it is for every other generic\ncontainer. Maybe<string> cannot hold null and Maybe<string?> can; the same for\neach position of an Either. Some(null) still stores a null rather than\ncollapsing to None, so the type argument has to be a nullable one to allow it,\nand Match hands back exactly what was stored.\n\nThis can produce new warnings in code that has nullable enabled and was passing\nnull where the annotations now say not to. It changes no behavior and no\nsignature: nothing was made non-generic, nothing was renamed, and nothing that\ncompiled without nullable enabled stops compiling.\n\nNew on Either: Swap, on the two-case either only, which exchanges the cases.\nIt is how an operation that only addresses the second case reaches the first,\nand swapping twice gives back the original. There is no Swap beyond two cases,\nwhere there is no single exchange to make.\n\nMaybe<T> also implements IComparable<Maybe<T>>, ordering no value before every\nvalue, which is how Nullable<T> is ordered under Comparer<T>.Default. OrderBy\nand Array.Sort therefore work on it, and do so without boxing. No < and >\noperators come with it: Nullable<T> has them and they answer false in both\ndirections when either side is absent, so !(a < b) stops meaning a >= b.\n\nFixed: Maybe<T> and all seven Either arities now implement IEquatable<T>.\nThey are structs which did not, so EqualityComparer<T>.Default could not find a\ntyped comparison and fell back to the one which compares through\nEquals(object), boxing both operands on every comparison - in Distinct,\nContains, IndexOf, GroupBy and every dictionary lookup. Being structs is how\nthese types avoid allocating, and this made them allocate anyway, in exactly\nthe collection-heavy code which would notice. No behavior change: the new\nEquals is the same comparison the == operator already made.\n\nApart from the removal above, everything here is new API, and nothing else that\nshipped in 1.0.x has changed behavior.\n\nThis package depends on nothing, so it declares no ranges of its own. What it\ngains is a ceiling in everyone else's: the packages built on it - SodaFlow,\nSodaFlow.Async and SodaFlow.Bindable.ObjectModel - now declare it as a range\nbounded at the next major. A consumer on an older one of those cannot be moved\nonto this version by a restore that resolves cleanly and then fails on a method\nthe rename took away.\n\n1.0.2\n\nCarries the release notes below, which 1.0.1 shipped without. No code change\nsince 1.0.1 - the mechanism that reads these from a file landed after that\nversion was tagged, so there was no way to attach them to it.\n\n1.0.1\n\nComplete XML documentation for every public type and member.\n\nFixed: Maybe<T>.Map carried a typeparam tag for the containing type's\nparameter, which is not legal on a method.\n\nNo API change. This package does not depend on SodaFlow.Core, so it was\nunaffected by the breaking change in the rest of the 2.0.0 release and stays\non 1.x.\n\n---\n\nAbout this package\n\nThe small functional vocabulary the C# API needs and C# does not ship with:\nMaybe<T>, Either<T1,T2> through Either of eight cases, and Unit.\n\nNo FRP in it, and no dependency on anything else here, so it can be used on its\nown. F# already has option, Result and unit, which is why SodaFlow.FSharp does\nnot reference it.\n\nMaybe<T> has no property that hands out the value unchecked: reach it with\nMatch, or one of the helpers built on it, so the case where there is none has\nto be answered for. Either works the same way.\n\nFull notes: https://github.com/MorseCode-Software/SodaFlow/releases",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#repository",
+    "commit": "45bd7a32507c3d9a4b288e1de5e4cfbc1aa99b06",
+    "type": "git"
+  },
+  "title": "SodaFlow Functional for C#",
+  "verbatimVersion": "3.0.0",
+  "version": "3.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#dependencygroup/.netframework4.7.2",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.7.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#SodaFlow.Functional.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4173,
+      "fullName": "SodaFlow.Functional.nuspec",
+      "length": 9659,
+      "name": "SodaFlow.Functional.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#lib/net472/SodaFlow.Functional.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95019,
+      "fullName": "lib/net472/SodaFlow.Functional.dll",
+      "length": 272384,
+      "name": "SodaFlow.Functional.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#lib/net472/SodaFlow.Functional.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 29803,
+      "fullName": "lib/net472/SodaFlow.Functional.xml",
+      "length": 454445,
+      "name": "SodaFlow.Functional.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#lib/net6.0/SodaFlow.Functional.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95232,
+      "fullName": "lib/net6.0/SodaFlow.Functional.dll",
+      "length": 273920,
+      "name": "SodaFlow.Functional.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#lib/net6.0/SodaFlow.Functional.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 29803,
+      "fullName": "lib/net6.0/SodaFlow.Functional.xml",
+      "length": 454445,
+      "name": "SodaFlow.Functional.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#lib/netstandard2.0/SodaFlow.Functional.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95004,
+      "fullName": "lib/netstandard2.0/SodaFlow.Functional.dll",
+      "length": 272384,
+      "name": "SodaFlow.Functional.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#lib/netstandard2.0/SodaFlow.Functional.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 29803,
+      "fullName": "lib/netstandard2.0/SodaFlow.Functional.xml",
+      "length": 454445,
+      "name": "SodaFlow.Functional.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.06.00.10.04/sodaflow.functional.3.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12991,
+      "fullName": ".signature.p7s",
+      "length": 12991,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

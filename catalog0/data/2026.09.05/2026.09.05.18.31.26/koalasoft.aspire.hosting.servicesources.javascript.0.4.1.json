@@ -1,0 +1,212 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jonas Flodén",
+  "catalog:commitId": "15638576-c99f-4536-bd6a-5c9632002d52",
+  "catalog:commitTimeStamp": "2026-09-05T18:31:26.2987062Z",
+  "created": "2026-09-05T18:28:25.86Z",
+  "description": "JavaScript support for KoalaSoft.Aspire.Hosting.ServiceSources — runs a \"local\"-sourced service with kind \"javascript\" through Aspire.Hosting.JavaScript.",
+  "id": "KoalaSoft.Aspire.Hosting.ServiceSources.JavaScript",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-05T18:30:58.077Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "I0LMctk4sJrTys+bLQ3kIyzU12fn1Ac5GV53L2/tMnMEIvEXgJqAmn1fpRF7bUCpH+Yn+oJC1fh5GBsWOJpiqA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 73764,
+  "projectUrl": "https://github.com/flojon/aspire-servicesources",
+  "published": "2026-09-05T18:28:25.86Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "A patch on top of `0.4.0`, cut from the `release/0.4.x` branch off the `v0.4.0` tag rather than\nfrom `main`: `main` has moved on to changes a patch must not carry. One configuration stops\nworking, and it is the `project` fix that stops it — see **Changed**. The service-name fix below\nturns away no catalog that ever started: those names were already refused, one clone later, by\nAspire's own resource-name validation.\n\n### Changed\n\n- **A `project` that points outside the service's checkout is now refused at composition** (#222).\n  The other side of the **Fixed** entry below, and the one nothing warns you about: a catalog whose\n  `project` is an absolute path (`/home/dev/shared/Api.csproj`, `C:\\repos\\Api.csproj`) or climbs out\n  of the checkout (`../../shared/Api.csproj`) **resolves and builds in `0.4.0`** if that file exists.\n  Those AppHosts now throw a `ServiceSourcesConfigurationException` naming the service and the key,\n  at `AddService()`, before any clone. Nothing fails to build to warn you — the value is read at\n  composition — so if a catalog entry points `project` outside the checkout deliberately, the fix is\n  to give that project a service entry of its own, naming the repository that actually holds it. A\n  `project` resolving inside its checkout is unaffected, which is every catalog the README describes.\n\n  A `kind: dotnet` entry with no `project` at all is now refused there too, rather than resolving to\n  the checkout directory and being reported later as a `.csproj` that is not there — as a missing\n  file on the eager path, and only after the clone had been paid for on the deferred one. Such a\n  service could never start, so nothing that ran before stops running; what changes is that it is\n  named as a required key at `AddService()`, on both paths, before any clone.\n\n### Fixed\n\n- **A `project` that points outside the service's checkout is refused rather than built** (#222).\n  `project` was the one path a catalog names that was never confined to the checkout it is read\n  against. `Path.Combine` gives no confinement of its own — it discards the checkout root outright\n  for a rooted value, and does nothing about `..` — so `project: /home/dev/other/Evil.csproj` or\n  `project: ../../../Evil.csproj` resolved to a file outside the clone, which the AppHost then\n  handed to `AddProject`, where MSBuild evaluates it: a `.targets` import or an inline task away\n  from running code the catalog never described. Both the eager path and the deferred registration\n  did the same bare combine; both now go through the lexical confinement `java.jarPath` has always\n  had, in one place they share, so the two cannot come to different conclusions about the same\n  value. (`javascript.appDirectory` is confined too, but by a resolved check of its own rather than\n  by this one.) An absolute path is reported as absolute and a climbing one as pointing outside the\n  repository, and neither reaches MSBuild.\n\n  Consistency and defence in depth rather than a boundary that moves: `kind: dotnet` builds the\n  checkout's own code regardless — nobody crosses a line here who was not already across it. What\n  is fixed is that the rule the codebase states for every other path a catalog names no longer has\n  a hole in it, and that the hole was on `dotnet`, the kind most catalogs use. A `project` resolving\n  inside its checkout keeps resolving to the same file; the catalogs that stop working are named\n  under **Changed** above.\n\n  The check is lexical, so it needs no working tree and runs in front of the clone rather than after\n  it. A service whose `project` climbs out is refused at composition on both paths, without the cold\n  clone the eager path — the default, deferral being opt-in — would otherwise pay for first.\n\n  Three smaller things fall out of using the shared check. A rejected path now says it was rejected\n  for leaving the checkout, where the old message claimed the file *was not found under* the\n  checkout — untrue on precisely these inputs, since it was never looked for there. `project`\n  accepts Windows separators on Linux and macOS the way every other confined path does, so\n  `project: src\\Orders.Api\\Orders.Api.csproj` resolves instead of becoming one oddly-named path\n  reported as missing. And a `project:` written with nothing after it is reported as the missing\n  required key it is, naming the service: YamlDotNet parses an empty scalar as null rather than as\n  `\"\"`, which in `0.4.0` reached `Path.Combine` and came back as an `ArgumentNullException` naming\n  neither.\n\n- **A service name is no longer able to place its checkout outside `.servicesources/checkouts/`**\n  (#224). The name is used verbatim as the directory the clone goes into, so one containing `..`\n  put the checkout somewhere else — outside the ignore file and the build-barrier files this\n  package writes into that directory precisely to keep a checkout out of the AppHost's\n  source-control status and out of its build settings. The name is now required to be a single\n  directory name of its own: no `/` or `\\` separator, no `:`, and not a name made only of dots and\n  spaces. A well-formed name is unaffected.\n\n  Two routes reached it, and neither was checked. The speculative prefetch enumerates the keys of\n  `servicesources.local.json` directly and never saw any validation at all; it now skips a key it\n  cannot use rather than reporting it, matching the filters either side of it — speculation about\n  a service the AppHost may never mention must never be what fails an `AddService()` call. The\n  ordinary `AddService(name)` route looked safe on the strength of Aspire's `[ResourceName]`\n  attribute, but that is an analyzer attribute, and the runtime validation behind it happens when\n  the resource is added to the application model — which is *after* the checkout it needs has been\n  cloned. Both now go through one refusal, in the function that builds the path, which names the\n  service and the two files to rename it in.\n\n  The rule is deliberately lexical rather than a resolved path comparison, and rejects `\".. \"`,\n  `\"...\"` and `\". \"` as well as `\".\"` and `\"..\"`. Windows strips trailing dots and spaces from a\n  path component, so none of those is a directory of its own there — what such a name resolves to\n  is never a checkout by that name. On Linux and macOS each is an ordinary directory name. Judging\n  them the same way everywhere keeps one verdict for a file a whole team shares, and keeps the\n  Windows-only cases testable on Linux.\n\n  Reaching either needed write access to `servicesources.yaml` — which is committed, shared, and\n  as trusted as the AppHost's own source — together with a matching entry in the developer\n  configuration, which can equally arrive from `appsettings`, user secrets, an environment variable\n  or the command line. So this is hardening rather than a hole reachable from outside. Found during\n  a security review.\n\nFull changelog: https://github.com/flojon/aspire-servicesources/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#repository",
+    "commit": "5681261d4b9fce39b29c7a400590633cc94939a5",
+    "type": "git",
+    "url": "https://github.com/flojon/aspire-servicesources"
+  },
+  "verbatimVersion": "0.4.1",
+  "version": "0.4.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net10.0/koalasoft.aspire.hosting.servicesources",
+          "@type": "PackageDependency",
+          "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+          "range": "[0.4.1, 0.5.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net10.0/aspire.hosting.javascript",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting.JavaScript",
+          "range": "[13.5.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net8.0/koalasoft.aspire.hosting.servicesources",
+          "@type": "PackageDependency",
+          "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+          "range": "[0.4.1, 0.5.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net8.0/aspire.hosting.javascript",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting.JavaScript",
+          "range": "[13.5.2, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net9.0/koalasoft.aspire.hosting.servicesources",
+          "@type": "PackageDependency",
+          "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+          "range": "[0.4.1, 0.5.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#dependencygroup/net9.0/aspire.hosting.javascript",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting.JavaScript",
+          "range": "[13.5.2, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#KoalaSoft.Aspire.Hosting.ServiceSources.JavaScript.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3598,
+      "fullName": "KoalaSoft.Aspire.Hosting.ServiceSources.JavaScript.nuspec",
+      "length": 8863,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.JavaScript.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 645,
+      "fullName": "LICENSE",
+      "length": 1070,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 26748,
+      "fullName": "README.md",
+      "length": 77917,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#lib/net10.0/Aspire.Hosting.ServiceSources.JavaScript.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9100,
+      "fullName": "lib/net10.0/Aspire.Hosting.ServiceSources.JavaScript.dll",
+      "length": 21504,
+      "name": "Aspire.Hosting.ServiceSources.JavaScript.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#lib/net8.0/Aspire.Hosting.ServiceSources.JavaScript.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9098,
+      "fullName": "lib/net8.0/Aspire.Hosting.ServiceSources.JavaScript.dll",
+      "length": 21504,
+      "name": "Aspire.Hosting.ServiceSources.JavaScript.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#lib/net9.0/Aspire.Hosting.ServiceSources.JavaScript.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9091,
+      "fullName": "lib/net9.0/Aspire.Hosting.ServiceSources.JavaScript.dll",
+      "length": 21504,
+      "name": "Aspire.Hosting.ServiceSources.JavaScript.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.05.18.31.26/koalasoft.aspire.hosting.servicesources.javascript.0.4.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspire",
+    "dotnet-aspire",
+    "service-discovery",
+    "apphost",
+    "javascript",
+    "typescript",
+    "nodejs",
+    "vite",
+    "nextjs",
+    "bun",
+    "local-development",
+    "polyglot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

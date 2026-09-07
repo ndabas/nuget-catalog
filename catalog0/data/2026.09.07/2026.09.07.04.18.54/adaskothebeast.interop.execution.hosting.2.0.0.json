@@ -1,0 +1,459 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Adam \"AdaskoTheBeAsT\" Pluciński",
+  "catalog:commitId": "c5fef2df-1324-4712-bd67-d187901a2827",
+  "catalog:commitTimeStamp": "2026-09-07T04:18:54.9426354Z",
+  "copyright": "Adam \"AdaskoTheBeAsT\" Pluciński",
+  "created": "2026-09-07T04:15:07.58Z",
+  "description": "Microsoft.Extensions.Hosting integration for AdaskoTheBeAsT.Interop.Execution: IHostedService wrappers that drive ExecutionWorker / ExecutionWorkerPool startup and graceful drain through the generic host lifecycle. Targets net10.0, net9.0, net8.0, and net481/net48/net472",
+  "id": "AdaskoTheBeAsT.Interop.Execution.Hosting",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-07T04:18:44.397Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "9bpBf0TUEXqZqn4Ap/QoWSt8LADkQXh6CnMFQ/1SB0WfpnPwPhfdTKaaY1L2EQ4Lz1cJ85LUejL1vE1OnqzSDQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 101376,
+  "projectUrl": "https://github.com/AdaskoTheBeAsT/AdaskoTheBeAsT.Interop",
+  "published": "2026-09-07T04:15:07.58Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## [2.0.0] - Unreleased\n\nA correctness and lifecycle upgrade for applications using dedicated-thread\nnative or COM sessions. Compared with tagged 1.0.0, this release makes pooled\ncompletion safe, aligns Task/ValueTask recovery, makes teardown waits reliable,\nand adds explicit overload and shutdown policies.\n\n**Breaking change:** the minimum supported .NET Framework version is now 4.7.2.\nThis framework support change is the reason for the major version. Existing\npublic signatures are retained on supported targets, but completion timing,\nfault-event ordering, option mutation, and validation also change. See the\n[migration guide](docs/migration-2.0.0.md) for retargeting and upgrade steps.\n\n### Removed\n\n- **.NET Framework 4.6.2, 4.7, and 4.7.1 support** (`net462`, `net47`, `net471`)\n  from all three packages and their test projects. The supported matrix is now\n  six targets: `net10.0`, `net9.0`, `net8.0`, `net481`, `net48`, and `net472`.\n  Applications on removed targets must retarget to .NET Framework 4.7.2 or\n  later before upgrading, or remain on 1.0.0. Modern .NET targets are unchanged.\n\n### Fixed\n\n- **Safe pooled completion.** The worker stages results, applies lifecycle policy\n  and diagnostics, and publishes completion as its last access to the item.\n  Consumers no longer return a source to the pool while the producer still uses\n  it. Pending/stale-token result access does not recycle the source; ValueTasks\n  still require exactly one observation.\n- **Task/ValueTask failure parity.** Pooled delegate errors now reach the same\n  recovery and telemetry path as Task errors, including\n  `RecycleSessionOnFailure`. An `OperationCanceledException` without cancellation\n  requested on the request token is a fault on both paths.\n- **Cleanup is part of request completion.** A request waits for any required\n  recycle teardown. If teardown fails after a successful delegate, the request\n  and worker fault. If both fail, the request keeps the delegate exception and\n  `Fault` exposes the terminal cleanup error. Replacement-session creation\n  failures also terminate the worker.\n- **Reliable external disposal joins.** Repeated worker/pool `DisposeAsync()`\n  calls await actual teardown, including after reentrant shutdown or a timed-out\n  synchronous `Dispose()`. Startup cancellation callbacks cannot block\n  `DisposeAsync` before it returns its join operation.\n- **Non-blocking cold submissions and correct queue accounting.** Async\n  submissions no longer wait synchronously for initial session creation.\n  Requests admitted during startup retain per-worker FIFO order; queue depth is\n  accounted before publication, preventing transient negative values.\n- **Fault publication before notification.** The first terminal fault is latched\n  and admission closed before `WorkerFaulted` runs on the thread pool.\n  Subscriber exceptions are contained. Pools continue forwarding final teardown\n  faults, even when notifications arrive after disposal.\n- **Best-effort telemetry.** Throwing activity/metric listeners cannot orphan or\n  fail a request. Execution spans capture the submitting activity context rather\n  than inheriting the worker thread's startup context.\n- **Pool ownership checks and rollback.** Custom schedulers receive a read-only\n  worker list and must return an actual pool member. Partial construction\n  disposes previously created workers and unregisters their diagnostics.\n- **Hosted shutdown deadlines.** Worker and pool `StopAsync(token)` cancel their\n  wait with `OperationCanceledException` if the host deadline expires before\n  cleanup completes. Cleanup continues; a later disposal can still join it.\n\n### Added\n\n- **`QueueCapacity`** on worker and pool options (`0` = unlimited). Limits waiting\n  requests, including during startup, but excludes the active request. Excess\n  submissions return faulted Task/ValueTask results with\n  `InvalidOperationException`. Capacity is per worker; a pool does not retry\n  another worker after rejection.\n- **`ExecutionShutdownMode`** with `Drain` (default) and `CancelPending`, selected\n  through `ShutdownMode` on worker and pool options. `CancelPending` skips work\n  not yet started; neither mode forcibly interrupts running delegates.\n- [Migration guide](docs/migration-2.0.0.md) and\n  [ADR-0010](docs/adr/0010-worker-completion-and-lifecycle.md) documenting the\n  completion, cancellation, admission, and shutdown contracts.\n\n### Changed\n\n- Worker/pool options are validated and copied at construction. Changing the\n  original options object no longer reconfigures a live instance.\n- `DisposeTimeout` above `int.MaxValue` milliseconds is rejected during\n  validation, rather than reaching an invalid synchronous wait. Use\n  `Timeout.InfiniteTimeSpan` for an unlimited wait.\n- Canceling `InitializeAsync(token)` abandons only that caller's wait, including\n  for pools. It does not stop shared startup; disposal separately requests\n  cancellation of initial session creation.\n\n### Regression coverage\n\n- Worker correctness tests cover completion after cleanup, failure/cancellation\n  parity, session lifecycle errors, external/reentrant disposal, startup FIFO,\n  startup-wait cancellation, queue depth/capacity, option snapshots, pool\n  membership, fault notification, and diagnostic listener failures.\n- Pooled work-item tests cover pending/stale access and publication ownership.\n- Hosted shutdown tests cover deadlines before and during the stop wait for\n  workers and pools. These tests target .NET 8/9/10 and .NET Framework\n  4.7.2/4.8/4.8.1; this\n  entry does not claim a new coverage percentage or benchmark result.\n\n### Scope\n\nPooled ValueTasks on all TFMs, shared-factory pool constructors, snapshots,\nscoped diagnostics, and DI option isolation were already present in **1.0.0**.\nThey are not new 2.0.0 features. Native execution is still synchronous and\ncooperatively canceled; STA does not supply a message pump, and worker sessions\ndo not isolate process-global native state.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#repository",
+    "commit": "24b56dfa62683c8be12cc9022230a4ce8c6c52a6",
+    "type": "git",
+    "url": "https://github.com/AdaskoTheBeAsT/AdaskoTheBeAsT.Interop"
+  },
+  "verbatimVersion": "2.0.0",
+  "version": "2.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net10.0/adaskothebeast.interop.execution.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net10.0/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.11, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.11, 11.0.0)"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.7.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.7.2/adaskothebeast.interop.execution.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.7.2/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.7.2/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.11, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.7.2/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.11, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8/adaskothebeast.interop.execution.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.11, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.11, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8.1/adaskothebeast.interop.execution.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8.1/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8.1/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.11, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/.netframework4.8.1/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.11, 11.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.8.1"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net8.0/adaskothebeast.interop.execution.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net8.0/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[8.0.2, 9.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[8.0.1, 9.0.0)"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net9.0/adaskothebeast.interop.execution.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution.DependencyInjection",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net9.0/adaskothebeast.interop.execution",
+          "@type": "PackageDependency",
+          "id": "AdaskoTheBeAsT.Interop.Execution",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net9.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[9.0.19, 10.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#dependencygroup/net9.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[9.0.19, 10.0.0)"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#AdaskoTheBeAsT.Interop.Execution.Hosting.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3404,
+      "fullName": "AdaskoTheBeAsT.Interop.Execution.Hosting.nuspec",
+      "length": 10611,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 11401,
+      "fullName": "README.md",
+      "length": 34512,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 660,
+      "fullName": "LICENSE",
+      "length": 1093,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3020,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "length": 8192,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8536,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "length": 14452,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1090,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "length": 8760,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4577,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "length": 10752,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 4324,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "length": 6612,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1090,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "length": 8760,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4575,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "length": 10752,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 4315,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "length": 6624,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1090,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "length": 8760,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4579,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "length": 10752,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 4332,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "length": 6648,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1090,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "length": 8760,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net8.0/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3023,
+      "fullName": "lib/net8.0/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "length": 8192,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net8.0/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8377,
+      "fullName": "lib/net8.0/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "length": 14276,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net8.0/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1090,
+      "fullName": "lib/net8.0/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "length": 8760,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net9.0/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3025,
+      "fullName": "lib/net9.0/AdaskoTheBeAsT.Interop.Execution.Hosting.dll",
+      "length": 8192,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net9.0/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8380,
+      "fullName": "lib/net9.0/AdaskoTheBeAsT.Interop.Execution.Hosting.pdb",
+      "length": 14296,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#lib/net9.0/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1090,
+      "fullName": "lib/net9.0/AdaskoTheBeAsT.Interop.Execution.Hosting.xml",
+      "length": 8760,
+      "name": "AdaskoTheBeAsT.Interop.Execution.Hosting.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.04.18.54/adaskothebeast.interop.execution.hosting.2.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12989,
+      "fullName": ".signature.p7s",
+      "length": 12989,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Interop",
+    "STA",
+    "Worker",
+    "WorkerPool",
+    "Threading",
+    "Session",
+    "Hosting",
+    "IHostedService",
+    "Microsoft.Extensions.Hosting"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

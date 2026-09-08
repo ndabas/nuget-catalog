@@ -1,0 +1,201 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Danylo Fitel",
+  "catalog:commitId": "5bfd87c9-dbb6-40a6-835c-b0c85df25abf",
+  "catalog:commitTimeStamp": "2026-09-08T01:56:20.8343956Z",
+  "copyright": "Copyright (c) Danylo Fitel 2026",
+  "created": "2026-09-08T01:53:37.223Z",
+  "description": "Extends the standard library with:\n  - Async lock and action frequency controls (debounce/throttle).\n  - Async lazy (PublicationOnly and ExecutionAndPublication thread safety modes).\n  - Sync and async in-memory value and key-value caches.\n  - Proactive async cache that refreshes values in the background before they expire.\n  - Thread-safe and priority-based collections.\n  - Optional and Result value types.\n  - Argument validation methods.\n  - Extension methods for collection interfaces.\n  - Extension methods for standard library types like int, string, DateTime.",
+  "id": "LibSharp",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-08T01:56:15.047Z",
+  "licenseFile": "LICENSE.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "axOq8pW5urm0AfnjYEJyBu3h3eFQ1NX1TXZp72ZMIZjDCfmkw05egA/1QSmbXhASGPHLxAAngBvbJFx8x7Qtcw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 297047,
+  "projectUrl": "https://github.com/danylofitel/LibSharp",
+  "published": "2026-09-08T01:53:37.223Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Changelog\n\n- 5.0.0\n  - `Caching`\n    - **Breaking:** `LazyAsyncPublicationOnly<T>` and `InitializerAsyncPublicationOnly<T>` now dispose values that lose the publication race, when those values implement `IAsyncDisposable` or `IDisposable`. Concurrent callers each run a factory and only the first value published is kept; the rest were previously dropped without being disposed and without ever reaching a caller, so nothing could release them — a leak the caller was powerless to fix, and the reason these types carried a blanket warning against disposable values. The loser is identified exactly rather than heuristically: the compare-exchange that publishes the winner returns the value already in place, so a dropped value is known never to have been handed out. Where `T` is a reference type, a shared instance returned to every racer is never disposed, because identity is checked first; no such check is possible for a value type, which is copied per racer. Pass `disposeDroppedValues: false` to the constructor to turn this off, for a factory whose values share an owned resource or are owned elsewhere. The published value is still never disposed by these types\n    - `LazyAsyncPublicationOnly<T>` and `InitializerAsyncPublicationOnly<T>` now honour an already-cancelled `CancellationToken` instead of leaving cancellation to the factory. A factory that ignores the token it is handed previously produced a value and returned it, so the two publication-only types were the only implementations of `ILazyAsync<T>` and `IInitializerAsync<T>` that did not throw, contradicting their own documented `OperationCanceledException`. A read served from an already-published value still returns it, since it does no waiting\n    - **Breaking:** added `ILazyAsync<T>`, the shape common to every asynchronously produced value here — `HasValue` plus `GetValueAsync` — and `IValueCacheAsync<T>` now derives from it, adding only `Expiration`. `LazyAsyncExecutionAndPublication<T>` and `LazyAsyncPublicationOnly<T>` implement it, so they are no longer the only cache-family types with no interface, and code that just needs a value can accept `ILazyAsync<T>` and take a lazy, a cache or a proactive cache alike. Moving `GetValueAsync` onto the base interface is a binary break: callers compiled against 4.0.0 reference it on `IValueCacheAsync<T>` directly and must be recompiled. Source is unaffected\n    - **Breaking:** `GetValueAsync` now returns `ValueTask<T>` instead of `Task<T>` on `IValueCacheAsync<T>`, `IKeyValueCacheAsync<TKey, TValue>`, `IInitializerAsync<T>` and all their implementations. A cache read usually completes synchronously, and that path no longer allocates. Await the result at most once, never concurrently, and call `AsTask()` before storing it or handing it to `Task.WhenAll`. The factory delegates deliberately still take and return `Task<T>`: they perform the real work and never complete synchronously, so a value task there would be caller friction for no gain\n    - **Breaking:** `ProactiveAsyncCache<T>` is now configured through `ProactiveAsyncCacheOptions` instead of constructor parameters. The old positional constructor is gone; a three-argument convenience overload `(valueFactory, refreshInterval, preFetchOffset)` remains for the common case and will never gain further parameters. Settings live on the options object so that adding one later is not a binary breaking change, which an optional constructor parameter always is\n    - **Breaking:** `allowStaleReads` is replaced by `StaleReadPolicy`, a closed set of cases rather than a flag: `Wait` (the default), `ServeStale`, and `ServeStaleUpTo(maxStaleness)`. The bound caps how long past expiration a value may still be served; beyond it readers wait, so a persistent failure reaches them as an exception instead of hiding behind an ever-older value. A `TimeSpan` on one case is why this is a type and not an enum: an enum plus a separate maximum-age setting would permit combinations that mean nothing\n    - Added `FetchTimeout` to `ProactiveAsyncCacheOptions`, bounding a single value factory invocation. An overrun is reported as `TimeoutException` and recorded as a failure. It also bounds `DisposeAsync`, which otherwise waits as long as the factory takes, and only helps if the factory honours its token\n    - `ProactiveAsyncCache<T>.DisposeAsync` now cancels with `CancelAsync` rather than `Cancel`. Cancellation callbacks the value factory registered no longer run inline on the disposing thread, so a slow or re-entrant callback cannot stall the caller\n    - Added `IdleTimeout` to `ProactiveAsyncCacheOptions`. When set, the background refresh loop suspends itself once `GetValueAsync` has not been called for that long, holding no timer and consuming no CPU, and the next read resumes it immediately. Only `GetValueAsync` counts as activity, not `HasValue` or `Expiration`\n    - **Breaking:** a caller's `CancellationToken` no longer cancels the shared refresh in `ValueCacheAsync<T>` (and therefore `KeyValueCacheAsync<TKey, TValue>`). Previously the value factory ran on whichever caller's token happened to trigger it, so one caller giving up cancelled a refresh other callers were waiting on and discarded work the cache was about to publish. The factory now runs on a token scoped to the cache instance, cancelled only by `Dispose()`, and a caller's token cancels that caller's wait alone. Concurrent callers now share a single factory invocation instead of serialising through a lock\n    - **Breaking:** `LazyAsyncExecutionAndPublication<T>` and `InitializerAsyncExecutionAndPublication<T>` are no longer `IDisposable`. They held an `AsyncLock` purely to serialise initialization; they now publish a shared initialization task instead, so they own nothing that needs releasing. Remove any `using` around them. As with the caches, the factory no longer receives the caller's token — it runs with `CancellationToken.None`, and a caller's token cancels that caller's wait alone. Concurrent callers still share exactly one factory execution, and faulted or cancelled attempts are still not cached\n    - `ValueCacheAsync<T>` no longer holds a lock across the value factory: it publishes a shared refresh task the way `ProactiveAsyncCache<T>` does. A factory that synchronously re-enters the cache now joins that refresh instead of deadlocking; one that awaits the nested read still deadlocks\n    - Fixed an already-cancelled `CancellationToken` being ignored by `GetValueAsync` on `ValueCacheAsync<T>` and `ProactiveAsyncCache<T>` when the shared fetch had already completed. Only a read that actually waits is cancelled: a cache hit is still served, as is a read the stale-read policy satisfies, since neither waits for anything\n    - Argument validation and disposal checks in `GetValueAsync` now throw synchronously rather than returning a faulted task, following the convention for `ValueTask`-returning members\n    - Added `Count` to `KeyValueCache<TKey, TValue>` and `KeyValueCacheAsync<TKey, TValue>`, reporting the number of entries held. Deliberately on the concrete types rather than the interfaces, following `MemoryCache`/`IMemoryCache`: the number means different things for evicting and non-evicting implementations, may be expensive or unavailable for a remote one, and reading it takes every bucket lock of the underlying `ConcurrentDictionary`. Since nothing is evicted, it counts entries whose value has expired, which makes it the measure to watch when confirming a key space is bounded\n    - Added `LastRefreshException`, `ConsecutiveRefreshFailures` and `LastSuccessfulRefresh` to `ProactiveAsyncCache<T>`. A failing background refresh was previously invisible: with `allowStaleReads` enabled callers keep receiving an arbitrarily old value and never see an error, so nothing could tell a health check that the value had stopped being updated. The failure state is cleared by the next successful refresh\n    - `ProactiveAsyncCache<T>` no longer retries a failing value factory on every read. A faulted fetch is a completed task, so previously each subsequent read started a fresh factory call with no delay at all: a dependency failing fast turned a multi-minute refresh interval into one call per read, against a service already under strain. The last failure is now recorded, and reads within the retry window replay the stored exception instead of calling the factory. With `allowStaleReads` the stale value is served instead. A successful fetch clears the record. The background loop is exempt, since it already paces its own retries\n    - `Initializer<T>` now throws `InvalidOperationException` when the value factory reads the initializer it is initializing. The re-entrant read previously found no published value and called the factory again, recursing until the stack overflowed and took the process with it — a crash no caller could catch. Matches the behaviour already given to `ValueCache<T>` and `KeyValueCache<TKey, TValue>`\n    - `ValueCache<T>` and `KeyValueCache<TKey, TValue>` now throw `InvalidOperationException` when the value factory reads the cache it is refreshing, the way `Lazy<T>` reports recursive initialization. Previously the re-entrant read found no published value and called the factory again, recursing until the stack overflowed and took the process with it. Re-entering `KeyValueCache` for a different key is still allowed\n    - `KeyValueCache<TKey, TValue>` and `KeyValueCacheAsync<TKey, TValue>` no longer allocate a delegate on every read. The `GetOrAdd` factory captured `this`, and Roslyn only caches closure-free lambdas, so one was allocated per call rather than per insert\n  - `Collections`\n    - `IPriorityQueue<T>` now also implements `IReadOnlyCollection<T>`, so a queue can be passed to any API that takes one. `ICollection<T>` does not derive from `IReadOnlyCollection<T>`, so this was previously impossible without copying. The interface re-declares `Count` with `new`, which is required: inheriting the member from both bases otherwise makes reading `Count` through the interface a compile error (CS0229), and that ambiguity is why the base class library never made `ICollection<T>` derive from `IReadOnlyCollection<T>`. Implementers need do nothing — a single public `Count` satisfies all three declarations\n    - `CollectionExtensions.AddRange` now defers to `List{T}.AddRange` when the target is a `List<T>`, which sizes the backing array once from the source's count instead of regrowing it as items arrive. Measured 1216 to 456 bytes for 100 items added to an empty list, matching a direct call to `List<T>.AddRange`\n    - Fixed `Chunk` silently ignoring its weight budget after a `NaN` item weight. `NaN` passed both range guards, since `NaN < 0` and `NaN > chunkWeight` are each false, and then poisoned the running total so that no later comparison against the budget was ever true. Non-finite item weights are now rejected. Affected both the `IEnumerable<T>` and `IAsyncEnumerable<T>` overloads\n    - `DictionaryExtensions.Copy` now preserves the source dictionary's comparer where it can be recovered. A `Dictionary<string, T>` built with `StringComparer.OrdinalIgnoreCase` previously copied into one using default equality, so the copy resolved lookups differently from the original\n    - `DictionaryExtensions.GetOrAdd` and `AddOrUpdate` no longer allocate a closure per call in their `factoryArgument` overloads, which is the allocation those overloads exist to avoid\n    - `MinPriorityQueue<T>` and `MaxPriorityQueue<T>` now build a heap from a collection in O(n) rather than enqueuing each element in O(n log n)\n    - `ConcurrentHashSet<T>` no longer copies the entire set to enumerate it. `GetEnumerator` and the subset, superset and equality checks read `ConcurrentDictionary.Keys`, which takes every bucket lock and allocates a full copy on each call; they now enumerate the dictionary directly, which is lock-free. Enumeration is consequently a live view rather than a snapshot: elements added or removed after it begins may or may not be observed, matching `ConcurrentDictionary`\n    - **Breaking:** `MinPriorityQueue<T>` and `MaxPriorityQueue<T>` now implement the non-generic `ICollection` members explicitly, so `SyncRoot`, `IsSynchronized` and `CopyTo(Array, int)` are no longer on the public surface. The interface is still implemented, so legacy interop is unaffected; reach those members through `((ICollection)queue)`. `SyncRoot` and `IsSynchronized` are the .NET 1.x synchronization pattern, which these types never honoured — nothing locks on `SyncRoot` — and `List<T>` hides them the same way\n    - **Breaking:** `CopyTo` on both queues now reports `ArgumentOutOfRangeException.ParamName` as the actual parameter name rather than the literal `\"Array offset\"`, which matched no parameter and so could never be matched by a caller filtering on it\n    - Fixed `MinPriorityQueue<T>` and `MaxPriorityQueue<T>` failing to shrink correctly beyond roughly 536 million elements. The quarter-full test multiplied the count by four, which overflows to a negative value at that size, passing the test and then throwing from the copy because the count no longer fitted the smaller array\n    - Fixed the priority queue enumerators advancing their index on every `MoveNext` call after the end of the collection. Repeated calls returned `false` as required, but the index grew without bound and would eventually overflow and read outside the heap\n    - `MinPriorityQueue<T>` and `MaxPriorityQueue<T>` now throw `InvalidOperationException` when `Current` is read before the first `MoveNext`, instead of silently returning `default(T)` from the heap's unused slot\n  - `Common`\n    - **Breaking:** `TypeExtensions.GetDefaultComparer<T>` now throws `InvalidOperationException` rather than `ArgumentException` when `T` implements neither `IComparable<T>` nor `IComparable`. The method takes no arguments, so there was nothing for an `ArgumentException` to name. It also resolves the check once per closed generic type instead of running two reflection calls on every invocation, which every priority queue constructor paid. Constructing a queue over a non-comparable element type surfaces the same new exception\n    - Added `Optional<T>.Empty`, the named form of `default(Optional<T>)`, so the absent state is discoverable and reads clearly at a call site. An optional holding `null` remains a distinct state that does not compare equal to it\n    - Fixed `IntExtensions.TryConvertToEnum<T>` throwing `ArgumentException` for any enum whose underlying type is not `int`. It used `Enum.IsDefined(Type, object)`, which requires the boxed value to carry the enum's exact underlying type, so a `byte`- or `long`-backed enum threw instead of reporting whether the value was defined. The value is now converted with a range check first, because `Enum.ToObject` truncates rather than rejecting: 300 becomes 44 for a byte-backed enum\n    - `StringExtensions.Reverse` now writes each text element straight into the result with `string.Create`, allocating only the string it returns instead of a cluster index array, a `StringBuilder` and its buffer. Measured 216 to 48 bytes for an 11-character string\n    - `StringExtensions.TruncateTextElements` no longer indexes every text element in the string. It walks only as far as the limit, so a string within the limit allocates nothing at all where it previously allocated an index array proportional to the whole string\n    - `IntExtensions.TryConvertToEnum<T>` no longer boxes the converted value, and resolves the enum's underlying type once per closed generic type rather than on every call. Measured 24 bytes to zero\n    - **Breaking:** `FuncExtensions.RunWithTimeout` now actually enforces its timeout. It previously handed the work a token that fired at the deadline and then awaited the work unconditionally, so work that ignored the token ran on and the call never returned. The caller is now released when the deadline passes regardless, and abandoned work is left running with its faults observed\n    - **Breaking:** `RunWithTimeout` reports an elapsed timeout as `TimeoutException` rather than `OperationCanceledException`, so a timeout can be told apart from the caller cancelling. This holds even when the work honours its token and throws on the way out\n    - **Breaking:** `RunWithTimeout` takes an optional `TimeProvider`, so the timeout can be driven deterministically like every other timing-sensitive type in the library. `CancellationToken` moved to last to keep the conventional parameter order, which is a compile-time break for positional callers\n    - `RunWithTimeout` rejects a null task from the factory with `InvalidOperationException` instead of failing with `NullReferenceException`\n    - **Breaking:** removed `XmlSerializationExtensions` and its `SerializeToXml` / `DeserializeFromXml` methods. They were the library's only dependency on `XmlSerializer`, and with it the only barrier to a clean trimming and Native AOT story, the only process-lifetime static cache (serializer instances, which root their generated assemblies and block collectible assembly unloading), and the only public API outside this library's concurrency, caching and collections remit. Call `XmlSerializer` directly, or use a serializer of your choosing. One detail worth carrying over if you do: these helpers read with `DtdProcessing.Prohibit`, which a bare `XmlReader` does not default to, and which is what closes the XML external entity hole\n    - The library is now built with `IsAotCompatible`, so the trim and Native AOT analysers run over the whole assembly. With `XmlSerializationExtensions` removed nothing in the library is incompatible, so it carries no `RequiresUnreferencedCode` or `RequiresDynamicCode` annotations at all and emits no trimming or AOT warnings to consumers\n    - `Argument.NotNull`, `NotNullOrEmpty`, `NotNullOrWhiteSpace`, `OfType` and the four comparison checks now take a nullable argument and carry `[NotNull]`. Passing a nullable previously warned at the call site, and `NotNull<T>` rejected the type argument outright under its non-nullable `class` constraint, so null-checking a nullable required `Argument.NotNull(x!)` — a null-forgiving operator to call the null check. They now also narrow the argument to non-null for the code that follows, removing the suppressions callers had to write afterwards. `EqualTo` and `NotEqualTo` accept a nullable but deliberately do not narrow, since null is a legal value for both\n  - `Threading`\n    - Fixed `DebouncedAction.Dispose()` deadlocking permanently when called from inside the debounced action. `Dispose` waits for the in-flight callback to finish, which in that case is the caller itself. It now detects the call coming from the callback's own thread and returns without waiting\n    - **Breaking:** `AsyncLock.AcquireAsync` now returns `ValueTask<Handle>` instead of `Task<Handle>`, and an uncontended acquisition now allocates nothing at all. `Handle` carried a heap-allocated releaser to keep `Dispose` idempotent across copies of the struct; it now carries a version stamping the acquisition it came from, which a release must match. A copy disposed twice, or a handle left over from an earlier acquisition, no longer matches and does nothing, as before. Measured 32 bytes to zero\n\n- 4.0.0\n  - Enabled nullable reference type annotations across the entire public API; `TryGet*` methods and out parameters are now annotated (e.g. `[MaybeNullWhen(false)]`), and nullable inputs such as optional `Encoding`/`XmlReaderSettings` arguments are marked accordingly\n  - `Caching`\n    - Updated `ProactiveAsyncCache<T>` to never throw exceptions from `DisposeAsync()`\n    - `ValueCache<T>`, `ValueCacheAsync<T>`, `KeyValueCache<TKey, TValue>`, `KeyValueCacheAsync<TKey, TValue>`, and `ProactiveAsyncCache<T>` now accept an optional `TimeProvider` (defaulting to `TimeProvider.System`) so expiration and background refresh can be driven deterministically in tests\n  - `Collections`\n    - Renamed extension classes to drop the `I` prefix: `IEnumerableExtensions` → `EnumerableExtensions`, `ICollectionExtensions` → `CollectionExtensions`, `IDictionaryExtensions` → `DictionaryExtensions`, `IAsyncEnumerableExtensions` → `AsyncEnumerableExtensions` (extension methods called via instance syntax are unaffected; static-style calls must use the new names)\n    - `MinPriorityQueue<T>` and `MaxPriorityQueue<T>`: `Contains` and `Remove` now use element equality (`EqualityComparer<T>.Default`) instead of the ordering comparer, so they honour the `ICollection<T>` contract (reverses the 3.0.0 change; ordering still uses the comparer)\n    - `ConcurrentHashSet<T>` now constrains `T` to `notnull` (it is backed by `ConcurrentDictionary`, which never permitted null elements); `IDictionaryExtensions.Copy` likewise constrains its key to `notnull`\n    - `DictionaryExtensions` and the key-value caches now validate keys without boxing value-type keys\n  - `Common`\n    - `Optional<T>` no longer implements `IEquatable<T>`; it now implements only `IEquatable<Optional<T>>`, so equality is defined between two optionals. A bare value still compares equal via the new implicit conversion, but a value typed as `object` never does\n    - Added an implicit conversion from `T` to `Optional<T>` (always produces a present optional, even for `null`)\n    - Added `Match`, `Map`, and `Bind` to `Optional<T>`\n    - Added `Match`, `Map`, `MapError`, and `Bind` to `Result<T, TError>`\n    - Removed the `Argument.NotNull(object, string)` overload; calling `NotNull` on a non-nullable value type is now a compile error instead of a silent no-op (the reference-type generic overload is retained)\n    - `Argument` methods now capture the argument name automatically via `[CallerArgumentExpression]`, so the `name` parameter is optional; existing calls that pass it explicitly still compile\n    - `XmlSerializationExtensions.SerializeToXml` / `DeserializeFromXml` are now annotated with `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]` to reflect that `XmlSerializer` is incompatible with trimming and Native AOT\n  - `Threading`\n    - `ThrottledAction` and `DebouncedAction` now accept an optional `TimeProvider` (defaulting to `TimeProvider.System`) so the throttle interval and debounce timer can be driven deterministically in tests\n    - `ThrottledAction` now clamps its interval-to-ticks conversion so an extreme interval near `TimeSpan.MaxValue` cannot overflow into a negative value and defeat throttling\n\n- 3.0.0\n  - `Caching`\n    - Async cache/lazy/initializer factories now reject null task returns with a deliberate exception instead of failing with `NullReferenceException`\n    - `ProactiveAsyncCache<T>` no longer implements `IDisposable`; use `await using` / `DisposeAsync()` instead\n    - `ProactiveAsyncCache` no longer supports `refreshTimeout` and `onBackgroundRefreshError` parameters, and now always auto-starts in constructor\n  - `Collections`\n    - Added `ConcurrentHashSet`\n    - Added weighted `Chunk` extension method for `IAsyncEnumerable<T>`\n    - Added `TryPeek` and `TryDequeue` to `IPriorityQueue<T>`, `MinPriorityQueue<T>`, and `MaxPriorityQueue<T>`\n    - `MinPriorityQueue<T>` and `MaxPriorityQueue<T>`: `Contains` and `Remove` now use the queue's comparer instead of `object.Equals`, making them consistent with the ordering relation\n  - `Common`\n    - Added `Result`\n    - Renamed `Box` to `Optional`; null values are now allowed\n    - `Optional<T>.GetHashCode` now differentiates between an empty optional and an optional wrapping `null`\n    - Added `StringExtensions.TruncateTextElements` for text-element-aware truncation\n    - `DateTimeExtensions` epoch conversions now use Unix-time floor semantics instead of rounding fractional units\n    - `TypeExtensions.GetDefaultComparer` now supports types implementing non-generic `IComparable`\n    - Regex extensions now return a `bool` indicating whether the regex match timed out\n    - `FuncExtensions.RunWithTimeout`: timeout must now be strictly greater than zero\n    - `XmlSerializationExtensions`: `XmlSerializer` instances are now cached per type to avoid repeated dynamic assembly generation\n  - `Threading`\n    - Added `AsyncLock`, `DebouncedAction`, and `ThrottledAction`\n\n- 2.0.4\n  - Improved disposal of async caches in edge cases\n\n- 2.0.3\n  - `ProactiveAsyncCache` now calculates retry delay based on the refresh interval and pre-fetch offset\n  - Minor bug fixes and improvements\n\n- 2.0.2\n  - `ProactiveAsyncCache` now supports an optional `refreshTimeout` parameter\n  - Minor bug fixes and improvements\n\n- 2.0.1\n  - `ProactiveAsyncCache` now supports stale reads mode\n  - `ProactiveAsyncCache` now accepts an action to handle failed background refreshes\n\n- 2.0.0\n  - Dropped support for .NET Standard 2.0, .NET Standard 2.1, .NET 5.0, .NET 6.0, and .NET 7.0\n  - Added support for .NET 10.0\n  - Removed `DateTimeExtensions.UnixEpoch`\n  - Added `ProactiveAsyncCache`\n  - Added `TryConvertToEnum` extension method for `string`\n  - Bug fixes and thread safety improvements\n\n- 1.1.6\n  - Added `TryConvertToEnum` extension method for `int`\n\n- 1.1.5\n  - Added Regex extension methods that handle regex timeouts gracefully\n  - Added `Func` extension methods that run asynchronous operations with a timeout\n\n- 1.1.4\n  - Added support for .NET 9.0\n\n- 1.1.3\n  - Updated NuGet package tags and description\n\n- 1.1.2\n  - Added constructors to `KeyValueCache` and `KeyValueCacheAsync` that accept separate factories for creates and updates\n  - Added the ability to specify a custom expiration function\n\n- 1.1.1\n  - Changed the return type of the `Shuffle` extension method from `IEnumerable<T>` to `T[]`\n  - Fixed the signature of `SerializeToXml` so it can be invoked as an extension method\n  - All `IDisposable` types now throw `ObjectDisposedException` when a member is accessed after disposal\n\n- 1.1.0\n  - Added support for .NET Standard 2.0, .NET Standard 2.1, .NET 5.0, .NET 6.0, and .NET 7.0\n\n- 1.0.0\n  - Initial release targeting .NET 8.0",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "458ce48226d6f2be4e454736bf5221739380b398",
+    "type": "git",
+    "url": "https://github.com/danylofitel/LibSharp"
+  },
+  "title": "LibSharp",
+  "verbatimVersion": "5.0.0",
+  "version": "5.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#LibSharp.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9879,
+      "fullName": "LibSharp.nuspec",
+      "length": 28491,
+      "name": "LibSharp.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#LICENSE.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 653,
+      "fullName": "LICENSE.txt",
+      "length": 1090,
+      "name": "LICENSE.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 8487,
+      "fullName": "README.md",
+      "length": 32102,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#lib/net10.0/LibSharp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 65259,
+      "fullName": "lib/net10.0/LibSharp.dll",
+      "length": 123392,
+      "name": "LibSharp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#lib/net10.0/LibSharp.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 22294,
+      "fullName": "lib/net10.0/LibSharp.xml",
+      "length": 183981,
+      "name": "LibSharp.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#lib/net8.0/LibSharp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 65054,
+      "fullName": "lib/net8.0/LibSharp.dll",
+      "length": 123392,
+      "name": "LibSharp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#lib/net8.0/LibSharp.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 22294,
+      "fullName": "lib/net8.0/LibSharp.xml",
+      "length": 183981,
+      "name": "LibSharp.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#lib/net9.0/LibSharp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 65088,
+      "fullName": "lib/net9.0/LibSharp.dll",
+      "length": 123392,
+      "name": "LibSharp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#lib/net9.0/LibSharp.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 22294,
+      "fullName": "lib/net9.0/LibSharp.xml",
+      "length": 183981,
+      "name": "LibSharp.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.01.56.20/libsharp.5.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "LibSharp",
+    "AsyncLock",
+    "Debounce",
+    "Throttle",
+    "AsyncLazy",
+    "LazyAsync",
+    "Cache",
+    "AsyncCache",
+    "ThreadSafeCache",
+    "ConcurrentHashSet",
+    "PriorityQueue",
+    "Collections",
+    "Result",
+    "Optional",
+    "Extensions",
+    "ArgumentValidation"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

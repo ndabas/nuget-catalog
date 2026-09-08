@@ -1,0 +1,845 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Tomas Petricek,Oleg Pestov,Anh-Dung Phan,Xiang Zhang,Matthias Dittrich,Don Syme",
+  "catalog:commitId": "72fdf88f-23ae-4160-8989-1d0471527106",
+  "catalog:commitTimeStamp": "2026-09-08T10:33:43.089755Z",
+  "copyright": "Copyright 2014",
+  "created": "2026-09-08T10:28:51.827Z",
+  "description": "The 'dotnet fsdocs' documentation generation tool for F# projects. Install use 'dotnet tool add fsdocs-tool'. See the project site for documentation.",
+  "iconFile": "logo.png",
+  "id": "fsdocs-tool",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-08T10:33:20.297Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "mr4FDHD6BGfHKFkGLttBGVfNG0OxajoPeSslTHtalp3w3qKUfysG4zcWvEqrvwcpaNu1Kl1EoXRRx7MAXxRNcg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 13739088,
+  "projectUrl": "https://fsprojects.github.io/FSharp.Formatting",
+  "published": "2026-09-08T10:28:51.827Z",
+  "releaseNotes": "### Changed\n\n- Links are relative. The `{{root}}` substitution is now the path from the page to the root of the site (`./`, `../`, ...) instead of the absolute site URL, so the generated site works from any host name or sub path, from the file system, and `fsdocs watch` can be reached through any address the server is bound to (`--host 0.0.0.0`, a Codespaces forward, a reverse proxy). The `--root` option of `watch` is replaced by `--site-root`, which only sets the site URL. The search index holds site-relative URIs that the search script prefixes with the page's root. The absolute URL of the site is available as the new `{{fsdocs-site-root}}` substitution (from `<PackageProjectUrl>` or `--parameters fsdocs-site-root`; a `root` parameter still sets it but warns); the default template uses it for `og:url` and `twitter:site`, and `llms.txt` links stay absolute. Custom templates that use `{{root}}` in metadata that must be absolute should switch to `{{fsdocs-site-root}}`. Notebook, script and LaTeX outputs keep the absolute site URL since they are used outside the site. The dev server serves a folder URL from its index page and redirects `/folder` to `/folder/`, as static web servers do.\n- `fsdocs watch` is a lazy dev server: no output folder is written, a page is built the first time it is requested and cached until a file that influences it changes (content hashes, so byte-identical rewrites invalidate nothing), static files are served from their source location, and a failing page returns a `500` while the other pages keep working. The search index is fetched when the search dialog is first opened instead of on page load. New diagnostic pages at `/.fsdocs/doctor` and `/.fsdocs/doctor.json` show the cracked projects, substitutions, templates, navigation titles, routes and cache state. `--output`, `--clean` and `--saveimages` are ignored by `watch`.\n- Project cracking evaluates the MSBuild properties of each project with `dotnet msbuild --getProperty` (in parallel, no design-time build) and drops test projects and executables before any expensive work. The compiler references come from a design-time build (`dotnet msbuild -t:...CoreCompile -getItem:FscCommandLineArgs`, one process per project, in parallel) that runs only for the documented projects and only when the API docs are generated; it is cached in `.fsdocs/references`. Ionide.ProjInfo is no longer used for the design-time build, only to read solution files. The `.fsdocs/cache` key now covers the discovered project files, `Directory.Build.props`, `Directory.Build.targets`, `Directory.Packages.props` and `global.json`, so editing those no longer serves stale project settings.\n- Properties set by MSBuild targets, such as a `Version` computed from a changelog by `Ionide.KeepAChangelog.Tasks`, are not visible to an evaluation. The substitutions are therefore recomputed from the design-time build when it runs: `build` uses the refined values for the API docs and the content, `watch` serves the evaluated values until the design-time build ran (at startup, in the background) and then rebuilds the affected pages. The doctor shows per project whether the design-time build ran, which substitutions it changed, and has a button to run it again.\n- `TypeConstraintDisplayMode` is a struct discriminated union, as the Ionide analyzers suggest. Source compatible, but the compiled representation changes, so a consumer needs to recompile.\n- Rewrote the Mermaid documentation recipe as `docs/mermaid.md` (moved from the oddly-named `docs/sidebyside/sidemermaid.md`) to follow the approach used by the fantomas docs: diagrams are written as plain ```mermaid fenced code blocks, which GitHub renders natively, and an `_body.html` script promotes those blocks into `<div class=\"mermaid\">` elements on fsdocs pages. The FSharp.Formatting docs now ship that script (`docs/_body.html`), so the recipe page actually demonstrates working diagrams.\n- Bump `Ionide.ProjInfo` from 0.74.2 to 0.75.0 and `NUnit3TestAdapter` from 6.2.0 to 6.3.0. Both are routine, non-breaking updates.\n- Replace `sprintf \"<pre><code>\"` (a format string with no format arguments) with the plain string literal `\"<pre><code>\"` in `HtmlFormatting.fs`. This is on the hot path invoked once per rendered code/output block, and avoids the unnecessary printf-format parsing overhead for a string with no substitutions.\n\n### Added\n\n- Logging goes through `Microsoft.Extensions.Logging`. The libraries are silent by default; hosts set `FSharp.Formatting.Common.Logging.LoggerFactory` or call `Logging.UseConsole(level)`. The tool has `-v`/`--verbosity quietminimalnormaldetaileddiagnostic` on `build`, `watch`, `convert` and `init`; `normal` prints one line per phase with counts and durations instead of one line per file, warnings and errors go to standard error with a `warning:`/`error:` prefix, and the doctor shows the last log lines.\n- `fsdocs watch` builds the API reference in the background at startup and after a project DLL or project file change, so no page request waits for it. Project files and the solution-wide MSBuild files are watched: a change re-cracks the projects, so substitutions such as `<FsDocsLogoSource>` and the compiler references are picked up without a restart.\n- `fsdocs watch --host 0.0.0.0` binds the server to all interfaces so the site can be browsed from another machine on the network.\n- Support top-level `<seealso cref=\"...\"/>` XML doc tags in API documentation generation. Per the [xmldoc recommended tags](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/recommended-tags#seealso), `<seealso>` is a top-level section (unlike the inline `<see>` tag) and is now rendered as a \"See also\" list in both HTML and Markdown API doc output, for both members and entities. [#1256](https://github.com/fsprojects/FSharp.Formatting/issues/1256)\n\n### Fixed\n\n- Surface FSI evaluation failures to stderr by default in `FsiEvaluator`. Previously, when a code snippet failed during `--eval`, the error was silently discarded unless the caller subscribed to `EvaluationFailed` or provided an `onError` callback. Now a concise error message (file name + stderr output) is always written to stderr, making failures visible in `fsdocs` output.\n- Fix `FrontMatterFile.ParseFromLines` truncating front-matter values that contain a `:` character (e.g. `title: F#: An Introduction` was previously captured as just `F#`). Additional colons in a value are now preserved.\n\n### Removed\n\n- Remove the `--noserver` option of `fsdocs watch`; watching without serving no longer does anything now that no output folder is written.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#repository",
+    "commit": "3ed84e449ddde59d83568039e6cbecdcbb23a076",
+    "type": "git",
+    "url": "https://github.com/fsprojects/FSharp.Formatting"
+  },
+  "verbatimVersion": "23.0.0-alpha.1",
+  "version": "23.0.0-alpha.1",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#fsdocs-tool.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3575,
+      "fullName": "fsdocs-tool.nuspec",
+      "length": 7774,
+      "name": "fsdocs-tool.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 8997,
+      "fullName": "logo.png",
+      "length": 9010,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/NuGet.config",
+      "@type": "PackageEntry",
+      "compressedLength": 293,
+      "fullName": "extras/NuGet.config",
+      "length": 710,
+      "name": "NuGet.config"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-copy-button.js",
+      "@type": "PackageEntry",
+      "compressedLength": 831,
+      "fullName": "extras/content/fsdocs-copy-button.js",
+      "length": 2675,
+      "name": "fsdocs-copy-button.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-default.css",
+      "@type": "PackageEntry",
+      "compressedLength": 6611,
+      "fullName": "extras/content/fsdocs-default.css",
+      "length": 32634,
+      "name": "fsdocs-default.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-details-set-expanded.js",
+      "@type": "PackageEntry",
+      "compressedLength": 188,
+      "fullName": "extras/content/fsdocs-details-set-expanded.js",
+      "length": 280,
+      "name": "fsdocs-details-set-expanded.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-details-toggle.js",
+      "@type": "PackageEntry",
+      "compressedLength": 680,
+      "fullName": "extras/content/fsdocs-details-toggle.js",
+      "length": 1717,
+      "name": "fsdocs-details-toggle.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-search.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1810,
+      "fullName": "extras/content/fsdocs-search.js",
+      "length": 5795,
+      "name": "fsdocs-search.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-theme-set-dark.js",
+      "@type": "PackageEntry",
+      "compressedLength": 115,
+      "fullName": "extras/content/fsdocs-theme-set-dark.js",
+      "length": 146,
+      "name": "fsdocs-theme-set-dark.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-theme-toggle.js",
+      "@type": "PackageEntry",
+      "compressedLength": 596,
+      "fullName": "extras/content/fsdocs-theme-toggle.js",
+      "length": 1196,
+      "name": "fsdocs-theme-toggle.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-theme.css",
+      "@type": "PackageEntry",
+      "compressedLength": 105,
+      "fullName": "extras/content/fsdocs-theme.css",
+      "length": 125,
+      "name": "fsdocs-theme.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-theme.js",
+      "@type": "PackageEntry",
+      "compressedLength": 561,
+      "fullName": "extras/content/fsdocs-theme.js",
+      "length": 1374,
+      "name": "fsdocs-theme.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/fsdocs-tips.js",
+      "@type": "PackageEntry",
+      "compressedLength": 874,
+      "fullName": "extras/content/fsdocs-tips.js",
+      "length": 2604,
+      "name": "fsdocs-tips.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#extras/content/img/github-pages-settings.png",
+      "@type": "PackageEntry",
+      "compressedLength": 30530,
+      "fullName": "extras/content/img/github-pages-settings.png",
+      "length": 33534,
+      "name": "github-pages-settings.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#templates/_template.html",
+      "@type": "PackageEntry",
+      "compressedLength": 1405,
+      "fullName": "templates/_template.html",
+      "length": 5144,
+      "name": "_template.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#templates/_template.ipynb",
+      "@type": "PackageEntry",
+      "compressedLength": 3,
+      "fullName": "templates/_template.ipynb",
+      "length": 1,
+      "name": "_template.ipynb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#templates/_template.md",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "templates/_template.md",
+      "length": 0,
+      "name": "_template.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#templates/_template.tex",
+      "@type": "PackageEntry",
+      "compressedLength": 455,
+      "fullName": "templates/_template.tex",
+      "length": 1198,
+      "name": "_template.tex"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/CommandLine.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 93869,
+      "fullName": "tools/net10.0/any/CommandLine.dll",
+      "length": 225280,
+      "name": "CommandLine.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 183,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Compiler.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7816348,
+      "fullName": "tools/net10.0/any/FSharp.Compiler.Service.dll",
+      "length": 19412264,
+      "name": "FSharp.Compiler.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1148096,
+      "fullName": "tools/net10.0/any/FSharp.Core.dll",
+      "length": 2396456,
+      "name": "FSharp.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Data.Adaptive.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 583757,
+      "fullName": "tools/net10.0/any/FSharp.Data.Adaptive.dll",
+      "length": 1816064,
+      "name": "FSharp.Data.Adaptive.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.DependencyManager.Nuget.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 73829,
+      "fullName": "tools/net10.0/any/FSharp.DependencyManager.Nuget.dll",
+      "length": 146216,
+      "name": "FSharp.DependencyManager.Nuget.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.ApiDocs.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 148447,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.ApiDocs.dll",
+      "length": 321536,
+      "name": "FSharp.Formatting.ApiDocs.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.ApiDocs.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 36690,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.ApiDocs.pdb",
+      "length": 94240,
+      "name": "FSharp.Formatting.ApiDocs.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.ApiDocs.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 13989,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.ApiDocs.xml",
+      "length": 92711,
+      "name": "FSharp.Formatting.ApiDocs.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.CSharpFormat.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12684,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.CSharpFormat.dll",
+      "length": 36352,
+      "name": "FSharp.Formatting.CSharpFormat.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.CSharpFormat.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8919,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.CSharpFormat.pdb",
+      "length": 15164,
+      "name": "FSharp.Formatting.CSharpFormat.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.CSharpFormat.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2730,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.CSharpFormat.xml",
+      "length": 22684,
+      "name": "FSharp.Formatting.CSharpFormat.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.CodeFormat.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 81263,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.CodeFormat.dll",
+      "length": 162816,
+      "name": "FSharp.Formatting.CodeFormat.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.CodeFormat.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 15893,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.CodeFormat.pdb",
+      "length": 39504,
+      "name": "FSharp.Formatting.CodeFormat.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.CodeFormat.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6743,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.CodeFormat.xml",
+      "length": 39206,
+      "name": "FSharp.Formatting.CodeFormat.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Common.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 212350,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Common.dll",
+      "length": 534016,
+      "name": "FSharp.Formatting.Common.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Common.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 23263,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Common.pdb",
+      "length": 95392,
+      "name": "FSharp.Formatting.Common.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Common.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6308,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Common.xml",
+      "length": 33471,
+      "name": "FSharp.Formatting.Common.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Literate.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 106788,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Literate.dll",
+      "length": 223232,
+      "name": "FSharp.Formatting.Literate.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Literate.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 22799,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Literate.pdb",
+      "length": 57972,
+      "name": "FSharp.Formatting.Literate.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Literate.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10240,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Literate.xml",
+      "length": 70691,
+      "name": "FSharp.Formatting.Literate.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Markdown.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 112499,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Markdown.dll",
+      "length": 253440,
+      "name": "FSharp.Formatting.Markdown.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Markdown.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 27122,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Markdown.pdb",
+      "length": 72080,
+      "name": "FSharp.Formatting.Markdown.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/FSharp.Formatting.Markdown.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9640,
+      "fullName": "tools/net10.0/any/FSharp.Formatting.Markdown.xml",
+      "length": 66608,
+      "name": "FSharp.Formatting.Markdown.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/Ionide.ProjInfo.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 136335,
+      "fullName": "tools/net10.0/any/Ionide.ProjInfo.dll",
+      "length": 256512,
+      "name": "Ionide.ProjInfo.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29281,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "length": 65832,
+      "name": "Microsoft.Extensions.DependencyInjection.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32333,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "length": 66856,
+      "name": "Microsoft.Extensions.Logging.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/Microsoft.VisualStudio.SolutionPersistence.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 79162,
+      "fullName": "tools/net10.0/any/Microsoft.VisualStudio.SolutionPersistence.dll",
+      "length": 171064,
+      "name": "Microsoft.VisualStudio.SolutionPersistence.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/SemanticVersioning.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14553,
+      "fullName": "tools/net10.0/any/SemanticVersioning.dll",
+      "length": 34816,
+      "name": "SemanticVersioning.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/Suave.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 671293,
+      "fullName": "tools/net10.0/any/Suave.dll",
+      "length": 1586176,
+      "name": "Suave.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/cs/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 118380,
+      "fullName": "tools/net10.0/any/cs/FSharp.Compiler.Service.resources.dll",
+      "length": 374056,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/cs/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16266,
+      "fullName": "tools/net10.0/any/cs/FSharp.Core.resources.dll",
+      "length": 34088,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/cs/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9810,
+      "fullName": "tools/net10.0/any/cs/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16168,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/de/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 120676,
+      "fullName": "tools/net10.0/any/de/FSharp.Compiler.Service.resources.dll",
+      "length": 397096,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/de/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16396,
+      "fullName": "tools/net10.0/any/de/FSharp.Core.resources.dll",
+      "length": 35152,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/de/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9823,
+      "fullName": "tools/net10.0/any/de/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16168,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/es/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 116582,
+      "fullName": "tools/net10.0/any/es/FSharp.Compiler.Service.resources.dll",
+      "length": 388392,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/es/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16001,
+      "fullName": "tools/net10.0/any/es/FSharp.Core.resources.dll",
+      "length": 34088,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/es/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9802,
+      "fullName": "tools/net10.0/any/es/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16168,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/fr/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 118048,
+      "fullName": "tools/net10.0/any/fr/FSharp.Compiler.Service.resources.dll",
+      "length": 396072,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/fr/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16042,
+      "fullName": "tools/net10.0/any/fr/FSharp.Core.resources.dll",
+      "length": 34600,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/fr/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9844,
+      "fullName": "tools/net10.0/any/fr/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16208,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/fsdocs.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2269,
+      "fullName": "tools/net10.0/any/fsdocs.deps.json",
+      "length": 14978,
+      "name": "fsdocs.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/fsdocs.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 195539,
+      "fullName": "tools/net10.0/any/fsdocs.dll",
+      "length": 449536,
+      "name": "fsdocs.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/fsdocs.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 38474,
+      "fullName": "tools/net10.0/any/fsdocs.pdb",
+      "length": 115216,
+      "name": "fsdocs.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/fsdocs.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 226,
+      "fullName": "tools/net10.0/any/fsdocs.runtimeconfig.json",
+      "length": 364,
+      "name": "fsdocs.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/fsdocs.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8039,
+      "fullName": "tools/net10.0/any/fsdocs.xml",
+      "length": 33210,
+      "name": "fsdocs.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/it/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 115711,
+      "fullName": "tools/net10.0/any/it/FSharp.Compiler.Service.resources.dll",
+      "length": 389928,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/it/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15954,
+      "fullName": "tools/net10.0/any/it/FSharp.Core.resources.dll",
+      "length": 34088,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/it/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9814,
+      "fullName": "tools/net10.0/any/it/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16168,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ja/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 118960,
+      "fullName": "tools/net10.0/any/ja/FSharp.Compiler.Service.resources.dll",
+      "length": 430888,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ja/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16229,
+      "fullName": "tools/net10.0/any/ja/FSharp.Core.resources.dll",
+      "length": 36688,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ja/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9898,
+      "fullName": "tools/net10.0/any/ja/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16208,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ko/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 114872,
+      "fullName": "tools/net10.0/any/ko/FSharp.Compiler.Service.resources.dll",
+      "length": 401192,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ko/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15984,
+      "fullName": "tools/net10.0/any/ko/FSharp.Core.resources.dll",
+      "length": 35664,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ko/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9882,
+      "fullName": "tools/net10.0/any/ko/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16208,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/pl/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 120481,
+      "fullName": "tools/net10.0/any/pl/FSharp.Compiler.Service.resources.dll",
+      "length": 395560,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/pl/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16359,
+      "fullName": "tools/net10.0/any/pl/FSharp.Core.resources.dll",
+      "length": 35112,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/pl/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9875,
+      "fullName": "tools/net10.0/any/pl/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16168,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/pt-BR/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 116300,
+      "fullName": "tools/net10.0/any/pt-BR/FSharp.Compiler.Service.resources.dll",
+      "length": 381736,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/pt-BR/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15874,
+      "fullName": "tools/net10.0/any/pt-BR/FSharp.Core.resources.dll",
+      "length": 33576,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/pt-BR/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9816,
+      "fullName": "tools/net10.0/any/pt-BR/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16168,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ru/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 130423,
+      "fullName": "tools/net10.0/any/ru/FSharp.Compiler.Service.resources.dll",
+      "length": 519504,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ru/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16991,
+      "fullName": "tools/net10.0/any/ru/FSharp.Core.resources.dll",
+      "length": 41256,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/ru/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9943,
+      "fullName": "tools/net10.0/any/ru/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16680,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/tr/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 116136,
+      "fullName": "tools/net10.0/any/tr/FSharp.Compiler.Service.resources.dll",
+      "length": 381736,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/tr/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15874,
+      "fullName": "tools/net10.0/any/tr/FSharp.Core.resources.dll",
+      "length": 33576,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/tr/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9849,
+      "fullName": "tools/net10.0/any/tr/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16208,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/zh-Hans/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 112634,
+      "fullName": "tools/net10.0/any/zh-Hans/FSharp.Compiler.Service.resources.dll",
+      "length": 340816,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/zh-Hans/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15861,
+      "fullName": "tools/net10.0/any/zh-Hans/FSharp.Core.resources.dll",
+      "length": 32080,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/zh-Hans/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9779,
+      "fullName": "tools/net10.0/any/zh-Hans/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16168,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/zh-Hant/FSharp.Compiler.Service.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 112521,
+      "fullName": "tools/net10.0/any/zh-Hant/FSharp.Compiler.Service.resources.dll",
+      "length": 339240,
+      "name": "FSharp.Compiler.Service.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/zh-Hant/FSharp.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15819,
+      "fullName": "tools/net10.0/any/zh-Hant/FSharp.Core.resources.dll",
+      "length": 31528,
+      "name": "FSharp.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#tools/net10.0/any/zh-Hant/FSharp.DependencyManager.Nuget.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9787,
+      "fullName": "tools/net10.0/any/zh-Hant/FSharp.DependencyManager.Nuget.resources.dll",
+      "length": 16168,
+      "name": "FSharp.DependencyManager.Nuget.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12991,
+      "fullName": ".signature.p7s",
+      "length": 12991,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.10.33.43/fsdocs-tool.23.0.0-alpha.1.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "F#",
+    "fsharp",
+    "formatting",
+    "markdown",
+    "code",
+    "fssnip",
+    "literate",
+    "programming"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,733 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Suiye007",
+  "catalog:commitId": "4e75bed4-d897-4fcd-8497-73549e188c5d",
+  "catalog:commitTimeStamp": "2026-09-08T07:15:30.6444554Z",
+  "copyright": "Lord",
+  "created": "2026-09-08T07:11:29.497Z",
+  "description": "企业级推送与消息队列集成库。支持钉钉/企业微信/飞书消息推送、RabbitMQ 发布订阅与死信队列、Redis 分布式缓存与锁、多日志框架。",
+  "iconFile": "logo.jpg",
+  "id": "Lord.Service",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-08T07:15:15.397Z",
+  "licenseFile": "LordService.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "1gSQWwciYcv0s6nh9Qy1QXoDwLtrFFcKgBWVBQSa9ywmUDbovnc3c27Z2KyPfpAto79DgCSxODZYbnETmeqeiw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1818385,
+  "projectUrl": "https://gitee.com/suiye007/LordService",
+  "published": "2026-09-08T07:11:29.497Z",
+  "readmeFile": "LordService.md",
+  "releaseNotes": "8.2.0（含破坏性变更，故按 SemVer 升次版本号;8.1.0 未曾对外发布，本版为其完整内容 + 订阅上限配置化）:\n\n  【已知问题与边界（发布前未全部修复，如实披露）】\n   1. RabbitMQ 消费端集合（_handlers/_consumerTags）的无锁读取与重建写并发时，最坏产生一次多余的\n      消费者重建（自愈、不丢消息）；超时 Reject 与后台 handler 完成的结算竞态仍有极小窗口\n      （有 _timedOutTags 缓解）。\n   2. RocketMQ 的 SQL92 表达式过滤模式未做端到端验证（默认走 tag 过滤，已正反双向实测通过）。\n   3. RedisCluster 部署下 Clear/GetBatch/RemoveBatch 的多 key 命令可能跨 slot 报 CROSSSLOT；\n      单机/主从不受影响。集群用户请改用单 key API（相关 API 的 XML 注释已标注该限制）。\n   4. ICache.UseDatabaseAsync 的数据库隔离基于 AsyncLocal，异步链上切换可能泄漏到后续调用\n      （同步版 UseDatabase 正确）；建议生产使用独立前缀而非切换数据库。\n   5. TextJson 与 NewtonsoftJson 的错误契约仍不完全一致（抛异常 vs 部分场景返回 null）；\n      NewtonsoftJson 已支持注入 onError 回调接入日志观测，切换 IJsonFormat 实现前仍建议先冒烟验证。\n   6. 加密模块：DesProvider 保留（[Obsolete]）；EncryptOption.EncryptType 仅为兼容遗留字段\n      （实际按注册类型分派）；老版本 CBC 密文无解密路径，升级前请排空队列。\n   7. IMQSettings.MaxCacheCount 仅当显式配置正数且队列为新创建时生效\n      （存量队列需先删除或启用 WithAutoRebuildOnConflict）。\n\n  【修复】RocketMQ 稳定性收尾（消费停机/实例名/工厂缓存/订阅上限/停滞检测）\n   - HandleMessageAsync 捕获 OperationCanceledException 短路返回：停机/重连窗口内的取消\n     不再被当普通异常记 Error 并触发无谓重试。\n   - Consumer 实例名身份稳定化：consumerGroup + 订阅表达式改用 FNV-1a 稳定哈希\n     （原 string.GetHashCode 进程随机化，重启后实例名漂移导致 broker 侧消费状态不连续）；\n     实例名超长按上限截断。\n   - RocketMQFactory 缓存语义修复：Lazy<Task> 内部改用 CancellationToken.None 创建，\n     调用方传入的取消 token 不再\"毒化\"缓存条目（首个调用方取消 → 后续所有调用方永远拿到\n     Canceled 任务）；构造失败的条目成对移除（含 TryGetValue 快速路径），下次调用可重建重试。\n   - 订阅数量上限（默认 256，新增 RocketMQConfig.MaxSubscriptionCount 可配置，≤0 回落默认）：\n     防异常调用方无限创建 consumer 耗尽连接资源，超限显式抛异常并提示配置项。\n   - RocketMQSubscriber 看门狗补齐 per-consumer 停滞检测（与 RocketMQReceive 的 ProcessingTick\n     同构）：单个 consumer 的 handler 卡死不再影响其它 consumer 的判定与重建。\n\n  【修复】微信模块收尾（区域无关解析/日志脱敏/事件短路/注册隔离）\n   - 位置事件/位置消息坐标与 scale 解析改 InvariantCulture + NumberStyles.Any：\n     系统区域为逗号小数点时不再抛 FormatException；scale \"18.000000\" 正确取整。\n   - 日志脱敏补齐：Code2Session 的 openid/js_code、事件日志的 FromUser 经 LogSanitizer\n     掩码；插值日志改结构化模板（Release 同样输出）。\n   - 事件处理器链命中 IsHandled 后短路，后续 handler 不再重复处理同一消息。\n   - EventDrivenWeChatMessageHandler 默认处理器注册改为按 invoker 实例幂等\n     （ConditionalWeakTable），多容器/多 invoker 场景不再互相污染静态注册。\n\n  【修复】HTTP/JSON 收尾（重试谓词/JSON 错误回调/超时语义/缓存计数）\n   - LordResilience.CreateHttpRetryPipeline 增加 shouldRetryOn 谓词，默认只重试瞬时网络异常\n     （HttpRequestException/TaskCanceledException）——修复 Polly v8 未配置 ShouldHandle 时\n     任意异常（含确定性失败）都被重试、POST 被重放的问题；幂等性判断仍由调用方负责。\n   - NewtonsoftJson 反序列化失败回调可注入（Action<Exception, string>）：默认\n     Trace.TraceWarning（此前 Debug.WriteLine 在 Release 被编译器擦除 → 失败零日志）；\n     \"返回 default 不抛异常\"的既有契约保持不变（TypeConvertUtil 等依赖此行为）。\n   - IHttpRequest.SetTimeout XML 注释明确语义：仅约束单次尝试，受 HttpFactory 全局超时\n     （默认 60s）封顶，总耗时 ≈ timeout × RetryCount；设置值超过工厂上限时告警。\n   - HttpClientFactory/HttpFactory 缓存条目计数改 Interlocked 维护的近似值：\n     热路径不再每次遍历桶统计 Count（O(n)），容量淘汰触发后闸内仍用真实 Count 复核。\n\n  【修复】缓存收尾（空值哨兵/坏载荷自愈/Cluster 护栏）\n   - MemoryCache 空值哨兵防穿透：AddOrGetCacheItem 回源 null 写入 NullSentinel\n     （对照 RedisCache 的 NullValueMarker），命中哨兵返回 default、不再反复回源；\n     显式 SetItem(null) 保持\"清除\"语义，MemoryCache 与 RedisCache 行为一致。\n   - RedisCache 坏载荷自愈：AddOrGet（同步/异步 × 泛型/object）命中但反序列化失败时\n     LogError + 删坏键 + 重新回源——此前坏载荷被判定命中返回 null，且持续整个 TTL 永不回源。\n   - GetBatch/GetBatchAsync/RemoveBatch/RemoveBatchAsync/DeleteInBatches 的 XML 注释明示\n     Cluster 部署下多 key 原子命令的 CROSSSLOT 限制（行为不变，见已知问题第 3 条）。\n\n  【破坏性变更】RabbitMQ 发布方默认不再声明专属队列（ghost queue 修复）\n   - 8.0.0 及之前 IMQPublisher 会在 Exchange 侧声明并绑定 {topic}_{tag}_Queue，该队列没有消费者\n     （订阅方消费自己 consumerGroup 的队列），导致每条消息双投、该队列无限堆积，最终耗尽 broker 磁盘。\n   - 新增 RabbitMQConfig.PublisherDeclareQueue（默认 false）：发布方仅声明交换机。\n   - 行为变更：订阅方未上线或路由键无绑定时，消息不可路由会经 mandatory + publisher confirm 抛\n     PublishException（原先是静默写入 ghost 队列）。PublishOrderAsync（路由键 {orderKey}.ordered）\n     与 PublishDelayAsync（路由键 Delay{n}）在订阅方绑定 Default 时必然不可路由，升级后当场抛异常。\n   - ⚠️ 置 PublisherDeclareQueue=true 只是回到\"发布不报错、消息进一个无消费者的队列\"，\n     并不能实现先发后订——订阅方消费的是自己的 consumerGroup 队列，取不到 ghost 队列里那份，\n     消息事实上仍然丢失。需要\"订阅方未上线也不丢\"请让两端指向同一队列，而非依赖此开关。\n     存量 ghost 队列请在管理端手动清理。\n\n  【修复】RocketMQ 消费失败的消息静默永久丢失（重试主题 %RETRY% 从未被订阅）\n   - NewLife.RocketMQ 的 Consumer 不会自动订阅重试主题（Java 客户端此处会加 MixAll.getRetryTopic(group)）。\n     HandleFailureAsync 主动转投的副本（转投本身成功、broker 侧 RECONSUME_TIMES 正常递增）因此永远留在\n     %RETRY%{group} 中无人消费，最终随 commitlog TTL（默认 48-72h）过期 —— 重试与死信机制整体失效。\n   - CreateConsumer 现将 %RETRY%{consumerGroup} 并入订阅集，RocketMQReceive 与 RocketMQSubscriber 两套实现\n     同步修改；死信订阅排除，避免重试队列被死信消费者分走。\n   - 真实 broker 端到端验证：失败消息按 10s、30s 延迟重投且 reconsume 递增，达上限后正常转入 %DLQ%。\n\n  【修复】钉钉加签机器人推送必然失败（签名被双重 URL 编码）\n   - CreateSign 对 Base64 签名做了 HttpUtility.UrlEncode，调用方再经 AddQueryParameter 传入时\n     HTTP 层编码第二次，'=' 变成 %3D，钉钉解一次得到非法 Base64 → errcode 310000 sign not match。\n     改为返回裸 Base64，与 LarkAuthentication 一致。\n\n  【修复】微信公众号回调验签在 Token 为空时可被伪造\n   - Token 为空时 SHA1(sort([\"\", timestamp, nonce])) 可由请求自带的 timestamp/nonce 直接算出，\n     任何人可伪造合法签名通过服务器配置校验。现改为 Token 为空即拒绝验签并记 LogError（fail-closed）。\n\n  【修复】DateTime? 解析时区错误（InvariantCulture 统一的遗漏分支）\n   - ParseSimpleType 有 DateTimeOffset 分支却缺 DateTime，Nullable 解包后落到 Convert.ChangeType\n     → DateTime.Parse(..., DateTimeStyles.None) → 转成本地时间。同一实体里 DateTime 字段得 Utc、\n     DateTime? 字段得 Local，相差一个时区偏移。\n\n  【修复】加密过滤器返回 Empty 会把消息体清空（RabbitMQ/RocketMQ 发布链路）\n   - ApplyEncryption 写成 bytes = filter.OnEncrypt(...)，把\"该过滤器不处理\"的 Empty 覆盖进 bytes\n     本身，后续过滤器与兜底 Provider 收到空输入，发布出零字节消息体。改用局部变量，与解密侧对齐。\n\n  【修复】RedisCache.SetItem(key, null) 不再静默保留旧值\n   - 原实现 value == null 直接 return，既不写空值哨兵也不删键 → Redis 里的旧值一直命中到 TTL 结束。\n     业务把实体删除/下架/清空后写 null 清缓存，读回来仍是删除前的对象（最长一整个 TTL）。\n   - 现改为 KeyDelete 清除该键，与 MemoryCache.SetItem(null) 行为一致。\n     （不写空值哨兵：哨兵是 AddOrGetCacheItem 防穿透用的内部标记，写进 SetItem 会让 ContainsKey\n     返回 true 而 GetItem 返回 null 自相矛盾，且让 O(1) 存在性检查退化为全量读值。）\n\n  【修复】RedisCache.HashSet 对接口/抽象类型读写不对称，读取直接抛异常\n   - HashSet 原先传运行时类型 SerializeWithType(value, value.GetType())，NeedsTypeWrapper(具体类) 恒为\n     false → 写入裸 JSON；而 HashGet<接口> 按声明类型判定、要求 TypeWrapper → 解析得到空 TypeName\n     后回落 Deserialize<接口> → 接口无法实例化直接抛异常（HashGet 无 try/catch，异常直达业务）。\n   - 现改传声明类型 typeof(T)，与 String 路径 WriteValue(…, typeof(T)) 及 SetBatch 的既有修复对齐；\n     同步与异步两条路径同时修复。\n\n  【修复】Redis 分布式锁续期回调读取已释放的 CTS，未处理异常终止进程\n   - RenewCoreSafe 在 _cts == null 守卫之后才求值 _cts.Token，与 DisposeAsync 的 _cts.Dispose()\n     竞态 → ObjectDisposedException 从 Timer 回调同步抛出（无接收方即未处理异常，.NET 6+ 终止进程）。\n     另一路径：带已取消 token 的 Task.Run 返回 Canceled 任务使 finally 不执行，_renewing 永久停在 1，\n     此后所有续期被跳过，锁在临界区内静默过期。已移除该 CancellationTokenSource（未承担实际取消工作）。\n\n  【修复】HttpFactory 静态缓存永久缓存 Lazy 构造异常\n   - Lazy(ExecutionAndPublication) 会缓存构造异常：证书 pfx 被占用、密码错误、应用池未加载用户配置\n     文件等暂时性故障一旦触发，该端点在进程存活期间每次调用都抛同一个缓存异常。补上移除损坏条目的\n     守卫，与 HttpClientFactory、RabbitMQFactory 的既有实现一致。\n\n  【修复】DeepCopy 三处：object 属性被替换成空对象、maxDepth 参数无效、索引器类型抛异常\n   - object/dynamic 属性：object 有公共无参构造，此前落入\"按声明类型递归深拷贝\"分支，\n     而表达式树对 typeof(object) 取不到任何公共属性 → 生成 new object()，原值被【静默替换成空对象】\n     （字符串与 POCO 全丢）。现按运行时类型分流，与接口/抽象类型同一策略。\n   - CopySafe 的 maxDepth 此前完全无效：CopySafeCore 只在顶层调用一次、depth 恒为 0，\n     真正的递归走编译委托链并使用硬编码的 100 → 150 层无环链表传 maxDepth:500 照样抛异常，\n     且文案一律写\"可能存在循环引用\"误导排查。现经 AsyncLocal 把预算下发到递归链，\n     文案区分\"过深\"与\"成环\"；maxDepth 非正数直接抛 ArgumentOutOfRangeException。\n   - 带索引器的属性类型（List<T>/T[]/Dictionary<K,V>）此前在 Expression.Property 处抛\n     ArgumentException 并被包成 TargetInvocationException，调用方只看到无意义的包装异常。\n     现跳过索引器绑定（索引器不是可拷贝状态）。\n\n  【修复】GetArrayOrSingle 对扁平单对象配置节绑出多个空占位对象\n   - 原实现先调 Get<TEntity[]>() 再判 null，但对扁平节（\"DingTalk\":{Alias,Token,Secret}）\n     它不返回 null，而是把每个叶子键当成一个数组元素各绑一次 → 产出 N 个字段不全的对象，\n     于是 if (array != null) 恒真、单对象分支沦为死代码。\n     而 LordService.md / MessageFormatGuide.md / PushServiceConfiguration.md 的主示例正是扁平节，\n     下游把空 Token/空 Url 注册进去后，推送发往坏目标且不报\"未注册\"。\n   - 现先判形态：任一子节本身仍是容器（有更深的子键）→ 集合；子节全是标量叶子 → 单个对象。\n     索引节（0:/1:）与键控节（DevGroup/OpsGroup）两种数组写法均保留。\n\n  【安全】LogSanitizer 脱敏覆盖补齐\n   - 新增：Authorization: Bearer <jwt> 整段抹除（此前只抹到 Bearer 一词，完整 JWT 入日志）；\n     URL 路径中的 /hook/ /webhook/ /notify/ 密钥段（飞书自定义机器人密钥在路径里，\n     只处理查询串会完全漏掉）；openid / unionid / js_code / session_key / api_key /\n     client_secret / private_key 等字段名。\n   - 修正：值优先匹配\"带引号的完整字符串\"，\"password\":\"my secret phrase\" 不再只抹第一段；\n     字段名统一加词边界并容忍 JSON 引号，monkey / keywords / zipCode 等业务字段不再被误抹；\n     分号纳入裸值终止符，SQL 风格连接串不再连带抹掉后续段。\n\n  【修复】内置 nlog.config 会静默丢弃宿主框架的 Error/Fatal 日志\n   - 三条规则只有 minlevel=\"Info\" 而缺 maxlevel，且 final=\"true\" 不写任何 target，\n     导致 Microsoft.AspNetCore.* / Microsoft.EntityFrameworkCore.* / System.* 的 Info 及以上\n     （含 Warn/Error/Fatal）全部被吞 —— 与规则自身注释\"丢弃 Debug/Trace\"的意图相反。\n     宿主没有自带 nlog.config 时，Kestrel/中间件/EF 的异常一条都不落盘，故障无法定位。\n   - 现补 maxlevel=\"Info\"：只吞 Trace/Debug/Info，Warn/Error/Fatal 继续走后续规则写入文件。\n\n  【修复】WeChatMiniProgramFactory 跨容器凭据泄漏\n   - SettingCache 是 static readonly 且永不清空：同一进程内多个 ServiceProvider（多租户宿主、\n     后台 Worker 独立容器、并行测试类）互相看到并使用对方的 AppId/AppSecret ——\n     只注册 tenantB 的容器也能取到 tenantA 的服务并用其密钥建连。\n   - 现静态字典只作 Build 阶段的待注册队列，工厂构造时认领到实例级缓存并清空静态队列，\n     与 ApiPush 侧 WeChatApiFactory / LarkApiFactory / DingTalkApiFactory 的既有修复方式一致。\n\n  【修复】IMQHub 类型驱动路径：configure 改路由字段不再被静默丢弃（RabbitMQ 与 RocketMQ 两套）\n   - GetCacheKey<T>(name, MQPool) 只含 类型+name+MQPool，不含 Exchange/Queue/RouteKey，\n     而工厂对同一键复用首个实例并忽略后到的 settings。调用方在 configure 里改的路由字段因此被静默丢弃：\n     发布端仍按首次的 RouteKey 发出（订阅端收不到），订阅端更严重——仍停留在首次的 QueueName，\n     一条消息都收不到且全程无日志无异常。\n   - 现记录每个键首次生效的路由指纹，检测到不一致即抛 MQException 并给出正确出路\n     （改用带 name 的重载，或改用 Topic 驱动的 IMQPublisher/IMQSubscriber）。\n     同键重复传入相同路由配置不受影响。\n\n  【破坏性变更】RabbitMQ 消费端 handler 异常/超时改为退回队列（at-most-once → at-least-once）\n   - 原实现 reject(requeue:false)，而 EnableDeadLetter 默认 false（队列无 DLX）时 broker 直接删除消息，\n     且绕过 RetryAsync 的退避重试。现改为 requeue:true 退回队列等待重投 + 1 秒延迟防瞬时热循环。\n   - ⚠️ 投递语义变为 at-least-once：handler 已产生副作用后才抛异常的场景（HTTP 推送成功、后续步骤抛错；\n     DB 写成功、日志抛错）会重复执行副作用。非幂等 handler 必须自行做幂等保护。\n   - 超过 x-delivery-limit（= RetryCount，默认 5）后由 broker 按既有设计处置：启用 EnableDeadLetter 时\n     消息进 DLX 队列长期留存（不消费就一直在那儿，由业务层按需排查/重放）；未启用 DLX 时按丢弃处理。\n     这是原有语义，非本次引入的缺陷。需要退避阶梯的场景仍应让 handler 返回 false\n     （走 RetryAsync 的延迟副本 + x-retry-count），两条路径语义不同属已知分叉。\n   - 死信队列（终点队列）与已达重试上限的最终丢弃路径保持 requeue:false 不变。\n   - 已用真实 broker 端到端验证：handler 首次抛异常后消息被退回队列并再次投递（attempts=2），\n     修复前该处只投递一次即被删除。\n\n  【安全】HTTP 埋点 URL 脱敏，避免凭据被导出到观测后端\n   - Activity 标签 http.url 原先打完整 URL：查询串里的 appkey/appsecret、access_token/sign/\n     timestamp/js_code，以及飞书自定义机器人写在【路径】中的 /bot/v2/hook/<key> 密钥，\n     都会随 OpenTelemetry / Application Insights / SkyWalking 导出并在采集端长期存储。\n   - 新增 LordDiagnostics.SanitizeUrl（public）：查询串只保留参数名（值一律替换为 ***），\n     hook/webhook/notify 路径段掩码；NetHttp 三处、RestHttp 两处统一走它。\n\n  【修复】RocketMQ 消息加密白名单两端判据不一致\n   - IMQPublisher 按 Topic 判定是否加密，IMQSubscriber 却按 ConsumerGroup 判定是否解密；\n     settings 驱动的两端则按 QueueName（RocketMQ 下映射为 ConsumerGroup，而发布端没有消费组上下文）。\n     配置 EncryptionPrefixes 后会出现\"生产加密、消费不解密\"（业务收到密文乱码）或\n     \"生产明文、消费调解密\"（抛异常进重试）。\n   - 现 RocketMQ 一律按 Topic 判定（生产与消费唯一共同已知的量）；\n     RabbitMQ 保持按 QueueName 判定（其队列名两端生成规则一致，不受影响）。\n   - ⚠️ 行为变更：此前按 ConsumerGroup 配置 EncryptionPrefixes 的 RocketMQ 用户，\n     升级后需改为按 Topic 前缀配置。白名单为空（默认）的用户不受影响。\n\n  【修复】RabbitMQ 发布端 Channel 无界增长（tag 基数耗尽 channel 上限）\n   - IMQPublisher 原按 {topic}|{tag} 缓存 Push 实例，而每个实例独占一个 IChannel 且工厂字典只增不减。\n     tag 是业务维度（PublishOrderAsync 直接用订单号当路由键），基数无上限；逼近 RequestedChannelMax(500)\n     时 broker 以 connection 级 504 CHANNEL_ERROR 关闭整条连接 —— 该连接上所有发布与消费一起死。\n   - 现缓存键退回 topic（一个 Exchange 一个 Channel），路由键改为每次发布显式传入（internal 重载，\n     未改动任何 public 签名）。路由键前缀归一化与工厂共用同一份实现（NormalizeRouteKey），\n     配 RabbitMQ:Prefix 的部署行为与 8.0.x 一致。\n     工厂不是本库 RabbitMQFactory 时（拿不到显式路由键），从第一次调用起就按 tag 区分键，正确性优先。\n   - 附带影响：PublishOrderAsync 不再按订单号占用 Channel（原先每个订单号一个 Channel，是泄漏最坏实例）。\n\n  【修复】RabbitMQ 断开的连接被遗弃但仍在自动重连（幽灵连接 / 幽灵消费者）\n   - ConnectionShutdown 回调原先只把连接移出缓存、从不 Close/Dispose。本工厂启用了\n     AutomaticRecoveryEnabled + TopologyRecoveryEnabled，其恢复循环是无限重试，于是每次心跳超时、\n     broker 重启或网络闪断都会留下一条幽灵连接，且它会把名下的 channel 与 consumer 一并恢复回来，\n     成为管理端查不到、却与新连接并行抢消息的幽灵消费者；累积至撞破 broker max_connections。\n   - 现在移除缓存的同时对旧连接 DisposeAsync，取消其自动恢复循环。\n     已在隔离 broker 上真实断连验证：修复后 30 秒恢复窗口内连接数持续为 0；回退为旧行为\n     （只移除不释放）则 10 秒后出现 1 条连接并持续存在，证实幽灵连接确由被遗弃对象自行重连产生。\n     另有 DispatchProxy 伪造 IConnection 的零副作用单测 3 条覆盖边界。\n\n  【新增】IMQSettings.MaxCacheCount 现真正生效（此前是死配置，写了队列名却从不进 broker）\n   - RabbitMQ 生产/消费两端队列声明同步写入 x-max-length（两端必须一致，否则 406）。\n     quorum 队列满时以 reject-publish 拒绝新发布，不静默丢队头，发布端经 publisher confirm 感知。\n   - ⚠️ 默认值由 1000 改为 0（= 不限制），与历史实际行为保持一致：队列声明参数不可变，\n     若默认写入该参数会让所有存量队列在升级后触发 406 PRECONDITION_FAILED 而停止服务。\n     显式设为正数时，Broker 上已存在的队列需先删除旧队列或启用 WithAutoRebuildOnConflict(true)。\n   - 已用 broker 管理 API 取硬证据：MaxCacheCount=0 的队列 arguments 中 x-max-length 确实缺失；\n     =1000 的队列 broker 侧实际记录 x-max-length=1000；两者均为 x-queue-type=quorum\n     （满时 reject-publish，不会静默丢队头）。\n\n  【修复】DateTime 序列化端到端不对称：TextJson 宽松读取、用户转换器优先、Unix 长度窗口收紧，\n   Builder 兜底改回 ISO 8601。\n  【修复】RabbitMQ 消费链路三处：定时器泄漏、死信语义统一、Handler 依赖注入作用域。\n  【修复】RabbitMQPush 声明熔断永久卡死：冷却自愈机制 + Channel 交换原子化。\n  【修复】RocketMQ 消费停滞检测 per-consumer 隔离 + Producer 双检锁竞态。\n  【修复】RocketMQ 伪顺序消息：PublishOrderAsync 改为按 orderKey 确定性哈希选固定队列。\n  【修复】缓存与分布式锁四处：连接串优先级、Redis Cluster 键扫描、Dispose 快速失败、锁续期钳制。\n  【修复】HttpClientFactory 释放链完整；类型转换统一使用 InvariantCulture。\n  【变更】RedisCache 源码中的空值哨兵改用 \\u0000 转义书写（编译产物完全不变，已缓存值不受影响）。\n   此前该文件因含裸 NUL 字符被 git 与 ripgrep 判定为二进制，diff 与代码搜索会整体跳过它。\n  【文档】澄清 isSlidingExpiration 的真实语义（包内 README 兼许可证文件 LordService.md）\n   - 原注释\"滑动过期：每次读取续期\"易被理解为任何读取都会续期。实际仅\n     AddOrGetCacheItem / AddOrGetCacheItemAsync 命中时刷新 TTL；\n     SetItem / SetItemAsync / AddOrUpdateCacheItem 传入该参数在 RedisCache 下被静默忽略（绝对过期）。\n   - 新增方法×实现语义对照表与三条使用规则（含 MemoryCache 切 RedisCache 时滑动退化为绝对过期的提醒）。\n\n  ⚠️ 升级检查清单（8.0.x → 8.1.0，请逐项确认）\n   1. 配了 RabbitMQ:Prefix 的部署（多项目共用 broker 的标准做法）：发布端路由键现与订阅端同样补\n      {prefix}. 前缀，两处共用同一份归一化实现（NormalizeRouteKey），无需改配置；\n      建议测试环境验证一次 Topic 路由命中。\n   2. 设了 PublisherDeclareQueue=true（仅回到\"发布不报错\"，不提供先发后订能力）：该模式自动退回\"按 tag 独立实例\"，\n      每个 tag 各占一个 Channel —— 此模式下 Channel 数量仍随 tag 基数增长，注意 RequestedChannelMax 上限。\n   3. 显式配过 IMQSettings.MaxCacheCount 为正数：升级后会真的写入 x-max-length，对 Broker 上已存在的\n      队列触发 406 PRECONDITION_FAILED，而本库默认对 406 停止服务。需先删除旧队列或启用\n      WithAutoRebuildOnConflict(true)（会丢队列内未消费消息）。未配置过者不受影响（默认已改为 0=不限制）。\n   4. RabbitMQ handler 可能抛异常的项目：投递语义由 at-most-once 变为 at-least-once，\n      已产生副作用后抛异常会重复执行，非幂等 handler 必须自行加幂等保护。\n   5. RocketMQ 配过 EncryptionPrefixes：判据由 ConsumerGroup 改为 Topic，需按 Topic 前缀重新配置；\n      未配置（默认全部加密）者不受影响。\n   6. RocketMQ 存量消费组：已用真实 broker 验证\"先建立业务 topic 的 commit offset、再让消息失败\"场景下\n      %RETRY% 仍能正常重投（间隔 10s/30s、reconsume 递增），升级即恢复重试能力。\n      ⚠️ 但此前长期堆积在各 group %RETRY% 中、尚未过 TTL 的历史副本会开始被消费 ——\n      上线前请评估是否需要先在控制台清理这些重试队列，避免出现集中重放。\n   7. 接了 APM（OpenTelemetry / Application Insights / SkyWalking）的部署：http.url 标签现只保留\n      参数名与去密钥后的路径，若看板或告警依赖完整 URL 需相应调整。\n\n  【测试】本发布周期新增/更新回归用例，全量 499 个全部通过（会话开始时基线 451 个、450 通过）。\n   其中钉钉签名、RocketMQ 加密判据、RedisCache 缓存语义三处做过变异测试（注入原缺陷确认对应用例转红）。\n   覆盖：钉钉签名裸 Base64 与飞书编码约定一致性、钉钉推送端到端\n   （本地 TcpListener 抓原始 HTTP 请求，RestHttp/NetHttp 双后端）验证 sign 恰好编码一次\n   （按钉钉服务端同法用收到的 timestamp 复算签名比对）且消息正文标题与全部键值对完整送达、\n   Base64 特殊字符 +/-//= 经查询串往返不被篡改、微信空/Null Token 拒绝验签且正常 Token 不受影响、\n   DateTime 与 DateTime? 解析结果必须一致、RedisCache 哨兵改写后 IL 值不变、\n   发布端逐次路由键正确 + 非本库工厂时首次调用即用 tag 级键、路由键前缀归一化（幂等/大小写/\n   Order+Delay+Transaction 形态）、RedisCache 接口类型 Hash 读写往返（同步/异步）、\n   SetItem(null) 清除旧值且 ContainsKey 与 GetItem 保持一致。\n   含连本地 Redis 真实执行的 RedisCache 往返用例。此前长期超时失败的 RocketMQ 死信集成测试\n   （FailedMessage_ForwardedToDlx_AndConsumedBySubscribeDeadLetter）在补订阅 %RETRY% 后已转绿。\n\n8.0.0（稳定版）:\n  本版本为首个大版本稳定版，包含 7.10.x 全部修复，重点：\n- 【可靠性】RabbitMQ 发布启用 publisher confirm + tracking（不丢消息）\n   - 所有 Channel 创建时开启 PublisherConfirmationsEnabled/PublisherConfirmationTrackingEnabled。\n     BasicPublishAsync 仅在收到 broker ack 后才算成功；broker nack 或无法路由（basic.return）\n     会以 PublishException 抛出。修复“发布成功仅代表写入本地缓冲”的静默丢失风险。\n   - 重试转发改为“转发成功（含 confirm）才 ACK 原消息”，消除“副本未落盘、原件已确认”的丢失窗口。\n- 【可靠性】RabbitMQ 延迟重试拓扑与性能优化\n   - 回投改走默认交换机（\"\"）+ 路由键=原队列名，精确投递回失败队列，避免 fanout/topic 多绑定重复消费。\n   - 移除 {queue}.retry.exchange：不再创建多余 exchange，省去 ExchangeDeclare/QueueBind，\n     也避免队列过期回收后残留永久 exchange。\n   - 按需声明：每次失败只声明当前延迟等级对应的那一个队列（1 次 QueueDeclare），\n     不再一次性声明全部等级（原为 1+8+8 次 broker RPC）。\n   - 声明缓存按延迟等级分别记录（不同等级是不同队列，原单一时间戳会导致第二个等级被错误跳过）。\n   - 声明窗口 = min(60s, x-expires/2)，保证窗口内队列必然未被空闲回收。\n- 【可靠性】RabbitMQ 延迟队列 x-expires 安全钳制\n   - x-expires 官方语义不要求队列为空——等待中的消息也会随队列过期被删除且不走死信。\n     因此过期时长被强制取 max(配置值, 延迟×2)，杜绝“过期时长小于延迟导致等待消息丢失”。\n- 【可靠性】RabbitMQ 重试转发失败不静默丢失\n   - 原实现在转发失败时 requeue=false 直接丢弃（日志误称“由死信兜底”，未启用 DLX 时不成立）。\n     现改为 requeue=true 让消息回到原队列等待下次投递，并短暂延迟避免故障期热循环。\n   - 重试发布改走 mandatory=true，配合 confirm 使队列不存在/无法路由时 await 抛异常，走重入队路径。\n   - 重试发布完整复制原消息属性（ReplyTo/Priority/Type/UserId/AppId 等，原实现仅复制部分）。\n   - 移除上一版新增的“延迟队列声明 406 切换无 x-expires 兼容”分支（按用户要求，该场景无需处理）。\n- 【修复】三平台消息构建器序列化与构建缺陷\n   - 补 Newtonsoft [OnSerializing] 生命周期：默认 JSON 引擎是 Newtonsoft，仅实现 STJ 的\n     IJsonOnSerializing 会导致链式消息在默认引擎下序列化出缺正文的协议体（推送内容全空）。\n   - 修复 _built 缓存失效：Build() 后继续 Add/FromSystem/At 会失效构建缓存并重新构建，\n     不再静默忽略新增项；null 值规范为空串，避免 value.Replace 空引用。\n- 【协议修复】飞书（Lark）\n   - interactive 卡片改为位于顶层 card 字段（原误放 content，不符合自定义机器人协议）。\n   - At() 真正生成提及：text 内联 <at user_id=\"ou_xxx\">，post 以 {\"tag\":\"at\"} 元素；\n     标识语义修正为用户 open_id（原注释误称手机号/邮箱）。AtUsers 不再泄漏为顶层非协议字段。\n   - 恢复被删除的 Post(title, content) 重载与 Interactive 可选按钮参数；\n     Create(string) 恢复旧语义（内容作为正文 + 默认标题，原误改为“仅标题”）。\n   - LarkMessageAdapter：text 的 content 改为对象（原误序列化为 JSON 字符串）；\n     移除顶层无效 at/mentions 字段，@改为协议内 at 标签/元素。\n- 【协议修复】企业微信（WeChat）\n   - Image 恢复为 base64+md5（群机器人协议，无 media_id）——修复上一版回归。\n   - At() 真正生效：text → text.mentioned_mobile_list（手机号）/mentioned_list（userid）；\n     markdown 无 @ 字段，userid 以 <@userid> 内嵌正文。AtUsers 不再泄漏为顶层非协议字段。\n   - WeChatMessageAdapter：mentioned_* 列表从顶层移入 text 对象（顶层字段无效）。\n   - 恢复 News 图片 URL 可空、Create(string) 旧语义（默认标题 Markdown）。\n- 【修复】DingTalkMessage：补 Interactive() 兼容别名（委托 ActionCard，文档早已宣称存在）。\n- 【公共 API】IMQBuilder 补充 RetryBackoffLevels(params string[])，\n   修复 .UseMQ(mq => mq.RetryBackoffLevels(\"1s\",\"5s\")) 因接口缺方法而无法编译的问题。\n- 【性能/隔离】HttpFactory / HttpClientFactory 静态缓存加固\n   - jsonFormat 隔离改用按实例的稳定身份编号（ConditionalWeakTable），修复“同类型不同配置\n     实例共享 RestClient”与“不同命名空间同名类型误判为同一”的问题。\n   - 命名/证书工厂缓存键纳入 URL+超时（+证书标识），修复“同名不同配置第一次配置永久胜出”的静默复用。\n   - handler 隔离改用稳定实例身份（替代可碰撞的 RuntimeHelpers.GetHashCode）。\n   - 容量淘汰加并发闸（Interlocked）：同一时刻只允许一个线程执行全量扫描+批量淘汰，\n     避免多线程同时触顶造成过度淘汰与缓存抖动。\n   - 缓存键不含证书密码（避免敏感信息进入诊断字符串）。\n- 【测试】新增/更新约 20 个测试：三平台四种 JSON 往返矩阵、confirm/mandatory 语义、\n   按需单等级声明、默认交换机精确回投、完整属性复制、x-expires 钳制、缓存身份隔离等。\n\n7.10.19:\n  - 所有 Channel 创建时开启 PublisherConfirmationsEnabled/PublisherConfirmationTrackingEnabled。\n    BasicPublishAsync 仅在收到 broker ack 后才算成功；broker nack 或无法路由（basic.return）\n    会以 PublishException 抛出。修复“发布成功仅代表写入本地缓冲”的静默丢失风险。\n  - 重试转发改为“转发成功（含 confirm）才 ACK 原消息”，消除“副本未落盘、原件已确认”的丢失窗口。\n- 【可靠性】RabbitMQ 延迟重试拓扑与性能优化\n  - 回投改走默认交换机（\"\"）+ 路由键=原队列名，精确投递回失败队列，避免 fanout/topic 多绑定重复消费。\n  - 移除 {queue}.retry.exchange：不再创建多余 exchange，省去 ExchangeDeclare/QueueBind，\n    也避免队列过期回收后残留永久 exchange。\n  - 按需声明：每次失败只声明当前延迟等级对应的那一个队列（1 次 QueueDeclare），\n    不再一次性声明全部等级（原为 1+8+8 次 broker RPC）。\n  - 声明缓存按延迟等级分别记录（不同等级是不同队列，原单一时间戳会导致第二个等级被错误跳过）。\n  - 声明窗口 = min(60s, x-expires/2)，保证窗口内队列必然未被空闲回收。\n- 【可靠性】RabbitMQ 延迟队列 x-expires 安全钳制\n  - x-expires 官方语义不要求队列为空——等待中的消息也会随队列过期被删除且不走死信。\n    因此过期时长被强制取 max(配置值, 延迟×2)，杜绝“过期时长小于延迟导致等待消息丢失”。\n- 【可靠性】RabbitMQ 重试转发失败不静默丢失\n  - 原实现在转发失败时 requeue=false 直接丢弃（日志误称“由死信兜底”，未启用 DLX 时不成立）。\n    现改为 requeue=true 让消息回到原队列等待下次投递，并短暂延迟避免故障期热循环。\n  - 重试发布改走 mandatory=true，配合 confirm 使队列不存在/无法路由时 await 抛异常，走重入队路径。\n  - 重试发布完整复制原消息属性（ReplyTo/Priority/Type/UserId/AppId 等，原实现仅复制部分）。\n  - 移除上一版新增的“延迟队列声明 406 切换无 x-expires 兼容”分支（按用户要求，该场景无需处理）。\n- 【修复】三平台消息构建器序列化与构建缺陷\n  - 补 Newtonsoft [OnSerializing] 生命周期：默认 JSON 引擎是 Newtonsoft，仅实现 STJ 的\n    IJsonOnSerializing 会导致链式消息在默认引擎下序列化出缺正文的协议体（推送内容全空）。\n  - 修复 _built 缓存失效：Build() 后继续 Add/FromSystem/At 会失效构建缓存并重新构建，\n    不再静默忽略新增项；null 值规范为空串，避免 value.Replace 空引用。\n- 【协议修复】飞书（Lark）\n  - interactive 卡片改为位于顶层 card 字段（原误放 content，不符合自定义机器人协议）。\n  - At() 真正生成提及：text 内联 <at user_id=\"ou_xxx\">，post 以 {\"tag\":\"at\"} 元素；\n    标识语义修正为用户 open_id（原注释误称手机号/邮箱）。AtUsers 不再泄漏为顶层非协议字段。\n  - 恢复被删除的 Post(title, content) 重载与 Interactive 可选按钮参数；\n    Create(string) 恢复旧语义（内容作为正文 + 默认标题，原误改为“仅标题”）。\n  - LarkMessageAdapter：text 的 content 改为对象（原误序列化为 JSON 字符串）；\n    移除顶层无效 at/mentions 字段，@改为协议内 at 标签/元素。\n- 【协议修复】企业微信（WeChat）\n  - Image 恢复为 base64+md5（群机器人协议，无 media_id）——修复上一版回归。\n  - At() 真正生效：text → text.mentioned_mobile_list（手机号）/mentioned_list（userid）；\n    markdown 无 @ 字段，userid 以 <@userid> 内嵌正文。AtUsers 不再泄漏为顶层非协议字段。\n  - WeChatMessageAdapter：mentioned_* 列表从顶层移入 text 对象（顶层字段无效）。\n  - 恢复 News 图片 URL 可空、Create(string) 旧语义（默认标题 Markdown）。\n- 【修复】DingTalkMessage：补 Interactive() 兼容别名（委托 ActionCard，文档早已宣称存在）。\n- 【公共 API】IMQBuilder 补充 RetryBackoffLevels(params string[])，\n  修复 .UseMQ(mq => mq.RetryBackoffLevels(\"1s\",\"5s\")) 因接口缺方法而无法编译的问题。\n- 【性能/隔离】HttpFactory / HttpClientFactory 静态缓存加固\n  - jsonFormat 隔离改用按实例的稳定身份编号（ConditionalWeakTable），修复“同类型不同配置\n    实例共享 RestClient”与“不同命名空间同名类型误判为同一”的问题。\n  - 命名/证书工厂缓存键纳入 URL+超时（+证书标识），修复“同名不同配置第一次配置永久胜出”的静默复用。\n  - handler 隔离改用稳定实例身份（替代可碰撞的 RuntimeHelpers.GetHashCode）。\n  - 容量淘汰加并发闸（Interlocked）：同一时刻只允许一个线程执行全量扫描+批量淘汰，\n    避免多线程同时触顶造成过度淘汰与缓存抖动。\n  - 缓存键不含证书密码（避免敏感信息进入诊断字符串）。\n- 【测试】新增/更新约 20 个测试：三平台四种 JSON 往返矩阵、confirm/mandatory 语义、\n  按需单等级声明、默认交换机精确回投、完整属性复制、x-expires 钳制、缓存身份隔离等。\n- 【文档】更正 release notes 与使用文档中不准确表述（406 兼容已移除、Interactive 别名、\n  x-expires 语义、转发失败重入队而非“死信兜底”等）。\n\n7.10.18:\n- 【重构】消息构建器设计优化——职责分离、MQ 往返安全、API 更清晰\n  - 设计原则：构建状态（_title/_items 等）保持私有 + 不序列化，消息体（MarkdownInfo 等）公开 + 可序列化\n  - MQ 往返安全：IJsonOnSerializing 在序列化前自动调用 Build()，反序列化后消息体已有值时跳过重建\n  - Build() 重构为 HasBuilderState() / HasBodyContent() / ResolveTitle() 三个职责清晰的方法\n  - DingTalkMessage：新增交互式卡片工厂方法 Interactive()，清理冗余代码\n  - LarkMessage：新增交互式卡片支持，工厂方法更丰富\n  - WeChatMessage：新增图文消息 News()、文件消息 File() 工厂方法\n  - 三个消息类同步重构，348/348 全绿\n  - 彻底消除 MQ 往返丢失内容的风险（不再依赖 Build() 的 MQ 往返保护逻辑）\n\n7.10.15:\n- 【紧急修复】钉钉/飞书/企微推送内容为空（MQ 往返丢失构建状态）\n- 【升级兼容】MQ 延迟队列声明 406 冲突处理（版本升级场景）\n- 【重构】DingTalkMessage/LarkMessage/WeChatMessage 构建状态改为可序列化的公开属性\n  - 问题：私有字段 (_title/_items/_content) 不会被 JSON 序列化，MQ 往返后内容丢失，\n    Build() 因私有字段为 null 覆盖了反序列化的公开属性，导致推送内容为空\n  - 重构：私有字段改为公开属性 (BuilderTitle/BuilderItems/BuilderContent/BuilderSystem)，\n    MQ 往返后构建状态完整保留，Build() 可正确重建内容\n  - 彻底消除 MQ 往返丢失内容的风险，无需依赖 Build() 的 MQ 往返保护逻辑\n  - 三个消息类同步重构，348/348 全绿\n\n7.10.14:\n- 【紧急修复】钉钉/飞书/企微推送内容为空（MQ 往返丢失构建状态）\n- 【升级兼容】MQ 延迟队列声明 406 冲突处理（版本升级场景）\n\n7.10.13:\n- 【优化】延迟退避队列懒声明 + x-expires 空闲自动删除（解决管理界面队列堆积）\n  - 懒声明：消费端启动不再创建延迟队列，首次消费失败发布前才幂等声明\n    （60s 窗口缓存避免高频失败重复声明 RPC）——从未失败的业务队列零残留\n  - x-expires：延迟队列空闲（空 + 无消费者 + 未重新声明）超时后 broker 自动删除，\n    默认 24 小时，IMQSettings.RetryQueueExpiration 可配（TimeSpan.Zero 禁用）\n  - 约束：过期时长必须大于最大延迟等级（默认 24h vs 最长 30m），消息等待期间不会被误删；\n    发布前总会声明（重置计时），延迟消息不丢失\n  - 新增测试：懒声明不创建队列 / 首次失败声明且带 x-expires / Zero 禁用，333/333 全绿\n\n7.10.12:\n- 【紧急修复】HttpFactory 序列化器对原始 JSON 字符串透传（修复推送内容全空）\n  - 根因：7.10.10 自定义 RestSharp 序列化器（委托 IJsonFormat）遗漏了内置 SystemTextJsonSerializer\n    对\"string 值 + JSON ContentType\"参数的原样透传逻辑——钉钉/飞书/企微推送走 AddJsonBody(string)\n    → AddStringBody(原始JSON)，原始 JSON 被二次序列化（加引号+转义），webhook 收到无效内容，推送内容全空\n  - 修复：Serialize(Parameter) 对 string 值且 ContentType 含 json 的参数原样返回；非 JSON 仍走序列化\n  - 回归测试：3 个（string 透传/对象序列化委托/真实 AddStringBody 参数结构），333/333 全绿\n\n7.10.11:\n- 【新功能】RabbitMQ 消费延迟退避重试（DLX + TTL 递增延迟）——统一退避语义，默认启用\n  - 消费失败（handler 返回 false）→ 发布到 {queue}.retry.exchange → 按重试轮次路由到\n    {queue}.retry.{level} 延迟队列（x-message-ttl + 死信指回原 exchange）→ TTL 到期自动回投原队列重试\n  - 重试轮次记录在 x-retry-count 头（消息属性随死信回投延续），达 RetryCount 上限进最终死信/丢弃\n  - 默认等级表 1s/5s/10s/30s/1m/5m/10m/30m；配置：UseMQ(mq => mq.RetryBackoffLevels(\"1s\",\"5s\"))\n    全局或 IMQSettings.RetryBackoffLevels（消息级）\n  - 与其他 MQ 统一：RocketMQ 由 broker %RETRY% 延迟等级天然接管（无需配置），RabbitMQ 由库内实现，\n    不再引入引擎专属开关（保持 IMQSettings 跨 MQ 一致性）\n  - 队列仍声明 x-delivery-limit（客户端从不 requeue，broker 计数不打断 TTL 回投，仅作极端兜底；\n    存量队列升级声明参数不变，不触发 406）\n  - 转发成功即 ack 原消息；转发失败进死信/丢弃（不 requeue 空转）；属性保留（加密标记/业务头/MessageId 等）\n  - 延迟队列为经典队列（TTL+死信延迟是经典能力），业务队列仍为 Quorum\n  - 死信订阅语义不变：达上限进 {queue}.dlx.queue 由 DlxReceiveAsync 处理，处理失败直接丢弃不循环\n- 【修复】HttpFactory 静态缓存未按 jsonFormat 隔离：不同 DI 容器以不同 UseJson 创建同 URL 工厂时，\n  后注册者会复用前者的 RestClient（序列化器绑定了 jsonFormat），请求体序列化静默用错引擎——\n  缓存 key 加入 |json:{类型名} 后缀；DisposeFactory 改前缀匹配清理全部变体\n\n7.10.10:\n- 【依赖加固】net6.0/net8.0 目标显式声明 System.Text.Json 9.0.0（修复 SystemTextJsonSerializer 加载 FileNotFoundException）\n  - 根因：RestSharp 112/113 的 net6/net8 资产引用 STJ 6.0.0.0/8.0.0.0（共享框架自带），但其高版本资产\n    （net9 编译，请求 9.0.0.0）若因部署目录残留/混入被加载，net6/net8 运行时无 9.0.0.0 → 必现崩溃\n  - 修复：net6.0（netstandard2.0 资产）与 net8.0（net8 资产）显式依赖 STJ 9.0.0，nupkg 传递依赖自动\n    输出 System.Text.Json.dll 9.0.0.0，任意 RestSharp 资产混入均可加载；net9/net10 共享框架自带无需\n  - 用户侧无需再手动加 System.Text.Json 引用；若部署目录曾残留高版本 RestSharp.dll，请一并清理\n\n7.10.9:\n- 【根本性改进】RocketMQ 消费重试次数交给 broker 记录（消息属性 RECONSUME_TIMES），移除客户端本地内存计数\n  - 旧实现：客户端 _retryCounts 字典按 MsgId 记次数 + 手动 Producer 转发 %DLQ%\n  - 问题：进程重启 / 消费者 Rebalance / 多实例集群消费时内存计数丢失或分散，同一消息被重复转发进 %DLQ%\n  - 新实现：失败时主动 SendMessageBackAsync 请求 broker 转投——未达 RetryCount 上限 -> %RETRY%{group}\n    按延迟等级（1s/5s/10s/30s/1m/2m/3m/4m/5m/6m/7m/8m/9m/10m/20m/30m/1h/2h）重投，等待下游服务恢复；\n    已达上限 -> broker 判定 RECONSUME_TIMES >= maxReconsumeTimes 原子转投 %DLQ%{group}\n  - 转投成功即 ack（offset 推进，无重复回调）；转投失败不 ack（下个消费周期重试，消息不丢失）\n  - 死信前缀白名单语义不变：已达上限且前缀不匹配 -> ack 丢弃，不进入 %DLQ%\n- 【关键修复】Consumer.EnableRetry 必须为 false（实测验证）\n  - NewLife 自动重试在 offset 不推进时对同一条消息无限重复回调并重复转投副本（真实 broker 实测 90 秒回调 4279 次、全部 rt=0）\n  - 重试动作由 HandleFailureAsync 统一接管，杜绝重复回调与 %RETRY% 副本堆积\n- 【删除】RocketMQMessageHelper.GetRetryDelay（客户端指数退避不再需要，broker 延迟等级接管重试节奏）\n- 【测试】死信前缀测试对齐新语义：达上限+前缀不匹配 -> ack 丢弃；未达上限/达上限+前缀匹配 -> SendMessageBack 转投失败不 ack（+6 测试，281/281 全绿）\n\n7.10.7:\n- 国密算法支持（SM4 对称 + SM2 非对称），基于 BouncyCastle\n- 多套加密并行注册（UseAES+UseSM4+UseSM2），IEncryptProviderFactory 按名称解析\n- 修复多套并行时 EncryptOption 单例覆盖（每个 Provider 独立配置实例）\n- 注册风格与 MQ 一致：UseEncryption(s => s.UseSM4(m => m.FromConfiguration()))\n- SM4: CBC+随机IV+Magic头+DoS防护；SM2: 单次上限检查+双密钥格式\n- 新增 11 个国密单元测试（加解密往返/随机IV/大数据/非法密钥/超限）\n\n7.10.6:\n- 【新功能】统一消息模型 PushMessage + 渠道适配器（钉钉/飞书/企业微信）\n  - 业务代码用 PushMessage 构建消息（渠道无关），推送时自动转换为各渠道 webhook JSON\n  - 切换渠道（钉钉→飞书→企业微信）业务代码零改动，只换 AddDingTalk/AddLark/AddWeChat 注册\n  - IApiPush 新增 Push(PushMessage)/PushAsync(PushMessage) 统一入口（默认接口实现）\n  - 支持 Markdown/Text/Link/ActionCard/FeedCard 五种消息类型\n- 【新功能】消息构建器统一接口 IMessageBuilder{T}（一致性）\n  - PushMessage/DingTalkMessage/LarkMessage/WeChatMessage 均支持 Add 字典、Add 实体、At 用户\n  - Add(IDictionary) 批量键值对、Add(TEntity) 属性自动转键值对\n  - 修复泛型重载决议问题（传入 Dictionary 时运行时分流，避免被当实体反射）\n- 【根本性改进】移除 RocketMQ 探针消息机制（LORD_SERVICE_DLQ_PROBE）\n  - 根因：探针用于创建 %DLQ% 主题，但 RocketMQ Consumer 会自动订阅 %RETRY%/%DLQ% 队列，探针被业务消费 → 解密失败 → 无限重试\n  - 验证：Consumer 订阅不存在的 Topic 时客户端会重试等待，失败消息转发时 Producer 发布（autoCreateTopic）自动创建 Topic，探针完全不需要\n  - 保留存量探针跳过检查（兼容清理旧版本积压）\n- 【看门狗】修复消费停滞检测误判：生产端正常无消息时被误判\"停滞\"导致每 5 分钟反复重建 consumer\n  - 主检查改为 consumer 连接活性（Active/Disposed），停滞检测改为 handler 卡死检测（处理中标记 _processingTick，30 分钟阈值）\n- 【看门狗】修复 Dispose 竞态：等待恢复任务结束再释放锁（避免 ObjectDisposedException）\n- 【语义修复】Consumer.Tags 恢复 null（RocketMQ 协议缺省=不过滤），移除 Array.Empty 赋值（空数组可能导致过滤语义变化）\n- 【新功能】消息级加密开关（IMQSettings.EnableEncryption + EncryptionPrefixes 前缀白名单）\n  - 无需敏感信息的消息可关闭加密（提升性能、避免加解密配置不匹配）\n  - 支持按队列名前缀白名单只加密部分队列（如 \"secret_;private_\"）\n  - 生产端与消费端使用相同队列名时自动保持一致的加密策略\n  - RocketMQConfig/RabbitMQConfig 提供全局默认值（Topic 驱动接口场景）\n- 【重构】提取 RocketMQMessageHelper（探针识别/重试退避）与 MQEncryptionHelper（加密策略），消除重复代码\n- 【新功能】UseMQ 全局加密配置（引擎无关：RabbitMQ/RocketMQ/未来 Kafka）\n  - mq.EnableEncryption(false) 全局关闭加密；mq.EncryptionPrefixes(\"secret_\", \"private_\") 白名单前缀\n  - 通过 PostConfigureAll 应用到所有已注册引擎，Factory 创建 settings 时自动继承\n  - RabbitMQ 生产/消费链路已接入加密开关（RabbitMQPush.ApplyEncryption / RabbitMQReceive.GetMessage）\n  - 优先级：IMQSettings（消息级） > UseMQ 全局配置 > appsettings 配置\n- 【新功能】RocketMQ Builder 新增 ACL/云厂商/SSL 链式配置\n  - WithAcl(accessKey, secretKey) Apache ACL 认证\n  - WithCloudProvider(Aliyun/Huawei/Tencent, ak, sk, extra) 云厂商托管\n  - WithSsl(true) SSL/TLS 开关\n- 【测试】新增 MQBuilder 全局加密配置测试 + RocketMQ Builder ACL 测试 + 全部 MQ 相关测试通过（42 个）\n- 【全面审查修复】Redis/加密/推送格式/工具类 30+ 个 bug\n  - 修复 DingTextFormat @所有人逻辑写反（未指定 users 时不再误 @全员）\n  - 修复 LarkTextFormat 富文本消息必然抛异常（style 对象缺属性名）\n  - 修复 Redis AddOrGetCacheItem 信号量超时破坏（Wait 返回值检查，防 SemaphoreFullException）\n  - 修复 Redis ClearAsync 误清整库（无前缀无 pattern 时拒绝清理，与同步版一致）\n  - 修复 Redis DateTime 时区偏移（保持 UTC Kind，不再 ToLocalTime）\n  - 修复 object 类型缓存读写不对称（读侧先还原原始值再走 JSON）\n  - 修复 RedisDistributedLock 前缀双冒号问题（TrimEnd(':')）\n  - AES-GCM 解密增加认证前长度上限（防内存 DoS）+ 密钥解码缓存（性能）\n  - RSA 加密增加单次上限检查（190 字节明确报错，提示用 AES）\n  - DES 启用时输出安全警告（56 位密钥可破解，仅建议兼容旧数据）\n  - 修复 DeepCopy 循环引用防护失效（AsyncLocal 深度计数，循环引用抛明确异常而非 StackOverflow）\n  - 修复 MemoryCache.Increment 类型判断（int/uint 等数值类型也能正确递增）\n  - 修复 TypeConvertUtil 数组/object 分支畸形 JSON 抛异常（统一返回 default）\n  - 修复 LarkTextFormat 卡片 config/header 序列化为字符串（改为对象结构）\n- 【HTTP 类库审查修复】性能/稳定性/易用性全面优化\n  - 修复 NetHttp SendAsync 无限递归 bug（调用自身导致死循环，单元测试捕获）\n  - 修复 NetHttp 流式响应生命周期 bug（response 提前 Dispose 导致流关闭）\n  - RestHttp 与 NetHttp 重试策略对齐：POST 默认不重试（防重复提交）+ 4xx 不重试（429 限流除外）\n  - IHttpRequest 新增 AllowRetryNonIdempotent（显式允许非幂等重试）\n  - IHttpStreamResponse 实现 IDisposable（流使用后可释放）\n  - AddJsonBody(string) 语义统一：原始 JSON 原样发送（修复二次转义问题）\n\n7.10.5:\n- IMQProvider 性能优化（懒加载缓存 Hub/Factory/IJsonFormat，避免重复 DI 解析）\n- 修复 RocketMQSettings 默认值点号问题（RocketMQ Topic/Group 不允许点号，改为下划线）\n- 文档新增 IMQProvider 使用指南（一站式入口 + 能力检查 + MQTT 扩展指引）\n\n7.10.4:\n- IMQProvider 新增细粒度能力检查（SupportsTransactionMessages/SupportsDelayedMessages/SupportsRequestReply/SupportsSql92Filtering/SupportsOrderedMessages）\n- IMQProvider 新增便捷方法（GetPublisher/GetSubscriber/GetHub/GetFactory），一站式获取所有 MQ 服务\n- 修复 RabbitMQ 事务消息\"静默降级\"问题（现在可通过 SupportsTransactionMessages 提前检查）\n- 修复 RabbitMQ 延迟消息\"静默降级\"问题（现在可通过 SupportsDelayedMessages 提前检查）\n- 新增 RocketMQCloudHelper 共享帮助类，减少 160+ 行重复代码\n\n7.10.3:\n- 修复 RocketMQPublisher 缺少 Producer 活性检查问题（添加 IsProducerAlive 双检锁，与 RocketMQPush 对齐）\n- 修复 EnsureFailedTopicAsync 中 Producer 资源泄漏（改用 finally 确保释放）\n- 抽取 ConfigureCloudProvider 到共享帮助类 RocketMQCloudHelper（减少 160 行重复代码）\n- 优化 CleanupExpiredRetryEntries 避免 LINQ 分配（改用 foreach 直接遍历）\n- 文档版本同步更新至 v7.10.3\n\n7.10.2:\n- 修复 RocketMQ 模块 116 个 nullable reference 警告（提升类库质量）\n- 修复 _retryCounts 字典无限增长问题（添加基于时间的自动清理机制）\n- 修复 _failedProducer 资源泄漏问题（Dispose 时正确释放）\n- 修复 _failedProducer 并发初始化竞态条件（双检锁保护）\n- 优化 typeNameCache 缓存淘汰策略（达到上限时清空重建，确保新类型能被缓存）\n- 修复 Tags 属性 null 赋值问题（改用 Array.Empty 兼容 C# 10）\n- 修复 Type.FullName 可能为 null 的问题（添加回退值）\n- 修复 message.Tags/Keys 可能为 null 的问题（添加默认值）\n\n7.10.0:\n- AES 加密改用随机 IV（每次加密生成新 IV，向后兼容旧数据）\n- 新增 Polly 8 弹性策略（LordResilience），MQ 连接重试改为指数退避+抖动\n- HTTP 重试改为指数退避+随机抖动（RestSharp + HttpClient 双实现）\n- 移除 RabbitMQFactory/RabbitMQService 终结器（消除 GC 线程死锁风险）\n- _timedOutTags 添加基于时间的自动淘汰（心跳中清理超过 5 分钟的泄漏条目）\n- 修复 LarkPush.PushAsync 空路径 bug（异步飞书推送发送到错误端点）\n- 修复 DingTalkPush/LarkPush 并发竞态条件（GetAuthentication 修改共享对象）\n- 修复 WeChatPush/LarkPush 死代码和 null 检查不一致\n\n7.0.8:\n- IMQHub 新增显式名称参数重载（PublishAsync/SubscribeAsync/SubscribeDeadLetterAsync）\n- 新增 MQNameAttribute，支持为消息类型指定自定义名称前缀\n- IMQHub 中文 XML 注释\n- RabbitMQ Prefix 前缀隔离（多系统共用 broker 时区分队列名）\n- RabbitMQ 消费端看门狗重写（心跳检测+无限重试+指数退避+Channel 重建）\n- 生产端 RabbitMQPush 新增 Channel 自动恢复机制\n- 死信队列（DLX）纳入看门狗保护\n- RSA 改为标准保密模式（加密用公钥，解密用私钥）\n- 默认加密算法从 DES 改为 AES\n- 修复缓存 AddOrGetCacheItem 默认值误判问题\n- 修复服务工厂缓存 token 污染问题\n- 修复消费端异常消息无限 requeue 问题\n- 移除 FreeRedis 支持（聚焦 StackExchange.Redis）",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#repository",
+    "commit": "17065b228d4d02e1ce16fd29aa990bbb6234fbb4",
+    "type": "git",
+    "url": "https://gitee.com/suiye007/LordService.git"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "8.2.0",
+  "version": "8.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/microsoft.extensions.logging.log4net.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Log4Net.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/newlife.rocketmq",
+          "@type": "PackageDependency",
+          "id": "NewLife.RocketMQ",
+          "range": "[3.1.2026.601, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/restsharp",
+          "@type": "PackageDependency",
+          "id": "RestSharp",
+          "range": "[113.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.25, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/system.runtime.caching",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.Caching",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net10.0/log4net",
+          "@type": "PackageDependency",
+          "id": "log4net",
+          "range": "[3.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/microsoft.extensions.logging.log4net.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Log4Net.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/newlife.rocketmq",
+          "@type": "PackageDependency",
+          "id": "NewLife.RocketMQ",
+          "range": "[3.1.2026.601, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/restsharp",
+          "@type": "PackageDependency",
+          "id": "RestSharp",
+          "range": "[112.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.25, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/system.runtime.caching",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.Caching",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net6.0/log4net",
+          "@type": "PackageDependency",
+          "id": "log4net",
+          "range": "[3.3.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[8.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/microsoft.extensions.logging.log4net.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Log4Net.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/newlife.rocketmq",
+          "@type": "PackageDependency",
+          "id": "NewLife.RocketMQ",
+          "range": "[3.1.2026.601, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/restsharp",
+          "@type": "PackageDependency",
+          "id": "RestSharp",
+          "range": "[113.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.25, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/system.runtime.caching",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.Caching",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/system.text.json",
+          "@type": "PackageDependency",
+          "id": "System.Text.Json",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net8.0/log4net",
+          "@type": "PackageDependency",
+          "id": "log4net",
+          "range": "[3.3.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/bouncycastle.cryptography",
+          "@type": "PackageDependency",
+          "id": "BouncyCastle.Cryptography",
+          "range": "[2.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/microsoft.extensions.configuration.json",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Json",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/microsoft.extensions.logging.log4net.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Log4Net.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/newlife.rocketmq",
+          "@type": "PackageDependency",
+          "id": "NewLife.RocketMQ",
+          "range": "[3.1.2026.601, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.2.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/restsharp",
+          "@type": "PackageDependency",
+          "id": "RestSharp",
+          "range": "[113.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.25, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/system.runtime.caching",
+          "@type": "PackageDependency",
+          "id": "System.Runtime.Caching",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#dependencygroup/net9.0/log4net",
+          "@type": "PackageDependency",
+          "id": "log4net",
+          "range": "[3.3.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#Lord.Service.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 23744,
+      "fullName": "Lord.Service.nuspec",
+      "length": 65205,
+      "name": "Lord.Service.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#LordService.md",
+      "@type": "PackageEntry",
+      "compressedLength": 21077,
+      "fullName": "LordService.md",
+      "length": 64648,
+      "name": "LordService.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#docs/AI_QUICK_START.md",
+      "@type": "PackageEntry",
+      "compressedLength": 11889,
+      "fullName": "docs/AI_QUICK_START.md",
+      "length": 36146,
+      "name": "AI_QUICK_START.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#docs/MessageFormatGuide.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3124,
+      "fullName": "docs/MessageFormatGuide.md",
+      "length": 9116,
+      "name": "MessageFormatGuide.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#docs/PushServiceConfiguration.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2291,
+      "fullName": "docs/PushServiceConfiguration.md",
+      "length": 7369,
+      "name": "PushServiceConfiguration.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#docs/RedisCacheGuide.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7150,
+      "fullName": "docs/RedisCacheGuide.md",
+      "length": 25280,
+      "name": "RedisCacheGuide.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#docs/RedisDeadlockExample.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1813,
+      "fullName": "docs/RedisDeadlockExample.md",
+      "length": 4843,
+      "name": "RedisDeadlockExample.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#lib/net10.0/Lord.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 366006,
+      "fullName": "lib/net10.0/Lord.Service.dll",
+      "length": 1093632,
+      "name": "Lord.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#lib/net10.0/Lord.Service.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 63580,
+      "fullName": "lib/net10.0/Lord.Service.xml",
+      "length": 444155,
+      "name": "Lord.Service.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#lib/net6.0/Lord.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 365480,
+      "fullName": "lib/net6.0/Lord.Service.dll",
+      "length": 1093120,
+      "name": "Lord.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#lib/net6.0/Lord.Service.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 63580,
+      "fullName": "lib/net6.0/Lord.Service.xml",
+      "length": 444155,
+      "name": "Lord.Service.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#lib/net8.0/Lord.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 365475,
+      "fullName": "lib/net8.0/Lord.Service.dll",
+      "length": 1093120,
+      "name": "Lord.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#lib/net8.0/Lord.Service.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 63580,
+      "fullName": "lib/net8.0/Lord.Service.xml",
+      "length": 444155,
+      "name": "Lord.Service.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#lib/net9.0/Lord.Service.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 366051,
+      "fullName": "lib/net9.0/Lord.Service.dll",
+      "length": 1094144,
+      "name": "Lord.Service.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#lib/net9.0/Lord.Service.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 63580,
+      "fullName": "lib/net9.0/Lord.Service.xml",
+      "length": 444155,
+      "name": "Lord.Service.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#logo.jpg",
+      "@type": "PackageEntry",
+      "compressedLength": 13390,
+      "fullName": "logo.jpg",
+      "length": 13945,
+      "name": "logo.jpg"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.08.07.15.30/lord.service.8.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "RabbitMQ",
+    "Redis",
+    "钉钉",
+    "企业微信",
+    "飞书",
+    "消息推送",
+    "消息队列",
+    "分布式锁",
+    "缓存",
+    "日志",
+    "推送"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

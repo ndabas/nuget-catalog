@@ -1,0 +1,218 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jonas Flodén",
+  "catalog:commitId": "a88c0ceb-c838-43ce-b121-ae008f8dba1e",
+  "catalog:commitTimeStamp": "2026-09-07T19:14:40.8399348Z",
+  "created": "2026-09-07T19:10:26.993Z",
+  "description": "Aspire hosting integration for configurable, per-developer service sources — e.g. a git checkout or a Kubernetes cluster.",
+  "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-07T19:14:11.397Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "18hKBaw1BXoZzjqrm0dbDtwx/xaywDt4KivAN5rV0ydnYkKjEIW8Il6LAv8P1fTNwDNPd/yUpWaVQEZr1BEYtQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 498508,
+  "projectUrl": "https://github.com/flojon/aspire-servicesources",
+  "published": "2026-09-07T19:10:26.993Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "_There is no 0.5.0. That tag's release failed to publish to nuget.org and GitHub's immutable-release\nprotection then blocked reusing the name, so this version carries what would have been 0.5.0._\n\n### Breaking\n\n- **`ILocalResourceKind.Validate` takes the service's resolved checkout directory**\n  (#63). The signature gains a `repoRoot` parameter in the position `Resolve` already has it:\n\n  ```csharp\n  public void Validate(string serviceName, object? rawConfig)                  // before\n  public void Validate(string serviceName, string repoRoot, object? rawConfig)  // after\n  ```\n\n  **Nothing fails to build, so read this even though your AppHost still compiles.** `Validate` is\n  a defaulted interface member: a kind still declaring the old two-parameter method compiles clean\n  against the new interface, it simply stops implementing it, and core calls the do-nothing default\n  in its place. Every rejection that method made would quietly stop running, and the typo'd options\n  block it used to name would reach `Resolve` and surface as \"the handler failed while creating its\n  resource\" instead. There is no compiler diagnostic for that, so `AddLocalKind` now refuses a\n  handler that declares a `Validate` not matching the interface member, naming the kind and the\n  method it found. Registering the kind is what tells you; the build will not.\n\n  To migrate, add the parameter. A kind that only parsed its options block needs nothing else. A\n  kind that never implemented `Validate` at all is unaffected — the default stands, and the check\n  above says nothing about it, as it does not about a migrated kind that keeps an old-shaped method\n  of its own. `Resolve`, `SupportsDeferredCheckout` and `ResolveDeferred` are untouched.\n\n  **A second silent change, and this one has no registration-time refusal to catch it: `Validate`\n  is no longer called for a service on the deferred path.** It is paired with `Resolve`, which core\n  does not call there either — under\n  [`UseDeferredCheckout()`](README.md#first-run-usedeferredcheckout) there is no checkout for it to\n  judge the service against, so `ResolveDeferred` is called instead. **If your kind can answer\n  `true` from `SupportsDeferredCheckout` and validates its options block only in `Validate`, that\n  block stops being validated at all for a deferred service.** Parse and reject it from\n  `ResolveDeferred` too, and hand the working-tree checks back as\n  `DeferredLocalResource.ValidateCheckout` as before. No trip wire is possible for this one:\n  implementing both `Validate` and `ResolveDeferred` is the ordinary, correct arrangement — the\n  built-in `java` kind is one — so anything detectable here would fire on working code. Saying it\n  is the only warning there is. Both shipped kinds already validate in `ResolveDeferred` and are\n  unaffected; a kind that leaves `SupportsDeferredCheckout` at its `false` default never reaches\n  this path at all.\n\n  What the parameter buys is the check a kind could not make before: `repoRoot` is the same\n  directory `Resolve` is about to get, already cloned and checked out, so a `workingDirectory`,\n  an entry-point file or a lockfile that the repository doesn't actually have can be reported from\n  `Validate` — where nothing of the service is in the app model yet — instead of from halfway\n  through building the resource. That is what the built-in `dotnet` kind has always done with its\n  `project` file, and core's \"report it from `ILocalResourceKind.Validate` instead\" message is now\n  advice a handler author can act on.\n\n  Handing it a checkout that has to be there is also what drops `Validate` off the deferred path\n  above, and it moves the call: core runs `Validate` after resolving the checkout rather than\n  before. That changes when a bad options block is reported, for **every** `\"local\"` service and\n  not just the first — see the **Changed** entry below. The \"the handler failed while creating its\n  resource\" wrapper on the deferred path now points at `DeferredLocalResource.ValidateCheckout`\n  rather than at `Validate`, which core does not call there.\n\n- **The `.JavaScript` and `.Java` satellite packages are gone. Their kinds ship in\n  `KoalaSoft.Aspire.Hosting.ServiceSources`, and your AppHost references Aspire's hosting\n  package for the language directly** (#187). To migrate, drop the satellite, reference core,\n  and add the hosting package you actually use:\n\n  ```bash\n  dotnet remove package KoalaSoft.Aspire.Hosting.ServiceSources.JavaScript\n  dotnet add package KoalaSoft.Aspire.Hosting.ServiceSources\n  dotnet add package Aspire.Hosting.JavaScript\n  ```\n\n  | `kind` | Package to reference | Minimum |\n  | --- | --- | --- |\n  | `java` | `CommunityToolkit.Aspire.Hosting.Java` | 13.3.0 |\n  | `javascript` | `Aspire.Hosting.JavaScript` | 13.5.2 |\n\n  Nothing in `servicesources.yaml`, `servicesources.local.json`, the options blocks or the public\n  API changes: `UseJavaScript()` and `UseJava()` keep their names, signatures and namespace, and a\n  guest-language AppHost keeps `useJavaScript()`/`useJava()`. Only where they come from changes.\n\n  Leaving a satellite reference in place does not keep working — it resolves a core that no longer\n  has a satellite to pair with. There is nothing to keep in step any more, though: the `NU1107`\n  lockstep between core and a satellite (#79) is gone with them, and the version of the hosting\n  package is yours to pick at or above the minimum above.\n\n  The dependency isolation the satellites existed for (#89) is unchanged, and is now enforced\n  without a package: core compiles against both hosting packages but references them with\n  `PrivateAssets=\"all\"`, so they appear in no nuspec and an AppHost declaring no `javascript`\n  service inherits neither that package nor the Aspire floor it carries. Assemblies resolve\n  per-method at JIT time, so the assembly is needed only when a service of that kind actually\n  resolves.\n\n  Forget one and you are told which. A referenced version below the minimum fails the build,\n  naming the package and the version that resolved — `SERVICESOURCES001` for\n  `Aspire.Hosting.JavaScript`, `SERVICESOURCES002` for `CommunityToolkit.Aspire.Hosting.Java`. A\n  prerelease of the minimum counts as below it, since a preview cut before that release carries\n  its assembly version and would otherwise bind and then fail on a missing member. The check\n  reaches a package reached transitively as well as a direct one. Missing entirely, the first\n  `AddService()` for a service of that kind fails with a message naming the package to install —\n  which is the only report a guest-language AppHost gets, since it consumes core through a project\n  reference the Aspire CLI generates and that imports no build-time checks. Where the package\n  arrived transitively and neither remedy is yours to apply, `ServiceSourcesSkipGuestLanguageFloorCheck=true`\n  turns the build-time check off for that project and leaves the run-time report standing.\n\n- **`SERVICESOURCES_GIT_TOKEN` is now scoped to one host, and requires\n  `SERVICESOURCES_GIT_HOST` to be set at all** (#223). The environment-token credential helper\n  used to answer every `git credential fill` request it was consulted for, regardless of which\n  host git was asking about — a catalog listing services from more than one host would offer this\n  token to all of them, not just the one it was meant for. It now reads the host git asks about\n  and only answers when it matches `SERVICESOURCES_GIT_HOST` (host, and port if the URL has one —\n  the same `host:port` shape `git credential` itself uses, case-insensitively).\n\n  **This breaks a deployment that relies on `SERVICESOURCES_GIT_TOKEN` alone.** Without\n  `SERVICESOURCES_GIT_HOST` the helper now answers nothing, where it previously answered\n  everything — the safe default, not the compatible one. To migrate, set\n  `SERVICESOURCES_GIT_HOST` to the host (and port) the token is for, e.g.\n  `git.internal.example` or `git.internal.example:8443`. `SERVICESOURCES_GIT_USERNAME` is\n  unaffected; nothing changes for a repository resolved through your own git credential helper\n  (Git Credential Manager, `osxkeychain`, `libsecret`, ...) rather than this environment-variable\n  rung.\n\n### Added\n\n- **A backing service can be reached in a dev cluster: `source: \"kubernetes\"`** (#144). The\n  database, broker or cache a service connects to now has the third source the service side has had\n  all along — a `kubectl port-forward` this AppHost opens and Aspire manages, with the connection\n  string addressing its local end:\n\n  ```jsonc\n  {\n    \"backingServices\": {\n      \"orders-db\": {\n        \"source\": \"kubernetes\",\n        \"kubernetes\": {\n          \"service\": \"orders-pg-rw\",\n          \"port\": 5432,\n          \"context\": \"dev-west\",\n          \"namespace\": \"orders\",\n          \"connectionString\": \"Host=localhost;Port=${port};Database=orders;Username=dev;Password=hunter2\"\n        }\n      }\n    }\n  }\n  ```\n\n  The AppHost's own code is unchanged — the same `AddBackingService(\"orders-db\", local: …)` call,\n  the same handle, and the same `ConnectionStrings__orders-db` the app reads. The `kubectl` process\n  appears in the dashboard as `orders-db-tunnel`, beneath the backing service it serves, and carries\n  kubectl's output.\n\n  **`WaitFor` on a backing service means something again under this source.** The local end of the\n  tunnel carries a TCP health check, and `WaitFor` waits for running *and* healthy — so a consumer\n  holds back until something is actually listening. Without it the connection-string resource\n  reports running as soon as its template resolves, which is immediately: measured against a tunnel\n  that took 8 seconds to come up, the consumer started at 3.4s rather than 11.5s, about five seconds\n  before anything was there to connect to. It is part of the source rather than an option, since a\n  wait that silently does nothing is worse than no wait.\n\n  **Write `${port}`, not a number**, and a connection string that names none is refused at startup —\n  with one exception, added below in the same release: a template that is exactly one `${secret:…}`\n  carries a port already.\n  The local port is allocated so that two forwarded backing services cannot collide, so it is not a\n  number anyone can write down — and the failure the refusal prevents is silent: `Port=5432` copied\n  out of a manifest addresses that port on the developer's own machine, where their own database\n  container may well be listening, and the AppHost would connect to the wrong database with every\n  resource reporting healthy. The message names the shell as well as the spelling, because a\n  template whose `${port}` was expanded away before the AppHost ran — `${…}` is a shell variable\n  too, and double quotes do not protect it — arrives looking exactly like one that never had it.\n\n  **Several ports go through one tunnel** (#233). `port` takes either a number or a block that\n  names each port, and a connection string reaches a named one as `${port:<name>}`:\n\n  ```jsonc\n  \"orders-events\": {\n    \"source\": \"kubernetes\",\n    \"kubernetes\": {\n      \"service\": \"rabbitmq\",\n      \"port\": { \"amqp\": 5672, \"management\": 15672 },\n      \"context\": \"dev-west\",\n      \"connectionString\": \"amqp://dev:hunter2@localhost:${port:amqp}/\"\n    }\n  }\n  ```\n\n  One `kubectl` invocation carries every pair, because it can — measured against a two-port Service\n  in `kind`, where one process forwarded both and carried real traffic on each. Two entries would\n  mean two processes and two tunnels to the same Service. Each forwarded port gets its own health\n  check, and all of them hang off the backing service, so a `WaitFor` waits for the whole tunnel\n  rather than for whichever port happened to be registered.\n\n  A single `port` is unchanged, and `${port}` remains its spelling. The two do not mix: `${port}`\n  against a block that names its ports is refused naming the ports it forwards, and `${port:<name>}`\n  against a single port is refused saying so — each with the spelling that entry actually takes,\n  rather than advice that would earn a second startup failure contradicting the first.\n\n- **A connection string can read its credentials out of a Kubernetes secret: `${secret:<name>:<key>}`**\n  (#144). The password a backing service needs no longer has to be written into\n  `servicesources.local.json` beside the host and the port:\n\n  ```jsonc\n  {\n    \"backingServices\": {\n      \"orders-db\": {\n        \"source\": \"kubernetes\",\n        \"kubernetes\": {\n          \"service\": \"orders-pg-rw\",\n          \"port\": 5432,\n          \"context\": \"dev-west\",\n          \"namespace\": \"orders\",\n          \"connectionString\": \"Host=localhost;Port=${port};Database=orders;Username=dev;Password=${secret:orders-pg-app:password}\"\n        }\n      }\n    }\n  }\n  ```\n\n  **The fetch is deferred, not synchronous.** Each placeholder becomes a parameter whose value is\n  read when something first asks for it, rather than while the AppHost is being composed — so a\n  developer who has not logged in to the cluster yet gets one failed parameter in the dashboard\n  instead of an AppHost that will not start, and nothing runs `kubectl` on the path that local\n  project resolution was deliberately moved off. The value is marked secret, so the dashboard masks\n  it. Reading the same placeholder twice fetches once.\n\n  **A secret holding the whole connection string works too**, which is the shape a hand-authored\n  Sealed Secret usually has — there are no per-field keys to fall back on, and re-shaping one means\n  re-sealing against the cluster's key and a commit to a repo a platform team often owns. Write the\n  template as exactly one placeholder:\n\n  ```jsonc\n  {\n    \"backingServices\": {\n      \"orders-db\": {\n        \"source\": \"kubernetes\",\n        \"kubernetes\": {\n          \"service\": \"orders-pg-rw\",\n          \"port\": 5432,\n          \"context\": \"dev-west\",\n          \"namespace\": \"orders\",\n          \"connectionString\": \"${secret:orders-cs:connectionString}\"\n        }\n      }\n    }\n  }\n  ```\n\n  Then the port-forward listens on the *same* port `port` names rather than an allocated one,\n  because there is nothing in the template to substitute a local port into, and the in-cluster host\n  the secret was written against — `orders-pg-rw`, `.orders`, `.svc`, or the fully qualified\n  `.svc.cluster.local` — is rewritten to `localhost`. Giving up the allocated port is the real cost\n  of the mode, so a local port already in use is refused by name up front rather than left to the\n  tunnel's log — and, since there is then only the one number to match against, this mode is refused\n  against a block that names its ports the same way `${port}` is: give it a single `port` instead.\n  Two more things are refused rather than served quietly: a secret whose own port is not the one\n  being forwarded — the tunnel follows `port`, not the secret, and unchecked the app would dial a\n  port nothing serves while every resource reported healthy — and a secret that names the service in\n  no form this can rewrite, which would otherwise reach the app still addressed at the cluster.\n  Per-field placeholders stay preferred wherever the secret offers them.\n\n- **`prepare` — a `\"local\"` checkout can bootstrap itself before its kind judges it** (#118). A\n  managed checkout is assumed to be runnable the moment it is cloned, which is not true of a\n  repository whose runnable artifact or data asset is produced by a script it commits and then\n  gitignores. Such a checkout resolved cleanly and then failed, and nothing in the catalog could ask\n  the repository to produce what it is perfectly capable of producing:\n\n  ```yaml\n  services:\n    routing:\n      repository: https://github.com/example/routing\n      kind: java\n      prepare:\n        command: [\"./prepare.sh\"]\n        windowsCommand: [\"pwsh\", \"-File\", \"prepare.ps1\"]   # optional; replaces command on Windows\n        mode: oncePerCommit                                # the default | once | always | never\n      java:\n        jarPath: graphhopper-web-11.0.jar\n        port: 8989\n  ```\n\n  The command runs inside the materialized checkout, with the checkout as its working directory and\n  no shell in between, at the one point that works: after the working tree is complete and\n  reconciled onto its configured `ref`, and before the kind is allowed to judge it — so a kind\n  cannot reject a checkout for missing precisely the files the step was about to produce. It sits\n  there on both resolution paths, and no kind knows it exists. `command` is a list rather than a\n  string, so there is nothing to quote; a first element that looks like a path is confined to the\n  checkout, and a bare name goes through `PATH`.\n\n  **It runs once, not per start.** A hash of the resolved command and the commit it ran against is\n  recorded — only on success — at `<checkout>/.git/servicesources-prepare.json`, which is invisible\n  to the service repository's `git status` and dies with the checkout, so a deleted-and-recloned\n  checkout re-prepares. `mode` picks how coarse the guard is, and the choice between `once` and\n  `oncePerCommit` is the question \"does the repository define this step?\" rather than \"how often\":\n  a bootstrap whose script the repository commits wants `oncePerCommit`, so a team bumping it\n  reaches every developer, while one pinned by the catalog wants `once`, so a one-line README commit\n  doesn't cost a four-minute graph import. `always` is for a command that decides its own work,\n  which is what this delegates incremental rebuild to rather than approximating it. **Whatever the\n  mode, the command has to be safe to re-run**: nothing is recorded for a step that failed halfway,\n  so the next start runs it again against a checkout holding whatever the first attempt produced.\n\n  On the run that creates the checkout under `UseDeferredCheckout()`, the step's output streams into\n  the service's own resource log and the service carries a **Preparing** state while it runs, so a\n  country-sized import reads as an initialization phase rather than as a hang — and a failure there\n  costs that one service rather than the AppHost. Every other run reports to the AppHost's standard\n  output — under `aspire run`, the documented way to start an AppHost, that means the CLI's own log\n  under `~/.aspire/logs/` rather than the dashboard — **and a capped copy, its first and last lines\n  with anything dropped between them marked as elided, also lands in the service's resource log**\n  once the dashboard exists (#214), so the record still ends up where the service is even on a\n  run the console alone would have hidden it from. **Ctrl-C during a cold checkout's bootstrap\n  reaches the command's own process tree** on the run that creates it under\n  `UseDeferredCheckout()`, so interrupting a long import there ends it rather than leaving it, and\n  its children, running with no AppHost to belong to — composition has no token to hand the eager\n  path, the one most AppHosts take by default, so Ctrl-C during every other run's bootstrap leaves\n  the command orphaned instead (#279). There is no timeout: a legitimate bootstrap can take an\n  hour.\n\n  **`aspire publish` does not run it.** Publish composes the model, writes the manifest and exits,\n  and a bootstrap produces what a service needs in order to *run* — so nothing in a manifest depends\n  on it, and paying a multi-gigabyte download on every CI publish to emit one would be pure cost.\n  The block is still validated there, so a typo'd mode or a command pointing outside the checkout\n  still fails a publish; only the execution is gated. The skip is reported, because it has one\n  consequence worth naming: the step runs *before* the kind judges the checkout, so a service whose\n  committed files are not enough for its kind on their own — a generated `.csproj`, a generated\n  project directory — is reported as missing them. Run the AppHost once, then publish.\n\n  A service resolved through `local.path` **never inherits the catalog's block**: nothing establishes\n  that the directory is even a checkout of the repository the catalog names, and it is the\n  developer's own working tree. The catalog's block is ignored rather than rejected — it is the\n  team's field and correct for every developer on a managed checkout — and a startup notice names\n  the command that was not run, verbatim, so it can be pasted into `servicesources.local.json`. Any\n  block declared there silences it, `{\"mode\": \"never\"}` included. That file can also override a\n  catalog step per developer: `mode` on its own, or the `command`/`windowsCommand` pair replaced\n  together.\n\n  Not included, deliberately: no task runner, no ordering between steps, no cross-developer caching\n  of what a step produced, no timeout, and no injected environment variables. One command, one\n  marker, per service. See the\n  [`prepare` section](README.md#prepare-a-checkout-that-has-to-bootstrap-itself).\n\n- **`AddBackingService()` — the database, broker or cache a service connects to, source-switched\n  the same way the service is** (#144). A service usually depends on a database, and a developer\n  wants the same choice for it that they have for the service: run it locally, or connect to the one\n  already running. The AppHost declares it once, and each developer decides in their own\n  `servicesources.local.json`:\n\n  ```csharp\n  var ordersDb = builder.AddBackingService(\"orders-db\",\n      local: () => builder.AddPostgres(\"orders-pg\").AddDatabase(\"orders-db\", \"orders\"));\n\n  builder.AddService(\"orders\")\n      .Configure<IResourceWithEnvironment>(r => r.WithReference(ordersDb))\n      .Configure<IResourceWithWaitSupport>(r => r.WaitFor(ordersDb));\n  ```\n\n  **Known limitation: that `WaitFor` stops meaning anything under `\"direct\"`** (#220). It waits\n  properly under `\"local\"`, where a real database resource sits behind it. Under `\"direct\"` the\n  resource is a connection string, which Aspire marks running as soon as the string is available, so\n  the wait is satisfied at once and the consumer starts without the instance you pointed at having\n  been checked. It does not hang and nothing fails; the ordering simply stops being enforced.\n\n  Two sources ship in this release, configured under a new `backingServices:` section read through\n  the same configuration layers as `services:`. `\"local\"` runs the factory the AppHost supplied and\n  returns its result unchanged — it is the default, so a backing service with no entry runs as the\n  AppHost reads. `\"direct\"` connects to a `direct.connectionString` the developer supplies, which\n  covers both a database they started by hand and a cluster database published through an ingress:\n  from the AppHost's side both are an address with no process to manage. A `\"kubernetes\"` source\n  that opens a `kubectl port-forward` is the next stage of the same issue and is not in this\n  release.\n\n  There is no catalog side to this. A backing service is declared by the `AddBackingService()` call\n  itself, so `servicesources.yaml` is untouched — and an AppHost that only connects to a database\n  needs no catalog file at all. Local provisioning stays the AppHost's own code, because\n  `builder.AddPostgres(...)` already expresses it better than catalog fields would; that also means\n  it works unchanged for anything carrying a connection string, `AddRabbitMQ` and `AddRedis`\n  included.\n\n  **The resource your local factory returns must be named after the backing service**, and\n  `AddBackingService` refuses it otherwise (#200). Aspire's `WithReference(...)` keys the\n  connection string on the referenced resource's own name, which under `\"local\"` is whatever the\n  factory built — so `() => builder.AddPostgres(\"pg\").AddDatabase(\"orders\")` behind a backing\n  service called `orders-db` would give a consumer `ConnectionStrings__orders` locally and\n  `ConnectionStrings__orders-db` under `\"direct\"`, moving the key the app reads when the developer\n  switches, with only the app to report it. `AddDatabase(\"orders-db\", \"orders\")` names the resource\n  and the database separately. Casing counts: .NET folds it when reading configuration, but the\n  environment variable itself does not, and this package runs JavaScript and Java services, where\n  `process.env` and `System.getenv` are case-sensitive.\n\n  A consumer that needs a particular key can still pin it from its own side —\n  `WithReference(ordersDb, \"OrdersDb\")` gives `ConnectionStrings__OrdersDb` under every source. That\n  is not a way around the rule: the exported shim takes the source alone, so a guest-language AppHost\n  has no such argument (#209). That is this package's own gap and not a limit of guest languages —\n  a project's `withReference` already accepts `{ connectionName }` from TypeScript — but until the\n  shim offers the same, renaming the factory's resource is the one remedy every AppHost has, which\n  is why it is the one enforced.\n\n  **Write `direct.connectionString` as an address reached from outside Aspire.** It is handed on as\n  written; nothing about it is rewritten. The case that catches people out is pointing `\"direct\"` at\n  a container the same AppHost runs: the host and port the dashboard and `aspire describe` report\n  for a container endpoint belong to Aspire's endpoint proxy, which lives only as long as that\n  AppHost and is reassigned on the next start — not to the container's own published port.\n\n  `direct.connectionString` is normally a literal, and **braces reserve nothing** — `Driver={PostgreSQL}`,\n  `Server={host}\\instance` and `PWD={secret}` all reach the app exactly as written, doubled braces\n  included, so ODBC's own doubling rule stays intact: `PWD={pa}}ss}` is the password `pa}ss` and\n  remains it. Placeholders open on `${`, which no connection-string dialect uses. `${port}` and\n  `${secret:<name>:<key>}` are recognised, reserved for the sources that can resolve them, and\n  rejected under `\"direct\"` with a message saying why; a malformed one fails at startup naming the\n  backing service and the key, quoting the spelling you wrote, rather than reaching the app as text.\n  A `${` begins a placeholder only when the word after it — up to the first `:` or `}`, or to the\n  end — is *exactly* `port` or `secret`, in any casing. Equality rather than a prefix, so\n  `${portal}`, `${secretariat}`, `${secrets:a}` and `${DB_PASS}` are text, which keeps a connection\n  string working when something else in your toolchain expands `${…}`. What stays reserved is\n  `${port}` and `${secret:…}` themselves, which cannot be written as literal text and have no\n  escape; `$` is not otherwise special, so `$${port}` is available as one if anything ever needs it\n  (#207).\n\n  **Setting a template through an environment variable needs single quotes.** `${…}` is also what a\n  POSIX shell, docker-compose and a GitHub Actions `run:` block expand, and double quotes do not\n  protect it — they cover the `;` and not the `${`. A template that loses its placeholder that way\n  arrives as a valid template with no placeholder in it, which nothing can report. The file,\n  appsettings and user secrets are unaffected, and are where a template normally lives.\n\n  A `source` of nothing but whitespace is refused rather than read as the default, the same way a\n  whitespace *field* has been refused since `0.4.0` and for the same reason: it is the empty\n  spelling that unsets a key, missed by a character. This also applies to a service's `source`,\n  which previously reported having no source configured without mentioning the spaces that caused\n  it.\n\n  **Configuration that nothing reads is reported** (#206). A backing service with no entry\n  legitimately runs locally, so an entry whose key matches no `AddBackingService()` call cannot be\n  told apart at read time from one that was never written — a typo in the *key* (`orders_db` against\n  `orders-db`) would silently revert that backing service to `\"local\"`, starting the container the\n  developer was trying to avoid. Once the AppHost is composed the declared names are known, so this\n  is warned about at startup, naming the entry and the declared name it resembles. A misspelled\n  `backingServices` root key, which does the same to every backing service at once, is warned about\n  the same way. Warnings rather than errors, because a shared file may legitimately carry entries\n  for backing services only some configurations add; there is no opt-out.\n\n  **The `services:` side of the same problem is warned about too** (#215). A `services` entry\n  naming no service `servicesources.yaml` declares used to be silently skipped — a typo one edit from\n  a real service name (`planning-fronend` against `planning-frontend`) bound, validated, and was\n  never looked up, with nothing to say so. Reported at the same `BeforeStartEvent` point as the\n  backing-service check above, naming the entry and the catalog name it resembles. A misspelled\n  `services` root key is warned about the same way. Left out on purpose: an entry the catalog *does*\n  declare but that no `AddService()` call adds is not silent today — `LocalCheckoutPrefetch` already\n  reports the cost of cloning it speculatively — so that half stays with the over-cloning work it\n  belongs to (#217). Warnings rather than errors, and again no opt-out, for the same reason as the\n  backing-service side.\n\n- **A service whose resource never runs is reported in the AppHost's own console** (#150). A\n  `\"local\"` checkout that fails to compile used to produce nothing there at all: Aspire's build of\n  a checkout is `dotnet run`'s own, so the compiler's output goes to that resource's console in the\n  dashboard, and from the terminal the service simply never appeared. There is now one line per\n  failing resource, naming the service, naming the state Aspire reported for it, and pointing at\n  the dashboard:\n\n  ```text\n  fail: Aspire.Hosting.ServiceSources[0]\n        Service 'orders' is configured as 'local' and its resource is not running: it reported\n        'Finished' with exit code 1. This console does not carry that resource's output, so\n        nothing here says why — its own console in the Aspire dashboard does, at the dashboard\n        URL logged above. …\n  ```\n\n  Read off the resource's state rather than off any one failure path, so it covers a build that\n  won't compile, a deferred clone that never landed, and a service of any source — not `\"local\"`\n  alone. Reported for `FailedToStart` and for a terminal state with a non-zero exit code, one line\n  per failing replica.\n\n  It errs towards silence rather than towards a false alarm, since a channel that sometimes lies is\n  one developers learn to ignore. Not reported: a terminal state whose exit code was never\n  reported, an orderly Ctrl-C, a resource stopped from the dashboard, and `RuntimeUnhealthy` —\n  which names an unreachable container runtime rather than a failed service, and which an AppHost\n  started before its container runtime is up reports for every container-backed service before\n  starting them all normally. It says only *that* the service isn't running: the output that says\n  why belongs to the process Aspire launched, whose streams this package does not own. Needs no\n  opt-in, and nothing about how a failure reaches the dashboard changes.\n\n- **`withServiceConnectionString` takes a `connectionName`** (#209). A guest-language AppHost\n  previously had no way to choose the environment variable a connection string arrives under — the\n  exported shim's `WithReference` had no such argument, so the key always followed the referenced\n  resource's own name. The only remedy was renaming that resource, which is not always available:\n  an app whose configuration already reads a particular name, or a resource that is not the\n  caller's to rename, had nothing to reach for. TypeScript now takes the same argument a project's\n  `withReference` already does:\n\n  ```typescript\n  service.withServiceConnectionString(db, { connectionName: 'OrdersDb' });\n  // ConnectionStrings__OrdersDb, regardless of db's own resource name\n  ```\n\n  `connectionName` is optional and defaults to the source resource's own name, matching today's\n  behavior when omitted.\n\n- **`withServiceHttpsEndpoint()` and `withServiceHttpEndpoint()`** (#208). The exported shim set\n  covered environment, references, waits and args, but nothing let a guest-language AppHost declare\n  an endpoint on the resolved service — every other shape has a TypeScript equivalent of\n  `Configure<T>`, this one didn't. It becomes load-bearing the moment a deferred checkout is the\n  default: Aspire reads endpoints from a launch profile while composing, and a first-run checkout\n  that hasn't landed on disk yet has no launch profile for it to read, so nothing declares the\n  endpoint unless the AppHost does.\n\n  ```typescript\n  builder.addService('common-auth').withServiceHttpsEndpoint();\n  ```\n\n  Like every shim here, it delegates to `Configure<IResourceWithEndpoints>`, so it inherits that\n  method's skip-and-warn behavior for free: safe to write unconditionally, since a service a\n  developer has switched to `url` or `kubernetes` in `servicesources.local.json` is skipped rather\n  than misconfigured.\n\n### Changed\n\n- **`javascript.appDirectory` and `javascript.scriptPath` are now confined to the checkout by the\n  same lexical check as `project`, `prepare.command` and every `java.*` path** (#235). They used\n  to run a resolved check of their own — `Path.GetFullPath` followed by a root-prefix comparison —\n  which disagreed with the lexical one in three ways, all now gone: an absolute value resolved and\n  was reported as merely \"outside the checkout\" rather than named as absolute; a path segment made\n  only of dots and spaces (see #241) was never checked here, so it reached these two paths where\n  every other confined path already refused it; and a value written with `\\` separators was never\n  normalized, so `appDirectory: src\\frontend` resolved to a single oddly-named directory on Linux\n  and macOS instead of `src/frontend`.\n\n… truncated for nuget.org's 35000-character release notes limit. Full entry in CHANGELOG.md.\n\nFull changelog: https://github.com/flojon/aspire-servicesources/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#repository",
+    "commit": "8d981e93c6b2e80182eebd2cc17cbfc9bf4ffaa6",
+    "type": "git",
+    "url": "https://github.com/flojon/aspire-servicesources"
+  },
+  "verbatimVersion": "0.5.1",
+  "version": "0.5.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net10.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net10.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net8.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net8.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net9.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#dependencygroup/net9.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 13277,
+      "fullName": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "length": 35979,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 645,
+      "fullName": "LICENSE",
+      "length": 1070,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 42988,
+      "fullName": "README.md",
+      "length": 125362,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#buildTransitive/KoalaSoft.Aspire.Hosting.ServiceSources.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 1826,
+      "fullName": "buildTransitive/KoalaSoft.Aspire.Hosting.ServiceSources.targets",
+      "length": 6111,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 141532,
+      "fullName": "lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 378368,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 141089,
+      "fullName": "lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 377856,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 141554,
+      "fullName": "lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 378368,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.07.19.14.40/koalasoft.aspire.hosting.servicesources.0.5.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspire",
+    "dotnet-aspire",
+    "service-discovery",
+    "apphost",
+    "kubernetes",
+    "git",
+    "microservices",
+    "local-development",
+    "port-forward",
+    "polyglot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

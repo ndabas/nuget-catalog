@@ -1,0 +1,305 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Epiforge",
+  "catalog:commitId": "367dd5b1-5e91-471f-a8cb-51b4b5ff83bd",
+  "catalog:commitTimeStamp": "2026-09-09T02:12:47.3523029Z",
+  "created": "2026-09-09T02:09:58.033Z",
+  "description": "This package assists in operating with expressions.",
+  "iconFile": "NuGet.jpg",
+  "id": "Epiforge.Extensions.Expressions",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-09T02:12:39.497Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "3JSvVNUQHDu3pjAE03dJzUJqwnuq0+IZduqZ6ARcty1DbKpb0402kDqFK9RH+Fj45NkXaZJ2xepSaTnDnpXbxQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 886990,
+  "projectUrl": "https://github.com/Epiforge/Epiforge.Extensions",
+  "published": "2026-09-09T02:09:58.033Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Observing an expression whose result is a boolean no longer allocates a box for that result on every evaluation. The two boxes a boolean can need are now shared across every observation, in both the graph and the direct-subscription path.\nObserving an expression also allocates less to construct. Each node held its own box for the default value of its type; those boxes are now shared, except where the type is one the observer could be asked to dispose of.\nA query no longer allocates when it hears that an element's or a key's value has changed and no fault has changed with it, which is the ordinary case. An element crossing a filtered query's predicate now costs the query nothing at all where nothing is subscribed to it, and only the event arguments a subscriber receives where something is.\nObserving a method call, an indexer, a constructor, an invocation, a member initialization or an array initializer allocates substantially less on every evaluation, because reading its operands' faults and values no longer builds a lazy sequence to do it. A method call observed through the expression graph now allocates under 50% of what it did.\nA dictionary query no longer produces the change notifications nobody has subscribed to. A value crossing a filtered dictionary query's predicate now costs that query nothing beyond observing the predicate itself where nothing is subscribed to it, which is 1/7 of what it cost and 50% of the time. Subscribing to one of a dictionary query's change events no longer causes the other two to be produced as well, so a query with a subscriber allocates under 50% of what it did. Filtered and projected dictionary queries alike benefit; a projected dictionary query with nothing subscribed to it now allocates under 25% of what it did, in 50% of the time.\nA query no longer adapts the selectors and predicates it is given by wrapping them in an invocation, which put an extra node in every observation for the query to build when an element arrives and to walk on every evaluation. This applies to filtered, projected and to-collection dictionary queries and to ordered and grouped collection queries. Observing an element which has just arrived allocates around 25% less, and propagating a change is 10% to 25% faster.\nAn observed indexer over a dictionary no longer allocates anything of its own when the dictionary changes. Finding the changed key no longer builds a closure and two delegates per change, so an observed indexer now costs exactly what any other subscriber to that dictionary costs and nothing more.\nFixed a defect in which an observed indexer did not see a change to the object it indexes when that object announced the change the conventional way, by raising a property change notification naming its indexer followed by empty brackets. Only the indexer's bare name was recognized. Types which also raise a collection or dictionary change notification were unaffected, because that notification carried the same change.\nAn observation whose result is a value type which does not implement IEquatable<T> — the key-value pair a projection produces, for instance — no longer allocates when it checks whether that result has changed. The check received the result already boxed and unboxed it, only for the comparer it reached to box it again. Such an observation now allocates ninety-six bytes less every time it is re-evaluated, 37% less in all, and costs exactly what an observation of an equatable result of the same shape costs.\nAn expression which reads a property through another property, such as the length of a name, can now be observed by subscribing directly to its change sources, provided nothing the intermediate value could hold raises a change notification of its own. Reading the length of a string is the common case. A filtered query over a thousand elements built from such a predicate allocates 36% of what it did.\nAn expression using &&, || or ?? can now be observed by subscribing directly to its change sources, provided the operand whose evaluation is deferred reaches nothing the rest of the expression does not already watch — which is the case whenever the operands read from the same objects, as a predicate testing two properties of the same element does. Such a predicate had been the most expensive shape a caller could write; a filtered query over a thousand elements built from one now allocates 24% of what it did and builds in 6.6% of the time.\nObserving a method call, an indexer or a constructor no longer builds an argument array on every evaluation where the member takes two arguments or fewer, and neither those nor a property read look up how to invoke the member on every evaluation any more: the invocation is resolved once when the observation is constructed and the operands' values are handed to it directly. Per change, a method call returning an integer now allocates 96 bytes rather than 128 and takes 21% less time, a projection producing a key-value pair allocates 120 rather than 160 and takes 15% less, and a property read, which never built an array, takes 11% less.\nAn expression which reads an element of a collection or a dictionary by its indexer can now be observed by subscribing directly to its change sources. Every indexer read had been refused, because the compiler emits it as a call to the indexer's get method and that shape went unrecognized. Reading a key of an observable dictionary, over a thousand elements, now allocates 1.29 megabytes rather than 15.24 and takes 4.8% of the time; reading an index of an observable list costs the same, and of a plain list, 1.22 megabytes rather than 4.39. This had been the most expensive shape a caller could write.\nFixed a defect in which an observed indexer read through the expression graph reported what the dictionary stored rather than what the indexer returns. It answered from the change notification it received instead of evaluating the expression, which is the same thing only where the indexer is a plain lookup, and an observable dictionary's indexer is virtual. An observation over a dictionary whose indexer had been overridden reported the wrong value with no fault raised and nothing a consumer could detect. Removing a key likewise produced an error of the observer's own manufacture rather than the one the indexer raises, and announced the removal twice. Both now evaluate the expression, and a removal is announced once.\nFixed a defect in which an observation through the expression graph could announce a value composed of inputs which were never simultaneously current. Each node subscribed to the object it reads separately, so an object which changed two of its properties and announced them with a single notification drove one propagation per interested node, and the first of those announced the new value of one property combined with the stale value of the other. Every node reading from the same object is now told together, within one propagation, and only the settled result is announced.\nAn observation through the expression graph allocates far less to construct where several of its nodes read from the same object. Each node attached its own handler to that object's notification, and every attachment reallocates the notification's invocation list, so the cost grew with the square of the number of nodes sharing it: a thousand observed indexes into one collection allocated 15.24 megabytes and now allocate 4.79, in 55% less time. There is one handler per object and event now, which costs 160 bytes for each distinct object observed, so an observation whose nodes share nothing pays around 6% more to construct than it did.\nAn expression using &&, || or ?? whose deferred operand reads from an object the rest of the expression does not touch, and an expression using the conditional operator whatever its branches read, can now be observed by subscribing directly to their change sources. The subscriptions belonging to such an operand are attached the first time an evaluation reaches it, which is where the expression graph attaches them and after which neither mechanism lets them go, so the two agree on what is subscribed at every point rather than only at the end.\nObserving an expression by subscribing directly to its change sources allocates less to construct, whatever the expression is. The array holding an observation's subscriptions was made at the size of every source the analysis named and then copied to the size actually needed; it is now made once at that size. A query over a thousand elements allocates 0.04 to 0.06 megabytes less to build, which is 4% of what a simple comparison predicate costs and 4.4% of what an indexer read costs.\nAn observation no longer subscribes more than once to the same event of the same object. An expression which names one member in several places — the test of a conditional and its branches, an indexer and the collection it indexes, or simply the same property read twice — planned a subscription for each place and attached every one of them, at the cost of an object to hold each and a whole redundant evaluation every time that object announced a change. A query over a thousand elements built from a conditional whose branches read what its test reads now allocates 1.14 megabytes to construct rather than 1.28, in 78% of the time, and evaluates once per change where it evaluated three times. This holds however the object is named: two reads of a captured variable or a static field are two separate expressions which name one object, and they are now recognized as one subscription rather than two.\nAn expression which reads a property through another property whose value can itself raise change notifications — the rank of a person's partner, say — can now be observed by subscribing directly to its change sources. The observation follows the intermediate: it attaches to whatever that property holds, and when the value is replaced it releases the object it left and attaches to the new one, which is what the expression graph has always done. A query over a thousand elements built from such a predicate now allocates 1.56 megabytes to construct rather than 3.74, in 15% of the time.\nFixed a defect in which the two ways of observing an expression could evaluate different expressions. Where an optimizer is configured, it rewrites what the graph observes but was not applied to expressions observed by subscribing directly to their change sources, so an operand the optimizer removed was evaluated by one and not the other — which is visible when that operand would throw. Both now observe the same expression, and observing without optimization is unaffected.\nA source an observation subscribes to no longer carries a lock of its own. Its list of attachments is only ever changed while the registry holding every source is itself locked, so the second lock guarded nothing and cost an object for each source an observation subscribes to. A query over a thousand elements whose predicate reads a property of each of them allocates 48 kilobytes less to build.\nAn observation no longer builds the list of the arguments it was made with unless something asks for one. Every observation carried that list whether or not anyone read it, at 24 bytes apiece, which a query over a thousand elements paid a thousand times. The list is now made on first request and kept, so it is the same list every time it is read, and it costs nothing at all where it is never read — which is every observation the library makes for itself.\nA query which observes an expression for each of its elements no longer makes a new event handler for each one. Attaching to an observation's change notification converted a method group, which yields a fresh delegate every time it is converted, and detaching converted it again, so a query over a thousand elements built and discarded two thousand delegates where one would have served. Every collection and dictionary query which observes per element now keeps a single handler and attaches that. A filtered query over a thousand elements allocates 0.12 megabytes less to build and tear down, which is 11% of what it cost; projecting, and projecting a dictionary to a collection, are improved the same way.\nAn ordered query no longer walks the change it is told about with a query of its own. Both handlers a key change wakes — the one which repositions the element and the one which keeps its keys in order — used a query to search a list of one selection and to take one element out of a payload of one item, which allocated six objects for every key change for the life of the query. Both now walk by index. Changing one key in a query of a thousand elements ordered on an observed property allocates 408 bytes rather than 776, which is 47% less, in 7% less time; where the change reorders nothing it allocates 248 rather than 616, which is 60% less, in 25% less time.\nAn expression which reads more than one property of the same object no longer places a handler on that object for each of them. Observing by subscribing directly to change sources kept one registration per property name, where the expression graph has always kept one per object and event and decided relevance when the change arrives; the direct path now does the same, and each subscription is asked whether it wants the name reported before anything is evaluated. A change to a property no subscription named still begins no propagation. Building a query over a thousand elements whose predicate reads two properties of each of them allocates 1035 kilobytes rather than 1325, the second property having cost 360 bytes per element and now costing 72, and every change to such an element propagates 15% faster, since one handler is invoked where two were. Where an expression reads one property of an object of its own, building it now costs 8 bytes per element less; where it reads a property of an object shared by every element, 8 bytes more.\nAdding an element to a query which orders its source, or removing one, no longer groups the change it is told about. Four places grouped the elements a change carried so that one element carried twice would be counted once, which builds a lookup, its array of groups, a group and an array of its one element every time — and a change which adds or removes a single element, which is most of them, can carry no repeat at all. Each of the four now handles a single element directly and groups only what can hold a repeat. Adding one element to an ordered query of a thousand and removing it again allocates 5261 bytes rather than 6704, which is 21% less, in 10% less time.\nAn expression which constructs an object can now be observed by subscribing directly to its change sources, where before it was refused and observed by building a graph instead. This is what every query which orders, groups, or looks up by an observed key is built on: each of them projects its elements to a pair of the element and its key, and that projection constructs the pair, so none of them had ever taken the faster path. A value whose type can be disposed is still refused, since the expression observer may be told to dispose what an expression constructed. Adding one element to a query of a thousand ordered by an observed property and removing it again allocates 2024 bytes rather than 5261, which is 61% less, in 67% less time, and now costs the same whether the query holds a hundred elements or ten thousand; changing one key allocates 360 bytes rather than 408. The same change to a query of a thousand grouped by an observed property allocates 1864 bytes rather than 5213, which is 64% less, in 19% of the time.\nWhere an expression cannot be observed by subscribing directly to its change sources, the observer now says so to the logger at debug level, naming the expression, the part of it which is not eligible, and why. Nothing about which expressions qualify has changed; what could previously be discovered only by comparing what an observation allocates against what it ought to allocate is now stated outright. The report is made where the analysis happens rather than where the expression is observed, so a query which observes one predicate for each of a thousand elements is told once and not a thousand times.\nRepositioning an element of an ordered query is 4% to 7% faster. The binary search which finds where the element now belongs asked for the comparable keys of the element it is moving at every probe, though they cannot change while a search is running, and reached every element it compares against by descending from the root of the sequence of positions rather than from the element it had just read. Changing one key in a query of a thousand elements ordered on an observed property now takes 1,280 nanoseconds rather than 1,338, and moving an element thirty-two positions takes 1,330 rather than 1,423. Allocation is exactly what it was.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#repository",
+    "commit": "23b35f86e1b0e70d2c41615e5d1d3eae961cef52",
+    "type": "GitHub",
+    "url": "https://github.com/Epiforge/Epiforge.Extensions"
+  },
+  "verbatimVersion": "4.4.0",
+  "version": "4.4.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net10.0/epiforge.extensions.collections",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Collections",
+          "range": "[4.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net10.0/epiforge.extensions.components",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Components",
+          "range": "[4.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net6.0/epiforge.extensions.collections",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Collections",
+          "range": "[4.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net6.0/epiforge.extensions.components",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Components",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net6.0/system.collections.immutable",
+          "@type": "PackageDependency",
+          "id": "System.Collections.Immutable",
+          "range": "[8.0.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net7.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net7.0/epiforge.extensions.collections",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Collections",
+          "range": "[4.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net7.0/epiforge.extensions.components",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Components",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net7.0/system.collections.immutable",
+          "@type": "PackageDependency",
+          "id": "System.Collections.Immutable",
+          "range": "[8.0.0, )"
+        }
+      ],
+      "targetFramework": "net7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net8.0/epiforge.extensions.collections",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Collections",
+          "range": "[4.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net8.0/epiforge.extensions.components",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Components",
+          "range": "[4.3.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net9.0/epiforge.extensions.collections",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Collections",
+          "range": "[4.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#dependencygroup/net9.0/epiforge.extensions.components",
+          "@type": "PackageDependency",
+          "id": "Epiforge.Extensions.Components",
+          "range": "[4.3.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#Epiforge.Extensions.Expressions.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5910,
+      "fullName": "Epiforge.Extensions.Expressions.nuspec",
+      "length": 19279,
+      "name": "Epiforge.Extensions.Expressions.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#NuGet.jpg",
+      "@type": "PackageEntry",
+      "compressedLength": 8959,
+      "fullName": "NuGet.jpg",
+      "length": 14914,
+      "name": "NuGet.jpg"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 8408,
+      "fullName": "README.md",
+      "length": 22682,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net10.0/Epiforge.Extensions.Expressions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 148399,
+      "fullName": "lib/net10.0/Epiforge.Extensions.Expressions.dll",
+      "length": 391168,
+      "name": "Epiforge.Extensions.Expressions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net10.0/Epiforge.Extensions.Expressions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20212,
+      "fullName": "lib/net10.0/Epiforge.Extensions.Expressions.xml",
+      "length": 191029,
+      "name": "Epiforge.Extensions.Expressions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net6.0/Epiforge.Extensions.Expressions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 149233,
+      "fullName": "lib/net6.0/Epiforge.Extensions.Expressions.dll",
+      "length": 395264,
+      "name": "Epiforge.Extensions.Expressions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net6.0/Epiforge.Extensions.Expressions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 22424,
+      "fullName": "lib/net6.0/Epiforge.Extensions.Expressions.xml",
+      "length": 205196,
+      "name": "Epiforge.Extensions.Expressions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net7.0/Epiforge.Extensions.Expressions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 148371,
+      "fullName": "lib/net7.0/Epiforge.Extensions.Expressions.dll",
+      "length": 393216,
+      "name": "Epiforge.Extensions.Expressions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net7.0/Epiforge.Extensions.Expressions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 21321,
+      "fullName": "lib/net7.0/Epiforge.Extensions.Expressions.xml",
+      "length": 196402,
+      "name": "Epiforge.Extensions.Expressions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net8.0/Epiforge.Extensions.Expressions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 148251,
+      "fullName": "lib/net8.0/Epiforge.Extensions.Expressions.dll",
+      "length": 392704,
+      "name": "Epiforge.Extensions.Expressions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net8.0/Epiforge.Extensions.Expressions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20465,
+      "fullName": "lib/net8.0/Epiforge.Extensions.Expressions.xml",
+      "length": 192278,
+      "name": "Epiforge.Extensions.Expressions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net9.0/Epiforge.Extensions.Expressions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 148402,
+      "fullName": "lib/net9.0/Epiforge.Extensions.Expressions.dll",
+      "length": 391168,
+      "name": "Epiforge.Extensions.Expressions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#lib/net9.0/Epiforge.Extensions.Expressions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20212,
+      "fullName": "lib/net9.0/Epiforge.Extensions.Expressions.xml",
+      "length": 191029,
+      "name": "Epiforge.Extensions.Expressions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.02.12.47/epiforge.extensions.expressions.4.4.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

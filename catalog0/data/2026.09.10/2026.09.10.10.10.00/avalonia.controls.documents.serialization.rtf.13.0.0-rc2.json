@@ -1,0 +1,202 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "AvaloniaUI OÜ",
+  "catalog:commitId": "0ed86549-b450-410a-a79f-cbf995e0c44d",
+  "catalog:commitTimeStamp": "2026-09-10T10:10:00.1958178Z",
+  "copyright": "Copyright 2019-2026 © AvaloniaUI OÜ",
+  "created": "2026-09-10T10:06:28.047Z",
+  "description": "RTF serializer for Avalonia.Controls.Documents with high-fidelity import and export support",
+  "iconFile": "icon.png",
+  "id": "Avalonia.Controls.Documents.Serialization.Rtf",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-10T10:09:30.903Z",
+  "listed": true,
+  "packageHash": "TDws0FmWdokuDeT6GmVQP53OJKonFfI+fPJ8FyoAWYX84qiNNu592YnOVV7jwntaZQsDpwthxwbAq2T7/cVc5Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 234907,
+  "projectUrl": "https://avaloniaui.net/",
+  "published": "2026-09-10T10:06:28.047Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## 13.0.0\n\n### Breaking changes\n- `RtfSerializer` declares `CanRead` and `CanWrite`, and its `Serialize`/`Deserialize` overloads now implement `IDocumentSerializer` members rather than sitting beside the interface. See the `Avalonia.Controls.Documents` changelog for the interface change.\n- `RtfSerializer.SerializeAsync` and `DeserializeAsync` are removed; `Serialize` and `Deserialize` are the whole contract. The format does no asynchronous I/O - it is processor-bound and assembles its output in memory - so the async pair was a thread-pool hop that held a pool thread for the duration of synchronous work. Replace `await serializer.SerializeAsync(snapshot, stream, ct)` with `serializer.Serialize(snapshot, stream, ct)`, or `await Task.Run(() => serializer.Serialize(snapshot, stream, ct), ct)` to keep it off a UI thread; `FlowDocument.SaveAsync` and `LoadAsync` already do that wrapping.\n- `RtfBorderMetadata` and `RtfTabStopMetadata` are internal. Both appeared in the public surface only as the element type of a property on an internal class (`BlockRtfMetadata.BorderTop`, `TableRtfMetadata.RowBorderTop` and their siblings), so no caller outside the assembly could ever obtain one: `GetFormatMetadata<BlockRtfMetadata>()` does not compile there. `RtfSerializer` is now the package's only public type, which is what its surface always was in practice.\n\n### Features\n- Footnote numbering round-trips through the document keywords `\\ftnnar`, `\\ftnnalc`, `\\ftnnauc`, `\\ftnnrlc`, `\\ftnnruc` and `\\ftnnchi` (`DocumentFormatting.FootnoteNumberFormat`; the keyword is written when the document numbers other than decimally), and the anchors read from a file render in that format.\n- Footnotes round-trip, fixing a live import bug: `{\\footnote}` groups carry no `\\*` marker and had no destination case, so their bodies previously flooded the anchoring paragraph as document text. The group now emits the anchor in place (its number is the anchor ordinal) and its body replays after the body text into the document's trailing footnote container; `\\chftn` never becomes content (the anchor renders its number from its position, a note's lead-in number is rendered chrome), so save/load cycles cannot duplicate it. Writing emits Word's shape at the anchor: `{\\super\\chftn}` followed by the `{\\footnote}` group; a dangling anchor writes nothing.\n- Per-section page setup: `\\sectd` and the section page words (`\\pgwsxn`/`\\pghsxn`, `\\marglsxn`/`\\margrsxn`/`\\margtsxn`/`\\margbsxn`, `\\lndscpsxn`, `\\titlepg`, `\\headery`/`\\footery`) are read as running state stamped onto the section being closed. That handles both this writer's ordering (`\\sect` opens a section, `\\sectd` follows) and Word's (`\\sectd` + words precede a section's content, `\\sect` separates) — under Word's, the content before the first `\\sect` stays root-level with the document-level `\\paperw`/`\\margl` covering page 1. Pure-section documents write the geometry back (`\\sectd` + words after each `\\sect`; once any section carries geometry every section gets the `\\sectd` reset so a setup-free one inherits nothing), RoundTripStrict adds the setup to the `acdsect` marker payload, and raw twips ride a new `SectionRtfMetadata`. Single-section documents keep geometry at document level and ignore the sxn words; mixed roots still flatten and drop section setup — DOCX is the fidelity format for that shape.\n- Header/footer groups map to page bands: `\\header`/`\\headerr` (the running band), `\\headerf` (the first page, under `\\titlepg`) and `\\headerl` (the even pages, under `\\facingp`), with the footer counterparts, each replayed into a band of its own as soon as the group closes (a band is a nested document, so the body's buffer order no longer constrains it). The groups before the first `\\sect` are the document's rule bands; a first-page or even group that repeats the running band adds nothing, and a switch without a group is Word's blank page, an empty rule band where a running band exists. Groups after `\\sect` are the open section's explicit references (identical groups share one band, a blank group is an explicit empty band); a `\\sect` section without a group inherits the previous section's per slot (Word's \"same as previous\"), a section's `\\titlepg` is the presence of its first-page references (an inherited first-page band, else the blank page, unless the section starts the document, where the document's rule covers page one), and marker-delimited sections are exact. The writer emits the document's groups after the page words (`\\headerr`/`\\headerl` under facing pages, the running band repeated where a role has no first-page or even band of its own), a section's groups after its section words, and on the portable path spells out a slot an earlier section defined and a later one leaves empty. Previously `\\headerf`/`\\headerl` and the footer counterparts were skipped.\n- PAGE and NUMPAGES field instructions map to `RichPageNumberField`; the `\\fldrslt` text is dropped, being the writer's last calculated number rather than ours. Previously any non-HYPERLINK field vanished entirely — instruction and result both; unknown instructions still drop.\n- `\\keep`, `\\keepn`, and `\\widctlpar`/`\\nowidctlpar` now map into the document model (`BlockFormatting.KeepTogether`/`KeepWithNext`/`WidowControl` and the matching `Block`/`Paragraph` properties) on read, in addition to the existing RTF round-trip metadata, and both writer paths emit them from the model when the metadata is silent - so keep rules survive cross-format routes and reach paged layout and PDF export.\n- `\\page` normalizes on read to a paragraph split with `\\pagebb` on the remainder (the property is the canonical form the writer emits; `\\page` was previously ignored entirely). A stray form feed in run text is still written as `\\page`.\n- Character spacing round-trips. `\\expndtwN` (twips) and `\\expndN` (quarter-points, so 5 twips each) are now read into `TextElementFormatting.LetterSpacing`; neither was parsed at all before, so expanded or condensed text imported at normal spacing. Word writes the pair with the quarter-point value rounded, so the twips one takes the run's spacing whichever order the two arrive in, and the quarter-point one only fills in for producers that write it alone. Negative (condensed) values are kept as they are. The writer emits `\\expndtw` from the model when a run carries no RTF metadata for the spacing and from the metadata's raw twips when it does, so a value the DIP conversion cannot express exactly still comes back out as the original - and spacing applied in the editor, which previously reached PDF export but vanished on save, now survives a save and reload and cross-format routes into RTF. `RtfNodeMetadata.CharacterSpacingTwips` was declared for this and never written or read by anything; it now carries the raw value, and the writer's formatting-collection pass keeps it when it rebuilds a run's metadata for the font and colour indices. A run whose only formatting is spacing round-trips too: the reader's residual-Span path already admitted `LetterSpacing`, so it opens a wrapper for spacing on its own.\n- Underline variants now map into the document model (`InlineFormatting.UnderlineStyle` / `RichInline.UnderlineStyle`) on read, in addition to the existing RTF round-trip metadata, so a variant survives an edit. `\\ul`, `\\uldb`, `\\uld`, `\\uldash`, `\\uldashd`, `\\uldashdd`, `\\ulth`, `\\ulwave`, `\\ulhwave` and `\\ulw` were read only into `InlineRtfMetadata.OriginalUnderlineType`, which rides on a run's deferred snapshot - realizing the element for any formatting change discards that snapshot, so bolding a word in a `\\uldb` paragraph silently flattened the double underline to a plain `\\ul` on the next save. The style now lands on the underline wrapper next to the decoration it qualifies, and the writer emits the control word from it when a run carries no metadata for the underline, keeping the metadata-first order, so a run imported from DOCX (`w:u w:val`) or styled in the editor reaches the right control word instead of `\\ul`. `TextDecorationFlags.Underline` stays the switch: a style with no underline flag writes nothing, and `\\ulnone` leaves the style unset. `\\ulhwave` is the one spelling the model cannot tell apart - it reads as the same wave as `\\ulwave` and, once the metadata is gone, writes as `\\ulwave`.\n- `\\pagebb` now maps into the document model (`BlockFormatting.PageBreakBefore` / `Block.BreakPageBefore`) on read, in addition to the existing RTF round-trip metadata. The writer emits `\\pagebb` from the model formatting when a paragraph carries no RTF metadata, so page breaks survive cross-format routes (for example DOCX to RTF) and reach paginated export.\n\n### Fixes\n- Cancelling a large export takes effect. The writer polled the token only at the two top-level block loops, so a document dominated by one long list or table ran to completion after the caller had given up. It polls per block, list item, table row and cell now, and never inside the per-character escaping loops.\n- Tab stops inside a nested list item are rebased onto the enclosing level's indent again. RTF tab stops are absolute from the page margin, so a nested item's stops have the parent level's `\\li` subtracted; the parent was read at a fixed offset from the bottom of the open-level stack, which names the enclosing level only by coincidence. The stack is also read before the level is pushed for a level's first item and after it for later siblings, so items at the same depth rebased differently: in a two-level list the first nested item subtracted nothing and its siblings subtracted their own indent, leaving stops too far right and shifting position between sibling items.\n- `\\chpgn`, Word's page-number character, is read as a page-number field (`RichPageNumberField`) and written back in the `{\\field{\\*\\fldinst PAGE}}` form. It was not recognized at all, and since a recorded header or footer group counts as blank unless it holds text or one of a known set of control words, a footer whose only content was the page number - the commonest footer Word writes - was discarded whole, alignment included.\n- A footnote or a header/footer group nested in a destination the reader ignores no longer reaches the document. `{\\*\\unknown {\\footnote ...}}` produced a real anchor and a real note, and an embedded object's `{\\result ...}` fallback could do the same; both now stay ignored, as `\\pict` already did.\n- A document whose last section ends on a blank line keeps that empty paragraph. Word terminates every paragraph with `\\par`, and the writer emitted the last one for documents without sections only, so the trailing empty paragraph of a sectioned document arrived at the reader with no terminator and was dropped. The terminator is now written inside the section that holds the paragraph.\n- Paragraph properties on a list item now survive a save. The list write path emitted only alignment and line height, so tab stops (`\\tx` with its alignment and leader), a page break (`\\pagebb`), the keep rules (`\\keepn`, `\\keep`, `\\nowidctlpar`) and paragraph borders were all dropped for any paragraph inside a list - the reader's rebasing of a nested list's tab stops had no writer counterpart at all. A list paragraph also keeps its RTF metadata now: the reader stamped it onto a paragraph the builder had not opened yet, and metadata queued that way was discarded.\n- A block's RTF round-trip details survive a save when the block also carries a background colour. The writer stamps the background's colour table index onto the block's metadata as it walks the tree, and it rebuilt that metadata from a hand-written list of properties, dropping the rest. A shaded list item lost its `\\li` and `\\fi` and snapped back to the level default - halving a 1440-twip indent on the second save - and a shaded paragraph lost its `\\s` style index and any unmapped control words. The metadata types are records now, so the stamp copies the instance instead of rebuilding it.\n- A list item's second paragraph is no longer glued onto its first. Word writes a multi-paragraph list item as a continuation paragraph that repeats the item's `\\li` and carries no `\\ls`; the reader recognized it only at the closing `\\par`, by which time the text had already been emitted into the item's previous paragraph. The text store has no paragraph separator, so the words ran together (`First paraSecond para`) and no later save could recover the boundary. The paragraph is now opened when its content arrives, and the writer emits `\\ls` only on an item's first paragraph so its own output reads back the same way.\n- A section carrying a header or footer group no longer gains an empty paragraph on every save and reload. A band and a footnote replay their recorded tokens through the same machinery as the body, into a builder of their own, and the reader-wide paragraph flow was shared with the outer document: the replay's own paragraph end consumed the separator the section boundary had pending, so the `\\par` that follows the group materialized a blank paragraph, one more per cycle. The flow - the pending separator, whether the paragraph has content, and the open lists - is now the replay's own and is handed back untouched.\n- A footnote body no longer gains a leading space on every save and reload. The `{\\footnote}` group's lead-in auto-number was followed by a space, which is body text rather than a control-word delimiter, so the reader appended it to the note's first run and the note drifted one space further right on every cycle. The note's first block opens with its own `\\pard`, which needs no separator.\n- A run's RTF round-trip details survive a save when the run also carries a font or a colour. The writer stamps font and colour table indices onto the run's metadata as it walks the tree, and it rebuilt that metadata from the indices alone, discarding every other field on it. The visible loss is the underline variant: a `\\uldb` run with a font saved as a plain `\\ul`, and the same for the other ten underline spellings. The exact font size, character spacing, kerning and any unmapped control words went with it. A run with no font or colour was unaffected, which is why this survived so long.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#repository",
+    "commit": "45cdd738130c6816c320ccdb659882e37649c832",
+    "type": "git"
+  },
+  "verbatimVersion": "13.0.0-rc2",
+  "version": "13.0.0-rc2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#dependencygroup/net10.0/avalonia.controls.documents",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents",
+          "range": "[13.0.0-rc2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#dependencygroup/net10.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#dependencygroup/net8.0/avalonia.controls.documents",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents",
+          "range": "[13.0.0-rc2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#dependencygroup/net8.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.2, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#Avalonia.Controls.Documents.Serialization.Rtf.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5999,
+      "fullName": "Avalonia.Controls.Documents.Serialization.Rtf.nuspec",
+      "length": 15505,
+      "name": "Avalonia.Controls.Documents.Serialization.Rtf.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7933,
+      "fullName": "CHANGELOG.md",
+      "length": 21056,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 359,
+      "fullName": "README.md",
+      "length": 730,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 7718,
+      "fullName": "icon.png",
+      "length": 7934,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#lib/net10.0/Avalonia.Controls.Documents.Serialization.Rtf.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95976,
+      "fullName": "lib/net10.0/Avalonia.Controls.Documents.Serialization.Rtf.dll",
+      "length": 235520,
+      "name": "Avalonia.Controls.Documents.Serialization.Rtf.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#lib/net10.0/Avalonia.Controls.Documents.Serialization.Rtf.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1257,
+      "fullName": "lib/net10.0/Avalonia.Controls.Documents.Serialization.Rtf.xml",
+      "length": 8237,
+      "name": "Avalonia.Controls.Documents.Serialization.Rtf.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#lib/net8.0/Avalonia.Controls.Documents.Serialization.Rtf.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 96406,
+      "fullName": "lib/net8.0/Avalonia.Controls.Documents.Serialization.Rtf.dll",
+      "length": 236544,
+      "name": "Avalonia.Controls.Documents.Serialization.Rtf.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#lib/net8.0/Avalonia.Controls.Documents.Serialization.Rtf.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1257,
+      "fullName": "lib/net8.0/Avalonia.Controls.Documents.Serialization.Rtf.xml",
+      "length": 8237,
+      "name": "Avalonia.Controls.Documents.Serialization.Rtf.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#_manifest/cyclonedx/bom.cdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2152,
+      "fullName": "_manifest/cyclonedx/bom.cdx.json",
+      "length": 10094,
+      "name": "bom.cdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.10.10.00/avalonia.controls.documents.serialization.rtf.13.0.0-rc2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

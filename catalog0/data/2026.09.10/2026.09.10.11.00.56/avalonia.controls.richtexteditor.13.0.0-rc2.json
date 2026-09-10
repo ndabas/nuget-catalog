@@ -1,0 +1,238 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "AvaloniaUI OÜ",
+  "catalog:commitId": "60521681-1826-4605-a8a1-a9ec22da6553",
+  "catalog:commitTimeStamp": "2026-09-10T11:00:56.3796193Z",
+  "copyright": "Copyright 2019-2026 © AvaloniaUI OÜ",
+  "created": "2026-09-10T10:06:34.043Z",
+  "description": "Interactive rich text editor control for Avalonia with selection, formatting, and undo/redo support",
+  "iconFile": "icon.png",
+  "id": "Avalonia.Controls.RichTextEditor",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-10T11:00:44.54Z",
+  "listed": false,
+  "packageHash": "0MMN/VLCgM8TGkTKjHZ7vgVW49+8WBSQZfbOWrdkm2SUk9Oa16P4jcWZASH9tDv9Gvp/c3SM76urAvQQgvFyIg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 368086,
+  "projectUrl": "https://avaloniaui.net/",
+  "published": "1900-01-01T00:00:00Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## 13.0.0\n\n### Breaking changes\n- `RichTextEditor.Save` and `Load` call the synchronous `FlowDocument.Save` and `Load` instead of blocking on the asynchronous pair with `GetAwaiter().GetResult()`. Both signatures are unchanged, and the sync-over-async deadlock hazard their remarks warned about is gone: `IDocumentSerializer` no longer has an asynchronous pair to block on. See the `Avalonia.Controls.Documents` changelog.\n- The built-in editor actions are now referenced only through `EditorActions`. The forty-eight concrete action classes (`BoldAction`, `PasteAction`, `MarginAction`, and the rest) are internal: each was reachable exactly once, as an `EditorActions` singleton, none declared a member the action interfaces do not, and a second instance carried a duplicate `Id` that `GetById` will not return. `new BoldAction()` becomes `EditorActions.Bold`, and `action is BoldAction` becomes `ReferenceEquals(action, EditorActions.Bold)`. `InsertImageAction` and `InsertTableAction` stay public, because each carries a parameterised entry point beyond the interfaces. Writing an action of your own is unaffected: `IEditorAction`, `IToggleAction`, `IPropertyAction`, `IPropertyAction<T>`, `IBlockPropertyAction`, `IBlockPropertyAction<T>`, `EditorAction`, `FormattingToggleAction<T>`, `PropertyAction<T>`, `BlockPropertyAction<T>` and `EditorActions` are all still public.\n- `ToolbarGroup` nests. Adding a group to another group's `Tools` threw from a collection-changed handler, which surfaced as an `XamlLoadException` wrapping it at parse time. Overflow now descends the whole tree: a nested group contributes its own children rather than collapsing as a unit, because a group carries no overflow menu item to stand in for them, and those children join the enclosing top-level group's menu section.\n- Every `EditorActions` singleton is declared as the narrowest interface its instance implements instead of `IEditorAction`, so a consumer building its own UI reads a checked state or a property value without a downcast: `IToggleAction` for the toggles, `IPropertyAction<T>` for the inline property actions, `IBlockPropertyAction<T>` for the block ones, and the concrete class for `InsertImage` and `InsertTable`. An assignment to an `IEditorAction`-typed local still compiles.\n- `EditorActions.TextAlignmentAction` is renamed to `EditorActions.TextAlignment`; every other member is named for its command rather than its implementing class.\n- `IEditorAction.GetState(ITextEditorHost)` is removed, along with `EditorAction.GetState` and the eleven overrides of it. It returned `object?` and duplicated typed members: use `IToggleAction.IsChecked(host)` for a toggle and `IPropertyAction.GetValueAsObject(host)` or `IPropertyAction<T>.GetValue(host)` for a property action. A plain command returned `null` and has no replacement.\n- `IBlockPropertyAction<T>` now derives from `IPropertyAction<T>`, and `ClearValue` is redeclared on `IPropertyAction<T>` and implemented publicly on `PropertyAction<T>`, `BlockPropertyAction<T>` and the marker style actions. `((IPropertyAction)EditorActions.FontSize).ClearValue(host)` becomes `EditorActions.FontSize.ClearValue(host)`. A class implementing `IBlockPropertyAction<T>` by hand now satisfies `IPropertyAction<T>` too.\n- `InsertTableAction.ExecuteWithSize(host, rows, cols)` is renamed to `ExecuteWith(host, rowCount, colCount)`, matching `InsertImageAction.ExecuteWith`.\n- `InsertTableRowAction.Before`/`.After` and `InsertTableColumnAction.Before`/`.After` are removed. Use `EditorActions.InsertRowBefore`, `InsertRowAfter`, `InsertColumnBefore` and `InsertColumnAfter`, which are the same instances.\n- `EditorActions.All` is now an `IReadOnlyList<IEditorAction>` in declaration order, grouped by category, rather than an unordered `IEnumerable<IEditorAction>` over a dictionary's values. A caller that assigned it to an `IEnumerable<IEditorAction>` still compiles.\n- `ITextEditorHost.SelectionFlyout` and `ShowSelectionFlyout` are removed from the host contract. The mini-bar is chrome a control chooses to show, not an editing capability, and their presence meant an external host could not be written without referencing a `Flyout` subclass. Both stay as public properties of `RichTextEditor`.\n- `ITextEditorHost.Undo()` and `Redo()` are now required members. Their default implementations forwarded straight to the undo manager, which skips the caret restoration the members' own remarks say every caller depends on.\n- `EditorToolbar.Editor` is typed `ITextEditorHost?` instead of `RichTextEditor?`, which is what everything downstream already wanted and what lets the toolbar drive a consumer's own host. An assignment still compiles; a read typed as `RichTextEditor` needs a cast.\n- `EditorToolbar.ActiveTargetAreas` and `EditorTool.ActiveTargetAreas` are read-only. The toolbar derives the value from the selection on every selection and document change and pushes it onto its tools, so anything a consumer wrote survived only until the next caret move. Set `EditorTool.TargetAreas` to say which areas a tool serves.\n- The toolbar state a tool computes and the shipped theme only reads is read-only: `AlignmentFlyoutTool.IsAlignLeft`, `.IsAlignCenter`, `.IsAlignRight`, `.IsAlignJustify`, `.IsAlignmentKnown`; `HyperlinkFlyoutTool.IsEditing`; `ImageLinkFlyoutTool.HasLink`; `TablePickerTool.SelectedColumns`, `.SelectedRows`, `.SizeLabel`; `BorderFlyoutTool.SelectedSides`; `ComboBoxTool.SelectedItem`; and `IconOpacity` on all five tools that carry it.\n- `ColorTool.SelectedColor` is `Color?` instead of `Color`, and the protected `ColorTool.IsUnset` is removed: \"no colour\" is now the null the property can express, so `IsUnset` becomes `SelectedColor is null`.\n- `TextEditorKeyboard.Cut()` becomes `TextEditorKeyboard.CutAsync()`, returning the task so a caller can see a clipboard failure and sequence work after the write.\n- `TextEditorTyping` and `TextEditorSelectionFlyout` are internal. Both declared only protected overrides, so `editor.GetComponent<T>()` handed back an object with nothing to call.\n- `RichTextEditor.CoerceDocument(FlowDocument value)` becomes `CoerceDocument(FlowDocument? value)`, which is what its own documentation and body already said it was. An existing override keeps compiling.\n- `ITextEditorHost.IsReadOnlyChanged` is now a required interface member. Its default implementation had empty `add`/`remove` accessors, which silently discarded every subscription: on a host that did not implement it, `ActionTool` subscribed for every tool in the toolbar and the whole toolbar stayed permanently stale when read-only was toggled, with no error and no diagnostic. A custom `ITextEditorHost` must declare `public event EventHandler? IsReadOnlyChanged;` and raise it when `IsReadOnly` changes; a host that never toggles read-only can declare it and never raise it.\n- A re-template of the editor (a `ViewMode` switch, or assigning `Template`) now keeps the caret in the active page band or footnote instead of returning it to the body. A document swap still returns to the body.\n\n### Features\n- Ctrl+Enter (Cmd+Enter on macOS) applies an explicit page break at the caret, replacing any selection, in one undo step: at a block boundary it sets `BreakPageBefore` on the following block, and mid-content it splits the paragraph like Enter and flags the remainder. Backspace at a flagged block merges when the neighbour can merge (removing the break with it) and clears the flag when it cannot.\n- `RichTextEditor.ViewMode` switches the editor between `Continuous` (the default column) and `PageLayout` (discrete page sheets, Word's print layout). The switch swaps the hosted view through the `:page-layout` template; the document, caret, selection, and the whole interaction stack carry over, so typing, Ctrl+Enter, and caret navigation work on pages. `PageSize`, `PageMargins`, and `PageGap` configure the sheets (document page setup, then A4/2 cm, as everywhere else).\n- Page bands edit in place in page layout, through the editor's one view: every sheet shows the header and footer it resolves as a `NestedDocumentNode` over the band document, and a click into a band switches the editor's selection to the band's. `ActiveDocument` names the band the caret is in (null in the body), `ActiveDocumentChanged` follows it, and `ActivateDocument(document, position)` enters a band or, with null, returns to the body, as Escape does; a document swap while the caret is in a band leaves the editor on the body, a re-template keeps the caret in the band it was in, and a band removed from the document takes its selection with it. One editor, one caret, one toolbar, one set of overlays and components: while the caret is in a band `Selection` is the band's, the toolbar and formatting actions apply to it, the `:band-editing` pseudo-class is set, a frame in `PageBandFocusBrush` marks the band's placement, and `ToolbarTargetAreas.PageBand` lets a tool target bands alone; undo is one stack for the document and its bands. Page-number fields in a band show the sheet's page number and the page count.\n- Band authoring, as actions and one toolbar flyout. `EditorActions.GoToHeader` and `GoToFooter` enter the band of the caret's page, creating the document's running band when the page shows none (the continuous view switches to page layout first, as Word switches to print layout); `RemoveHeader` and `RemoveFooter` remove the band the caret is in or the page shows; `DifferentFirstPage` and `DifferentOddAndEvenPages` are toggles with derived state that add or remove the document's first-page and even-page bands; `LinkToPrevious` links the caret's top-level section to the running bands or gives it bands of its own, cloned from what its pages showed; `InsertPageNumber` and `InsertPageCount` insert the fields inside a band; `ReturnToBody` is Escape's command form. Every command is one undo unit, band membership included. `PageBandFlyoutTool` in the toolbar's insert group presents them with the band distance (`RichTextEditor.PageBandDistance`, bound into the page layout template), the context menu offers the fields and the way back inside a band, and the footnote action is body-only.\n- `ShowPageBandsInContinuousLayout` (off by default) shows the running header and footer as regions of the continuous view, edited in place like the bands on the sheets; with it on, the band commands stay in the continuous view instead of switching to page layout.\n- Footnotes edit as nested documents, the way page bands do: a click into a note switches the editor's selection to the note's, `ActiveDocument` names the note the caret is in, Escape returns to the body, the `:footnote-editing` pseudo-class is set, the frame in `PageBandFocusBrush` marks the note's container, and `ToolbarTargetAreas.Footnote` lets a tool target notes alone. `EditorActions.InsertFootnote` enters the new note after inserting it; `EditorActions.GoToFootnote` enters the note of the anchor the caret sits on or has just passed, as a double-click on an anchor does, and `GoToFootnoteReference` returns to the body right after the note's anchor. A note is a document of its own, so a character delete never crosses its edge and a body selection never reaches into it; the page-number actions are band-only.\n- Bringing the caret into view no longer depends on the host scroll viewer having a scrollable layout: while it has none (a host not laid out yet, a headless host), the view scrolls itself, so typing at the end of a paragraph that spans pages reaches its page regardless of which job runs first.\n\n### API additions\n- `EditorActionIds` names the `Id` of every built-in action as a `public const string`, so an `EditorActions.GetById` lookup is written against a constant instead of a bare string. The identifiers the `EditorActions` and `IEditorAction` remarks gave as examples were corrected with it: every one of them named something that does not exist.\n- `EditorActions.InsertFootnote` registers the footnote insert action, which `All` and `GetById` did not know about; a menu built from `All` offered the two footnote navigation commands but not the one that creates a note.\n- Every templated toolbar control declares its parts with `[TemplatePart]` and publishes the names as `public const string Part*` members. Re-templating a tool no longer means reading the source, and a typo in a consumer theme is visible instead of producing a control that silently does nothing.\n- `EditorTool.EnsureEditorFocus()` is `protected` instead of internal. Every built-in tool returns focus to the text view before executing an action; without it a consumer-authored tool leaves the caret behind and keyboard input stops reaching the editor.\n\n### Fixes\n- `GoToHeader` and `GoToFooter` from the continuous view now leave the caret in the band. The command switches `ViewMode` and activates the band in one gesture, but the theme re-templates for the new mode at the next measure pass, and that re-template returned the editor to the body: the view changed to page sheets, `ActiveDocument` went back to null and the caret stayed where it was in the body. A re-template over the same document now keeps the active nested document and its pseudo-class.\n- An editor action that fails no longer terminates the host process. Toolbar clicks, menu clicks and keyboard shortcuts arrive on void-returning members that awaited the action's task with no observer, so a faulted task was rethrown on the dispatcher. Two ways in: binding `EditorActions.Margin`, `Padding`, `LineHeight`, `BlockBackground`, `BorderThickness`, `BorderBrush` or `TextAlignment` to a `ButtonTool` or an `EditorMenuItem` and clicking it (a block property action threw `NotSupportedException` from `Execute`), and Ctrl+C / Ctrl+X / Ctrl+V while another process holds the platform clipboard. Every such entry point now awaits in one place that logs the failure and leaves the document unchanged, and invoking a block property action with no value is a no-op, matching the inline property actions.\n- Undo restores the caret into the document the edit was in. Page bands and footnotes share the body's undo stack, so one stack interleaves units from several documents; editing a header, clicking into the body and pressing Ctrl+Z reversed the header edit off-screen and dropped the body caret at a body offset numerically equal to a header offset.\n- A read-only editor no longer traps keyboard focus. The read-only key gate marked every non-navigation, non-command key handled, and Avalonia's keyboard navigation skips handled events, so Tab and Shift+Tab never left the control. It also consumed Space (a viewer's page-down) and Alt-modified keys (access keys elsewhere on the page). Only the keys that would edit are suppressed now.\n- Shift+Enter and Ctrl+Enter over a selection that spans a paragraph boundary now replace the selection the way Enter, typing and paste do: the paragraph mark inside the selection is consumed and the surviving fragments join, instead of leaving two paragraphs with the break inside one of them.\n- Switching `ViewMode` releases the outgoing view's caret. It was left attached to the host, so one orphan accumulated per switch, each running a caret update on every keystroke and every layout pass from outside the visual tree and holding its blink timer.\n- Entering a nested document with a caret position raises `SelectionChanged` once, not twice. Every toolbar tool re-queries `CanExecute` on that event, so `GoToHeader`, `GoToFooter`, the footnote commands and `InsertFootnote` each ran the whole selection pass twice and handed external subscribers two events for one action.\n- `EditorActions.Paste` and `PasteUnformatted` report `CanExecute` as false on a host with no document. The condition was written so that a null document made the whole expression true, which presented an enabled, inert Paste button. `RichTextEditor` never reaches it; the defect was confined to a consumer's own `ITextEditorHost`.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#repository",
+    "commit": "45cdd738130c6816c320ccdb659882e37649c832",
+    "type": "git"
+  },
+  "verbatimVersion": "13.0.0-rc2",
+  "version": "13.0.0-rc2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net10.0/avalonia.controls.documents.serialization.rtf",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents.Serialization.Rtf",
+          "range": "[13.0.0-rc2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net10.0/avalonia.controls.documents",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents",
+          "range": "[13.0.0-rc2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net10.0/avalonia",
+          "@type": "PackageDependency",
+          "id": "Avalonia",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net10.0/avalonia.controls.colorpicker",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.ColorPicker",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net10.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net8.0/avalonia.controls.documents.serialization.rtf",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents.Serialization.Rtf",
+          "range": "[13.0.0-rc2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net8.0/avalonia.controls.documents",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents",
+          "range": "[13.0.0-rc2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net8.0/avalonia",
+          "@type": "PackageDependency",
+          "id": "Avalonia",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net8.0/avalonia.controls.colorpicker",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.ColorPicker",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#dependencygroup/net8.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.2, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#Avalonia.Controls.RichTextEditor.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6627,
+      "fullName": "Avalonia.Controls.RichTextEditor.nuspec",
+      "length": 17947,
+      "name": "Avalonia.Controls.RichTextEditor.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 10123,
+      "fullName": "CHANGELOG.md",
+      "length": 27408,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 444,
+      "fullName": "README.md",
+      "length": 886,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 7718,
+      "fullName": "icon.png",
+      "length": 7934,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#lib/net10.0/Avalonia.Controls.RichTextEditor.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 139288,
+      "fullName": "lib/net10.0/Avalonia.Controls.RichTextEditor.dll",
+      "length": 431104,
+      "name": "Avalonia.Controls.RichTextEditor.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#lib/net10.0/Avalonia.Controls.RichTextEditor.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 23258,
+      "fullName": "lib/net10.0/Avalonia.Controls.RichTextEditor.xml",
+      "length": 199975,
+      "name": "Avalonia.Controls.RichTextEditor.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#lib/net8.0/Avalonia.Controls.RichTextEditor.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 139327,
+      "fullName": "lib/net8.0/Avalonia.Controls.RichTextEditor.dll",
+      "length": 431104,
+      "name": "Avalonia.Controls.RichTextEditor.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#lib/net8.0/Avalonia.Controls.RichTextEditor.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 23258,
+      "fullName": "lib/net8.0/Avalonia.Controls.RichTextEditor.xml",
+      "length": 199975,
+      "name": "Avalonia.Controls.RichTextEditor.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#_manifest/cyclonedx/bom.cdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2327,
+      "fullName": "_manifest/cyclonedx/bom.cdx.json",
+      "length": 12038,
+      "name": "bom.cdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.10.11.00.56/avalonia.controls.richtexteditor.13.0.0-rc2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

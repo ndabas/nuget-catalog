@@ -1,0 +1,177 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Duran Serkan KILIÇ",
+  "catalog:commitId": "5b0ce28d-b5f7-4fcc-b933-3c5180707ebe",
+  "catalog:commitTimeStamp": "2026-09-09T19:50:42.6713416Z",
+  "created": "2026-09-09T19:41:31.04Z",
+  "description": "DRN.Framework.SharedKernel package is an lightweight package that contains common codes suitable for contract and domain layers. It can be referenced by any projects such as other DRN.Framework packages, projects developed with DRN.Framework.  \n  \n## Commit Info  \nAuthor: Duran Serkan KILIÇ  \nDate: 2026-09-09 11:24:34 +0300  \nHash: 042fe6657917c7b6edc21dd2cc7879143639d9ca",
+  "id": "DRN.Framework.SharedKernel",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-09T19:50:09.917Z",
+  "licenseExpression": "GPL-3.0-only",
+  "licenseUrl": "https://licenses.nuget.org/GPL-3.0-only",
+  "listed": true,
+  "packageHash": "jHtwcixE/rqrtRGvZqh3yD0hBi/zeaJYko6hyEe628dSiJGvAY4JkLsoxiTPnf/rdyN99gpX6yxUkzqjtXpMqQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 92463,
+  "published": "2026-09-09T19:41:31.04Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## Version 0.10.0\n\n### Breaking Changes\n\n*   **Derived Entity Attribute Contract**: `DRN0008` rejects unsupported entity attribute constructors. Each derived class must declare one constructor taking one byte or byte-backed enum parameter and forward it unchanged through to `EntityTypeAttribute<TApp>`. Source declarations are validated even before use; compiled references are signature-checked and depend on producer-side forwarding validation. Replace reordered, extra, fixed-value, overloaded, or transformed argument mappings with this pass-through form.\n*   **Compile-Time Roslyn Analyzers**: Added `DRN.Framework.SharedKernel.Analyzers` with error-level diagnostics delivered transitively to all referencing projects and NuGet consumers. Builds will fail if domain entities violate annotation, uniqueness, or inheritance constraints:\n    *   `DRN0001` (*Error*): Enforces that all concrete classes deriving from `SourceKnownEntity` declare `[EntityType<TApp>(byte)]` (where `TApp : IAppId`) or a domain-derived attribute.\n        *   *Migration*: Annotate every concrete `SourceKnownEntity` subclass with `[EntityType<TApp>(value)]` (using an `IAppId` like `DefaultApp`) or a domain-derived attribute (e.g. `[NexusEntityType(value)]`).\n    *   `DRN0002` (*Error*): Enforces unique `EntityType` byte values across all entities within the compilation and referenced assemblies for the same `AppId`. Diamond dependencies are automatically deduplicated.\n        *   *Migration*: Assign distinct `EntityType` byte values per `AppId` across the domain model graph.\n    *   `DRN0003` (*Error*): Prohibits applying `[EntityType]` to abstract classes, private classes, or non-`SourceKnownEntity` types.\n        *   *Migration*: Remove `[EntityType]` attributes from abstract base classes, private classes, and types that do not inherit from `SourceKnownEntity`.\n    *   `DRN0004` (*Warning*): Detects duplicate entity class names within the same `AppId` across local and referenced assemblies to guard against EF Core table mapping and messaging conflicts.\n    *   `DRN0005` (*Error*): Enforces a single `AppId` partition per production application project graph unless `<AllowMultipleAppIds>true</AllowMultipleAppIds>`, `<IsTestProject>true</IsTestProject>`, or `<UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>` is configured.\n        *   *Migration*: Align domain models within a project graph to a single `AppId` partition, or set `<AllowMultipleAppIds>true</AllowMultipleAppIds>` for multi-application aggregator hosts.\n    *   `DRN0006` (*Error*): Enforces that `IAppId` structs declare a constant value (`public const byte Value = ...;` or `public const byte AppId = ...;`) for metadata discovery across assembly boundaries.\n        *   *Migration*: Add a `public const byte Value = <AppId>;` or `public const byte AppId = <AppId>;` constant to custom `IAppId` structs.\n    *   `DRN0007` (*Error*): Enforces that statically resolved `IAppId` values used by `[EntityType]` declarations are within the supported range of 0 through 127.\n        *   *Migration*: Set custom `IAppId` constants to an unused value between `IAppId.DefaultAppId` (0) and `IAppId.MaxAppId` (127).\n*   **Partition-Scoped Entity Type Validation**: Entity type uniqueness is scoped per `(AppId, EntityType)` partition rather than globally (0..255). Concrete `SourceKnownEntity` types require explicit `[EntityType<TApp>]` binding to an `IAppId` partition (e.g. `DefaultApp`, `NexusApp`, `TestApp`, or custom domain `IAppId`). Entities in distinct partitions can reuse the same byte value.\n    *   *Migration*: Annotate entities with `[EntityType<TApp>(byte)]` using their owning domain partition's `IAppId`. For multi-partition aggregator hosts, configure `<AllowMultipleAppIds>true</AllowMultipleAppIds>` in the project file.\n\n### New Features\n\n*   **Application Partitioning (`IAppId`)**: Strongly-typed application partition metadata via `IAppId` (`AppId` 0..127) and `EntityTypeAttribute<TApp>` to namespace entity discrimination values and class names across domain modules.\n    *   Exposes `IAppId.DefaultAppId` (0), `IAppId.NexusAppId` (126), `IAppId.TestAppId` (127), and `IAppId.MaxAppId` (127) partition constants.\n    *   `DefaultApp` (`AppId = 0`, `Value = 0`): Built-in default partition for standalone domains (`[EntityType<DefaultApp>(byte)]`).\n    *   `NexusApp` (`AppId = 126`, `Value = 126`): Built-in Nexus service partition (`[EntityType<NexusApp>(byte)]` or domain-derived `[NexusEntityType(NexusEntityTypes)]`).\n    *   `TestApp` (`AppId = 127`, `Value = 127`): Built-in test application partition isolating test entities from production domain entity types.\n    *   `[TestEntityType(byte)]`: Convenience attribute (`TestEntityTypeAttribute`) binding test entities directly to `TestApp` (`AppId = 127`).\n    *   `EntityTypeId`: Immutable 2-byte composite identifier (`(EntityType, AppId)`) record struct with `IComparable<EntityTypeId>` support for partition-scoped entity type mappings and validation.\n    *   **Entity AppId Metadata Helpers**: Added `SourceKnownEntity.GetAppId<TEntity>()`, `SourceKnownEntity.GetAppId(Type)`, `SourceKnownEntity.GetEntityTypeId<TEntity>()`, `SourceKnownEntity.GetEntityTypeId(Type)`, and `SourceKnownEntity.GetEntityId(long, EntityTypeId)` for cached, allocation-free partition metadata access and partition-validated ID generation.\n    *   **EntityTypeRegistry Primitive**: Introduced `EntityTypeRegistry` providing centralized, immutable `FrozenDictionary`-backed storage for entity type discrimination mappings (`Type <-> EntityTypeId`) with thread-safe dynamic fallback, decoupling registry state from `SourceKnownEntity`.\n\n### Bug Fixes\n\n*   **NuGet Release Notes**: Package metadata includes only the latest version section, excluding historical releases and the documentation footer. Packing rejects missing version sections and release notes over 35,000 characters; the bundled Markdown retains the full history.\n\n*   **Pagination Defaults**: `PaginationRequest.From()` uses the default page size of 10 for initial requests and preserves omitted size, maximum size, and sort direction when size, maximum size, or direction changes reset pagination. Maximum-size-only changes apply the new limit and reset the cursor. Maximum sizes are capped before comparison, so repeating an above-threshold limit preserves navigation.\n*   **Analyzer Identity And Accessibility**: Unsupported derived attribute mappings no longer generate guessed collision identities, and shadowed `AppId` properties cannot override the generic application partition. Public entities nested in private containers now follow the same privacy rules locally and across references. Identity extraction and reference traversal propagate analyzer cancellation to syntax and semantic queries.\n*   **IgnoredLog Null Handling**: `IgnoredLog(this object? obj)` returns `false` when given `null` input instead of throwing a `NullReferenceException`.\n*   **Pagination Jump Direction**: Bounded page jumps preserve the requested direction while remaining limited to ten pages per request, preventing integer underflow in `PaginationRequest.From`.\n\n---\n\nDocumented with the assistance of [DiSC OS](https://github.com/duranserkan/DRN-Project/blob/develop/.agent/rules/DiSCOS.md)\n\n---\n**Semper Progressivus: Always Progressive**",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#repository",
+    "commit": "042fe6657917c7b6edc21dd2cc7879143639d9ca",
+    "type": "git",
+    "url": "https://github.com/duranserkan/DRN-Project"
+  },
+  "verbatimVersion": "0.10.0-preview002",
+  "version": "0.10.0-preview002",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#DRN.Framework.SharedKernel.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3413,
+      "fullName": "DRN.Framework.SharedKernel.nuspec",
+      "length": 8580,
+      "name": "DRN.Framework.SharedKernel.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 10838,
+      "fullName": "README.md",
+      "length": 33816,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#RELEASE-NOTES.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5891,
+      "fullName": "RELEASE-NOTES.md",
+      "length": 15309,
+      "name": "RELEASE-NOTES.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#analyzers/dotnet/cs/DRN.Framework.SharedKernel.Analyzers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19295,
+      "fullName": "analyzers/dotnet/cs/DRN.Framework.SharedKernel.Analyzers.dll",
+      "length": 47616,
+      "name": "DRN.Framework.SharedKernel.Analyzers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#build/DRN.Framework.SharedKernel.props",
+      "@type": "PackageEntry",
+      "compressedLength": 110,
+      "fullName": "build/DRN.Framework.SharedKernel.props",
+      "length": 123,
+      "name": "DRN.Framework.SharedKernel.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#build/DRN.Framework.SharedKernel.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 112,
+      "fullName": "build/DRN.Framework.SharedKernel.targets",
+      "length": 125,
+      "name": "DRN.Framework.SharedKernel.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#buildTransitive/DRN.Framework.SharedKernel.props",
+      "@type": "PackageEntry",
+      "compressedLength": 228,
+      "fullName": "buildTransitive/DRN.Framework.SharedKernel.props",
+      "length": 489,
+      "name": "DRN.Framework.SharedKernel.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#buildTransitive/DRN.Framework.SharedKernel.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 317,
+      "fullName": "buildTransitive/DRN.Framework.SharedKernel.targets",
+      "length": 887,
+      "name": "DRN.Framework.SharedKernel.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#lib/net10.0/DRN.Framework.SharedKernel.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29156,
+      "fullName": "lib/net10.0/DRN.Framework.SharedKernel.dll",
+      "length": 65024,
+      "name": "DRN.Framework.SharedKernel.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#lib/net10.0/DRN.Framework.SharedKernel.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6973,
+      "fullName": "lib/net10.0/DRN.Framework.SharedKernel.xml",
+      "length": 40590,
+      "name": "DRN.Framework.SharedKernel.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.09.19.50.42/drn.framework.sharedkernel.0.10.0-preview002.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

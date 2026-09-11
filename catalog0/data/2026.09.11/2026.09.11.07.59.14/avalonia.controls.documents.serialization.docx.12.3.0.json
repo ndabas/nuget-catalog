@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "AvaloniaUI OÜ",
+  "catalog:commitId": "f812acd5-9687-45bd-8539-9c63c9daa592",
+  "catalog:commitTimeStamp": "2026-09-11T07:59:14.3873285Z",
+  "copyright": "Copyright 2019-2026 © AvaloniaUI OÜ",
+  "created": "2026-09-11T07:53:17.93Z",
+  "description": "DOCX serializer for Avalonia.Controls.Documents based on Open XML",
+  "iconFile": "icon.png",
+  "id": "Avalonia.Controls.Documents.Serialization.Docx",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-11T07:58:37.27Z",
+  "listed": true,
+  "packageHash": "wdpqlBAq8y7zknOmmlXkr+TCZCbBszrUNBrbolaOCLuUyai9sV2Bkntq0nXQmg2rTAjlKFD991jYMrTQI1+6sA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 220465,
+  "projectUrl": "https://avaloniaui.net/",
+  "published": "2026-09-11T07:53:17.93Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## 12.3.0\n\nAdds to 12.2.3 and removes nothing: every type and member a 12.2.3 build could reference is still there with the same signature, checked against the released packages on every build.\n\n### Features\n- Footnote numbering round-trips through the settings: `w:settings/w:footnotePr/w:numFmt` maps to `DocumentFormatting.FootnoteNumberFormat` on read (`chicago` is the symbol sequence) and is written when the document numbers other than decimally. The anchors read from a file render in that format; DOCX never stores the rendered number, and neither does the model.\n- Footnotes round-trip: body `w:footnoteReference` runs (previously ignored, with the footnotes part never opened) become anchors — file ids remap to anchor-order ordinals — and the referenced bodies read into the document's trailing footnote container. Writing produces the footnotes part with Word's stock separator notes, sequential ids, superscript reference runs, and the `w:footnoteRef` lead-in inside each body as chrome the reader drops, so cycles cannot duplicate it. Orphan bodies and bodiless references drop; a dangling anchor writes nothing.\n- Per-section page setup: the page geometry inside a mid-document `w:pPr/w:sectPr` (page size including `w:orient`, margins with header/footer distances and gutter) becomes the ending section's `SectionPageSetup` instead of being discarded, the body `sectPr` feeds the LAST section, and document-level formatting takes page 1's paper (the first section's). Writing mirrors it: boundary paragraphs carry the ending section's own geometry, and the body `sectPr` resolves the last section's per member with document fallback, so an unset member lands on the document's value like the model semantics say. Boundaries that carry no geometry (this serializer's plain grouping sections) keep geometry a document-level concern — structural sections gain no phantom page setups. `w:pgSz w:orient` round-trips as metadata at both levels, and a band nested in a section no longer leaks its text into the body flow on the sectioned write path.\n- Header and footer parts map to page bands one to one. The first section's effective parts become the document's rule bands: the `default` part the running band, the `first` part under `w:titlePg`, the `even` part under `w:evenAndOddHeaders`; a part that repeats the default adds nothing (those pages take the running band anyway), and a switch without a part is Word's blank page, an empty rule band where a running band exists to blank. A later section inherits per slot from the previous one (Word's \"same as previous\") and references only what differs from the document's bands: a different default part as its running band (a blank part as an explicit empty band that breaks the link), under `w:titlePg` its first-page part, inherited or its own, else the blank first page; a later section's own even part is dropped, since even pages are the document's. A part referenced by several sections is one shared band. The writer creates one part per band on first use, references every section's effective bands explicitly the way Word sees them (the first page and the even pages repeat the running part where no band of their own exists, so Word never blanks a page the model fills), uses blank parts where a slot filled before is empty now, writes `w:titlePg` on a section with a first-page reference and on the document's first section when a first-page band exists, and the settings flag when an even band exists. Previously only the default parts of the body section properties were read and written.\n- Fields: `w:fldSimple` and the `w:fldChar` run form both parse now — PAGE and NUMPAGES map to `RichPageNumberField`, dropping the writer's last calculated number because it describes that writer's pagination, and any other instruction keeps its visible result as ordinary runs. Previously `w:fldSimple` was dropped whole, and a complex field lost its instruction while leaking its result runs. The writer emits `w:fldSimple` marked dirty, so Word computes the number when the document is opened.\n- `w:keepNext`, `w:keepLines`, and `w:widowControl` now map into the document model (`BlockFormatting.KeepTogether`/`KeepWithNext`/`WidowControl` and the matching `Block`/`Paragraph` properties) on read and emit from the model on write when the round-trip metadata is silent. The style resolver extracts them too, so style-defined keeps - Word's built-in heading styles carry `w:keepNext` - finally reach the model instead of being dropped, and a direct `w:val=\"false\"` cancels a style-level flag.\n- `w:br w:type=\"page\"` normalizes on read to a paragraph split with `w:pageBreakBefore` on the remainder (the property is the canonical form the writer emits). A trailing break flags the following paragraph directly, and a break-only paragraph is dropped in favor of flagging its successor. The raw-text safety net still writes a stray form feed in run text as a typed break instead of an invalid XML character.\n- `w:pageBreakBefore` now maps into the document model (`BlockFormatting.PageBreakBefore` / `Block.BreakPageBefore`) on read, in addition to the existing DOCX round-trip metadata. The writer emits it from the model formatting when a paragraph carries no DOCX metadata, so page breaks survive cross-format routes and reach paginated export.\n\n### Fixes\n- Cancelling a large export or import takes effect inside a long list or table. Both the writer and the reader polled the token only at the top-level block loop, so a document dominated by one big table ran to completion after the caller had given up. Both poll per list item, table row and cell now.\n- An internal link is written back as `w:anchor`. The writer had one path and always created an external relationship, so a document whose table of contents or cross-references link to bookmarks round-tripped into a package targeting the literal `#_Toc123`: Word stopped navigating and every entry became a dead link. A URI string no relationship can carry now keeps its text instead of failing the whole save with a `SerializationException`.\n- A paragraph counts as empty only when it really holds nothing. The check walked runs and hyperlinks directly and recognised only text, breaks and tabs, so a paragraph whose content sat inside a content control, or whose only content was a picture or a field, was judged empty: its paragraph-mark run properties were lifted onto the paragraph and re-styled the text the control wrapped, and under `Portable` a cover page whose only content was an image, followed by a section break, was dropped with the boundary paragraph.\n- A table style inherits its whole formatting through `w:basedOn`, not only its cell margins. A style created in Word from Table Grid declares just what it changed, so a table using one imported with no outer frame and no gridlines even though Word draws the grid it inherited. The frame, the interior gridlines and the cell inset each inherit independently from the nearest ancestor that declares them, and a derived style's own value still wins.\n- A cell border side set to `w:val=\"nil\"`/`\"none\"` is suppressed whatever `w:sz` rides along, matching the rule the table-level paths already applied, so a cell clearing one side of an otherwise-bordered table no longer draws that side. A suppressed side no longer contributes the border colour either.\n- The flattened style chain carries `w:vertAlign`, `w:pBdr`, `w:shd`, `w:contextualSpacing` and `w:tabs`. Only a run's or paragraph's own properties reached them before, so a character style defining `w:vertAlign` (Word's built-in `FootnoteReference` and `EndnoteReference`, and the way Word marks up a manually numbered reference) imported at full size on the baseline; the rule under a `Heading1` and the shading of a `Quote` style never rendered; and `w:contextualSpacing`, which Word's `ListParagraph` declares once on the style, was dropped from every list paragraph so a DOCX-to-DOCX save opened the list up. The borders, shading and tab stops resolve through the same mapping a paragraph's direct properties use, and a direct `w:vertAlign w:val=\"baseline\"` cancels a style-level superscript.\n- Different first page (`w:titlePg`): the page band now holds what Word shows on page one. With `w:titlePg` set, the `first`-variant header/footer part is read when referenced and no band is created when it is not (a blank first page - the letter-template case), instead of importing the default variant that Word only shows from page two onwards, which put a \"Seite 2\" page-number header at the top of a one-page letter. Without `w:titlePg` the default variant is read as before; even variants are still dropped.\n- Content controls (`w:sdt`) are read: the reader unwraps block, inline, row, and cell controls - nested ones too - and reads what they wrap in place. Word's letter templates keep the sender block, recipient, salutation, and signature in such controls, so documents built from them lost exactly that text (the control itself, its binding, placeholder, and appearance, is template plumbing that normalizes away on import; a control still showing its placeholder text reads that text, as Word displays it).\n- Table borders resolve side by side against the table style: a direct `w:tblBorders` side set to `none`/`nil` now suppresses the style's border on that side (previously an all-`none` table fell back to the style, so a \"no border\" table styled with Table Grid imported with a full grid), while an unspecified side inherits the style. Interior gridlines (`w:insideH`/`w:insideV`) follow the same rule.\n- Theme font references resolve through the theme part: runs, styles, and document defaults naming their face as `w:asciiTheme`/`w:hAnsiTheme` (`minorHAnsi` is Word's default body font, Calibri in the Office theme; `majorHAnsi` the heading font) import the theme's Latin typeface instead of falling back to the host font, which measured differently and re-wrapped narrow table columns. A run naming only `w:hAnsi` now resolves to it as well.\n- Runs inside a `w:hyperlink` are read the same way as runs outside one. The hyperlink path had its own copy of the run handling, which had drifted: it resolved run properties without the theme fonts, so a run naming both a theme reference and an explicit `w:hAnsi` face (`w:asciiTheme=\"majorHAnsi\" w:hAnsi=\"Georgia\"`) imported Georgia inside a link and the theme's Cambria outside it; it dropped `w:tab`, so a tabbed link ran its text together; it dropped `w:drawing`, so a linked picture (Word's clickable logo) vanished entirely, leaving the link empty and therefore dropped as well; it dropped `w:footnoteReference`, so an anchor inside a link took its note body down with it; and it read the hyperlink's children directly, so a content control (`w:sdt`) wrapping a run inside a link lost that run's text. Both paths now resolve through one method, and the `themeFonts` argument is no longer optional so the resolution cannot silently diverge again. A page break stays flattened to a line break inside a link, since a break cannot split the paragraph from inside the link's buffered content.\n- Fields inside a `w:hyperlink` are read as fields. The hyperlink path had no field handling at all, so a PAGE or NUMPAGES field in a link imported the number the previous writer cached as ordinary text - Word writes a footer's \"Page N\" that way whenever the number links to a cross-reference, and the imported page one read \"Page 7\" on every page. A `w:fldSimple` in a link fared worse: it is not a run, so the link dropped it whole, and a link holding nothing else was dropped with it - which is exactly what this serializer writes for a page number inside a link, so its own output did not round-trip. The reader now runs the link's content through the same walk a paragraph's takes, buffering into drafts instead of emitting, so the field state machine, the tab, drawing, footnote and content-control handling all exist in one copy. A recognised instruction still drops the cached result; an unrecognised one still drops the instruction and keeps its visible result. A field that straddles the link boundary (the `w:fldChar` begin on one side of `w:hyperlink`, the end on the other) is not recognised as a field: its instruction is dropped and its result stays as text. A complex field's result is now held as whole elements rather than runs only, so a hyperlink or a `w:fldSimple` standing in the result belongs to that result and a recognised instruction drops it along with the rest, instead of leaking through while the number it stood in for was replaced.\n- Style-defined page breaks (Word's \"page break before\" on a paragraph style, e.g. Heading 1) were dropped entirely: the flattened style-resolution chain never carried the property. It now resolves through the style hierarchy like spacing and indentation, an explicit direct `w:val=\"false\"` cancels a style-level break, and a list paragraph whose only formatting is a page break no longer loses it to the reader's has-formatting gate.\n- Character spacing (`w:spacing` on a run, in twentieths of a point) maps into the document model as `TextElementFormatting.LetterSpacing`. It was read into the DOCX round-trip metadata only, so it survived a DOCX-to-DOCX save and was invisible everywhere else: the editor could not see or edit it, and a route to RTF, HTML or PDF dropped it. It now resolves through the style chain as well, so a character style that defines spacing applies like one defining a font or a colour, with a direct `w:spacing` overriding it. The writer emits the value from the model when a run carries no metadata for it, which is the case for anything authored in the editor or imported from another format; a run read from DOCX still writes back its original twips exactly. Negative (condensed) values are carried through unchanged. The reader's has-formatting gate now covers letter spacing too - it decides whether a run gets a formatting wrapper at all, and omitting the property there would have dropped it for a run whose only formatting is spacing.\n- The underline variant (`w:u w:val`) maps into the document model as `InlineFormatting.UnderlineStyle`. It was read into the DOCX round-trip metadata only, so a dotted, wavy or double underline survived a DOCX-to-DOCX save and nothing else: the editor saw a plain underline and degraded the run to one on the next edit, and a route to RTF, HTML or PDF dropped the variant. All eighteen `ST_Underline` tokens are recognized now; the weight and dash-length variants Word adds on top of the pattern (`dottedHeavy`, `dashLong`, `wavyDouble` and the rest) fold onto the nearest of the model's ten values, and `w:val=\"none\"` reads as the explicit `UnderlineStyle.None` with no underline flag. The variant resolves through the style chain too, so a character style defining a wavy underline applies like one defining a font, with a direct `w:u` overriding it. The writer emits the token from the model when a run carries no metadata for it, which is the case for anything authored in the editor or imported from another format; a run read from DOCX still writes back its original token exactly, heavy variants included - the writer's token table previously covered seven of eighteen values and silently rewrote the rest as `single`. The reader's has-formatting gate and its residual-span test both cover the variant now: the underline wrapper carries the decoration flag but not the line style, so without the residual span every underlined run lost its variant on the way in.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#repository",
+    "commit": "9528ace1652e8523e775020ec050242bb2b6e352",
+    "type": "git"
+  },
+  "verbatimVersion": "12.3.0",
+  "version": "12.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#dependencygroup/net10.0/avalonia.controls.documents",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents",
+          "range": "[12.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#dependencygroup/net10.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#dependencygroup/net10.0/documentformat.openxml",
+          "@type": "PackageDependency",
+          "id": "DocumentFormat.OpenXml",
+          "range": "[3.4.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#dependencygroup/net8.0/avalonia.controls.documents",
+          "@type": "PackageDependency",
+          "id": "Avalonia.Controls.Documents",
+          "range": "[12.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#dependencygroup/net8.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#dependencygroup/net8.0/documentformat.openxml",
+          "@type": "PackageDependency",
+          "id": "DocumentFormat.OpenXml",
+          "range": "[3.4.1, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#Avalonia.Controls.Documents.Serialization.Docx.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6396,
+      "fullName": "Avalonia.Controls.Documents.Serialization.Docx.nuspec",
+      "length": 16947,
+      "name": "Avalonia.Controls.Documents.Serialization.Docx.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 8060,
+      "fullName": "CHANGELOG.md",
+      "length": 21697,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 336,
+      "fullName": "README.md",
+      "length": 674,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 7718,
+      "fullName": "icon.png",
+      "length": 7934,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#lib/net10.0/Avalonia.Controls.Documents.Serialization.Docx.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 87926,
+      "fullName": "lib/net10.0/Avalonia.Controls.Documents.Serialization.Docx.dll",
+      "length": 203264,
+      "name": "Avalonia.Controls.Documents.Serialization.Docx.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#lib/net10.0/Avalonia.Controls.Documents.Serialization.Docx.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1502,
+      "fullName": "lib/net10.0/Avalonia.Controls.Documents.Serialization.Docx.xml",
+      "length": 8653,
+      "name": "Avalonia.Controls.Documents.Serialization.Docx.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#lib/net8.0/Avalonia.Controls.Documents.Serialization.Docx.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 88230,
+      "fullName": "lib/net8.0/Avalonia.Controls.Documents.Serialization.Docx.dll",
+      "length": 203776,
+      "name": "Avalonia.Controls.Documents.Serialization.Docx.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#lib/net8.0/Avalonia.Controls.Documents.Serialization.Docx.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1502,
+      "fullName": "lib/net8.0/Avalonia.Controls.Documents.Serialization.Docx.xml",
+      "length": 8653,
+      "name": "Avalonia.Controls.Documents.Serialization.Docx.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#_manifest/cyclonedx/bom.cdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2953,
+      "fullName": "_manifest/cyclonedx/bom.cdx.json",
+      "length": 15059,
+      "name": "bom.cdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.11.07.59.14/avalonia.controls.documents.serialization.docx.12.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

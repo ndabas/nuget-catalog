@@ -1,0 +1,163 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Antonio Macrì",
+  "catalog:commitId": "01b3e87a-7f30-4137-afb8-49110398dae7",
+  "catalog:commitTimeStamp": "2026-09-13T11:25:34.627912Z",
+  "created": "2026-09-13T11:22:06.57Z",
+  "description": "Define MentorAgent Level-2 specialist agents in YAML instead of C#. Wraps the Agent Framework's declarative agent factory and plugs the resulting agents into MentorAgent's handoff graph, reusing the existing tools with their role checks and human-approval gates intact. Optional — install only if you want file-based agent definitions.",
+  "iconFile": "IconMA.png",
+  "id": "MentorAgent.Declarative",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-13T11:25:14.423Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "htloldHnjvG1wY3NUZdiLlR163CDRk0CotK8Xp3sx5AP04uLT/Ns77iaVVuzNkF1AhT7o3a2T/aFz6jm8R0sYg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 51986,
+  "published": "2026-09-13T11:22:06.57Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.0-rc.5\n\n\t\tLatency, cost per visitor, and the answers themselves. Measured on a live Blazor Server host before and after: time to the first character on the same question fell from 2.6-3.0 s to 1.6-2.0 s, and a shared MCP server now runs one child process for the whole application instead of one per browser circuit.\n\n\t\t=== NEW - options\n\t\t- ClassifierChatClient: the client MentorAgent uses for its own one-word decisions (input safety, hosted-tool scope, post-turn fact extraction). Point it at a small deployment: those calls sit in front of the reply and were measured at 707-2091 ms on gpt-4.1 for two tokens of answer. Defaults to ChatClient, and is metered under its own model id.\n\t\t- AnonymousIdentity (PerSession by default): who a signed-out visitor is, for memory and for the rate-limit counter. Every unauthenticated session used to share the literal key \"anonymous\", so one visitor's facts were recalled for the next and one visitor could spend everybody's allowance. BREAKING for single-user hosts that want the old behaviour: set AnonymousIdentity = Shared (MAUI, desktop, kiosk - it is what makes memory survive a restart).\n\t\t- RefuseOutOfScope (off by default): refuse a message that is not about this application, using the scope verdict the classifier already produces. Free when EnableSafetyCheck is on, because both questions now travel in one call.\n\t\t- WarmUpAtStartup (off by default): build one coordinator when the application starts, so the first visitor does not pay for the catalogue embeddings, the shared MCP sessions and the remote agent cards.\n\t\t- MentorMcpServer.Shared (null by default): one connection per process, or one per session. Unset decides by transport - a server reached over ServerUrl is shared, a server started from Command is not, because a local child process can hold state for the person who started it.\n\t\t- MapMentorAgentMcp / MapMentorAgentA2A take a configure callback, so the host can finally apply RequireAuthorization() to them. Both endpoints discarded their convention builders before this.\n\t\t- IMentorQueryEmbedding: the current message's embedding, computed once per turn. Inject it in your IMentorRagSource instead of embedding the query a second time.\n\n\t\t=== FASTER\n\t\t- One embedding per text instead of one per consumer. Routing, tool filtering and memory relevance were each embedding the same sentence - two to four network round trips per turn - and the tool catalogue plus the routing exemplars were re-embedded once per DI scope, i.e. once per browser circuit.\n\t\t- One classifier call instead of two: the input safety check and the hosted-tool scope check read the same message and now ask both questions in the same call.\n\t\t- The composer is handed back when the answer is complete, not after the post-turn fact extraction (a second model call, 544-767 ms measured).\n\t\t- Shared MCP sessions and a process-wide agent-card cache with a failure backoff. Two browser tabs used to mean eight node processes and 580 MB.\n\n\t\t=== FIXED\n\t\t- BUG-062 (S3): text written before a tool call was glued to the text after it (\"...i dati.Il catalogo\"), and a Markdown table opening the second response stopped being a table.\n\t\t- BUG-063 (S3): in HitlMode.Native a user without the required role was shown the confirmation banner and refused only after approving it. The role gate now runs first, as it always did in Blocking mode.\n\t\t- BUG-064 (S1): two anonymous visitors of the same site shared one memory. Now isolated per session by default, with a warning when a host opts back into the shared bucket and a second session reaches it.\n\t\t- BUG-065 (S4): the RAG \"wrong scale\" warning fired for thresholds on the source's own scale, once per visitor.\n\t\t- BUG-066 (S3): the hosted-tool scope classifier was built on the raw ChatClient, so its billed call appeared in no dashboard.\n\t\t- BUG-067 (S3): the safety classifier was never told what the application is equipped with, and refused three legitimate messages out of forty on a host with an MCP filesystem server and image input. It is now told, and a refused message is logged by fingerprint rather than by its text.\n\n\t\t=== CHANGED\n\t\t- RAG citation chips show the documents the answer actually cited. Documents are numbered in the prompt and the model is asked to cite them; if it cites none, no chips are shown.\n\t\t- MentorshipLevel.Proactive asks for one sentence before acting instead of a plan, and may only offer next steps the application can actually perform.\n\t\t- The A2A agent card publishes the application's ungated actions as skills, its input/output modes and its streaming capability. It carried a name and a description and nothing else.\n\t\t- The coordinator's configuration summary is logged once per process instead of once per session, and one provider failure produces one stack trace instead of one per component that met it.\n\n\t\t1,611 tests green, build 0 warnings / 0 errors.\n\t\t1.0.0-rc.4\n\n\t\tNo change in this package. Version aligned with MentorAgent 1.0.0-rc.4, which fixes one S3 in the provider error classifier - see that package's notes. The five packages ship as a set and are meant to be upgraded together.\n\n\t\t1.0.0-rc.3\n\n\t\tNo changes to this package's own surface: the YAML dialect, the file scanning rules and the tool-resolution guarantees are exactly as in 1.0.0-rc.2.\n\n\t\t=== Why the version moved ==================================================\n\t\t- All five packages ship together and share one version. rc.3 closes six findings in the core, Blazor and Abstractions packages, including two S1s - see those packages' notes.\n\t\t- If you reference Microsoft.Extensions.AI.OpenAI or Microsoft.Agents.AI.Foundry directly, note that the core package now FAILS THE BUILD (error MENTOR001) when OpenAI resolves to 2.11.0 or later, rather than letting the application die at startup.\n\n\t\t=== Unchanged, and worth restating ========================================\n\t\t- A tool named in YAML still resolves to a tool the application already registered, already wrapped in MentorAgent's gate, so RequiredRoles and human approval keep working inside a declarative agent's own function-calling loop.\n\t\t- ConfigurationSection still exposes one named section and nothing else. Null means expose nothing, never expose everything.\n\t\t- A definition file is code. Load it only from deploy-time locations.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#repository",
+    "commit": "3318ebcd01e9ce254be48f896ecd61eddf0c7567",
+    "type": "git"
+  },
+  "title": "MentorAgent.Declarative",
+  "verbatimVersion": "1.0.0-rc.5",
+  "version": "1.0.0-rc.5",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#dependencygroup/net10.0/mentoragent",
+          "@type": "PackageDependency",
+          "id": "MentorAgent",
+          "range": "[1.0.0-rc.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#dependencygroup/net10.0/microsoft.agents.ai.declarative",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Declarative",
+          "range": "[1.18.0-rc1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#MentorAgent.Declarative.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3496,
+      "fullName": "MentorAgent.Declarative.nuspec",
+      "length": 7733,
+      "name": "MentorAgent.Declarative.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "LICENSE",
+      "length": 1092,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6537,
+      "fullName": "README.md",
+      "length": 16625,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#lib/net10.0/MentorAgent.Declarative.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6651,
+      "fullName": "lib/net10.0/MentorAgent.Declarative.dll",
+      "length": 14848,
+      "name": "MentorAgent.Declarative.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.13.11.25.34/mentoragent.declarative.1.0.0-rc.5.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "ai",
+    "agent",
+    "yaml",
+    "declarative",
+    "configuration",
+    "agent-framework",
+    "mentor",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

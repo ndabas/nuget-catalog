@@ -1,0 +1,265 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "ed39756d-c5ca-454f-a08c-c76c14bd2e51",
+  "catalog:commitTimeStamp": "2026-09-14T07:26:35.8125191Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-09-14T07:22:35.787Z",
+  "description": "Observability defaults for the Stratara stack — ConfigureOpenTelemetry (HTTP, EF Core, RabbitMQ, runtime instrumentation; OTLP exporter) and ConfigureSerilog (structured logging, OTLP sink). Reference from every host.",
+  "iconFile": "icon.png",
+  "id": "Stratara.ServiceDefaults",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-14T07:26:11.107Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "4/XVdFQYt4aCW/aQWPpAG7ihKQmRVF4WAIfnC00JTQDb3c+tQ6NY0CMBE32s7dWSZhmWONyGw8w9begS/nOU3w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 85819,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-09-14T07:22:35.787Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Three findings from a proof of concept of an alternative execution model, each fixed on the shipped\npath. A message a handler cannot take is now redelivered a bounded number of times and then\ndead-lettered on both brokers instead of being dropped on one of them; an opt-in closes the window\nin which a committed fact could be lost between the commit and its publication; and a version\ncollision is a concurrency conflict on every supported database provider, not only on PostgreSQL.\nAdditive on every published surface, with one operator step on RabbitMQ: the worker queues change\nname and type, and the old ones are deleted once drained.\n\n### Added\n\n- `Outbox:DurableBundles` (`OutboxOptions.DurableBundles`, default `false`): an event bundle is\n  written to the outbox table in the transaction that commits its events, published after the\n  commit, and removed once the bus has accepted it — so a process that ends between the commit and\n  the publish no longer loses the bundle for every subscription. `IEventBundleOutboxDispatcher`\n  gains `StoresBundlesWithCommit` and `StoreEventBundleAsync`, and `IOutboxRepository` an\n  `AddAsync(Guid id, …)` overload, all default-implemented so a consumer's own implementations keep\n  compiling and keep bus-first. `AddOutboxDispatcher()` now binds the `Outbox` section when the host\n  carries a configuration. Log event `106_108` records a stored copy the bus accepted but the\n  framework could not remove. The default path is unchanged; the specification now names its window.\n\n- `IStoreConflictDetector` in `Stratara.Abstractions.EventSourcing`: recognises a database\n  provider's refusal of a duplicate stream version, so the event source can surface it as a\n  `ConcurrencyException` on that provider. `AddNpgsqlWriteDbContextFactory<T>()` registers the\n  PostgreSQL detector and `AddStrataraTestingEventStore<T>()` the SQLite one; detectors accumulate,\n  so a host on another provider adds its own without displacing the framework's. A host that\n  registers its write context without `AddNpgsqlWriteDbContextFactory<T>()` gets no detector and\n  no longer sees a `ConcurrencyException` on a version collision: it switches to that registration,\n  or registers an `IStoreConflictDetector` of its own that recognises PostgreSQL's SQL state\n  `23505` in the exception chain (the framework's implementations are not public).\n\n- `MessageRetryOptions` (`Stratara.Abstractions.Messaging`, section `MessageRetry`):\n  `MaxDeliveryAttempts` (default 3) and `MaxConflictRequeues` (default 100), bound and validated by\n  `AddMessaging()` and by both `AddAzureServiceBus*` registrations. `MessageRetryPolicy` is the\n  decision both transports apply. Log event `108_110` and counter `messaging.dead_lettered`\n  (tags `messaging.topic`, `messaging.subscription`, `reason`) record every dead-lettering; `108_111`\n  warns when a Service Bus subscription's `MaxDeliveryCount` is below the bounds.\n\n### Changed\n\n- A save now maps and signs its event bundle before the transaction opens, so a save with no\n  session context — or a signer that fails — fails before anything is committed rather than after\n  the commit with the events stranded unpublished.\n- **RabbitMQ worker subscriptions are quorum queues with a dead-letter queue, under a new name.**\n  A message whose handler throws is redelivered up to `MaxDeliveryAttempts` times (a concurrency\n  conflict up to `MaxConflictRequeues` times) and then moved to `<subscription>.dead-letter`; it was\n  rejected and dropped by the broker before (conflicts were requeued without bound). Because a\n  classic queue cannot be redeclared as a quorum queue, the worker queue is now\n  `<subscription>.v2`. **Rollout:** deploy — old and new consumers share the exchange and both\n  receive every message — then delete the old `<subscription>` queue once it is drained, or it fills\n  forever. Needs RabbitMQ 3.8+.\n- **Azure Service Bus applies the same bounds.** A handler failure is abandoned for redelivery until\n  `MaxDeliveryAttempts` and then dead-lettered with reason `failure` (it was dead-lettered on the\n  first failure with the exception type as reason); a conflict is dead-lettered by the framework\n  past `MaxConflictRequeues` with reason `conflict` (it was left to the broker's `MaxDeliveryCount`).\n  Set the subscription's `MaxDeliveryCount` at least one above the larger bound.\n- `AddAzureServiceBus` and `AddAzureServiceBusWithManagedIdentity` also register a\n  `ServiceBusAdministrationClient` (try-add) for the advisory limit check.\n\n### Fixed\n\n- The `MediatorCommandWorker` remark said a failing command was dead-lettered; on RabbitMQ it was\n  dropped. It is now dead-lettered on both brokers, and the remark and the\n  `BusEnvelopeIntegrityMode.Strict` remark say what happens.\n- A duplicate stream version on the SQLite test store (`Stratara.Testing.EntityFrameworkCore`) now\n  surfaces as `ConcurrencyException`, as it does on PostgreSQL, instead of a bare\n  `DbUpdateException`. A test that asserted the old exception type needs the new one.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#repository",
+    "commit": "5fe8df4d1841edacfe29a8299b5ed8b91827c635",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "4.0.4",
+  "version": "4.0.4",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/stratara.shared",
+          "@type": "PackageDependency",
+          "id": "Stratara.Shared",
+          "range": "[4.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/destructurama.attributed",
+          "@type": "PackageDependency",
+          "id": "Destructurama.Attributed",
+          "range": "[5.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/microsoft.extensions.http.resilience",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http.Resilience",
+          "range": "[10.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/microsoft.extensions.servicediscovery",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ServiceDiscovery",
+          "range": "[10.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/opentelemetry.instrumentation.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.EntityFrameworkCore",
+          "range": "[1.18.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/opentelemetry.instrumentation.http",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Http",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/opentelemetry.instrumentation.runtime",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Runtime",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/rabbitmq.client.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client.OpenTelemetry",
+          "range": "[1.0.0-rc.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/serilog.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "Serilog.Extensions.Hosting",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/serilog.formatting.compact",
+          "@type": "PackageDependency",
+          "id": "Serilog.Formatting.Compact",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/serilog.settings.configuration",
+          "@type": "PackageDependency",
+          "id": "Serilog.Settings.Configuration",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/serilog.sinks.async",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Async",
+          "range": "[2.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/serilog.sinks.console",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Console",
+          "range": "[6.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/serilog.sinks.file",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.File",
+          "range": "[7.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#dependencygroup/net10.0/serilog.sinks.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.OpenTelemetry",
+          "range": "[4.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#Stratara.ServiceDefaults.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3106,
+      "fullName": "Stratara.ServiceDefaults.nuspec",
+      "length": 8002,
+      "name": "Stratara.ServiceDefaults.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1692,
+      "fullName": "README.md",
+      "length": 3335,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#lib/net10.0/Stratara.ServiceDefaults.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7027,
+      "fullName": "lib/net10.0/Stratara.ServiceDefaults.dll",
+      "length": 16384,
+      "name": "Stratara.ServiceDefaults.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#lib/net10.0/Stratara.ServiceDefaults.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1627,
+      "fullName": "lib/net10.0/Stratara.ServiceDefaults.xml",
+      "length": 5139,
+      "name": "Stratara.ServiceDefaults.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.07.26.35/stratara.servicedefaults.4.0.4.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "opentelemetry",
+    "otel",
+    "serilog",
+    "observability",
+    "logging",
+    "tracing",
+    "metrics",
+    "hosting",
+    "service-discovery",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Endpoint Systems",
+  "catalog:commitId": "491adfee-9cae-49ef-b56b-85810adebde6",
+  "catalog:commitTimeStamp": "2026-09-14T01:41:04.9388167Z",
+  "copyright": "Copyright © Endpoint Systems 2026. All rights reserved.",
+  "created": "2026-09-14T01:33:53.97Z",
+  "description": "XSLT 4.0 transformation engine for PhoenixmlDb",
+  "iconFile": "icon.png",
+  "id": "PhoenixmlDb.Xslt",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-14T01:40:52.853Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "gFfO+pfHePyBlnrzQxMMPN4bcXbh5mx4THhwU9KXB4F2r/NW7Q234DsU2RCiRJ7O5YDV91WkcYG3d+JpzOlwTA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1976872,
+  "projectUrl": "https://phoenixml.dev/",
+  "published": "2026-09-14T01:33:53.97Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "Minor rather than patch: two behaviour changes, both spec-correct, both able to change what an\nexisting stylesheet does. **Read the first section before upgrading.**\n\nTakes **PhoenixmlDb.XQuery 1.8.0** and PhoenixmlDb.Core 1.7.0.\n\n### Behaviour changes — read this before upgrading\n\n**1. `streamable=\"true\"` and `streamable=\"1\"` are now honoured.**\n\nXSLT 3.0 types `@streamable` as a boolean, but previous releases compared it against the literal\nstring `\"yes\"`. Any other spelling — including `true`, `1`, and `yes` with surrounding whitespace —\nwas silently treated as not streamable, and such stylesheets ran unstreamed.\n\n**If you use one of these spellings, this release changes how your stylesheet executes.** It will\nnow genuinely stream, which is faster and uses less memory, but streaming support has known gaps\nthat unstreamed execution does not: some constructs produce different output rather than raising\nan error. If you see unexpected results after upgrading, setting the mode or source-document to\n`streamable=\"no\"` restores the previous behaviour, and we would like to hear about the case.\n\nOf the nineteen conformance cases this change exposed, **eleven are already fixed in this same\nrelease** — the change and most of its fallout ship together.\n\n**2. Built-in functions now enforce declared argument cardinality** (from PhoenixmlDb.XQuery\n1.8.0). `substring('abc', ())` now raises `XPTY0004` rather than returning `\"\"`. This applies to\nevery built-in; see that package's notes.\n\n### Silent wrong answers — fixed\n\nEach of these produced a well-formed, plausible result with no error.\n\n- **A streaming aggregate answered from nothing.** Under a streamable mode, a `match=\"/\"` template\n  aggregating over the stream computed from no input at all: `count(//PRICE)` gave `0`,\n  `sum(//PRICE)` gave empty, whatever the document held. This is the default CLI path —\n  `--no-stream` gave the same wrong answers.\n- **`xsl:function cache=\"yes\"` returned other calls' results.** The memo key was a string\n  concatenation, so `f((1,2))` and `f((3,4))` shared an entry, as did `f('1')` and `f(1)`. Present\n  in every release since 1.1.0.\n- **Accumulators read a later-declared accumulator one node late.** End-phase rules ran in\n  declaration order, so reading another accumulator's after-value at the same node returned the\n  *previous* node's value. Declaration order decided correctness. Also present since 1.1.0. A\n  two-accumulator cycle now correctly raises `XTDE3400` instead of resolving to stale data.\n- **`xsl:function` declared `as=\"item()*\"` silently lost element nodes.** Writing the type\n  explicitly — the careful habit — selected the broken path; omitting `as` worked.\n- **`xsl:merge` silently merged one of two sources.** A relative `for-each-source` URI resolved\n  against the wrong base, and an unretrievable source was skipped without an error. Now\n  `FODC0002`.\n- **`xsl:text` moved to the end of any untyped variable.**\n- **Streamed shallow-copy produced malformed XML** — siblings nested inside one another, with the\n  outer element left unclosed.\n- **`fn:serialize` emitted `xmlns:p=\"\"`**, so its output did not reparse.\n\n### Added\n\n- **`xsl:mode warning-on-no-match` now warns.** It was parsed, validated, and discarded. The\n  built-in template rule is silent by design, so a node no template matched yields text where\n  markup was expected with no indication — this is the mechanism for catching that.\n\n### Also fixed\n\n- `xsl:merge` key comparison uses the key's collation rather than codepoint order.\n- `xsl:merge` rejects a streamable source that crawls or sorts; duration keys compare by length.\n- A schema importing the XML namespace without a location now loads — previously\n  `xsl:import-schema` failed outright and the stylesheet would not load at all.\n- Abstract component invocation raises `XTDE3052` rather than \"not found\".\n- Numerous error codes corrected: `XTSE3430`, `XTDE3362`, `XTDE3160`, `XTTE3210`, `XTSE3155`,\n  `XTSE3080`, `SESU0013`, `XTSE0010`, `XTSE0730`, `XTDE1162`, `XTSE2210`, `XTDE3510`.\n- Streaming: ancestors are linked on the striding path, `position()` counts per parent, a\n  suppressed subtree no longer closes its ancestor early, and a matched element's children are\n  delivered rather than dropped.\n- CLI: an `xsl:result-document` `href` that is already a URI is written to the right path.\n\n### Conformance\n\n**W3C XSLT 3.0: 10,292/10,630 (96.82%)** — a full-corpus run at the exact commit tagged for this\nrelease, 2026-09-13, against `xslt30-test` @ `fddf1cf` in a Release build.\n\nW3C QT3 **29,534/31,414 (94.02%)**, measured 2026-09-11 against `qt3tests` @ `201a6e4` from the\ncommitted per-set baseline. That figure predates this release's XQuery bump and is a floor.\n\nThe engine pin moved from `PhoenixmlDb.XQuery` 1.7.0 to 1.8.0 in this release, and that bump was\nmeasured as its own change: **full corpus at both commits, no per-set differences.** The\nbuilt-in cardinality change reaches nothing the XSLT corpus exercises.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#repository",
+    "commit": "e2af4b4b3cfda3b88f85e07d71c5f7e2e5e19db0",
+    "type": "git",
+    "url": "https://github.com/phoenixmldb/phoenixmldb-xslt"
+  },
+  "verbatimVersion": "1.8.0",
+  "version": "1.8.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#dependencygroup/net10.0/phoenixmldb.core",
+          "@type": "PackageDependency",
+          "id": "PhoenixmlDb.Core",
+          "range": "[1.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#dependencygroup/net10.0/phoenixmldb.xquery",
+          "@type": "PackageDependency",
+          "id": "PhoenixmlDb.XQuery",
+          "range": "[1.8.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#dependencygroup/net8.0/phoenixmldb.core",
+          "@type": "PackageDependency",
+          "id": "PhoenixmlDb.Core",
+          "range": "[1.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#dependencygroup/net8.0/phoenixmldb.xquery",
+          "@type": "PackageDependency",
+          "id": "PhoenixmlDb.XQuery",
+          "range": "[1.8.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#PhoenixmlDb.Xslt.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3016,
+      "fullName": "PhoenixmlDb.Xslt.nuspec",
+      "length": 6383,
+      "name": "PhoenixmlDb.Xslt.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 817,
+      "fullName": "PACKAGE.md",
+      "length": 1580,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 15291,
+      "fullName": "icon.png",
+      "length": 17725,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#lib/net10.0/PhoenixmlDb.Xslt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 799211,
+      "fullName": "lib/net10.0/PhoenixmlDb.Xslt.dll",
+      "length": 1748480,
+      "name": "PhoenixmlDb.Xslt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#lib/net10.0/PhoenixmlDb.Xslt.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 172058,
+      "fullName": "lib/net10.0/PhoenixmlDb.Xslt.xml",
+      "length": 800928,
+      "name": "PhoenixmlDb.Xslt.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#lib/net8.0/PhoenixmlDb.Xslt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 799136,
+      "fullName": "lib/net8.0/PhoenixmlDb.Xslt.dll",
+      "length": 1748480,
+      "name": "PhoenixmlDb.Xslt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#lib/net8.0/PhoenixmlDb.Xslt.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 172058,
+      "fullName": "lib/net8.0/PhoenixmlDb.Xslt.xml",
+      "length": 800928,
+      "name": "PhoenixmlDb.Xslt.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.01.41.04/phoenixmldb.xslt.1.8.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13000,
+      "fullName": ".signature.p7s",
+      "length": 13000,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "xml",
+    "xslt",
+    "transform",
+    "stylesheet",
+    "xquery"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

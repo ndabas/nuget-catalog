@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kerberos SA",
+  "catalog:commitId": "61cb9216-ec37-4273-91c8-7cf3fca655ba",
+  "catalog:commitTimeStamp": "2026-09-14T14:20:30.118631Z",
+  "copyright": "Kerberos SA © 2025–2026",
+  "created": "2026-09-14T14:17:07.26Z",
+  "description": "Reusable .NET 10 package that wraps ASP.NET Core Identity with cookie and JWT auth, Google OAuth, a pluggable e-mail provider, a multi-tenant model with dynamic RBAC (roles + module permissions), and secure defaults — wired up with a single AddMyIdentity call. JWT and Google OAuth secrets are supplied by the consumer (never shipped in the package).",
+  "id": "MyIdentity",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-14T14:20:25.4Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "5YvbHvSlvVFtzRbyeR4onUbwyzDiUywfCxq/bFW063UhgvoptE48AcjqzRox63pMEPVzMBoslXBxSJT9EjSrDw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 298130,
+  "published": "2026-09-14T14:17:07.26Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v4.3.0: opt-in and additive. Nothing changes for an application that does not call the new executor -- the permission decision point, the revalidator, the current-user accessor, the authentication service, the entity model and the DI wiring all behave exactly as 4.2.0 left them, and the only new registration AddMyIdentity makes is the executor itself. IMyIdentityCapabilityExecutor.RunAsCapabilityAsync(grants, capabilityId, work) opens an ambient scope in which the permission decision point answers from a MyIdentityCapabilityGrantSet you built server-side, instead of from the caller's stored MyIdentityUserRoleAssignment rows. It is the supported answer to \"share one record with a client who has no account and never will\" -- the link you email for a single document. It mints NO principal: no synthetic identity, no claim, no ticket, no cookie, no row, and no new entity. IMyIdentityCurrentUserAccessor is untouched, so inside a capability scope every administrative service in this library still sees whatever the real accessor says -- for a link bearer, anonymous -- and still denies. That is the whole design rather than an implementation detail: caller gates in MyIdentityTenantService and MyIdentityUserService infer tenant membership from \"authenticated plus a tenant claim\" WITHOUT consulting the decision point, so a synthetic principal carrying a tenant claim would have been able to edit its own tenant row and read that tenant's entire user roster. MyIdentityCapabilityIsolationTests pins that a capability never becomes an identity. A capability is BOUNDED BY the grants it carries, and never reaches the role short-circuits. Its branch is the FIRST check in MyIdentityPermissionService's shared short-circuit preamble, above the SystemAdmin and TenantAdmin short-circuits, and it never reads the principal, so it never reaches them and can answer from nothing but the grant set you handed in: a real administrator running inside a capability scope is confined to that set for as long as it is open. Read that as bounded BY the grants rather than as a restriction on the caller -- a capability is an INDEPENDENT authority that replaces the stored-assignment path instead of intersecting with it, so a caller holding no assignments at all gets exactly what the grants say, which is why a null ScopeId grant is tenant-wide for whoever is inside (see limit 3). What it can never do is reach the unrestricted answer a SystemAdmin or TenantAdmin gets, and that is the property separating it from RunAsSystemAsync, which elevates to the service account: a leaked capability scope confines whoever picks it up to those grants, it does not escalate them. The two are mutually exclusive, and both executors refuse the pairing in either order. The grants never reach the client: the grant set is built server-side from a token row you just validated, is copied on construction, and is not readable back out of the scope, so there is nothing to sign and nothing to tamper with. The arithmetic over those grants mirrors the stored path -- the same fixed implications, the same tenant-wide floor over every scope, the same consistency between HasPermissionAsync and GetAccessibleScopeIdsAsync -- with TWO deliberate divergences, both fail-closed. (a) Module codes are compared with StringComparison.Ordinal, NOT under the database collation the stored path compares under, so a grant whose module code differs from the seeded one only in casing silently never matches: every question about that module answers no, with no exception and nothing logged. If a share link denies a bearer you are certain you granted, compare the module code you passed to MyIdentityCapabilityGrant against the seeded MyIdentityModule.Code character for character before looking anywhere else. (b) A required MyIdentityPermission.None is DENIED here, where the stored path answers it as the tautology it is -- the stored path is only reached past an authentication short-circuit and this one has none above it. Outside those two, a capability grant means what the identically shaped stored assignment would have meant. Revocation is per operation: there is no session to revalidate, so validate the token every time you open a scope and a revoked capability stops working on the bearer's next interaction -- stricter than a normal session, which tolerates up to RevalidationIntervalMinutes of staleness. If you replaced IMyIdentityPermissionService with your own, capability scopes do NOTHING: the library registers its own decision point with TryAdd, so yours is the one that stays, and yours cannot read a scope's grants because they are internal to the assembly -- every read inside a scope is still answered from the caller's stored assignments, which for an account-less bearer means denied, with no exception and nothing logged. That is tracked as CAP-3 on the roadmap. Three limits to know before you adopt it. (1) Which gates honour a capability scope follows one rule: a gate that reads the current-user accessor denies a link bearer, and a gate that asks the decision point is answered from the grants. So an ANONYMOUS bearer never satisfies a [MyIdentityRequirePermission] -- the handler refuses an unauthenticated principal before it ever asks -- which is deliberate and keeps the capability path out of the framework's authorization pipeline; but MyIdentityAuthorizeView has no authentication precondition and calls the decision point directly, so inside a scope it renders from the grants, as does the attribute for an authenticated caller who happens to be inside one. Authorize the account-less path by calling IMyIdentityPermissionService from your own facade. (2) In interactive Blazor the scope is opened per HANDLER, not per page, because the ambient marker does not survive across renders: route the capability path through a single facade, and know that forgetting to open the scope makes the call run anonymous, which denies. (3) A capability grant only contains anything if your domain compares the grant's ScopeId against the scope of the row, and only when you evaluate it against the STRONG question (HasPermissionAsync with a concrete scope id); in a domain with no scope axis a (Module, Read, 123) grant satisfies the weak question (HasPermissionInAnyContextAsync) without bounding any row, and fails the strong question asked with a null scope, because a bounded grant never satisfies a tenant-wide request. Prefer a concrete ScopeId: null means tenant-wide, which is the opposite of what a share-one-record link wants. Read UPGRADE.md section 38. Consumer action: none, unless you want the feature -- dotnet add package MyIdentity picks 4.3.0 up with no code change. Everything else is as 4.2.0 left it: dependencies are unchanged at 10.0.11 (Microsoft.AspNetCore.Authentication.Google, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.AspNetCore.Identity.EntityFrameworkCore, Microsoft.EntityFrameworkCore.SqlServer); the ASP.NET Core shared framework is consumed through a frameworkReference, so Identity core, Blazor Components(.Authorization), Data Protection and the configuration binders are not package dependencies. Consumers coming from 3.x: the v3.x -> v4.0 migration is UNCHANGED and still lives in UPGRADE.md sections 1-4 (breaking-change overview, EF Core schema migration, the per-tenant role model, and the code changes to make), with sections 5-6 as the pre-production checklist. Sections 7-38 are the per-release changelog and are historical: you do not walk them one by one, you migrate from 3.x to this release once. The scope limits are unchanged and are the same ones TECHNICAL_OVERVIEW.md section 11 states: two-factor authentication is not shipped (the login status carries a forward-compatible RequiresTwoFactor signal, but there is no enrollment or verification surface); tenant isolation is enforced by the SERVICE LAYER and not by a global query filter, so ad-hoc queries you write outside the services are yours to scope; SaveRolePermissionsAsync and UpsertRolePermissionAsync are last-writer-wins on the same cell, with no typed conflict detection; and security events go to ILogger only, with no persistence seam for non-repudiation. Each of those is a deliberate boundary, documented where it bites, not an omission discovered late.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#repository",
+    "commit": "e011b1fe95bf939a98cf791a38885d6293d1b49c",
+    "type": "git"
+  },
+  "title": "Kerberos.MyIdentity",
+  "verbatimVersion": "4.3.0",
+  "version": "4.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.google",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.Google",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#dependencygroup/net10.0/microsoft.aspnetcore.identity.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#dependencygroup/net10.0/microsoft.entityframeworkcore.sqlserver",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.SqlServer",
+          "range": "[10.0.11, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#MyIdentity.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4223,
+      "fullName": "MyIdentity.nuspec",
+      "length": 10133,
+      "name": "MyIdentity.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 13155,
+      "fullName": "README.md",
+      "length": 35051,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#lib/net10.0/MyIdentity.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 168546,
+      "fullName": "lib/net10.0/MyIdentity.dll",
+      "length": 474624,
+      "name": "MyIdentity.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#lib/net10.0/MyIdentity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 97120,
+      "fullName": "lib/net10.0/MyIdentity.xml",
+      "length": 485403,
+      "name": "MyIdentity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.14.14.20.30/myidentity.4.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "identity",
+    "authentication",
+    "authorization",
+    "blazor",
+    "aspnetcore",
+    "jwt",
+    "google-oauth",
+    "multitenant",
+    "rbac",
+    "saas"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

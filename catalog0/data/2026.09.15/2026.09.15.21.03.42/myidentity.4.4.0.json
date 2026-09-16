@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kerberos SA",
+  "catalog:commitId": "6129c390-14d6-4e75-a5a7-07b11e484b28",
+  "catalog:commitTimeStamp": "2026-09-15T21:03:42.0871914Z",
+  "copyright": "Kerberos SA © 2025–2026",
+  "created": "2026-09-15T20:58:12.25Z",
+  "description": "Reusable .NET 10 package that wraps ASP.NET Core Identity with cookie and JWT auth, Google OAuth, a pluggable e-mail provider, a multi-tenant model with dynamic RBAC (roles + module permissions), and secure defaults — wired up with a single AddMyIdentity call. JWT and Google OAuth secrets are supplied by the consumer (never shipped in the package).",
+  "id": "MyIdentity",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-15T21:03:10Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "kZAeOj5Fg05s6Y6jRtVDXGicNnRK4hV3nsxCLu+aHaSCkRntKYq1GqmAE+nUjH5DD/hZ+J6QPPT/gnSOP3XUiA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 310832,
+  "published": "2026-09-15T20:58:12.25Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v4.4.0: additive, and there is nothing you have to do to adopt it. No recompile, no data migration, and no change to how you declare modules -- dotnet add package MyIdentity picks 4.4.0 up and every grant you have stored, every policy string already compiled into your assemblies and every module declaration keeps meaning exactly what it meant under 4.3.0. MyIdentityPermission gains three flags: Create = 8, Edit = 16, Delete = 32. MyIdentityPermission.Modify KEEPS ITS VALUE OF 2 and becomes the GROUP of those three rather than a fourth independent operation, and that single fact is what makes this release non-breaking: the authorization policy string carries the NUMBER (MyIdentityPermission:module:int, composed by MyIdentityRequirePermissionAttribute and re-parsed by its policy provider), and a consuming assembly bakes that number into its IL at compile time -- so an application still emitting :2 still means Modify, and still resolves and authorizes exactly as before. The relationship between the group and its members is an implication, and it runs BOTH ways: granting Modify grants all three, granting all three grants Modify, and revoking any ONE of them revokes Modify, so an endpoint requiring Modify stops admitting a role whose delete was taken away. That reverse direction is the point of the split -- a role that may create a record no longer has to be able to delete it. Any write or execute flag also implies Read; that is the library's existing fixed rule widened to cover the new flags, not a new rule. All of it is defined in exactly ONE place, and that place is now public: MyIdentityPermissionExtensions.WithImplications() (namespace MyIdentity.Models). Every internal consumer routes through it, so the answer a consumer paints on a screen cannot drift from the answer the decision point gives. MyIdentityPermissionExtensions.GrantableFlagNames is public for the same reason: it is a comma-separated list, as a string, of the single-bit flag names derived FROM the enum, so a message of yours that tells someone which flags exist cannot go stale the next time the enum grows -- which is exactly what happened to every message inside this library that had typed the list out by hand, all of them fixed here and all of them now derived rather than typed. Stored data is untouched. The implication is applied at EVALUATION time, never at write time, so no row of MyIdentityRolePermission is rewritten, at startup or ever: a row storing 2 still stores 2, and it satisfies a Delete check because 2 resolves to Read, Modify, Create, Edit, Delete. There is no migration to run and no startup masking to fear -- every declared set WIDENS under the new rule, so the seed's narrowing path (the one that masks grants, warns, or aborts under OnPermissionNarrowing = Throw) is not reached by this upgrade at all. TWO READS DO RETURN MORE FLAGS THAN THEY USED TO, and this is the one visible change to plan for. The module catalog persists the EFFECTIVE declared set, so a module declared Read,Modify is stored with five flags; and GetPermissionsAsync / MyIdentityCapabilityGrantSet.GetPermissions return five flags for a row that stores Modify, where they returned Read|Modify before. Neither is new in kind -- both already returned the effective set rather than the raw one, which is where that Read always came from -- and every added flag is TRUE: the role really could already create, edit and delete. But a screen painted from either read shows three more ticked checkboxes on roles that existed before you upgraded. Nothing was granted that was not granted already; what changed is that the read now says so. MyIdentityPermission.All moves from 7 to 63, and it is the only public value whose number moves. The move is safe with nothing to recompile, and the reason is the implication rule itself: it only ever ADDS bits, the decision point requires every bit you asked for ((combined and required) == required), and the REQUIRED value does not move for an application that has not recompiled -- so the left-hand side of that comparison only grew, and everything that authorized under 4.3.0 still authorizes. For an application that does recompile and starts requiring 63: a row that stored the old All stored a 7, which carries Execute, so it resolves to all six bits and satisfies it. Do NOT read that as \"any write grant now satisfies the old 7\": WithImplications never adds Execute, so Create|Edit|Delete resolves to 59 and 59 and 7 is 3, which does not satisfy a required 7, and bare Modify resolves to 59 and does not satisfy a required 63. Both fail closed, but replacing Modify with its three members on an endpoint that requires All is a DENIAL, not a no-op -- require the finer flag, not the combination. The one real caveat is a 7 you persisted YOURSELF outside MyIdentityRolePermission -- your own column, a configuration file -- which still reads back as Read|Modify|Execute, exactly what you stored, but is no longer \"everything\". One design consequence to know when you narrow a module: a module declared with only two of the three members, say Read,Create,Edit, can never satisfy an endpoint that requires Modify, because the group is only implied when all three are present. That is correct -- the module does not support the whole operation -- but it is silent, since the library does not know which endpoints exist and cannot diagnose it at startup. Declare all three, or require the specific flag rather than the group. THREE NEW READS ride in the same release, all additive, none of them on a path the library itself calls, and each one replacing a loop a consumer had already written and measured. IMyIdentityPermissionService.GetScopesWithAnyPermissionAsync answers \"which sub-scopes does this caller hold anything in at all?\" -- the batch form of HasAnyPermissionInScopeAsync, one query instead of one per scope. It returns MyIdentityScopeAccess, so a caller not bounded by scope comes back Unrestricted rather than as an enumeration this library cannot produce, since it does not know your scope universe and deliberately does not model it: intersect that answer with your own list of scopes. It also ships with a DEFAULT BODY that throws NotSupportedException -- the only member of any interface here that has one -- so that adding it in a MINOR release does not break an application that registered its own IMyIdentityPermissionService; the library never calls it, so a decision point that does not implement it keeps working, and calling it on such an implementation throws a message naming what to implement instead of silently answering \"denied\". IMyIdentityRoleService.CreateTenantRoleAsync(tenantId, displayName) creates a tenant role and RETURNS it, Id already assigned, removing the lookup that used to follow CreateAsync to recover the row just written. CreateAsync is NOT deprecated, keeps working and now delegates to it, so the guards live in one place -- but if you OVERRIDE CreateAsync on a subclass, override CreateTenantRoleAsync too: they are separate entry points. IMyIdentityPermissionAdminService.GetTenantRoleConfigurationAsync(tenantId) returns every role a tenant OWNS together with its permission matrix in ONE read -- global roles (TenantId == null) are excluded, matching the tenant-role read, and because the per-role matrix read refuses a global role to every caller who is not a SystemAdmin -- through the same gate as GetRolePermissionsAsync -- the same helper, not a second one written for it, so the delegated-read option governs the two identically -- and confined to the tenant you ask for, so it opens nothing new -- a caller who may not read a role's matrix one at a time may not read it in bulk either. A role with no matrix rows comes back with an empty dictionary rather than being skipped. Its values are the STORED flags, with the implications NOT applied, exactly as GetRolePermissionsAsync has always returned them: call WithImplications() for what a row effectively grants. The stored value is the recoverable one -- the effective set follows from it, and nothing recovers the stored set from the effective one. ONE PROPERTY OF THE MODEL IS WORTH KNOWING BEFORE IT SURPRISES YOU: the implication does NOT distribute over OR. The decision point resolves each stored row through the rule and combines the results afterwards, across every assignment of that user's that reaches the scope being asked about -- so across all the roles they hold there. A user granted Create|Edit on a module through one role (24, resolving to 25) and Delete on the same module through another (32, resolving to 33) ends up with 25|33 = 57 = Read|Create|Edit|Delete, WITHOUT Modify, so an endpoint requiring Modify denies them even though each of the three specific endpoints admits them; combining the raw values first would have given 24|32 = 56, which resolves to 59, WITH Modify. The older rule never had this shape: it adds ONE bit as a consequence of ANY of several, so it survives being applied per row. The group rule requires all THREE at once, and that cannot be decided on a row carrying only part of it. It fails CLOSED, and it is documented rather than changed -- moving where the rule is applied would edit the decision point's hot path in the very release that introduces the rule. If you split the three flags across roles, require the specific flag on the endpoint, which is what the split is for, or grant Modify on the role meant to carry the whole operation. Read UPGRADE.md section 39. Everything else is as 4.3.0 left it: dependencies are unchanged at 10.0.11 (Microsoft.AspNetCore.Authentication.Google, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.AspNetCore.Identity.EntityFrameworkCore, Microsoft.EntityFrameworkCore.SqlServer); the ASP.NET Core shared framework is consumed through a frameworkReference, so Identity core, Blazor Components(.Authorization), Data Protection and the configuration binders are not package dependencies. Consumers coming from 3.x: the v3.x to v4.0 migration is UNCHANGED and still lives in UPGRADE.md sections 1-4, with sections 5-6 as the pre-production checklist. Sections 7-39 are the per-release changelog and are historical: you do not walk them one by one, you migrate from 3.x to this release once. The scope limits are unchanged and are the same ones TECHNICAL_OVERVIEW.md section 11 states: two-factor authentication is not shipped; tenant isolation is enforced by the SERVICE LAYER and not by a global query filter, so ad-hoc queries you write outside the services are yours to scope; SaveRolePermissionsAsync and UpsertRolePermissionAsync are last-writer-wins on the same cell, with no typed conflict detection; and security events go to ILogger only, with no persistence seam for non-repudiation. Each of those is a deliberate boundary, documented where it bites, not an omission discovered late.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#repository",
+    "commit": "6d808a6e8ab703c3b0b6f360d98112a285405f11",
+    "type": "git"
+  },
+  "title": "Kerberos.MyIdentity",
+  "verbatimVersion": "4.4.0",
+  "version": "4.4.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.google",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.Google",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#dependencygroup/net10.0/microsoft.aspnetcore.identity.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#dependencygroup/net10.0/microsoft.entityframeworkcore.sqlserver",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.SqlServer",
+          "range": "[10.0.11, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#MyIdentity.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5295,
+      "fullName": "MyIdentity.nuspec",
+      "length": 12689,
+      "name": "MyIdentity.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 13438,
+      "fullName": "README.md",
+      "length": 35716,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#lib/net10.0/MyIdentity.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 174390,
+      "fullName": "lib/net10.0/MyIdentity.dll",
+      "length": 493056,
+      "name": "MyIdentity.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#lib/net10.0/MyIdentity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 102623,
+      "fullName": "lib/net10.0/MyIdentity.xml",
+      "length": 515394,
+      "name": "MyIdentity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.21.03.42/myidentity.4.4.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "identity",
+    "authentication",
+    "authorization",
+    "blazor",
+    "aspnetcore",
+    "jwt",
+    "google-oauth",
+    "multitenant",
+    "rbac",
+    "saas"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

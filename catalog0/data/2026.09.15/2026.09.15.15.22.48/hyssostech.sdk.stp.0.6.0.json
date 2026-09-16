@@ -1,0 +1,933 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Hyssos Tech",
+  "catalog:commitId": "f30e4dd2-fb2b-45dc-93e4-d34b082c1327",
+  "catalog:commitTimeStamp": "2026-09-15T15:22:48.8178846Z",
+  "copyright": "Copyright (c) Hyssos Tech 2026",
+  "created": "2026-09-15T15:18:59.06Z",
+  "description": "Hyssos Sketch-Thru-Plan .NET SDK - JSON-RPC client for the STP natural-language map planning engine.",
+  "iconFile": "STPIcon.png",
+  "id": "HyssosTech.Sdk.STP",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-15T15:22:19.547Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "WSnY60oeuJb9mCOwsu7z038QUJSNKfs8dRBGFqYC4RY3tOKLAnoI9MssEl7eKO5y2ehTA6VnyDxVC3Xoa7Gx0A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 996133,
+  "projectUrl": "https://github.com/hyssostech/sketch-thru-plan-sdk-net",
+  "published": "2026-09-15T15:18:59.06Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Sketch-Thru-Plan .NET SDK Release Notes\n\nThe Sketch-Thru-Plan (STP) .NET SDK is published to NuGet as\n`HyssosTech.Sdk.STP`. This document is the unified release notes and changelog\nfor the SDK; notable changes to the accompanying samples, quickstart, and\nplugins are folded in under the relevant versions.\n\n## Version 0.6.0\n\n### Summary\n\n**Moves the modern target framework to `net10.0` and fixes two defects that made\nevents disappear without a trace.** Published first as `0.6.0-rc.1` so the\nrelease path could be exercised without burning the stable version number; NuGet\ntreats the two as distinct versions, so the candidate does not consume `0.6.0`.\n\n- **BREAKING (platform):** `net8.0` -> `net10.0`. `netstandard2.0` is untouched.\n- Unknown enum values from a newer engine dropped the entire event instead of\n  degrading.\n- `ConnectAsync` honoured neither its cancellation token nor its retry bound.\n- Handlers that discard a malformed engine message now report it.\n- New: `StpSymbol.CompositeSvg(width, height)`, layer composition without an\n  imaging library.\n\n### Notes\n\n**The framework move.** .NET 8 reaches end of support on 2026-11-10, so the\nmodern leg moves to `net10.0`. `netstandard2.0` is deliberately retained and is\nthe reason a .NET Framework consumer is unaffected - the `DotNetFrameworkSample`\nin this repository exists to keep that leg honest and now builds in CI, with an\nassertion that it really consumed the netstandard2.0 assembly rather than\nsilently resolving the modern one. A consumer still on .NET 8 does not break: it\nresolves the netstandard2.0 asset instead of the `net8.0` one.\n\n**Why events vanished on an unknown enum value.** The engine serialises enums\nwith `.ToString()`, so an engine newer than this SDK sends member names these\nenums do not contain. `NullSafeStringEnumConverter` exists precisely so that\ndegrades gracefully - and it returned `null`, including for **non-nullable**\nproperties such as `StpTask.What`. Newtonsoft.Json 13.0.3 tolerated the null and\nleft the property at its default. 13.0.4 rejects it: the containing object fails\nto deserialise, and because `HandleTaskAdded` returns early on an empty\nalternates list, the entire event was dropped in silence. The converter now\nreturns a value the target type can hold - the enum's default for a non-nullable\nproperty, `null` only where `Nullable<TEnum>` makes null legal. That is what\n13.0.3 effectively produced, so behaviour is unchanged: the full suite passes\nunder both 13.0.3 and 13.0.4 with the fix in place.\n\n**Why a connect to an unreachable engine never returned.** `ConnectAsync`\naccepted a `CancellationToken` and a `secondsToRetry` and honoured neither. It\ncreated a linked token source, called `CancelAfter` on it, disposed it, and\nnever passed it to anything - both branches of the `if` were the same statement.\nWith `IsReconnectionEnabled` set, `Start()` retries indefinitely, so the caller\nblocked forever with no error and no diagnostic; measured before the fix, a\n30-second token was still blocked when the process was killed at 240 seconds.\nBoth paths are now bounded, including the token-only path that never was. On\ncancellation the client is stopped first, mirroring `Disconnect()`, so a\ntimed-out connect does not leave a reconnect loop running behind it.\n\n**Discarded messages are now observable.** 35 dispatch handlers, 22 of which\nreturn early when a payload is not what they expect, and not one of them said\nso. An exception inside a handler at least reaches `OnStpMessage(Error)`; a drop\nreached nothing. Each site now reports which field was missing, at **Warning**\nlevel rather than Error - version skew between an engine and an SDK is an\nexpected condition in a distributed deployment, and reporting it as an error\nwould get the channel ignored:\n\n    TaskAdded: discarded an engine message - alternates was missing or empty.\n    SymbolModified: discarded an engine message - poid was missing or symbol was missing.\n\nNo behaviour changed; every guard still returns exactly as before.\n\n**`CompositeSvg`.** Symbol rendering here is layer compositing, not drawing:\n`Symbol.Bitmap()` stacks a frame, an entity icon, modifiers, echelon, status and\nHQ/TF marks onto one surface. Stacking SVG onto SVG is pure XML, so the\noperation that pins this SDK to Windows needs `System.Drawing` only for the\nfinal rasterisation. `StpSymbol.CompositeSvg(width, height)` emits one SVG\ndocument from the same ordered layer list `Bitmap()` walks. `Bitmap()` is\nuntouched and still ships.\n\nVerified against the real graphic set (4554 graphics) at 32/64/128/256/512px:\n400 real symbols at every size gave 2000/2000 identical under svg-net and\n2000/2000 under Skia; across every graphic individually, 22730 of 22770\ncomparisons were identical, the remaining 40 differing by 96 pixels in total\nwith a maximum alpha delta of 17. That residual is sub-pixel antialiasing on\nhairline strokes: it is characterised, not root-caused, and two hypotheses for\nit - decimal precision and an extra viewBox matrix - were tested and falsified.\n\n**Dependencies.** `System.Drawing.Common` was a floating `5.*` range, which\nresolves differently over time with no commit and no review. Every dependency is\nnow pinned exactly, centrally, in `Directory.Packages.props`. Several majors\nadvanced in the process, and these flow to consumers transitively:\n\n| package | 0.5.0 | 0.6.0 |\n| --- | --- | --- |\n| `Websocket.Client` | 4.7.0 | 5.5.0 |\n| `DynamicData` | 8.4.1 | 9.4.33 |\n| `Newtonsoft.Json` | 13.0.3 | 13.0.4 |\n| `System.Drawing.Common` | `5.*` | 10.0.12 |\n| `Microsoft.Extensions.Logging` | 7.0.0 | 10.0.12 |\n| `System.Threading.Tasks.Dataflow` | 6.0.0 | 10.0.12 |\n| `System.Resources.Extensions` | 6.0.0 | 10.0.12 |\n| `Svg` | 3.4.7 | 3.4.8 |\n\n### Also in this release\n\n- Samples: the plugin path was spelled `Plugins/Mapping` in 9 sample projects\n  while the tracked path is `plugins/Mapping`. Both CI legs that matter run on\n  Linux, where that does not resolve - the samples could not build there at all.\n- Samples: 23 `CancellationTokenSource` instances were created and never\n  disposed.\n- Samples, quickstart and plugins joined `StpSDK.sln`, putting 64 first-party\n  files in front of the build and the static analyser for the first time.\n- Release engineering. Coverage is now actually collected - the collector had\n  been referenced for a long time but never invoked, so every run resolved it\n  and measured nothing. Every GitHub Action is SHA-pinned and a check enforces\n  the convention rather than trusting it. The NuGet audit gate is proven able to\n  fail on four distinct inputs, so a green restore is evidence rather than\n  assumption. The publish path no longer holds a credential and runs third-party\n  install code in the same job. Sonar suppressions must carry a justification\n  and a review date, so none can outlive its argument. An SBOM is produced and\n  scanned, and the release manifest is tested - it is the central integrity\n  control and previously had no tests of its own. Before anything reaches\n  nuget.org the tag, the version being packed and the registry itself are all\n  checked to agree.\n- The published API documentation had been empty since the framework move:\n  `docs/docfx.json` still pinned `net8.0`, a target that no longer existed, so\n  docfx resolved no package assets and emitted no API pages. Reproduced with the\n  same docfx the workflow installs - `net8.0` gave 21 errors and 0 generated\n  files, `net10.0` gives 0 errors and 138. A CI check now asserts the TFM docfx\n  pins is one the SDK actually targets, because `docs.yml` only runs on `main`\n  and a pull request could not have caught it.\n\n**`LatLon` equality, stated deliberately.** `LatLon.Equals` compares `Lat` and\n`Lon` exactly, and that is a decision rather than an oversight. An epsilon\ncomparison inside `Equals` breaks two invariants the runtime depends on: it is\nnot transitive, and it cannot agree with `GetHashCode`, which derives from the\nexact bits. Under a tolerant `Equals`, every `HashSet<LatLon>`,\n`Dictionary<LatLon,_>`, `Distinct()` and `GroupBy()` silently disagrees with\n`Equals`, because those consult the hash first and never compare the pair at\nall. A caller who needs \"close enough\" should compare with a tolerance suited to\ntheir own use; the SDK cannot choose that number for them.\n\n## Version 0.5.0\n\n### Summary\n\n**First stable version of `HyssosTech.Sdk.STP` in the JSON-RPC lineage** - the\n`-preview` suffix is dropped. Published first as `0.5.0-rc.1` so the release\npath could be exercised without burning the stable version number; NuGet treats\nthe two as distinct versions, so the candidate does not consume `0.5.0`.\nCollects five merged fixes, none of which had ever been published: three of them\nmade calls fail or events vanish with no error.\n\n- Three `ObjectSet` getters always threw; they now accept what the engine sends.\n- `OnSpeechParsed` never fired, because the SDK read the wrong wire field.\n- Refusals arrived as exceptions with an EMPTY message.\n- `ConfirmTask`, `SendSimulatedSpeechRecognition` and `ConvertC2SIMContentAsync`\n  close the dispatched wire-surface gap with the JS SDK.\n- **BREAKING (behavior):** `SendSimulatedSpeechRecognition` now sends the\n  engine's own method instead of a client-side stand-in.\n\n### Notes\n\n**Why three getters always threw.** `GetScenarioObjectSetContentAsync`,\n`GetTaskOrgObjectSetAsync` and `GetCoaObjectSetAsync` deserialised an\n`ObjectSet`, but the engine answers with a bare array of objects, not\n`{\"objects\":[...]}`. The unit-test oracle had encoded the wrong shape, so the\nsuite stayed green while every live call failed. Both shapes are now accepted.\n\n**Why speech events vanished.** `HandleSpeechParsed` read a `parsedAlternates`\nfield. The bridge sends `SendEvent(\"SpeechParsed\", new { alternates = ... })`,\nso the field never matched and `OnSpeechParsed` never fired for anyone.\n\n**Why refusals looked empty.** STP answers a method it cannot dispatch with\n`success:false` and a null result. That arrives as a `JToken` of type Null, not\na C# null, so the `?? \"Request failed\"` fallback never fired and `ToString()`\nreturned the empty string. Every refusal surfaced as an `StpException` with no\nmessage, which is how a family of undispatched methods stayed invisible.\n\n**The simulated-speech change.** `SendSimulatedSpeechRecognition(string,\nDateTime?)` previously called this SDK's `ConvertToTranscription` - which,\ndespite the name, passes text through verbatim - and sent the result as a single\n`SendSpeechRecognition` item. Typed input therefore reached STP unconverted\nwhile the JS SDK got the phonetic form: `\"A 3 1\"` stayed `\"A 3 1\"` instead of\nbecoming `\"alpha three one\"`. It now sends the engine's dedicated\n`SendSimulatedSpeechRecognition` method, which does the conversion server-side.\n`ConvertToTranscription` remains public but is no longer used by any path here.\n\n**Deprecation.** `SwitchTaskConfirmationAsync` is marked `[Obsolete]`: its wire\nmethod has no case arm in the engine's dispatcher on any release line and\nsilently does nothing. Use `ConfirmTask`.\n\n### Also in this release\n\n- Samples and plugins build in Release again; the StpSDK reference had been left\n  in a Debug-only `ItemGroup`, so no sample project could be packed or shipped.\n\n## Version 0.4.2-preview\n\n### Summary\n\n**Fixes silent data loss.** Symbology values the engine sends were being\ndiscarded by this SDK without any error, because its enum member names had\ndrifted from the engine's. Anyone on 0.4.1-preview or earlier is affected.\n\n- **BREAKING (source):** several enum members are renamed to match the wire.\n- Six enums realigned with the engine; one previously missing member added.\n\n### Notes\n\n**Why values were disappearing**\n\nThe engine serialises symbology enums with `.ToString()`, so the C# member NAME\nis the wire contract. The engine renamed members on 2026-07-30/31 to match its\nauthored symbol tables; this SDK did not follow. Because\n`StpSymbol.Affiliation` and friends use `NullSafeStringEnumConverter`, whose\n`ReadJson` is `try { ... } catch { return null; }`, an unrecognised name was\nswallowed and became `null` - no exception, no log entry. Affected symbols\nsimply arrived with no affiliation, echelon or modifier.\n\n**What changed**\n\n| enum | was | now |\n|---|---|---|\n| `Affiliation` | `assumedfriend`, `suspected` | `assumed_friend`, `suspect` |\n| `Echelon` | `armygroup` | `army_group` |\n| `Modifier` | `dummy`, `dummy_hq`, `dummy_task_force`, `dummytask_force_hq` | `feint_dummy`, `feint_dummy_hq`, `feint_dummy_task_force`, `feint_dummy_task_force_hq` |\n| `Modifier` | - | `installation` added (was missing entirely) |\n\nA sweep of all 16 symbology enums against the engine found three more that had\ndrifted the same way:\n\n| enum | members | added |\n|---|---|---|\n| `TaskWhat` | 79 -> 90 | `CANALIZE`, `CONTAIN`, `CONTROL`, `COUNTERRECONNAISSANCE`, `DEMONSTRATING`, `DISENGAGE`, `EXFILTRATE`, `INTERDICT`, `ISOLATE`, `REDUCE`, `SUPPRESS` |\n| `Branch` | 11 -> 15 | `non_military_sea`, `non_submarine_subsurface`, `sof_naval`, `sof_support` |\n| `CodingScheme` | 9 -> 10 | `mapping` |\n\n`TaskWhat` is the most consequential: a task carrying any of those eleven types\narrived with no task type at all.\n\n**Upgrading**\n\nIf you reference the old member names you will get compile errors - rename them\nas per the table. The exercise and simulation variants\n(`exerciseassumedfriend`, `exercisesuspected`, ...) are deliberately UNCHANGED;\nthe engine kept the old spellings for those.\n\n**Verification**\n\nRegression tests pin every renamed member's wire spelling in both directions,\nand a live test against a running engine sends no affiliation at all and lets\nthe engine derive it - so the value asserted is the engine's own spelling\nrather than an echo. 342 unit tests and 8 live tests pass.\n\n### Also in this release\n\n- Docs workflow no longer triggers on tags; the `github-pages` environment only\n  permits deployments from the `main` branch, so tag runs could never deploy.\n- README corrections: the package targets .NET 8 and .NET Standard 2.0 (it said\n  .NET 6), and an upgrade note explains that `0.3.x` was the OAA SDK while\n  `0.4.x` is this JSON-RPC client.\n\n## Version 0.4.1-preview\n\n### Summary\n\nThis build supports:\n\n- **Connection fix**: corrected machine-id and session handling in the connector - two regressions from the OAA-to-JSON-RPC port that broke registration.\n\n### Notes\n\n**Machine id computed correctly**\n\nThe connector derived the machine id from the *first* network adapter's MAC, but that\nadapter is frequently a loopback/virtual one with no MAC - yielding an empty id and an\nempty session, so registration failed. It now computes a stable machine id the same way\nthe STP engine does (`Auth.GetMachineID`: the highest non-empty NIC MAC, formatted\n`XX-XX-...`, with a host-name fallback), so .NET clients on the same host - OAA or\nJSON-RPC - share the default per-machine session. (A browser can't read a MAC, so the\nJS SDK uses a random id; .NET can and does compute a real one.)\n\n**STP-assigned session is authoritative**\n\nRegistration previously discarded the session id returned by STP and returned its own\nlocal value. It now returns the session id from the Register response (STP may\nassign/normalize a default), matching the JS SDK. Pass an explicit `sessionId` to\n`ConnectAndRegisterAsync` to join a specific session.\n\n### Changelog\n\n+ Fixes\n\t- Connector: compute a stable machine id like the engine (highest non-empty NIC MAC; host-name fallback) instead of the first adapter's MAC - fixes empty-session registration failures\n\t- Connector: use the STP-assigned session id from the Register response (it was being discarded)\n+ Improvements\n\t- Added live parity smoke tests (structured SIDC, JMSML rendering, add/update/delete lifecycle) exercised against a running engine\n\n## Version 0.4.0-preview\n\n### Summary\n\nThis build supports:\n\n- **JSON-RPC transport**: the SDK now communicates with the STP engine over a\n  WebSocket JSON-RPC interface, replacing the legacy OAA / Prolog agent protocol\n- **New home**: the SDK source now lives in, and is published from, the public\n  `sketch-thru-plan-sdk-net` repository as the canonical `HyssosTech.Sdk.STP`\n  package\n- **Drop-in for existing consumers**: the public namespace and assembly remain\n  `StpSDK`; the temporary `StpSDK.JsonRpc` identity used while the JSON-RPC SDK\n  matured alongside the OAA SDK has been removed\n- **Vendored JMSML**: the Joint Military Symbology Library is vendored in-repo\n  with full Apache-2.0 attribution\n- **Symbol rendering**: `StpSymbol.Bitmap()` is wired to JMSML\n\n### Notes\n\n**JSON-RPC transport**\n\nThe connection to STP is now a WebSocket JSON-RPC channel\n(`StpJsonRpcConnector`, default `ws://localhost:9599`) instead of the native\nOAA/Prolog agent socket. The SDK no longer depends on the Prolog\nfeature-structure or OAA communication libraries; symbol data is exchanged as\nplain JSON. The public `StpRecognizer` surface - connection, the symbol / task /\ntask-org / COA / speech / sketch events, commands, and metadata - is preserved.\n\n**Drop-in for existing consumers**\n\nThe package id (`HyssosTech.Sdk.STP`), the assembly (`StpSDK.dll`), and the root\nnamespace (`StpSDK`) are unchanged, so applications that referenced the package\nand used `using StpSDK;` compile without source changes. During development the\nJSON-RPC SDK temporarily used the `StpSDK.JsonRpc` namespace so it could coexist\nwith the OAA SDK in the internal repository; that suffix has now been removed.\n\n**Vendored JMSML**\n\nThe Joint Military Symbology Library (derived from Esri's open-source\n`joint-military-symbology-xml`, Copyright 2014-2015 Esri, Apache License 2.0) is\nvendored under `third-party/JMSML/`, with the upstream license and a NOTICE\ndocumenting the STP modifications. Runtime symbol data (`JMS/jmsmlSTP.config`\nand the `JMS/Instance` symbol set) ships inside the package.\n\n**Symbol rendering**\n\n`StpSymbol.Bitmap(width, height)` now resolves the symbol's SIDC through JMSML\nand renders SVG-based 2525 symbology. Set `StpRecognizer.JMSSVGPath` to the SVG\ngraphic set before rendering. Rendering uses `System.Drawing` and is effectively\nWindows-only; on other platforms (or when the SVG set is unavailable) `Bitmap`\nreturns `null` and hosts fall back to a default rendering.\n\n### Changelog\n\n+ Improvements\n\t- JSON-RPC over WebSocket transport (`StpJsonRpcConnector`); OAA/Prolog connector retired\n\t- SDK source relocated into the public `sketch-thru-plan-sdk-net` repository and published from there\n\t- Namespace and assembly normalized back to `StpSDK`; existing `HyssosTech.Sdk.STP` consumers need no source changes\n\t- JMSML vendored under `third-party/JMSML` (Esri, Apache-2.0) with `LICENSE` and `NOTICE`\n\t- Symbol rendering wired: `StpSymbol.Bitmap` resolves the SIDC via JMSML and renders SVG symbology\n\t- Samples, quickstart, and plugins now reference the in-repo SDK project directly (no cross-repo paths or stale package references)\n\t- Full sample set carried over and aligned with the JavaScript SDK: Editing, Tasking, Scenario, Reactive, Speech, Roles, Session, TaskOrg, C2SIM, and a .NET Framework compatibility sample, plus the SimpleMap and Azure Speech plugins\n\t- API documentation builds with DocFX from the new repository and publishes to GitHub Pages\n+ Fixes\n\t- Reduced JMSML conversion-status log noise: only fatal unresolved fields (status bits 0-11) are reported, suppressing benign \"Not Found\" diagnostics for entity sub-types and modifiers\n\n## Version 0.3.9-preview\n\n### Summary\n\nThis build supports:\n\n- Expanded activity-signatures task table with doctrinal descriptions and new tasks\n\n### Changelog\n\n+ Improvements\n\t- AS_Table_compact: added a Description column (FM 3-90 doctrinal text) and 8 new tasks (SuppressEnemy, SuppressEnemyOnObjective, AttackByFireToSuppress, AttackInZoneToIsolate, ContainEnemy, AttackByFireToContain, CanalizeEnemy, InterdictEnemy)\n\t- StpTaskFactory: added a Description property to ASCompactTaskDefinition, populated from the table\n+ Fixes\n\t- Stripped an orphan \"1\" suffix from ConductAMovingFlankScreen, ConductAMovingFlankScreenToSecure, and UnmannedAerialSystemIsrOrderableActivity entries\n\n## Version 0.3.8-preview\n\n### Summary\n\nThis build supports:\n\n- COA lifecycle API, richer symbol designation properties, and safer enum deserialization\n\n### Changelog\n\n+ Improvements\n\t- StpSymbol: added `SymbolDesignation`, `Abbr`, and `ShortForm` properties\n\t- Added `UnitDesignationGenerator` for doctrinal short-form designations\n\t- COA: lifecycle events and command API\n\t- MilTypes: `NullSafeStringEnumConverter` for safer JSON deserialization of enums\n\t- nuget.config: forward-slash paths for cross-platform (Linux/macOS) restore\n+ Fixes\n\t- StpOaaConnector: removed an erroneous `auth:` prefix on new_scenario messages (the single parameter is a full Auth feature structure)\n\n## Version 0.3.4\n\n### Changelog\n\n+ Improvements\n\t- Added `ExternalId` to StpSymbol to retain 3rd-party system ids through import/export\n\t- Added a TaskFactory constructor that takes the root path of the task metadata tables\n+ Fixes\n\t- Fixed delivery of MOOTW symbol update notifications\n\n## Version 0.3.3\n\n### Changelog\n\n+ Improvements\n\t- Added `battery` and `troop` as `company` echelon alternative names\n\t- Added task description as a task creation parameter\n\t- Now building .NET 6, .NET 8, and .NET Standard 2.0\n+ Fixes\n\t- Unwrapped nullables to recover the underlying type during deserialization\n\t- Fixed delivery of MOOTW symbol update notifications\n\n## Version 0.3.2\n\n### Changelog\n\n+ Improvements\n\t- Expanded SIDC parsing for additional coding schemes\n\t- Extended the API to operate on STP object sets directly, not just serialized versions\n\t- Added tests\n\n## Version 0.3.1\n\n### Changelog\n\n+ Improvements\n\t- Enhanced SIDC parsing with initial 2525D handling\n\t- Task factory class driven by the STP recognizer's metadata\n\t- Task creation validation\n\n## Version 0.3.0\n\n### Summary\n\nThis build supports:\n\n- Extensive updates to align with STP v5.9: sessions, scenario synchronization, TO/ORBAT, role switching, and C2SIM\n\n### Changelog\n\n+ Improvements\n\t- Ability to connect to a Session\n\t- Scenario synchronization - reconciles application content with a Session context\n\t- TO/ORBAT import / export / selection API; TO Service fixes; `SpeechPhrases` TO-unit property\n\t- Tasks: ability to toggle task confirmation and to enable/disable Auto Tasking\n\t- Role switching API\n\t- C2SIM: configuration of parameters (server endpoints, generation options), API to generate Orders and Initialization and to retrieve Initialization from a server, additional symbol properties (DIS code, federate, resource), and a rules-of-engagement task property\n\n## Version 0.2.6\n\n### Changelog\n\n+ Improvements\n\t- Added support for connections over WebSockets\n\t- Added a standalone app sample that embeds a cloud speech transcription service\n\t- Cleaned up speech-related interfaces\n\t- Reactive Extensions (Rx) sample documentation\n\n## Version 0.2.5\n\n### Changelog\n\n+ Improvements\n\t- Removed the hard NLog dependency from the JMSML library (updated the open-source code to use ILogger instead)\n\t- Added Reactive Extensions (Rx) capabilities (preview)\n\n## Version 0.2.4\n\n### Changelog\n\n+ Improvements\n\t- Improvements to globalization\n\n## Version 0.2.3\n\n### Changelog\n\n+ Improvements\n\t- Added higher-level scenario management methods\n\t- Improved long-duration operation handling\n\n## Version 0.2.2\n\n### Changelog\n\n+ Fixes\n\t- Fixed assemblies that were packed incorrectly in the previous version\n\n## Version 0.2.1\n\n### Changelog\n\n+ Improvements\n\t- Exposed additional audio and sketch events for finer-grained user feedback\n\t- Renamed some methods and changed parameter types for consistency and clarity\n\t- Added JMSML SVG artifacts to support simple symbol rendering\n\n## Version 0.2.0\n\n### Changelog\n\n+ Improvements\n\t- Added Task Org / ORBAT handling\n\t- Improved documentation, fixed XML doc tags\n+ Fixes\n\t- Fixed occasional failure to detect a failed connection (STP not running)\n\n## Version 0.1.1\n\n### Changelog\n\n+ Fixes\n\t- Fixed documentation links\n\n## Version 0.1.0\n\n### Summary\n\n- Initial public release",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#repository",
+    "commit": "e14fbc8ec6119a1171f38dbedf0bcf18d9f1642b",
+    "type": "git",
+    "url": "https://github.com/hyssostech/sketch-thru-plan-sdk-net"
+  },
+  "verbatimVersion": "0.6.0",
+  "version": "0.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/net10.0/dynamicdata",
+          "@type": "PackageDependency",
+          "id": "DynamicData",
+          "range": "[9.4.33, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/net10.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/net10.0/svg",
+          "@type": "PackageDependency",
+          "id": "Svg",
+          "range": "[3.4.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/net10.0/system.drawing.common",
+          "@type": "PackageDependency",
+          "id": "System.Drawing.Common",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/net10.0/system.resources.extensions",
+          "@type": "PackageDependency",
+          "id": "System.Resources.Extensions",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/net10.0/websocket.client",
+          "@type": "PackageDependency",
+          "id": "Websocket.Client",
+          "range": "[5.5.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0/dynamicdata",
+          "@type": "PackageDependency",
+          "id": "DynamicData",
+          "range": "[9.4.33, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0/svg",
+          "@type": "PackageDependency",
+          "id": "Svg",
+          "range": "[3.4.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0/system.drawing.common",
+          "@type": "PackageDependency",
+          "id": "System.Drawing.Common",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0/system.resources.extensions",
+          "@type": "PackageDependency",
+          "id": "System.Resources.Extensions",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0/system.threading.tasks.dataflow",
+          "@type": "PackageDependency",
+          "id": "System.Threading.Tasks.Dataflow",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#dependencygroup/.netstandard2.0/websocket.client",
+          "@type": "PackageDependency",
+          "id": "Websocket.Client",
+          "range": "[5.5.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#HyssosTech.Sdk.STP.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 10913,
+      "fullName": "HyssosTech.Sdk.STP.nuspec",
+      "length": 32465,
+      "name": "HyssosTech.Sdk.STP.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1546,
+      "fullName": "README.md",
+      "length": 3058,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#STPIcon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 2521,
+      "fullName": "STPIcon.png",
+      "length": 2595,
+      "name": "STPIcon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Activity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8655,
+      "fullName": "content/JMS/Instance/Activity.xml",
+      "length": 91611,
+      "name": "Activity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Air.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5018,
+      "fullName": "content/JMS/Instance/Air.xml",
+      "length": 52043,
+      "name": "Air.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Air_Missile.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1535,
+      "fullName": "content/JMS/Instance/Air_Missile.xml",
+      "length": 11611,
+      "name": "Air_Missile.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Atmospheric.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9130,
+      "fullName": "content/JMS/Instance/Atmospheric.xml",
+      "length": 122182,
+      "name": "Atmospheric.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Base.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25555,
+      "fullName": "content/JMS/Instance/Base.xml",
+      "length": 351593,
+      "name": "Base.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Control_Measure.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25775,
+      "fullName": "content/JMS/Instance/Control_Measure.xml",
+      "length": 312332,
+      "name": "Control_Measure.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Cyberspace.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1678,
+      "fullName": "content/JMS/Instance/Cyberspace.xml",
+      "length": 11660,
+      "name": "Cyberspace.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Internal.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 323,
+      "fullName": "content/JMS/Instance/Internal.xml",
+      "length": 699,
+      "name": "Internal.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Land_Civilian.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2034,
+      "fullName": "content/JMS/Instance/Land_Civilian.xml",
+      "length": 15868,
+      "name": "Land_Civilian.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Land_Equipment.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10147,
+      "fullName": "content/JMS/Instance/Land_Equipment.xml",
+      "length": 120970,
+      "name": "Land_Equipment.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Land_Installation.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8539,
+      "fullName": "content/JMS/Instance/Land_Installation.xml",
+      "length": 93525,
+      "name": "Land_Installation.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Land_Unit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 22637,
+      "fullName": "content/JMS/Instance/Land_Unit.xml",
+      "length": 244819,
+      "name": "Land_Unit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Meteorological_Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 405,
+      "fullName": "content/JMS/Instance/Meteorological_Space.xml",
+      "length": 796,
+      "name": "Meteorological_Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Mine_Warfare.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3210,
+      "fullName": "content/JMS/Instance/Mine_Warfare.xml",
+      "length": 36141,
+      "name": "Mine_Warfare.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Oceanographic.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9899,
+      "fullName": "content/JMS/Instance/Oceanographic.xml",
+      "length": 134879,
+      "name": "Oceanographic.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/SIGINT_Air.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3242,
+      "fullName": "content/JMS/Instance/SIGINT_Air.xml",
+      "length": 28700,
+      "name": "SIGINT_Air.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/SIGINT_Land.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3434,
+      "fullName": "content/JMS/Instance/SIGINT_Land.xml",
+      "length": 30999,
+      "name": "SIGINT_Land.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/SIGINT_Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2117,
+      "fullName": "content/JMS/Instance/SIGINT_Space.xml",
+      "length": 15961,
+      "name": "SIGINT_Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/SIGINT_Subsurface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2384,
+      "fullName": "content/JMS/Instance/SIGINT_Subsurface.xml",
+      "length": 18907,
+      "name": "SIGINT_Subsurface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/SIGINT_Surface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3220,
+      "fullName": "content/JMS/Instance/SIGINT_Surface.xml",
+      "length": 29184,
+      "name": "SIGINT_Surface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Sea_Subsurface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3549,
+      "fullName": "content/JMS/Instance/Sea_Subsurface.xml",
+      "length": 31800,
+      "name": "Sea_Subsurface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Sea_Surface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6112,
+      "fullName": "content/JMS/Instance/Sea_Surface.xml",
+      "length": 60664,
+      "name": "Sea_Surface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1849,
+      "fullName": "content/JMS/Instance/Space.xml",
+      "length": 15326,
+      "name": "Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Space_Missile.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 921,
+      "fullName": "content/JMS/Instance/Space_Missile.xml",
+      "length": 5286,
+      "name": "Space_Missile.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/Instance/Unknown.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 368,
+      "fullName": "content/JMS/Instance/Unknown.xml",
+      "length": 784,
+      "name": "Unknown.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#content/JMS/jmsmlSTP.config",
+      "@type": "PackageEntry",
+      "compressedLength": 9272,
+      "fullName": "content/JMS/jmsmlSTP.config",
+      "length": 76416,
+      "name": "jmsmlSTP.config"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Activity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8655,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Activity.xml",
+      "length": 91611,
+      "name": "Activity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Air.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5018,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Air.xml",
+      "length": 52043,
+      "name": "Air.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Air_Missile.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1535,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Air_Missile.xml",
+      "length": 11611,
+      "name": "Air_Missile.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Atmospheric.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9130,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Atmospheric.xml",
+      "length": 122182,
+      "name": "Atmospheric.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Base.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25555,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Base.xml",
+      "length": 351593,
+      "name": "Base.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Control_Measure.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25775,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Control_Measure.xml",
+      "length": 312332,
+      "name": "Control_Measure.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Cyberspace.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1678,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Cyberspace.xml",
+      "length": 11660,
+      "name": "Cyberspace.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Internal.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 323,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Internal.xml",
+      "length": 699,
+      "name": "Internal.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Land_Civilian.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2034,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Land_Civilian.xml",
+      "length": 15868,
+      "name": "Land_Civilian.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Land_Equipment.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10147,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Land_Equipment.xml",
+      "length": 120970,
+      "name": "Land_Equipment.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Land_Installation.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8539,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Land_Installation.xml",
+      "length": 93525,
+      "name": "Land_Installation.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Land_Unit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 22637,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Land_Unit.xml",
+      "length": 244819,
+      "name": "Land_Unit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Meteorological_Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 405,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Meteorological_Space.xml",
+      "length": 796,
+      "name": "Meteorological_Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Mine_Warfare.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3210,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Mine_Warfare.xml",
+      "length": 36141,
+      "name": "Mine_Warfare.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Oceanographic.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9899,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Oceanographic.xml",
+      "length": 134879,
+      "name": "Oceanographic.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/SIGINT_Air.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3242,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/SIGINT_Air.xml",
+      "length": 28700,
+      "name": "SIGINT_Air.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/SIGINT_Land.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3434,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/SIGINT_Land.xml",
+      "length": 30999,
+      "name": "SIGINT_Land.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/SIGINT_Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2117,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/SIGINT_Space.xml",
+      "length": 15961,
+      "name": "SIGINT_Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/SIGINT_Subsurface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2384,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/SIGINT_Subsurface.xml",
+      "length": 18907,
+      "name": "SIGINT_Subsurface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/SIGINT_Surface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3220,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/SIGINT_Surface.xml",
+      "length": 29184,
+      "name": "SIGINT_Surface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Sea_Subsurface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3549,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Sea_Subsurface.xml",
+      "length": 31800,
+      "name": "Sea_Subsurface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Sea_Surface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6112,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Sea_Surface.xml",
+      "length": 60664,
+      "name": "Sea_Surface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1849,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Space.xml",
+      "length": 15326,
+      "name": "Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Space_Missile.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 921,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Space_Missile.xml",
+      "length": 5286,
+      "name": "Space_Missile.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/Instance/Unknown.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 368,
+      "fullName": "contentFiles/any/net10.0/JMS/Instance/Unknown.xml",
+      "length": 784,
+      "name": "Unknown.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/net10.0/JMS/jmsmlSTP.config",
+      "@type": "PackageEntry",
+      "compressedLength": 9272,
+      "fullName": "contentFiles/any/net10.0/JMS/jmsmlSTP.config",
+      "length": 76416,
+      "name": "jmsmlSTP.config"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Activity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8655,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Activity.xml",
+      "length": 91611,
+      "name": "Activity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Air.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5018,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Air.xml",
+      "length": 52043,
+      "name": "Air.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Air_Missile.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1535,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Air_Missile.xml",
+      "length": 11611,
+      "name": "Air_Missile.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Atmospheric.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9130,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Atmospheric.xml",
+      "length": 122182,
+      "name": "Atmospheric.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Base.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25555,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Base.xml",
+      "length": 351593,
+      "name": "Base.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Control_Measure.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25775,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Control_Measure.xml",
+      "length": 312332,
+      "name": "Control_Measure.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Cyberspace.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1678,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Cyberspace.xml",
+      "length": 11660,
+      "name": "Cyberspace.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Internal.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 323,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Internal.xml",
+      "length": 699,
+      "name": "Internal.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Land_Civilian.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2034,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Land_Civilian.xml",
+      "length": 15868,
+      "name": "Land_Civilian.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Land_Equipment.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10147,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Land_Equipment.xml",
+      "length": 120970,
+      "name": "Land_Equipment.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Land_Installation.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8539,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Land_Installation.xml",
+      "length": 93525,
+      "name": "Land_Installation.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Land_Unit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 22637,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Land_Unit.xml",
+      "length": 244819,
+      "name": "Land_Unit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Meteorological_Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 405,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Meteorological_Space.xml",
+      "length": 796,
+      "name": "Meteorological_Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Mine_Warfare.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3210,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Mine_Warfare.xml",
+      "length": 36141,
+      "name": "Mine_Warfare.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Oceanographic.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9899,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Oceanographic.xml",
+      "length": 134879,
+      "name": "Oceanographic.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Air.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3242,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Air.xml",
+      "length": 28700,
+      "name": "SIGINT_Air.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Land.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3434,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Land.xml",
+      "length": 30999,
+      "name": "SIGINT_Land.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2117,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Space.xml",
+      "length": 15961,
+      "name": "SIGINT_Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Subsurface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2384,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Subsurface.xml",
+      "length": 18907,
+      "name": "SIGINT_Subsurface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Surface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3220,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/SIGINT_Surface.xml",
+      "length": 29184,
+      "name": "SIGINT_Surface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Sea_Subsurface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3549,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Sea_Subsurface.xml",
+      "length": 31800,
+      "name": "Sea_Subsurface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Sea_Surface.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6112,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Sea_Surface.xml",
+      "length": 60664,
+      "name": "Sea_Surface.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Space.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1849,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Space.xml",
+      "length": 15326,
+      "name": "Space.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Space_Missile.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 921,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Space_Missile.xml",
+      "length": 5286,
+      "name": "Space_Missile.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/Instance/Unknown.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 368,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/Instance/Unknown.xml",
+      "length": 784,
+      "name": "Unknown.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#contentFiles/any/netstandard2.0/JMS/jmsmlSTP.config",
+      "@type": "PackageEntry",
+      "compressedLength": 9272,
+      "fullName": "contentFiles/any/netstandard2.0/JMS/jmsmlSTP.config",
+      "length": 76416,
+      "name": "jmsmlSTP.config"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/net10.0/JMSML.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 66758,
+      "fullName": "lib/net10.0/JMSML.dll",
+      "length": 169984,
+      "name": "JMSML.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/net10.0/JMSML.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 39427,
+      "fullName": "lib/net10.0/JMSML.pdb",
+      "length": 86300,
+      "name": "JMSML.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/net10.0/StpSDK.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 84571,
+      "fullName": "lib/net10.0/StpSDK.dll",
+      "length": 221184,
+      "name": "StpSDK.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/net10.0/StpSDK.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 24621,
+      "fullName": "lib/net10.0/StpSDK.pdb",
+      "length": 55628,
+      "name": "StpSDK.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/net10.0/StpSDK.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5885,
+      "fullName": "lib/net10.0/StpSDK.xml",
+      "length": 20065,
+      "name": "StpSDK.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/netstandard2.0/JMSML.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 66521,
+      "fullName": "lib/netstandard2.0/JMSML.dll",
+      "length": 169984,
+      "name": "JMSML.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/netstandard2.0/JMSML.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 37516,
+      "fullName": "lib/netstandard2.0/JMSML.pdb",
+      "length": 83684,
+      "name": "JMSML.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/netstandard2.0/StpSDK.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 84429,
+      "fullName": "lib/netstandard2.0/StpSDK.dll",
+      "length": 220672,
+      "name": "StpSDK.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/netstandard2.0/StpSDK.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 22817,
+      "fullName": "lib/netstandard2.0/StpSDK.pdb",
+      "length": 53124,
+      "name": "StpSDK.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#lib/netstandard2.0/StpSDK.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5885,
+      "fullName": "lib/netstandard2.0/StpSDK.xml",
+      "length": 20065,
+      "name": "StpSDK.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.15.15.22.48/hyssostech.sdk.stp.0.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Military",
+    "Planning",
+    "Wargaming",
+    "Rehearsal"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

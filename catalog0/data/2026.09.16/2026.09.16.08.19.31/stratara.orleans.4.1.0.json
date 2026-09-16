@@ -1,0 +1,211 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "3d503eb5-2d70-4086-8789-e733e43da4c0",
+  "catalog:commitTimeStamp": "2026-09-16T08:19:31.2398328Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-09-16T08:09:51.033Z",
+  "description": "The Orleans execution model for the Stratara event-sourced stack — one activation per aggregate across the cluster, commands recorded before the call returns and resumed after a crash, projections and sagas that read the store in commit order from a checkpoint, singleton work, owner-checked durable timers and heavy work bounded across the cluster.",
+  "iconFile": "icon.png",
+  "id": "Stratara.Orleans",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-16T08:18:56.167Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "LPu4LmT24lZfnVeook/vh4Z/bhB4j3Bc4eaaSlh2irT+L7x11U5GmgsZZoE+oFlA/X5cJIAPsL37LgzPh95P1A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 193575,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-09-16T08:09:51.033Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "The Orleans execution model ships as two new packages, `Stratara.Orleans` and\n`Stratara.Orleans.EntityFrameworkCore`: one writer per aggregate across a cluster, accepted commands that\nsurvive a crash, and projections and sagas that never miss a committed fact. Every host on the Entity\nFramework store generates one migration when it upgrades, whether or not it adopts the execution model.\nTelemetry type tags now carry the simple type name on every instrument, so a dashboard that filters the\nprojection, saga or conflict series on the qualified name needs its filter updated. Eight fixes land on\nthe retry, conflict, redaction and encryption work of 4.0.4, with one new warning to know about.\n\n### Added\n\n- **The Orleans execution model: `Stratara.Orleans` and `Stratara.Orleans.EntityFrameworkCore`.**\n  Commands, projections, sagas, durable timers and singleton work run as virtual actors on an Orleans\n  10.3 cluster. One aggregate has one writer across the deployment; a command the execution model's\n  dispatcher accepts is recorded before the call returns and resumed after a crash, a bounded number of\n  times, through the same mediator pipeline as on the bus; projections and sagas read the store in\n  commit order from a checkpoint, so a crash costs latency and never a committed fact; singleton work\n  runs once per cluster without a lock; a failing entry stops its partition and is retried instead of\n  being dropped. Handlers, projections and sagas are unchanged, each role is adopted with one\n  registration after its composite, and both models can run side by side during a rollout. Every\n  setting is validated at start. See *Choose an Execution Model*, *Migrate to the Orleans Execution\n  Model* and *Operate the Orleans Execution Model* on the documentation site.\n- **Schema additions — every host on the Entity Framework store generates a migration.** The framework's\n  write context declares `event_stream_entry.partition_position`, the `partition_position` table, on\n  PostgreSQL `event_stream_entry.commit_transaction_id`, and the `outbox_entry` columns `aggregate_id`,\n  `heavy`, `attempt_count`, `last_handed_over_at`, `kept_at` and `last_failure`; the read context declares\n  `projection_checkpoint`. They are part of the model whether or not a host adopts the execution model, so\n  every host on `Stratara.EventSourcing.EntityFrameworkCore` generates and applies a migration after\n  upgrading — without it, appends and outbox writes fail on the missing columns. A store that never runs\n  the execution model carries them unfilled; on PostgreSQL an append also reads back the transaction id.\n- **Composites without the bus-fed worker.** `AddEventProjectionServices()` and `AddSagaServices()`\n  register the projection and saga runtimes without their bus workers; `AddProjectionHandling` and\n  `AddSagaHandling` do the same on `IServiceCollection`.\n- **Every instrument name is a published constant.** `ApplicationDiagnostics.Metrics` carries a\n  `…Name` constant beside each instrument — `EventsAppendedName`, `ProjectionEventsProcessedName`,\n  `SagasInFlightName` and the others — so a query or listener references the name instead of a literal.\n  `ApplicationDiagnostics.MetricTags.TypeNameValue` gives the value a type tag carries for a type name.\n- `LogEvents.Messaging.WorkerQueueDeclaredWithOtherArguments` (`108_112`), the warning a RabbitMQ\n  worker logs when it uses an existing queue declared with other arguments.\n\n### Changed\n\n- **`event.type` and `aggregate.type` carry the simple type name on every instrument.** On\n  `projection.events.processed`, `saga.events.processed` and `event_source.append.conflicts` the tag\n  value changes from the assembly-qualified name (`Shop.Orders.OrderPlaced, Shop.Orders`) to the simple\n  name (`OrderPlaced`), the form `event_source.events.appended` already used, so write and read series\n  join on the same value. A dashboard or alert that filters those three series on the qualified name\n  needs its filter updated; no instrument or tag name changes.\n- **`AddAuthorizingCommandOutboxDispatcher()` decorates whichever command dispatcher is registered**, not\n  only the RabbitMQ one, and composes with a dispatcher registered after it.\n\n### Fixed\n\n- **RabbitMQ: changing the retry bounds no longer stops a worker from subscribing.** A worker queue\n  carries `x-delivery-limit` from the bounds it was first declared with, and RabbitMQ refuses a\n  redeclaration with a different value — so a deployment that changed `MessageRetry` failed every\n  subscription with `PRECONDITION_FAILED`. An existing queue is now used as it is, and the bus logs\n  `108_112` naming it. From RabbitMQ 4.3 the old limit does not cut the new bounds short; before 4.3\n  a raised bound needs the drained queue deleted once.\n- **Azure Service Bus: a subscription whose `MaxDeliveryCount` is below the bounds no longer hides\n  its dead-lettering.** Where the host can read the subscription, the bounds for it are lowered to\n  fit under the broker's limit, so the framework makes the move and it reaches `108_110` and\n  `messaging.dead_lettered`. The warning `108_111` now says so. A failure to read the subscription\n  of any kind other than cancellation ends the check instead of the subscription.\n- **A unique violation is a concurrency conflict whatever exception type carries it.** The event\n  source consulted the registered `IStoreConflictDetector`s only for an Entity Framework\n  `DbUpdateException`, so a unit of work that surfaced the provider's exception unwrapped got a\n  persistence failure instead of a `ConcurrencyException`. Every detector now sees the exception\n  as the save threw it, as its contract says.\n- **Proxy credentials and response cookies are redacted from traces in the form the semantic\n  conventions name them.** The HTTP client and ASP.NET Core enrichment callbacks replaced\n  `http.request.header.proxy_authorization` and `http.response.header.set_cookie`, but the\n  OpenTelemetry semantic conventions keep the dash — `proxy-authorization`, `set-cookie` — so a host\n  that captured headers under those names exported the values. Both forms are redacted now.\n- **The concurrency-conflict policy retries a conflict the event source reports.** An append that\n  lost the race surfaces from `IEventSource.SaveChangesAsync` as `ConcurrencyException`, and\n  `ResilienceNames.ConcurrencyConflict` retried only `ConcurrencyConflictException` — so an\n  `IResilientRequest` whose handler appends events ran once and failed on the first conflict. The\n  policy now retries both, and still nothing else.\n- **A revoked encrypted field of a value type reads as its default instead of failing the object.**\n  Deserialization wrote an unreadable field back as JSON `null`, which a `decimal`, `int` or other\n  non-nullable value type cannot hold — so erasing a subject's key made every record with such a\n  field throw instead of degrading. The field now reads as the type's default, and the object's\n  other fields are recovered.\n- **`InMemoryKeyStore` keeps a scope usable after its current version is revoked.** Revoking the\n  current key left the scope pointing at a key that no longer existed, so the next\n  `GetOrCreateCurrentKeyAsync` threw. It now falls back to the highest remaining version, or creates\n  a new one, as `EnvelopeFileKeyStore` does.\n- **`IAggregationService.AggregateAsync` no longer documents `fromVersion` as a start version.** The\n  parameter has never been honoured: a rebuild starts from the stream's beginning, or from the latest\n  snapshot at or below `toVersion`. Its documentation now says so; the signature is unchanged.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#repository",
+    "commit": "8c7611d2c2118591cb2ce3a0d34571c3204cc8aa",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "4.1.0",
+  "version": "4.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0/stratara.abstractions",
+          "@type": "PackageDependency",
+          "id": "Stratara.Abstractions",
+          "range": "[4.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0/stratara.projections",
+          "@type": "PackageDependency",
+          "id": "Stratara.Projections",
+          "range": "[4.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0/stratara.resilience",
+          "@type": "PackageDependency",
+          "id": "Stratara.Resilience",
+          "range": "[4.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0/stratara.sagas",
+          "@type": "PackageDependency",
+          "id": "Stratara.Sagas",
+          "range": "[4.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0/stratara.shared",
+          "@type": "PackageDependency",
+          "id": "Stratara.Shared",
+          "range": "[4.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0/microsoft.orleans.reminders",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Reminders",
+          "range": "[10.3.1, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0/microsoft.orleans.runtime",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Runtime",
+          "range": "[10.3.1, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#dependencygroup/net10.0/microsoft.orleans.sdk",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Sdk",
+          "range": "[10.3.1, 11.0.0)"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#Stratara.Orleans.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3959,
+      "fullName": "Stratara.Orleans.nuspec",
+      "length": 9718,
+      "name": "Stratara.Orleans.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 894,
+      "fullName": "README.md",
+      "length": 1849,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#lib/net10.0/Stratara.Orleans.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 95478,
+      "fullName": "lib/net10.0/Stratara.Orleans.dll",
+      "length": 250880,
+      "name": "Stratara.Orleans.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#lib/net10.0/Stratara.Orleans.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 20879,
+      "fullName": "lib/net10.0/Stratara.Orleans.xml",
+      "length": 125129,
+      "name": "Stratara.Orleans.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.08.19.31/stratara.orleans.4.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "orleans",
+    "virtual-actors",
+    "actors",
+    "event-sourcing",
+    "cqrs",
+    "projections",
+    "sagas",
+    "durable-timers",
+    "distributed",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

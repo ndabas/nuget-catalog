@@ -1,0 +1,163 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Egil Hansen",
+  "catalog:commitId": "e0cc0d52-138a-46b2-bd91-7bf09c42493f",
+  "catalog:commitTimeStamp": "2026-09-16T15:55:17.9824445Z",
+  "copyright": "Egil Hansen",
+  "created": "2026-09-16T15:51:18.14Z",
+  "description": "Event Hubs-specific stream token enrichment for Egil.Orleans.Messaging.",
+  "id": "Egil.Orleans.Messaging.Streams.EventHubs",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-16T15:54:45.32Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "K2vPoLFV3CxfkzmFRTABPKhNgg0CrsjKoNJsZ+802rlZ0kHEDhoAtN70APaDT16QD2V59cHZnn9FxCcEWfguHQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 64319,
+  "projectUrl": "https://github.com/egil/framework",
+  "published": "2026-09-16T15:51:18.14Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "BREAKING CHANGES:\n- capture producer trace context when adding to the outbox\n  Outbox messages now carry the W3C traceparent of the activity that was current\n  when the message was added, so work done by the receiving grain can be\n  correlated with the request that produced the message.\n  Capture happens at append time rather than at delivery time. The processor\n  drains on a grain timer, on a reminder, or on whichever request happens to\n  trigger the drain, so by delivery the producing activity has usually ended. A\n  drain also flushes every pending message in one run with groups dispatched\n  concurrently, so reading the ambient activity at delivery would attribute a\n  message added by one request to an unrelated one — a wrong link that is\n  indistinguishable from a right one when reading a trace.\n  At delivery the processor starts one orleans.outbox.post producer span per\n  message, linked to the captured context, and invokes the postman inside it.\n  Postmen that propagate Activity.Current — Orleans grain calls, and stream\n  adapters such as EnrichedEventHubAdapter that stamp a traceparent onto the\n  queued message — therefore carry the right trace to the receiver without\n  changes of their own.\n  The producing context is attached as a link rather than as a parent because a\n  message can be delivered hours after the producing request ended, and parenting\n  into a finished trace produces orphaned spans and traces that stretch across\n  the whole delay.\n  tracestate is not captured: it is vendor data of up to 512 bytes, and the\n  outbox is rewritten inside the grain state record on every WriteStateAsync for\n  as long as a message stays pending. The traceparent is stored regardless of the\n  sampled flag, so the trace id remains usable as the join key between logs and\n  traces even when the producing span was never exported.\n  TraceParent, defaulting to null, and OutboxSequenceToken gains a TraceParent\n  property with TryGetTraceParent(out string?). OutboxMessageId equality now\n  includes TraceParent, so an id rebuilt by hand from a sequence number,\n  timestamp, and epoch no longer matches the stored id of a message added under\n  an active Activity; pass the id from outbox.Envelopes[i].Id to Remove and\n  RemoveRange instead. The property is nullable and omitted from JSON when\n  absent, so snapshots written before this change load unchanged and no migration\n  or reset is required.\nBug Fixes:\n- make the concurrent dispatch test actually dispatch concurrently\n  The test registered a postman per item to force two dispatch groups, but the\n  postman blocked on Barrier.SignalAndWait synchronously. The dispatcher starts\n  groups in a loop and only reaches the second once the first awaits, so the\n  first group waited for a group that was never started. SignalAndWait returns\n  false on timeout rather than throwing, so after 30 seconds per item the test\n  continued and passed while asserting nothing about concurrency — and the core\n  test project took a minute instead of two seconds.\n  The postman now yields before rendezvousing, and the rendezvous awaits a\n  TaskCompletionSource with WaitAsync so a regression that serialises the groups\n  fails the test instead of passing slowly. The span recorder uses a\n  ConcurrentBag, because genuinely concurrent groups stop their spans on\n  different continuations and can invoke ActivityStopped in parallel.\n  Also documents that the added optional constructor parameters are binary\n  breaking and that OutboxMessageId's generated Deconstruct is now four-valued.\n- keep trace context out of outbox message identity\n  OutboxMessageId and OutboxSequenceToken are records, so adding TraceParent\n  silently pulled it into equality and hash code. That broke two documented\n  invariants: an id rebuilt from its sequence number, timestamp, and epoch no\n  longer matched the stored id of a message added under an active Activity, and\n  MessageTracker.LatestOutbox stopped returning a token equal to the one it\n  accepted, because the tracker stores no traceparent.\n  Exclude TraceParent from equality on both types. The alternative — persisting\n  the traceparent in the tracker entry — would hold stale trace context in the\n  receiver's durable state, per sender, for a message it had already processed.\n  Failed deliveries now also mark the dispatch span with an error status and\n  exception tags, matching StreamManager, so a delivery that threw no longer\n  exports as Unset and reads as a success in a trace viewer.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#repository",
+    "branch": "refs/heads/release/egil-orleans-messaging/v0.5",
+    "commit": "b996e004d7b92c9c88549b04ead2fb78b9b32858",
+    "type": "git",
+    "url": "https://github.com/egil/framework"
+  },
+  "title": "Orleans Messaging Event Hubs Extensions",
+  "verbatimVersion": "0.5.6",
+  "version": "0.5.6",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#dependencygroup/net10.0/egil.orleans.messaging",
+          "@type": "PackageDependency",
+          "id": "Egil.Orleans.Messaging",
+          "range": "[0.5.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#dependencygroup/net10.0/microsoft.orleans.streaming.eventhubs",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Streaming.EventHubs",
+          "range": "[10.3.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#Egil.Orleans.Messaging.Streams.EventHubs.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2599,
+      "fullName": "Egil.Orleans.Messaging.Streams.EventHubs.nuspec",
+      "length": 5757,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 638,
+      "fullName": "LICENSE",
+      "length": 1068,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 10704,
+      "fullName": "README.md",
+      "length": 31097,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30424,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.dll",
+      "length": 46080,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4766,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.xml",
+      "length": 28018,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.16.15.55.17/egil.orleans.messaging.streams.eventhubs.0.5.6.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12978,
+      "fullName": ".signature.p7s",
+      "length": 12978,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "orleans",
+    "messaging",
+    "streams",
+    "eventhubs",
+    "event-hubs",
+    "egil"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

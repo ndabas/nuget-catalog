@@ -1,0 +1,193 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Thomas Galliker",
+  "catalog:commitId": "0208cf1a-816c-4b41-b854-9c3446a0c6b4",
+  "catalog:commitTimeStamp": "2026-09-17T16:29:11.5182416Z",
+  "copyright": "(c) 2026 superdev GmbH",
+  "created": "2026-09-17T16:25:41.447Z",
+  "description": "ASP.NET Core integration for NValidation: maps a validation failure to an RFC7807 problem details response.",
+  "iconFile": "icon.png",
+  "id": "NValidation.AspNetCore",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-17T16:28:45.78Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "ALb2edjl6UNUBYDn4BBfwQVDK9w0B/BC2781ol4B5XePr2Gzw0/A9wcRhZwSjFf3D464/5PFa3ops3g7J4FMeQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 98179,
+  "projectUrl": "https://github.com/thomasgalliker/NValidation",
+  "published": "2026-09-17T16:25:41.447Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0\n- Initial release.\n- ValidationError now answers three questions rather than one: PropertyName (where the failure is,\n  the dotted member path that was previously called Code), ErrorCode (which rule failed) and Message.\n  Arguments carries the values the message was rendered from. Renamed accordingly:\n  ValidationMessageKeys -> ValidationErrorCodes, MessageKeyProvider -> ErrorCodeProvider,\n  IValidationMessageProvider.GetMessage(messageKey, ...) -> GetMessage(errorCode, ...).\n- WithErrorCode now names the rule that failed rather than moving the reported property name. What it\n  used to do is WithPropertyName. The error code is also the key the message is resolved under, so a\n  Must rule localizes by being named instead of by carrying a literal.\n- Comparison rules now work for enums. EqualTo, NotEqualTo, GreaterThan, GreaterThanOrEqualTo,\n  LessThan, LessThanOrEqualTo and Between no longer require IComparable<T>/IEquatable<T>, which\n  System.Enum does not implement, so comparing an enum no longer means Must with a hardcoded literal.\n  A value type nothing can order is refused where the rule is declared rather than on the request.\n- Collapsed the comparison overloads from 50 to 38 (the library's rule surface from 104 to 92) by\n  removing the redundant non-nullable other-property forms. Call sites are unaffected: the lambda's\n  value converts to its nullable form and the reported property name is unchanged.\n- Added PrecisionScale for decimals, OneOf for a closed set of values, and MustAsync.\n- Added NValidationBuilder.PromoteSafeValidatorsToSingleton: registers a validator as a singleton when\n  every constructor parameter resolves to a singleton or to another validator that also qualifies.\n  Resolving the sample four-validator graph drops from 8,979 ns / 25,536 B to 23.7 ns / 128 B. It is\n  on by default. A lifetime named explicitly - on AddValidator, or through ValidatorLifetime - is an\n  instruction and is registered as written; setting PromoteSafeValidatorsToSingleton yourself asks for\n  promotion regardless, as it always did.\n- Added Validator<T>.Property(name, accessor) and Property(name, accessor, isReachable): a rule chain\n  for a value that is not a member path — a computed value, a dictionary entry, an indexer.\n- Built-in English is now correct at a count of one (\"must contain at least 1 entry\"). A message\n  template may select between two forms with {MinCount:entry|entries}, which any provider and any\n  translation can use.\n- ExpectedError now matches an expected message exactly, as AwesomeAssertions' Be does, instead of\n  treating it as a wildcard pattern. ExpectedError.Matching(name, pattern) keeps the wildcards and\n  ExpectedError.Any(name) accepts any message, so a looser assertion says so at the call site.\n- The compiled-accessor and reachability caches are now held per closed generic rather than in a\n  dictionary keyed by Type. A validator declared for a type from a collectible AssemblyLoadContext no\n  longer roots that context for the life of the process.\n- Faster: validating is 1-7% quicker and constructing a validator allocates 14% less, because a\n  synchronous rule is no longer wrapped in a lambda returning a completed ValueTask and a\n  single-segment property name no longer builds a list.\n- Much faster again, and a validation that reports nothing now allocates 64 bytes whatever the\n  validator's width - one object for the pass, and nothing per property:\n    * RuleContext is a readonly struct over a per-pass ValidationFrame instead of a class allocated\n      per property per validation. That was 112 bytes a chain, and it was the term that grew with the\n      payload. Source-compatible for rules, which use the context by value either way; binary-breaking.\n    * A validator whose every rule judges rather than awaits runs with no async state machine anywhere\n      in it. Worth about two thirds of the time on a wide payload.\n    * The rules and their checks are walked as arrays rather than through list enumerators.\n    * The error list is not built until something fails, and a failed result takes the list rather\n      than copying it.\n    * EmailAddress decides the everyday shape over the characters themselves and only asks\n      System.Net.Mail.MailAddress about the rest, so accepting a valid address no longer allocates the\n      parsed address and its parts. Verdicts are unchanged: the span pass only ever answers yes, and\n      anything it is not certain about still goes to the parser.\n  Measured on an Apple M4 Pro, .NET 10: one flat object 235 -> 53 ns and 648 -> 64 B, the sample\n  payload 845 -> 238 ns and 2,272 -> 504 B, a 34-property payload 1,247 -> 225 ns and 3,864 -> 64 B.\n- Collections allocate about 130 bytes an entry, down from about 400: one element scope is reused for\n  the whole collection rather than built per entry, and an entry is named only when it has something to\n  report - which it was not, because the caller asked for the name before knowing. A ForEach itself no\n  longer costs anything per validation beyond the entries: it used to box the rule context and allocate\n  a delegate on every run.\n- A validator composed with SetValidator or ForEach whose every rule judges rather than awaits is now run\n  synchronously as well, so a payload with nested validators and collections stays on the fast path.\n- Rules freeze on the first validation. A rule declared afterwards - a Property on the validator, or a\n  rule on a chain kept from before - used to be silently ignored; it now throws InvalidOperationException.\n- RuleContext.AddError takes params ReadOnlySpan for its arguments, and the placeholder formatter scans\n  the template by hand instead of through a regular expression, so a failure costs less to report.\n- RuleContext.CancellationToken exposes the token the validation was started with.\n- Added WithMessage(Func<T, string>) and WithMessage(Func<T, TProperty, string>),\n  ValidationAssertions.ShouldReportErrorCode, and the BetweenExclusive/BetweenExclusiveFrom/BetweenExclusiveTo\n  codes for the excluded-bound forms. The Must overloads taking a message are gone: Must(predicate) names\n  the rule, and WithMessage words it, with placeholders substituted either way.\n- Renamed SkipValidationAttribute to SkipNValidationAttribute ([SkipNValidation]). .NET 10's shared\n  framework ships Microsoft.Extensions.Validation.SkipValidationAttribute, so importing both\n  namespaces made the shorter name a CS0104 ambiguity rather than a warning.\n- ElementRuleBuilder<T> no longer derives from Validator<T>. It was publicly an IValidator<T> that\n  ignored Where, SetValidator and WithIndexer, so running it directly gave a different verdict than\n  the ForEach it belongs to. Property, Element and ValidationBehaviors are unchanged.\n- Fixed: a message template whose format specifier a value cannot honour rendered as a FormatException\n  out of ValidateAsync, turning a bad request into a server error.\n- Fixed: Between with an excluded bound reported the inclusive wording, naming the two values it had\n  just refused as the permitted range. It now has its own codes for each combination of bounds.\n- Fixed: WithMessage did not substitute placeholders, and replaced the message of every failure a\n  composed validator reported. It now substitutes, and is refused where it follows SetValidator or\n  ForEach.\n- Fixed: an explicit AddValidator written after AddValidatorsFromAssembly was silently ignored.\n  Registration is now order-independent, and two conflicting explicit registrations are refused.\n- Fixed: the problem details body carried its errors in an extension member typed object, which a\n  host publishing ahead of time could not serialize. It is now HttpValidationProblemDetails.\n- Added ValidationBehavior: how much a validator reports, along two axes — across its properties\n  (ValidationBehaviors.Class) and within one property's rule chain (ValidationBehaviors.Property).\n  ValidationBehaviors is a small immutable value assigned as a whole - new() { Class = ... } - whose unset\n  axis inherits. Configurable on the registration, on a validator, and per chain with\n  WithValidationBehavior. Replaces ContinueOnFailure(), which is equivalent to\n  WithValidationBehavior(ValidationBehavior.All). The defaults are unchanged behaviour: every property,\n  one message each.\n- Split the package in two. NValidation now has no dependencies at all; AddNValidation, the registration\n  and the IConfiguration overloads moved to a new NValidation.DependencyInjection package, which is what\n  NValidation.AspNetCore depends on. A host which only constructs validators no longer pulls\n  Microsoft.Extensions.DependencyInjection.Abstractions in to do it. The options object AddNValidation\n  configures is renamed NValidationBuilder, which is what it is: it registers things and returns itself.\n- Added NValidationOptions, which is what a validator falls back to when nothing more specific said —\n  the message provider, and how much it reports. An immutable record: set NValidationOptions.Default once\n  at startup and every validator picks it up, so a host which constructs validators with new no longer\n  configures each instance; derive a variant with `with`. The same type is accepted per call —\n  validator.ValidateAsync(car, options) — for a request whose messages are in its own language.\n  Every setting starts at null, meaning \"leave it to the level below\", so options which name a behavior\n  and no provider change the behavior and leave the messages alone.\n- One ladder for both settings, and one direction of inheritance: what a validator declared for itself,\n  then what the pass inherits — the options passed to the call, or, for a validator composed into\n  another, what its composer resolved — then what AddNValidation configured, then\n  NValidationOptions.Default, then the built-in English and the built-in behaviors. What a validator\n  resolves is inherited by the validators it composes and by the element chain of a ForEach, so a\n  provider handed to the root of a graph reaches every rule in it, and a nested validator which declared\n  its own keeps it. A validator's own ValidationMessageProvider is now nullable: null means it inherits.\n- AddNValidation no longer registers an IValidationMessageProvider on the host's behalf. A validator the\n  container built is handed the provider the container holds, if any, and otherwise falls through to the\n  options of the call and NValidationOptions.Default while validating — so a default assigned after the\n  container was built still reaches it.\n- ValidationException.Errors has the same shape as ToErrorsDictionary(): { propertyName: string[] }.\n- The lifetime rules are unchanged: a lifetime named on a registration or through ValidatorLifetime is\n  registered as written by the default promotion, and PromoteSafeValidatorsToSingleton set to true by\n  hand lifts a named lifetime too. The resolution benchmark is what holds this to account.\n- IValidator, the non-generic contract, now has the options overload its typed counterpart has:\n  ValidateAsync(instance, options, cancellationToken). A caller which resolved a validator by Type can\n  ask for a wording of its own without reflecting over the closed generic.\n- Renamed Validator<T>.Messages and RuleContext<T, TProperty>.Messages to ValidationMessageProvider,\n  which is what they hold.\n- AddNValidation now takes an IConfiguration section, so ValidatorLifetime,\n  PromoteSafeValidatorsToSingleton and ValidationBehaviors can move to appsettings.json. Which validators\n  are registered and where messages come from stay in code, because a typo in a settings file would turn\n  those into a payload that is silently never validated. A value the setting does not permit is refused at\n  startup and the message names what was permitted. The settings are read key by key rather than through\n  IConfiguration.Bind, which is RequiresUnreferencedCode and would surface as a trimming warning in an\n  ahead-of-time consumer's build.\n- Added NValidation.Testing: assertions over a validation result for unit tests, shipped in the same\n  package and depending on no test framework and no assertion library. result.ShouldReport(\"Vin\",\n  \"Vin is required.\") states the whole expected result — nothing else may be present, the count is\n  implied, order is ignored — and the same overloads take a ValidationException or a\n  { propertyName: [messages] } dictionary. An expected message is matched with wildcards, so a fragment is as\n  easy to express as the whole of it. A failure throws ValidationAssertionException naming what was\n  missing, what was unexpected, and the near miss in between.\n  Also TestValidator<T>, which declares the rule under test in the test itself and takes an optional\n  IValidationMessageProvider; ErrorCodeProvider, for assertions independent of any translation;\n  TestTimeProvider, for the date rules; and ShouldResolveEveryCoreErrorCode, which holds an\n  application's own message provider to every key this core can report.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#repository",
+    "commit": "9c10d2e6e1979f97c4a7a2d6674ef2cad9a52446",
+    "type": "git",
+    "url": "https://github.com/thomasgalliker/NValidation"
+  },
+  "verbatimVersion": "1.0.20-pre",
+  "version": "1.0.20-pre",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#dependencygroup/net10.0/nvalidation.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "NValidation.DependencyInjection",
+          "range": "[1.0.20-pre, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#dependencygroup/net8.0/nvalidation.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "NValidation.DependencyInjection",
+          "range": "[1.0.20-pre, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#NValidation.AspNetCore.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5858,
+      "fullName": "NValidation.AspNetCore.nuspec",
+      "length": 14872,
+      "name": "NValidation.AspNetCore.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 656,
+      "fullName": "LICENSE",
+      "length": 1093,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 28572,
+      "fullName": "README.md",
+      "length": 96057,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 20643,
+      "fullName": "icon.png",
+      "length": 22040,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#lib/net10.0/NValidation.AspNetCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9776,
+      "fullName": "lib/net10.0/NValidation.AspNetCore.dll",
+      "length": 20992,
+      "name": "NValidation.AspNetCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#lib/net10.0/NValidation.AspNetCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3694,
+      "fullName": "lib/net10.0/NValidation.AspNetCore.xml",
+      "length": 15588,
+      "name": "NValidation.AspNetCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#lib/net8.0/NValidation.AspNetCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9778,
+      "fullName": "lib/net8.0/NValidation.AspNetCore.dll",
+      "length": 20992,
+      "name": "NValidation.AspNetCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#lib/net8.0/NValidation.AspNetCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3694,
+      "fullName": "lib/net8.0/NValidation.AspNetCore.xml",
+      "length": 15588,
+      "name": "NValidation.AspNetCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.29.11/nvalidation.aspnetcore.1.0.20-pre.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12989,
+      "fullName": ".signature.p7s",
+      "length": 12989,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "validation",
+    "validator",
+    "aspnetcore",
+    "problemdetails",
+    "rfc7807",
+    "webapi"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

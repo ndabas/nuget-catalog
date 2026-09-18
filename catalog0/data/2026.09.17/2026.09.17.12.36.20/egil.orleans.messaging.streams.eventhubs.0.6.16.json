@@ -1,0 +1,163 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Egil Hansen",
+  "catalog:commitId": "0c38e84c-df2e-48b2-8cb1-08b8e7f1dd82",
+  "catalog:commitTimeStamp": "2026-09-17T12:36:20.167147Z",
+  "copyright": "Egil Hansen",
+  "created": "2026-09-17T12:32:41.203Z",
+  "description": "Event Hubs-specific stream token enrichment for Egil.Orleans.Messaging.",
+  "id": "Egil.Orleans.Messaging.Streams.EventHubs",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-17T12:36:12.163Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "ZDO/vzNa0tfWrYh5EmLWUf5qR0O6Z8w3vjkPsQkbA+9WUjb5hEqaWuxb8718zyC7atmEWOeDnfMtMxT/SEsiuA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 74064,
+  "projectUrl": "https://github.com/egil/framework",
+  "published": "2026-09-17T12:32:41.203Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "BREAKING CHANGES:\n- add a supported extension point for custom Event Hub batch containers\n  `EnrichedEventHubAdapter` attaches its `EnrichedEventHubSequenceToken` by\n  wrapping the base batch container in an internal decorator. An adapter that\n  overrode `GetBatchContainer(EventHubMessage)` to decode its own payload format\n  therefore lost the enrichment entirely, and the only workaround was to call\n  `base.GetBatchContainer(...)` purely to read its `SequenceToken` and discard the\n  rest — non-obvious, and it gave every event in the batch the batch-level token\n  instead of a per-event index.\n  Adapters now override `CreateInnerBatchContainer(EventHubMessage)` instead. The\n  adapter keeps ownership of the wrapping, so the container only has to decode the\n  payload; enqueue time, provider name, traceparent and per-event indexes are\n  attached for it. A custom container does not need to produce sequence tokens at\n  all — `null` batch and per-event tokens are supported, and per-event indexes then\n  follow enumeration order.\n  now sealed, so enrichment cannot be silently dropped. Adapters that overrode it\n  move the body to `CreateInnerBatchContainer(EventHubMessage)` and drop the\n  `base.GetBatchContainer(...)` call used to obtain a sequence token.\n  Closes #185\n- defer state writes on IStateManager<T>\n  IStateManager<T> had one way to change what State returns: WriteAsync, which\n  always goes to storage. State now has a setter, so a grain can move its visible\n  snapshot forward and pay for the write later — the same shape as assigning\n  IPersistentState<T>.State, which has never persisted on its own either.\n      state.State = state.State with { Outbox = state.State.Outbox.RemoveRange(delivered) };\n      await state.SaveChangesAsync(cancellationToken);\n  HasUnsavedChanges reports a value that has been assigned and not written.\n  SaveChangesAsync persists it, and does nothing when there is nothing\n  outstanding.\n  The motivating case is an outbox acknowledgement. In the consumer this library\n  was extracted from, roughly one write in four to grain storages that own an\n  outbox existed only to persist an acknowledgement. Deferring that removal is\n  safe because items only leave the durable outbox once the removal is written,\n  so losing one causes a redelivery and never a lost message.\n  WriteAsync(newState) is unchanged, and keeps the guarantee that earns it a\n  separate name: the value becomes visible only if the write succeeded. That is\n  the difference between the two ways to persist.\n      State = x then SaveChangesAsync()   visible immediately, durable at the save\n      WriteAsync(x)                       visible only if it persisted\n  The committed-state fence is narrowed precisely rather than quietly. A write\n  candidate is a value whose durability is unknown because a write is running,\n  and State still never exposes one. An unsaved value is one whose durability is\n  knowingly deferred, and State does expose it — so an [AlwaysInterleave] reader\n  can answer from a value that vanishes if the activation ends without persisting\n  it.\n  Persisting on the way out is the grain's job. A lifecycle observer never\n  receives the DeactivationReason and the stop token is routinely already\n  cancelled, so the library cannot do it. Call SaveChangesAsync unconditionally\n  from OnDeactivateAsync: filtering on the reason means every code you skip is\n  one that drops unsaved data. Live migration is one of those reasons — this\n  library takes no part in Orleans' migration handoff, and Orleans runs\n  OnDeactivateAsync before it dehydrates, so that write lands first and the\n  destination inherits a durable value.\n  Two smaller changes ride along.\n  RegisterStateManager(storage) resolves an unkeyed IStateManagerFactory, so a\n  grain naming its facet in [PersistentState] no longer repeats a name at the\n  registration call. Register one with AddDefaultStateManager(). The named\n  overloads still select provider-specific failure handling.\n  Wrapping a journaled facet now throws. Orleans.Journaling's DurableState<T> is\n  an IPersistentState<T>, and that package registers one for every DI key, so it\n  can reach RegisterStateManager by accident. Its ReadStateAsync is a no-op, so\n  this manager's read-back recovery would compare an attempted write with itself\n  and report a failure as a success.\n  HasUnsavedChanges and SaveChangesAsync(CancellationToken). This breaks custom\n  implementations at source and at binary — an assembly compiled against an\n  earlier version no longer satisfies the interface — so recompile consumers\n  rather than mixing versions. Managers deriving from StateManagerBase<T> inherit\n  the members and need no change. WriteAsync(T, CancellationToken) is unchanged.\n  Wrapping an Orleans.Journaling facet, previously silently unsafe, now throws\n  NotSupportedException at construction.\nNew Features:\n- add single-type-argument AddStreamPostman for token enrichment\n  Stamping a payload with something from its delivery token — the recommended\n  alternative to storing the sender in the outbox message — returns the same type\n  it receives, but the only token-aware projection overloads were\n  AddStreamPostman<TSub, TEvent>. Neither type argument is inferable there, and\n  C# has no partial type-argument inference, so the payload type had to be written\n  twice.\n  Enriching projections now name the payload type once, with either stream\n  selector shape, on both direct registration and inside ForStreamProvider:\n      .AddStreamPostman<SessionDataChangedEvent>(\n          message => message.SessionId.GetSessionGrainStreamId(),\n          (message, token) => message with { Source = token.Sender.ToString() })\n  Existing registrations are unaffected: explicit type arguments and argument\n  counts keep every previous call bound to the same overload. A call that omits\n  type arguments entirely, using explicitly typed lambdas whose projection returns\n  exactly the payload type, now reports an ambiguity instead of compiling; adding\n  the single type argument resolves it.\n- add Outbox<T>.Restore for rebuilding stored history\n  Add and AddRange capture the current Activity so a delivered message links back\n  to the request that produced it. That is right when a grain appends during a\n  request, and wrong when an application rebuilds an outbox from previously\n  persisted data: an IMigrateFrom implementation, an import, or a replay runs\n  under whatever activity happens to be current — for a migration inside grain\n  state deserialization, the activation — and that activity did not produce the\n  messages. The delivery span then links orleans.outbox.post to an unrelated\n  trace, which is worse than no link at all, because a wrong link is\n  indistinguishable from a right one when reading a trace.\n  Outbox<T>.Restore is the entry point for those paths, and never reads\n  Activity.Current:\n      Outbox<T>.Restore(messages)          payloads paired with their original timestamps\n      Outbox<T>.Restore(messages, utcNow)  one timestamp, for formats that kept none per message\n      Outbox<T>.Restore(envelopes)         full fidelity, preserving stored ids and traceparents\n  The first two keep sequence assignment inside the outbox: consecutive numbers\n  from 1, with the first timestamp as the epoch, and timestamps need not be\n  ordered. The envelope overload is the one entry point that accepts\n  caller-supplied identity, so it validates it — sequence numbers must strictly\n  increase in enumeration order and all envelopes must share one epoch, because\n  Remove only matches a FIFO head and receivers deduplicate against a per-epoch\n  high-water mark. Traceparents on restored envelopes are carried through\n  verbatim, including values that are not parseable W3C traceparents; delivery\n  already tolerates those by starting an unlinked span, and rejecting them would\n  fail a grain activation over a diagnostic field.\n  Collection expressions still capture the ambient activity and cannot be given a\n  suppressing form, so they remain the wrong tool for a rebuild — beyond the\n  traceparent, they also reset the epoch and sequence space.\n  Purely additive: Add, AddRange, and collection-expression construction are\n  unchanged, and consumers need no recompile.\n- make Event Hubs stream token converter registration public\n  EventHubStreamSequenceTokenJsonConverters is now public, with Register() and the\n  two type descriptors it uses as constants, and a companion\n  services.AddEventHubStreamSequenceTokenJsonConverters() extension for callers\n  with a container.\n  Only UseEnrichedDataAdapter() could register these converters before, so a\n  process that reads the same persisted grain state without configuring an Event\n  Hub stream provider had to copy three descriptor strings and three converter\n  constructions: a test fixture on in-memory storage using the production\n  JsonSerializerOptions, a tool that reads grain state blobs offline, a background\n  archiver. Without the converters, StreamCursor and MessageTracker throw on any\n  persisted Event Hub token.\n  Registration is idempotent, so the new entry points and UseEnrichedDataAdapter()\n  compose in any order and a silo doing both is fine.\n  Tests cover round-tripping every Event Hub token type through StreamCursor,\n  repeated registration, registering before UseEnrichedDataAdapter(), and that\n  UseEnrichedDataAdapter() registers the converters at all, which nothing asserted\n  previously. The test project's own copy of the three registration lines is\n  replaced by the public call.\n  Closes #184\n- add TryRegister to the stream sequence token converter registry\n  StreamSequenceTokenJsonConverters.TryRegister reports the outcome of a\n  registration instead of throwing, for callers that want to surface a conflicting\n  converter rather than catch one. It returns true when the registry holds an\n  equivalent converter once the call returns — whether it added one or found an\n  identical one already present — and false when a different converter owns the\n  type descriptor and was left in place.\n  The return value answers \"is my converter in place for this descriptor?\", not\n  \"did this call mutate the registry\", so a caller can treat false as a genuine\n  conflict worth reporting.\n  Register keeps its existing behaviour and now documents it: re-registering the\n  same descriptor with the same token type and converter type is a no-op, and\n  InvalidOperationException covers only a genuine conflict where a different\n  converter claims a descriptor. Several registrars legitimately want the same\n  converter in place, so their order carries no meaning.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#repository",
+    "branch": "refs/heads/release/egil-orleans-messaging/v0.6",
+    "commit": "0966aad12a93cf54536c7a33df428d1e5c6d674c",
+    "type": "git",
+    "url": "https://github.com/egil/framework"
+  },
+  "title": "Orleans Messaging Event Hubs Extensions",
+  "verbatimVersion": "0.6.16",
+  "version": "0.6.16",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#dependencygroup/net10.0/egil.orleans.messaging",
+          "@type": "PackageDependency",
+          "id": "Egil.Orleans.Messaging",
+          "range": "[0.6.16, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#dependencygroup/net10.0/microsoft.orleans.streaming.eventhubs",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Streaming.EventHubs",
+          "range": "[10.3.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#Egil.Orleans.Messaging.Streams.EventHubs.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4998,
+      "fullName": "Egil.Orleans.Messaging.Streams.EventHubs.nuspec",
+      "length": 11991,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 638,
+      "fullName": "LICENSE",
+      "length": 1068,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 16121,
+      "fullName": "README.md",
+      "length": 47295,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30891,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.dll",
+      "length": 47104,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6228,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.xml",
+      "length": 36079,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.12.36.20/egil.orleans.messaging.streams.eventhubs.0.6.16.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12978,
+      "fullName": ".signature.p7s",
+      "length": 12978,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "orleans",
+    "messaging",
+    "streams",
+    "eventhubs",
+    "event-hubs",
+    "egil"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

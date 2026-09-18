@@ -1,0 +1,170 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Egil Hansen",
+  "catalog:commitId": "c0afcbb3-27fc-4c60-ac23-e346a50f2eb4",
+  "catalog:commitTimeStamp": "2026-09-17T16:25:51.4141991Z",
+  "copyright": "Egil Hansen",
+  "created": "2026-09-17T16:22:21.883Z",
+  "description": "A toolbox of composable building blocks for Orleans grains that need\n      atomic state writes, transactional outbox, receiver-side dedup, and\n      stream subscription management. Pick what you need, leave the rest.",
+  "id": "Egil.Orleans.Messaging",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-17T16:25:16.64Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "fJkak3hsttLlgBS0h2A7/43CGfemNynegIGkJ3hA66+A8Aixgd1YqlJv6Z5gZ7NwN+Nvi6ZOijsN6osSpeX66w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 200309,
+  "projectUrl": "https://github.com/egil/framework",
+  "published": "2026-09-17T16:22:21.883Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "New Features:\n- allow injecting IStateManager<T> instead of IPersistentState<T> (#198)\n  * feat(om): allow injecting IStateManager<T> instead of IPersistentState<T>\n  A grain can now take the state manager directly on its `[PersistentState]`\n  constructor parameter, instead of taking the raw facet and wrapping it:\n      public sealed class OrderGrain(\n          [PersistentState(\"state\", \"Default\")] IStateManager<OrderState> state)\n          : Grain, IOrderGrain;\n  The facet is still built underneath through Orleans' own\n  `IPersistentStateFactory`, so the state hydrates before `OnActivateAsync` and\n  takes part in the migration handoff exactly as before. Reusing Orleans'\n  attribute keeps both names in one place: it names the state record, selects the\n  Orleans storage provider, and now also selects the keyed\n  `IStateManagerFactory` — so the provider name can no longer drift from a name\n  repeated at a registration call. Grains injecting `IPersistentState<T>` are\n  unaffected.\n  Because an injected manager has no call site to pass callbacks to, a state type\n  can now carry its own default and its own transient dependencies through two new\n  interfaces, both optional:\n    - `IStateDefault<TSelf>.CreateDefault(IGrainContext)` replaces the\n      `createInitialState` factory.\n    - `IConfigurableState.Configure(IGrainContext)` replaces the `configureState`\n      callback, and runs on every adopted instance.\n  Both apply to managers obtained through `RegisterStateManager` as well, since\n  what a state type needs does not depend on how its manager was obtained.\n  Explicit arguments still win: a state factory overrides `CreateDefault`, and a\n  configuration callback runs after `Configure`.\n  No new registration step: every `AddDefaultStateManager`,\n  `AddStateManagerFactory`, and `AddAzureStorageStateManager` overload enables the\n  facet. `AddStateManagerFacet()` is public for callers registering an\n  `IStateManagerFactory` by hand.\n  The two `RegisterStateManager` overloads that take no state factory gained an\n  optional `configureState` parameter, so runtime configuration no longer forces a\n  caller to also supply a factory. That is binary breaking; recompile consumers.\n  * test(om): cover facet mapper guards and one-time facet enablement\n  Adds direct coverage for the paths the grain-level facet tests reach only\n  indirectly:\n    - A state type with neither `IStateDefault<TSelf>` nor a public parameterless\n      constructor is rejected with a message naming the state type, the grain, and\n      the interface to implement.\n    - A raw `IPersistentState<T>` parameter is handed to the mapper being\n      decorated rather than handled or discarded.\n    - Repeated factory registrations enable the facet exactly once, so mappers\n      cannot nest silently.\n    - `IStateDefault<TSelf>` detection answers for a type that does not implement\n      it. The interface constrains its own type argument, so asking with\n      `MakeGenericType` throws for precisely the types the answer is \"no\" for.\n  * fix(om): let IStateDefault stand in for the new() constraint\n  `RegisterStateManager(storage)` and `RegisterStateManager(storageName, storage)`\n  constrained `TState : new()`, which shut out the state types\n  `IStateDefault<TSelf>` exists for. A state type that implements it precisely so\n  it does not need a public parameterless constructor could not use the overloads\n  that need no state factory, even though the resolution order already prefers\n  `CreateDefault` and the injected `[PersistentState]` path already accepted\n  either. The same state type therefore behaved differently depending on how its\n  manager was obtained.\n  Both overloads now constrain only `TState : class, IEquatable<TState>`. A state\n  type offering neither a parameterless constructor nor `IStateDefault<TSelf>` is\n  rejected at registration with a message naming the state type and the grain,\n  which is the failure the injected path already gives.\n  Relaxing a constraint is source- and binary-compatible; the cost is that the\n  neither-case is caught at registration rather than by the compiler.\n  * fix(om): normalize blank storage names and reject abstract state types\n  Two defects in the facet mapper, both reachable from a grain that compiles\n  cleanly today.\n  A blank storage name resolved the facet and the manager differently.\n  `[PersistentState(\"state\", \"\")]` sends Orleans to the default grain storage\n  provider, because Orleans treats null, empty, and whitespace alike, but the raw\n  value was forwarded to the manager lookup, whose unkeyed branch recognises only\n  null. The facet was built against default storage and then the activation failed\n  looking for a keyed `IStateManagerFactory` registered under an empty string. A\n  blank name is now normalized to null for both.\n  An abstract state type was accepted as constructible. An abstract type can\n  declare a public parameterless constructor, so the undefaultable-state guard\n  passed it, but `Activator.CreateInstance` cannot call one. The clear error\n  naming the state type and the grain was replaced by a `MissingMethodException`\n  at activation. Constructibility now excludes abstract types, on both the\n  injected and the `RegisterStateManager` path.\n  * test(om): pin overload resolution for a null state factory argument\n  The overloads that take no state factory gained an optional `Action<TState>`,\n  which makes them applicable to two-argument calls that previously matched only\n  the `Func<TState>` overload. Overload resolution still prefers the factory\n  overload, so an existing `RegisterStateManager(storage, null)` keeps meaning\n  \"null state factory\" and keeps throwing for it, rather than silently becoming\n  \"null configuration\" and succeeding.\n  That is the compatibility claim the README makes, so it is worth a test: a\n  future reshaping of these overloads would otherwise rebind such calls silently.\n  * fix(om): say why a state type has no default, not that a constructor is missing\n  Both undefaultable-state diagnostics reported \"has no public parameterless\n  constructor\". That is wrong for an abstract state type, which can declare one\n  and still be rejected, because nothing can call it to produce an instance. The\n  reader was sent looking for something already there. Both messages now name the\n  requirement — implement `IStateDefault<TSelf>`, or be a non-abstract type with a\n  public parameterless constructor — on the injected and the explicit-registration\n  path alike.\n  The facet's idempotence marker is registered as an instance rather than an\n  implementation type. Nothing resolves it, and a host that builds its provider\n  with `ValidateOnBuild` constructs every descriptor it can, so a marker has no\n  reason to be among them. Adds a test building the provider with\n  `ValidateOnBuild` and `ValidateScopes` after enabling the facet.\n  * docs(om): correct the state-contract rationale in the API design record\n  Two statements in the design record were wrong.\n  The Grain wiring section still said the convenience overload requires `new()`.\n  That constraint came off when `IStateDefault<TSelf>` was introduced, so the\n  record contradicted the contract described a few sections below it.\n  The rationale for putting defaults and configuration on the state type claimed a\n  state type is owned by exactly one grain. Nothing enforces that, and the tests in\n  this repository share `ContractState` across two grain types. The contracts are\n  type-wide by design: two grain types sharing a state type share its default and\n  its baseline wiring. Single-grain ownership is the convention the library\n  recommends, under which \"state-specific\" and \"grain-specific\" coincide, not a\n  property of the system. A grain needing its own answer for a shared state type\n  passes `createInitialState` or `configureState`.\n  Adds two regression tests for behaviour the design record asserts: a whitespace\n  storage name resolves the unkeyed factory, matching Orleans' own\n  `IsNullOrWhiteSpace` provider selection, and a throwing `Configure` leaves the\n  newly adopted snapshot visible rather than reverting to the last stored value.\n  * docs(om): unnest the usage paragraphs and state the default-instance requirement\n  The `IStateManager<T>` usage remarks opened a second `<para>` inside the first\n  and closed both at the end, so the generated API documentation nested paragraph\n  elements. The alternative-usage paragraph is now a sibling.\n  Two README sentences described the fallback as needing a public parameterless\n  constructor. An abstract type can declare one and is still rejected, because\n  nothing can call it, so both now say a non-abstract type with a public\n  parameterless constructor, matching the runtime diagnostic.\n  * fix(om): stop burying facet diagnostics in TargetInvocationException\n  The mapper reached its generic manager-construction method through\n  `MethodInfo.Invoke`, which wraps whatever the target throws. Every diagnostic\n  raised while building an injected manager therefore surfaced one level down\n  inside a `TargetInvocationException`: the missing keyed `IStateManagerFactory`\n  message, Orleans' own missing-storage-provider error, and the undefaultable\n  state type message. The sentence saying what to register was there, just not\n  where a reader looks.\n  The method is now bound once as a delegate, so it throws straight through.\n  Adds a test activating a grain whose storage provider exists but has no\n  `IStateManagerFactory` keyed to it, asserting the registration message is\n  present and no wrapper exception is.\n  * docs(om): qualify the IConfigurableState wiring guarantee\n  The summary promised a grain never observes an unconfigured instance through\n  `State`. `Publish` assigns the snapshot before invoking the callback, so a\n  `Configure` that throws leaves that snapshot visible wired only as far as the\n  callback got. The contract paragraph below already said the adopted snapshot\n  stays visible on failure, and a test asserts it, so the summary contradicted\n  both.\n  It now says what actually holds: publishing and configuring happen in the same\n  turn with no await between them, so an operation that returns leaves `State`\n  fully wired, and a throwing `Configure` is the one case where an incompletely\n  wired instance stays visible.\n  * test(om): cover the undefaultable state type end to end\n  The guard rejecting a state type that can represent no absent record was only\n  covered by calling the mapper directly, which says nothing about when it fires.\n  This activates a real grain injecting such a state type through a deployed\n  cluster.\n  The cluster deploying with that grain type present is the assertion about\n  timing: Orleans builds a grain type's constructor argument factory on first\n  activation, not at silo startup, so the guard runs there and the documented\n  \"fails at activation\" holds.\n  ---------",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#repository",
+    "branch": "refs/heads/release/egil-orleans-messaging/v0.7",
+    "commit": "a466d5e1cde954fa4ace74634787d8053e11c90b",
+    "type": "git",
+    "url": "https://github.com/egil/framework"
+  },
+  "title": "Orleans Messaging Toolbox",
+  "verbatimVersion": "0.7.4",
+  "version": "0.7.4",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#dependencygroup/net10.0/microsoft.orleans.reminders",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Reminders",
+          "range": "[10.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#dependencygroup/net10.0/microsoft.orleans.runtime",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Runtime",
+          "range": "[10.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#dependencygroup/net10.0/microsoft.orleans.streaming",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Streaming",
+          "range": "[10.3.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#Egil.Orleans.Messaging.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4779,
+      "fullName": "Egil.Orleans.Messaging.nuspec",
+      "length": 12485,
+      "name": "Egil.Orleans.Messaging.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 638,
+      "fullName": "LICENSE",
+      "length": 1068,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 17798,
+      "fullName": "README.md",
+      "length": 53022,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#lib/net10.0/Egil.Orleans.Messaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 127431,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.dll",
+      "length": 242176,
+      "name": "Egil.Orleans.Messaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#lib/net10.0/Egil.Orleans.Messaging.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 34513,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.xml",
+      "length": 203585,
+      "name": "Egil.Orleans.Messaging.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.16.25.51/egil.orleans.messaging.0.7.4.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12978,
+      "fullName": ".signature.p7s",
+      "length": 12978,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "orleans",
+    "messaging",
+    "outbox",
+    "deduplication",
+    "streams",
+    "grain",
+    "egil"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,162 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Yaroslav V Tatarenko",
+  "catalog:commitId": "0f9dd268-e8f0-42cd-be62-f7c2d4cbe7ce",
+  "catalog:commitTimeStamp": "2026-09-17T20:36:22.8167388Z",
+  "copyright": "Copyright (c) 2026 Yaroslav V Tatarenko",
+  "created": "2026-09-17T20:32:43.91Z",
+  "description": "libmpv backend for MediaToolkit.NET: a self-rendering media player driven through the mpv client API, including property access and the event loop. libmpv is not included and must be present at runtime.",
+  "iconFile": "icon.png",
+  "id": "MediaToolkitNet.Mpv",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-17T20:35:54.023Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "q6hy4oQliYYqNQbKFmHfyKLfAOSvjTY6CILnKO5YNErekKsH4WkOf0BYIQdKko/bsiwXYUFWAYhvBtsYTfq2hQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 37261,
+  "projectUrl": "https://github.com/yartat/MediaToolkit.NET",
+  "published": "2026-09-17T20:32:43.91Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "MediaToolkit.NET 0.1.2 - the FFmpeg backend release.\n\nAudio encoding did not work at all in 0.1.1, on any FFmpeg version, and fixing\nthat uncovered a second defect underneath it in the struct offsets themselves.\nBoth are fixed here, FFmpeg 8.x and 9.x are supported alongside 7.x, and a test\nsuite now checks every offset against the library that is actually installed.\n\nThe README on this page covers what the library does and what it needs at\nruntime. These notes cover only what is specific to this release.\n\nFIXED\n\n- Audio encoding never worked. The channel count was set through the \"ac\"\n  AVOption, which has not existed on AVCodecContext since FFmpeg 7 removed the\n  old channel API; the encoder then refused to open for want of a layout. The\n  same mistake sat in the startup probe of the AVFrame audio fields, which\n  switched audio encoding off wholesale. The layout now travels through\n  ch_layout.\n- The AVStream offsets were wrong in every FFmpeg from 6 to 9. codecpar was read\n  at 208 where it lives at 16, and time_base, start_time, duration and\n  avg_frame_rate were each eight bytes short. The muxer writes codec parameters\n  through codecpar, so adding a stream to an output wrote through a wild pointer.\n  A new stream is now checked before anything is written through it.\n- Channel layouts were guessed as (1 << channels) - 1, which gives 3.1 for four\n  channels rather than quad. The layout of a bare channel count now comes from\n  av_channel_layout_default.\n- Encoder flags were assigned rather than accumulated, dropping the global header\n  bit whenever a second flag was set.\n- .mka and .mks are the same muxer as .mkv and now ask for a global header too.\n\nADDED\n\n- FFmpeg 8.x and 9.x beside 7.x. The loader matches the versions it got against a\n  table of release series and refuses a mixture belonging to none of them.\n- AC-3 and DTS. The DCA encoder is experimental in FFmpeg and is opened as such\n  without the caller having to say so.\n- PCM at 8, 16, 24 and 32 bits.\n- Variable bitrate, through AudioEncodingSettings.Quality, on the scale -q:a uses.\n- Per-stream EncoderName and Options, which name an encoder outright and pass\n  AVOptions to that stream alone.\n- Stated channel layouts: the ChannelLayout constants and AudioFormat.ChannelMask.\n  Six channels are 5.1 twice over, the back arrangement and the side one, and\n  only a mask tells an encoder which.\n- 134 unit tests and 43 integration tests, the latter checking every struct field\n  read by offset against the installed library.\n\nCHANGED\n\n- Six channels with no stated layout now default to 5.1 side, as\n  av_channel_layout_default does, rather than 5.1 back. Ask for\n  ChannelLayout.FivePoint1Back where the back arrangement is meant.\n- AudioFormat takes a fourth, optional ChannelMask. Source-compatible.\n- AbiLayout.CodecContextTimeBase and CodecContextPixFmt are properties rather\n  than constants, and PrepareAudioFrame takes the channel mask.\n- FFmpegLibraries.AvUtilMajor, AvCodecMajor and AvFormatMajor are gone;\n  FFmpegLibraries.Generation and FFmpegGeneration.Known replace them.\n\nVERIFIED BY RUNNING\n\nOn Windows 11 against FFmpeg 9.0.1: AC-3 at one, four and six channels, DTS, AAC\nat a fixed rate and at a quality, and PCM at 8, 16, 24 and 32 bits, each encoded\ninto Matroska and read back as the codec, rate and channel count it was given;\nMJPEG video encoded and muxed, which is the path that writes through\nAVStream::codecpar; and every hard-coded offset checked against the running\nlibrary. The offset tests were themselves checked by breaking three offsets on\npurpose, each of which failed loudly and corrupted nothing.\n\nNOT EXERCISED YET\n\n- FFmpeg 7.x and 8.x have not been run. Their entries in the series table were\n  read with offsetof against the headers of n7.1.5 and n8.1.2, and they name the\n  same fields 9.x uses, but no library of those series was loaded. Running\n  \"dotnet test\" on a machine that has one confirms them.\n- The Linux, macOS and mpv backends have still never been run.\n- Media Foundation video recording is still untested; audio recording works.\n\nThat is why this is still 0.1.x. The public API may still change.\n\nKNOWN LIMITATIONS\n\n- An encoder's own constraints are the caller's to meet: DCA takes only the side\n  arrangement of 5.1 and refuses stereo below 384 kbps, and AC-3 does not do 7.1.\n  The failure names the encoder, the sample rate and the layout asked for. The\n  FFmpeg command line hides this behind an automatic conversion filter; this API\n  does not.\n- Matroska stores no channel mask, so PCM read back from it reports an\n  unspecified layout. The mask matters for encoding, not for what the container\n  records.\n- MacOSBackend cannot write files, because AVAssetWriter is not wrapped.\n- FFmpegPlayer only decodes: no renderer and no audio output.\n- Only the mpv client API is wrapped; the render API is not.\n- DirectShow is wrapped for device enumeration only, with no filter graph.\n\nFull notes: https://github.com/yartat/MediaToolkit.NET/releases/tag/v0.1.2\nIssues: https://github.com/yartat/MediaToolkit.NET/issues",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "f00a80a05d93cadf8cc27f7c038e417ccf9dd6a7",
+    "type": "git",
+    "url": "https://github.com/yartat/MediaToolkit.NET"
+  },
+  "verbatimVersion": "0.1.2",
+  "version": "0.1.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#dependencygroup/net10.0/mediatoolkitnet.abstractions",
+          "@type": "PackageDependency",
+          "id": "MediaToolkitNet.Abstractions",
+          "range": "[0.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#dependencygroup/net10.0/mediatoolkitnet.interop",
+          "@type": "PackageDependency",
+          "id": "MediaToolkitNet.Interop",
+          "range": "[0.1.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#MediaToolkitNet.Mpv.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2967,
+      "fullName": "MediaToolkitNet.Mpv.nuspec",
+      "length": 6399,
+      "name": "MediaToolkitNet.Mpv.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1812,
+      "fullName": "README.md",
+      "length": 3993,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 4981,
+      "fullName": "icon.png",
+      "length": 4976,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#lib/net10.0/MediaToolkitNet.Mpv.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9768,
+      "fullName": "lib/net10.0/MediaToolkitNet.Mpv.dll",
+      "length": 20480,
+      "name": "MediaToolkitNet.Mpv.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#lib/net10.0/MediaToolkitNet.Mpv.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2637,
+      "fullName": "lib/net10.0/MediaToolkitNet.Mpv.xml",
+      "length": 16419,
+      "name": "MediaToolkitNet.Mpv.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.17.20.36.22/mediatoolkitnet.mpv.0.1.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "mpv",
+    "libmpv",
+    "player",
+    "playback",
+    "interop"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

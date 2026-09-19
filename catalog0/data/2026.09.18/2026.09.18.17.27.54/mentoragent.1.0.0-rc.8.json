@@ -1,0 +1,258 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Antonio Macrì",
+  "catalog:commitId": "d2306b44-a9cb-4b25-a587-00cd6504f6d6",
+  "catalog:commitTimeStamp": "2026-09-18T17:27:54.1919045Z",
+  "created": "2026-09-18T17:23:41.8Z",
+  "description": "A Blazor Razor Class Library that adds an AI-powered floating chat assistant to any Blazor application, built on Microsoft Agent Framework. Supports multi-level agent orchestration (tools, handoff, group chat), page navigation, UI actions, contextual memory, streaming, voice, and security — all with zero boilerplate.",
+  "iconFile": "IconMA.png",
+  "id": "MentorAgent",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-18T17:27:32.993Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "0FnPTs4dzihzYsPbDhFPr7A5uron5lQIV+Oh9aok5QRs75hIsnNGVIROF8JB4HApCwACjH6zYunDnwPWyzTaVw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 296177,
+  "published": "2026-09-18T17:23:41.8Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.0-rc.8\n\n\t\tFound by re-driving the release matrix's open cells on the published rc.7 - the first published build in which route_to_specialist was really called (BUG-073 had kept everything behind that call out of sight). The first delegated turns ever driven live found what was behind it. One additive API change: route_to_specialist takes an optional second argument.\n\n\t\t=== FIXED\n\t\t- BUG-078 (S2): the A2A SERVER had never completed a round trip with any client - three independent faults, each hidden behind the one before, found the first time a delegation reached a live peer. (1) The agent card advertised protocolBinding \"HTTP+JSON\" while MapMentorAgentA2A maps the SDK's JSON-RPC endpoint, so a client that believed the card got HTTP 404 - every client, MentorAgent's own included. It now says JSONRPC. (2) The handler changed a task's status without submitting the task first: \"Agent handler did not produce any response events\". (3) It disposed a plain DI scope that had resolved MentorOrchestrator, which is IAsyncDisposable only, so the container threw AFTER the turn had run and been billed: \"An internal error occurred\". And on the CLIENT side (4): inside the handoff workflow an agent runs streaming, and A2AChatClient read only Message events - a MentorAgent server answers with a task whose answer rides on the final status update, so MentorAgent's client could not hear MentorAgent's server. It now reads a final Task/StatusUpdate too (a Working status is a progress note and is skipped). Pinned by the SDK's own A2AClientFactory + A2ACardResolver completing a round trip against the in-memory server, given nothing but the card.\n\t\t- A turn that arrives over A2A now tells the model so, in the per-request context: no human is present, carry the request out and reply with the result - no follow-up questions, no offers, no announcing instead of doing. Found on that first round trip: the peer answered \"Sto per estrarre il numero dei clienti... Vuoi anche un elenco?\" to a caller that is a program. The hub and SSE are unchanged - they carry people.\n\t\t- BUG-076 (S2): the agent at the entry of the handoff workflow - the router route_to_specialist talks to first - was built from the coordinator's ENTIRE prompt. It has no application tools, only the workflow's handoff functions, so about 5,000 input tokens were paid a second time on every delegated turn by an agent that could use none of it. And since rc.7 that prompt says \"to delegate, call route_to_specialist\": the router is INSIDE that tool. Told to call a function it was not given, it narrated (\"Sto chiedendo allo specialista spedizioni...\", \"Sto incaricando l'agente remoto... appena risponde ti informero'\"), the workflow ended on the narration, and the tool handed it to the coordinator - inside a serialised AgentResponse envelope - as the specialist's answer. Nothing reached the remote peer; a request addressed to OrderAgent was answered by ShippingAgent. Now: the router has a router's prompt (who the specialists are, call exactly one handoff function, never answer, never say you are forwarding; about 400 tokens); the tool returns what the specialists SAID, as text; when nobody but the router spoke the result is \"NOT DELEGATED ... do not say it was forwarded\" and the operator gets a warning; a specialist that RAISED is reported as \"DELEGATION FAILED\" with the error in the warning, not as a refusal (that line is how BUG-078 was found); and route_to_specialist has an optional `specialist` argument, because a model asked for \"the user's request\" tidies it and the name is the first thing to go (\"Delega a ShopFlowRemote: quanti prodotti ha?\" arrived as \"Quanti prodotti ci sono nel catalogo ShopFlow?\").\n\t\t- BUG-077 (S3): every model call made UNDER the coordinator - the router, the Level 2 specialists, the Level 3 team members, and the agents an IMentorAgentSource builds - ran on the raw host client and was never metered. Live, the session counter went from 5 calls to 6 across a delegated turn that made at least three more in between; a 30-second team deliberation showed up as the coordinator's two calls. BUG-033's shape, on the turns that cost the most. They now run on the host's ChatClient inside the metering wrapper and nothing else. The new lines showed one more thing at once: \"model: , in: 404\" - Azure's first streamed chunk carries an EMPTY model id, not a null one, and the wrapper kept it. It now takes the first non-empty id and falls back to the client's own deployment, which also gives a ClassifierChatClient on its own deployment its own dashboard row.\n\n\t\t- BUG-079 (S3): a specialist had no rule against inventing data. On that same first round trip the peer's customer specialist - whose tools can look one customer up but cannot count them - answered \"87 registered customers\", in a table; the instance has 5, and the figure reached the user through two coordinators with no reason to doubt it. The GENERATED specialist prompt and every team member's now carry a grounding rule (state only facts a tool returned; if nothing provides what is asked, say so - never estimate or invent a number, a name, a date or a status). Custom [MentorAgent(Instructions = ...)] stay exactly as written, by design and by test: both READMEs now say a custom prompt replaces the rule too and should carry its own.\n\t\t- BUG-075, second pass: the rc.7 fix did not hold. On the published rc.7 \"Ricorda che il mio codice privato e' ZULU-2200\" was still classified UNSAFE, and so was asking for it back. Naming memory as a capability does not touch the rule the model was applying - \"extract credentials ... or other infrastructure secrets\" - with nothing saying WHOSE secrets. On hosts with memory on, the classifier is now told: the secrets that rule protects are the system's; what users tell the assistant about themselves is theirs to give and to ask back. Verified live with the exact two messages (both SAFE), injection control still refused. What is NOT changed: past the classifier, the model itself may decline to keep something its user calls private, and says why - a defensible answer from a plain-text memory, recorded rather than overridden.\n\n\t\t=== SAMPLES (not part of the packages)\n\t\t- The remote A2A agent's description now says what it answers about. \"Headless instance, for delegating A2A operations\" gave a router nothing to route on.\n\t\t- The sample specialists' custom instructions carry the grounding rule.\n\t\t- The source-referenced sample points its A2A peer at the source-referenced headless server (5169): source with source, packages with packages.\n\n\t\t=== STILL OPEN, UNCHANGED\n\t\t- BUG-074 (S3): MentorshipLevel.Proactive offers actions the application does not have. Measured, recorded, a product-voice decision.\n\n\t\t1,645 tests green, build 0 warnings / 0 errors.\n\n\t\t1.0.0-rc.7\n\n\t\tFound by the release matrix: the same ~70 checks driven on all eight sample applications against the published rc.6 packages, signed in and anonymous, on Blazor Server (cookie), WebAssembly and React (JWT), Blazor Auto, .NET MAUI (over CDP) and the two source-referenced apps. 584 cells, every option of MentorOptions and MentorAgentBlazorOptions with a verdict. No API change.\n\n\t\t=== FIXED\n\t\t- BUG-073 (S2): the coordinator was told it COULD delegate to its specialists and never told how - the tool name route_to_specialist appeared nowhere in the prompt and the tool's own description named no agent. Told a specialist existed (BUG-069), the model narrated the handoff (\"inoltro subito la domanda allo ShippingAgent, attendo la sua risposta\") and ended the turn without calling anything, three times, once under an explicit order. The capabilities block now says how to delegate and forbids announcing an unperformed handoff; the tool's description names every specialist it reaches, attribute-declared, source-supplied and remote.\n\t\t- BUG-075 (S3): \"Ricorda che il mio codice privato e' ZULU-2200\" was classified UNSAFE on a host with memory on. Remembering a fact the user asks to keep is a configured capability and is now named to the classifier, the way MCP servers and image input already were (BUG-067).\n\t\t- BUG-072 (S3): a signed-in user whose AuthenticationStateProvider threw was silently keyed as anonymous - and since rc.5, as a different anonymous in every circuit, so the same user would have had a different memory in every tab with nothing in the log. The fallback stays (fail closed); it is now said once per session, without a stack trace per visitor. The live check on a real cookie principal shows the catch does not fire.\n\t\t- BUG-068 addendum: one collaborating builder was still announcing per circuit at Information (\"Remote agent 'X' connected from ...\"). Routed through the same quiet logger; the general test now includes a remote agent.\n\n\t\t=== SAMPLES (not part of the packages, recorded for whoever reads them)\n\t\t- The three samples with authentication expose GET /account/dev-login?as=admin|manager|user in Development only (404 in Production, verified), so the authenticated rows of the matrix can be driven by a script; the WebAssembly and React clients accept ?as= on their login route for the same reason.\n\t\t- The Blazor Server sample binds RefuseOutOfScope, WarmUpAtStartup, CompactionMaxTurns and RateLimitPerUser from configuration, so command-line overrides actually reach them.\n\t\t- The samples point their A2A peer at a live server (the headless sample) instead of a port nobody listened on.\n\n\t\t=== MEASURED, NOT CHANGED\n\t\t- BUG-074 (S3, open): MentorshipLevel.Proactive still offers actions the application does not have - 3 in 5 turns (\"esportare l'elenco\", \"cercare con il nome\"). The rule is in the prompt; a structural fix (offers must name a listed tool or page) is a product-voice decision, recorded rather than taken.\n\t\t- A compaction pass writes no log line; it is pinned in-process (CompactionTests). A Debug line when a pass runs would make it observable live.\n\n\t\t1,623 tests green, build 0 warnings / 0 errors.\n\n\t\t1.0.0-rc.6\n\n\t\tFour defects found by running the published rc.5 packages against the sample applications - the pass rc.5's own notes implied but had not yet been done. No API change: every fix restores behaviour rc.5 already claimed.\n\n\t\t=== FIXED\n\t\t- BUG-068 (S3): the configuration summary was NOT written once per process, as rc.5's notes said it was. A second browser circuit still reprinted seven Information lines - the skills catalogue, the external agents, the hosted image model, the Azure image-header note, the hosted MCP server, the hosted tool list and the declarative handoff. The sentinel was claimed halfway through the build, after everything above it had already announced itself, and three collaborating builders never consulted it at all. It is now claimed first, and a later build demotes Information to Debug instead of discarding it, so an operator who turns Debug on to investigate one circuit can still see what it was built with. Degradation warnings stay per session, unchanged.\n\t\t- BUG-069 (S2): an agent supplied by an IMentorAgentSource - a declarative YAML specialist, or a host's own - joined the handoff graph and was never named in the coordinator's instructions. route_to_specialist names no agent either, so nothing the model could see said the specialist existed: asked about it, the assistant answered that there is no such agent, while the log recorded it being added to the workflow. Source-supplied agents are now listed with their descriptions beside the attribute-declared ones.\n\t\t- BUG-070 (S4): every skill on the published A2A card carried a flattened name (\"Getallordersforanalysis\"). The friendly-name helper splits on underscores and was being handed the PascalCase method name. That card is the one artefact whose entire audience is another machine's directory.\n\t\t- BUG-071 (S4): a turn whose input safety check met the first failure printed two stack traces instead of one - the turn's fault log was reset after that check, so its cause was recorded and immediately discarded. The reset now happens before every early return.\n\n\t\t1,616 tests green, build 0 warnings / 0 errors.\n\n\t\t1.0.0-rc.5\n\n\t\tLatency, cost per visitor, and the answers themselves. Measured on a live Blazor Server host before and after: time to the first character on the same question fell from 2.6-3.0 s to 1.6-2.0 s, and a shared MCP server now runs one child process for the whole application instead of one per browser circuit.\n\n\t\t=== NEW - options\n\t\t- ClassifierChatClient: the client MentorAgent uses for its own one-word decisions (input safety, hosted-tool scope, post-turn fact extraction). Point it at a small deployment: those calls sit in front of the reply and were measured at 707-2091 ms on gpt-4.1 for two tokens of answer. Defaults to ChatClient, and is metered under its own model id.\n\t\t- AnonymousIdentity (PerSession by default): who a signed-out visitor is, for memory and for the rate-limit counter. Every unauthenticated session used to share the literal key \"anonymous\", so one visitor's facts were recalled for the next and one visitor could spend everybody's allowance. BREAKING for single-user hosts that want the old behaviour: set AnonymousIdentity = Shared (MAUI, desktop, kiosk - it is what makes memory survive a restart).\n\t\t- RefuseOutOfScope (off by default): refuse a message that is not about this application, using the scope verdict the classifier already produces. Free when EnableSafetyCheck is on, because both questions now travel in one call.\n\t\t- WarmUpAtStartup (off by default): build one coordinator when the application starts, so the first visitor does not pay for the catalogue embeddings, the shared MCP sessions and the remote agent cards.\n\t\t- MentorMcpServer.Shared (null by default): one connection per process, or one per session. Unset decides by transport - a server reached over ServerUrl is shared, a server started from Command is not, because a local child process can hold state for the person who started it.\n\t\t- MapMentorAgentMcp / MapMentorAgentA2A take a configure callback, so the host can finally apply RequireAuthorization() to them. Both endpoints discarded their convention builders before this.\n\t\t- IMentorQueryEmbedding: the current message's embedding, computed once per turn. Inject it in your IMentorRagSource instead of embedding the query a second time.\n\n\t\t=== FASTER\n\t\t- One embedding per text instead of one per consumer. Routing, tool filtering and memory relevance were each embedding the same sentence - two to four network round trips per turn - and the tool catalogue plus the routing exemplars were re-embedded once per DI scope, i.e. once per browser circuit.\n\t\t- One classifier call instead of two: the input safety check and the hosted-tool scope check read the same message and now ask both questions in the same call.\n\t\t- The composer is handed back when the answer is complete, not after the post-turn fact extraction (a second model call, 544-767 ms measured).\n\t\t- Shared MCP sessions and a process-wide agent-card cache with a failure backoff. Two browser tabs used to mean eight node processes and 580 MB.\n\n\t\t=== FIXED\n\t\t- BUG-062 (S3): text written before a tool call was glued to the text after it (\"...i dati.Il catalogo\"), and a Markdown table opening the second response stopped being a table.\n\t\t- BUG-063 (S3): in HitlMode.Native a user without the required role was shown the confirmation banner and refused only after approving it. The role gate now runs first, as it always did in Blocking mode.\n\t\t- BUG-064 (S1): two anonymous visitors of the same site shared one memory. Now isolated per session by default, with a warning when a host opts back into the shared bucket and a second session reaches it.\n\t\t- BUG-065 (S4): the RAG \"wrong scale\" warning fired for thresholds on the source's own scale, once per visitor.\n\t\t- BUG-066 (S3): the hosted-tool scope classifier was built on the raw ChatClient, so its billed call appeared in no dashboard.\n\t\t- BUG-067 (S3): the safety classifier was never told what the application is equipped with, and refused three legitimate messages out of forty on a host with an MCP filesystem server and image input. It is now told, and a refused message is logged by fingerprint rather than by its text.\n\n\t\t=== CHANGED\n\t\t- RAG citation chips show the documents the answer actually cited. Documents are numbered in the prompt and the model is asked to cite them; if it cites none, no chips are shown.\n\t\t- MentorshipLevel.Proactive asks for one sentence before acting instead of a plan, and may only offer next steps the application can actually perform.\n\t\t- The A2A agent card publishes the application's ungated actions as skills, its input/output modes and its streaming capability. It carried a name and a description and nothing else.\n\t\t- The coordinator's configuration summary is logged once per process instead of once per session, and one provider failure produces one stack trace instead of one per component that met it.\n\n\t\t1,611 tests green, build 0 warnings / 0 errors.\n\t\t1.0.0-rc.4\n\n\t\tOne finding, found by re-running the published rc.3 packages against a host configured the way hosted tools force it. No API change, no behavioural change anywhere else.\n\n\t\t=== FIXED - the provider error classifier knew one API's wording, not the other's (S3)\n\t\t- ROADMAP #33 turns a provider failure the user can act on into a sentence that names it. Its rule for an unreachable image was written against the phrasing Chat Completions uses: \"Unable to download image from <url>\".\n\t\t- The Responses API - the client hosted tools require - reports the identical failure as \"Parameter: url\" plus \"Error while downloading file.\", with the URL nowhere in the message. None of the classifier's patterns matched, so the user was shown the generic \"An error occurred while processing the response\" that #33 exists to replace.\n\t\t- Fixed with one rule keyed on the PAIR \"error while downloading file\" AND \"parameter: url\". The pair is what keeps it safe: the first phrase alone also covers a vector-store document or another operator-supplied file, which is not the reader's to fix and stays generic. No new localizer key, so the ten translations stay complete.\n\t\t- Every image string in the classifier's tests had been the Chat Completions wording - the literal text seen live during the campaign. There is now a test per API surface, plus one pinning that an operator's own file still falls through to generic. 1,516 tests, all green; 61 findings closed, none open.\n\n\t\t1.0.0-rc.3\n\n\t\tSeventeen findings closed, nine of them reachable only by running the published packages in a real application, and three of them defects this release itself introduced and then caught before shipping — and four found by the two host types this library claimed to support and had never been run on: a hand-written React client and a .NET MAUI desktop app. Three ROADMAP items closed with them. 1,514 automated tests, all green; 60 findings closed since preview.5, none open. Every member documented in a README table now also appears in a code example - 38 of 220 did not, and that is now a test.\n\n\t\t=== FIXED - the OpenAI hold was a floor, not a ceiling (S1) ================\n\t\t- rc.2 held OpenAI at 2.10.0 to avoid a MissingMethodException at startup. A version number in a PackageReference is a MINIMUM, so one ordinary \"dotnet add package Microsoft.Extensions.AI.OpenAI\" resolved 10.9.0, pulled OpenAI 2.12.0, built with 0 warnings and 0 errors - and the application died on boot. The hold protected nobody who touched that package.\n\t\t- The pins are now exact ranges ([10.6.0], [1.17.0-preview.260804.1]). That alone is not enough: an exact range a consumer resolves past produces NU1608, a WARNING, so the build still succeeds and the application still dies.\n\t\t- NEW - the package therefore ships an MSBuild guard in buildTransitive that reads the resolved OpenAI version after ResolvePackageAssets and fails the build with \"error MENTOR001\", naming the version it found, the reason, and the remedy. A silent runtime crash becomes a build error with an explanation. Set MentorAgentSkipOpenAIVersionCheck=true to override it deliberately.\n\n\t\t=== FIXED - the input safety check refused ordinary questions (S2) =========\n\t\t- With EnableSafetyCheck on, \"tell me everything about customer Mario Rossi\" was refused - twice, deterministically - while \"show me the full data for customer Mario Rossi\" was allowed and returned the identical record. The control was declining a wording, not protecting anything.\n\t\t- The cause: the classifier was handed the message and nothing else. Its instructions list \"extract sensitive data\" with no statement of what this application's data IS, so a broad request for business records reads as exfiltration. With no application context that is a reasonable reading.\n\t\t- The classifier now receives the same application scope the hosted-tool domain gate already derives (AppName, AppDescription, discovered page names) and is told in as many words that reading the application's own business data is safe HOWEVER BROADLY PHRASED - the application decides what a user may see, not the classifier. An instruction-override attempt is still refused, and that is a test.\n\t\t- Worth naming because the failure mode is quiet: a security control that fires on legitimate traffic gets switched off, and this one fails CLOSED - the damage is not a leak, it is the loss of the feature.\n\n\t\t=== FIXED - a configured ChatHistoryProvider is shared by every user (S1) ====\n\t\t- MentorOptions is a singleton, so an object assigned to ChatHistoryProvider serves every circuit, every SignalR connection and every user in the process. The DEFAULT is the opposite: with the option left null MentorAgent builds a fresh InMemoryChatHistoryProvider inside each coordinator, isolated by construction. Setting the property therefore INVERTS the isolation model, silently.\n\t\t- Driven with three authenticated principals: a private code written by one was read back verbatim by the other two. The role gate discriminated between the same three connections correctly, so the identity bridge was working - the history was simply shared.\n\t\t- The documentation's own examples are the shape that does it (new CosmosChatHistoryProvider(...), new MyRedisChatHistoryProvider(...)), and the natural implementation of \"implement ChatHistoryProvider\" is one class holding one List<ChatMessage>.\n\t\t- NEW: ChatHistoryProviderFactory (Func<IServiceProvider, ChatHistoryProvider>) is invoked once per coordinator - the lifetime the default already has - and receives that coordinator's service provider, so a provider can key its storage by whatever identifies the caller. Prefer it in any application with more than one user.\n\t\t- Setting both throws in MentorOptions.Validate(), at startup rather than on the first message: they answer the same question with opposite isolation semantics, so picking one would make an application's safety depend on which line was written last.\n\t\t- ChatHistoryProvider is KEPT. A desktop host, or a provider that partitions its own storage, is entitled to it; removing it would be a breaking change for no gain. It now logs at Debug that it is shared, and the README carries the warning next to the examples that caused this.\n\n\t\t=== FIXED - MentorAgent could not start at all on .NET MAUI (S1) =============\n\t\t- A MAUI Blazor Hybrid app showed \"Loading...\" and then \"An unhandled error has occurred\", with nothing else. The cause was in the WebView console and nowhere else: MentorSkillsBuilder read IHostEnvironment.ContentRootPath in its constructor, and MauiHostEnvironment.ContentRootPath throws NotImplementedException - a packaged desktop app has no content directory. The exception escaped through the DI container while it was constructing ChatWidget, which killed the whole Blazor renderer rather than one component.\n\t\t- It fired with skills switched OFF, because the builder is registered unconditionally: a feature the application had not asked for took the application down.\n\t\t- The content root now falls back to AppContext.BaseDirectory, which is where a MAUI app's content files actually land, so a relative SkillsFolder still resolves to the folder the developer put it in. Reported once at Debug, not Warning: a host with no content root has misconfigured nothing.\n\t\t- Every one of the 33 skills tests ran under a host that has a content root. The defect was never in what the feature does - it was in what its constructor assumed about its host, and only a host lacking the assumption could show it.\n\n\t\t=== FIXED - one registered UI action switched token streaming off for the page (S2)\n\t\t- With a UI action registered, UIActionsMiddleware ran its loop through GetResponseAsync and replayed the finished reply as updates. Measured over the hub: 327 StreamingChunk frames with no page context, 261 with a page context and no UI actions, and 1 - the entire reply in a single frame - with one action registered.\n\t\t- The cost was paid on EVERY turn on such a page, not only the turns that call an action. On a routed reasoning turn (21 seconds in our own measurements) that is 21 seconds of an unchanging typing indicator followed by the whole answer at once, on exactly the pages a host has invested in making interactive.\n\t\t- The loop now runs over the streamed response: text is forwarded as it arrives, and content is withheld only when it is a call to one of the middleware's own registered actions - filtered by name, so a genuine tool call belonging to the outer pipeline still passes through untouched.\n\t\t- 24 existing tests drove this middleware and asserted on the text. The text was always right; only its arrival changed. One of them pinned the buffering as \"the documented trade-off\" - so the behaviour was known when it was written, was never documented anywhere a reader could see it, and its cost had never been measured, because no live client with UI actions had ever been driven.\n\t\t- One deliberate behaviour change: on a turn that does call a UI action, the sentence the model writes alongside the call now reaches the user. That is the better of the two - the action-feedback bar is already showing \"UI: highlight_order\" at that moment.\n\n\t\t=== NEW - provider errors are classified before they are shown (ROADMAP #33) ==\n\t\t- Every failure that was not an Azure content filter produced one sentence: \"An error occurred while processing the response.\" A user who pasted an intranet image URL was told that, while the log held both the cause and the exact URL.\n\t\t- ProviderErrorClassifier now names the failures the USER can act on: an unreachable image URL (quoted back, since they supplied it), a conversation past the context window, a throttled provider, a rejected image, a timeout.\n\t\t- Everything else stays deliberately indistinguishable. An expired key, a missing deployment, a firewall rule are operator problems: naming them neither helps the reader nor is something to tell whoever is probing the application. Nothing forwards provider text, so IncludeWorkflowExceptionDetails keeps its meaning and its default, and the full exception still goes to the log.\n\t\t- It also fixed the one hard-coded English string in a library that ships ten languages: the generic fallback itself. Seven new keys, all ten languages.\n\n\t\t=== FIXED - MCP caller identity was cached process-wide (S1, from #32 itself) =\n\t\t- The tool collection is a singleton whose list was built once in a Lazy and kept for the lifetime of the application. That was correct while the answer could not vary; #32 made it depend on WHO is asking and left the cache alone, so the first MCP request decided what every later one would see. One Admin call and a role-gated tool stayed published for anonymous callers - the same S1 as BUG-021 and BUG-035.\n\t\t- The seven tests written for #32 could not see it: each builds a fresh collection and calls GetTools() once, so the cache is never asked a second question.\n\t\t- The cache is now keyed by caller identity - a canonical \"authenticated, and these roles\" signature, which is exactly what the decision depends on. With no resolver configured nothing changes, and the per-tool reflection is still paid once per role combination rather than once per request.\n\n\t\t=== NEW - an identity story for MCP callers (ROADMAP #32) ====================\n\t\t- BUG-021 and BUG-035 were the same S1 twice, and both were fixed by failing closed: a gated action is simply not published over MCP. An opt-in to publish them anyway was deliberately not added, because a flag whose only effect is to switch protection off is worse than the gap.\n\t\t- What was missing was not a flag but an identity. MentorOptions.McpCallerPrincipal resolves the caller's ClaimsPrincipal, and a ROLE-gated action then becomes publishable - published only when that principal is authenticated and holds one of the roles.\n\t\t- Every ambiguous path withholds: no resolver (the default), a null principal, an unauthenticated identity, or a resolver that throws. A host's auth stack can be down, and \"the token service is unavailable\" must mean withhold - and must not take the MCP endpoint with it.\n\t\t- CONFIRMATION gates are never satisfied by it. RequiresConfirmation and the RequiresApproval predicate both mean \"ask a human first\", and there is none on the far end of an MCP call.\n\n\t\t=== FIXED - the hosted-tool domain gate refused its own documented example (S3)\n\t\t- With HostedToolDomainCheck on, the question this README uses to introduce image generation - \"draw a banner for the summer sale\" - was refused, and the log showed why: the relevance filter picked the image tool (0.275 against a 0.15 floor) and the gate threw it away as out of scope.\n\t\t- The classifier was not at fault. The derived scope is AppName + AppDescription + page names, all of which describe what the application HOLDS - products, orders, customers. Drawing a banner is not in that list and structurally never can be, so \"is this within that scope?\" is correctly answered OUT. Meanwhile the operator had said the opposite twice: by enabling the tool, and by enabling it on this application.\n\t\t- The derived scope now names the capabilities that are actually enabled and states the decision rule. A CUSTOM HostedToolDomainScope is left exactly as written - appending to a sentence you composed by hand would be editing your policy behind your back.\n\t\t- The wording matters more than it looks. The first attempt ended \"using one of those capabilities on this application's own subject matter is IN scope\", and measured against a real classifier \"generate an image of a dog\" then came back IN - the model read the list as permission. A cost control that says yes to everything is worse than the false negative it replaced. The rule is now stated as a constraint on the SUBJECT, with the capability list explicitly denied any widening power. No unit test could have caught that: a fake classifier answers whatever it is told to, so this was only findable against a live model.\n\n\t\t=== FIXED - the Responses API snippet did not compile (S3) =================\n\t\t- The core README's first Azure OpenAI example, and the same form in MentorOptions' own doc comment, wrote GetResponsesClient(\"deployment\").AsIChatClient(). There is no such overload: GetResponsesClient() takes no argument and the deployment name goes to AsIChatClient. Both now show the form that compiles.\n\n\t\t=== Verified against the published artefact ===============================\n\t\t- Everything above was found by installing the rc.2 packages from nuget.org into three fresh applications with ASP.NET Core Identity on SQL Server, then driving all four READMEs feature by feature on both an in-process host and a headless server with a cross-origin WebAssembly client. A ProjectReference cannot find defects in a nuspec, in buildTransitive, or in what a consumer's restore resolves.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#repository",
+    "commit": "da7a953d5d528647cfb041844d2428d86b9d5744",
+    "type": "git"
+  },
+  "title": "MentorAgent",
+  "verbatimVersion": "1.0.0-rc.8",
+  "version": "1.0.0-rc.8",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/mentoragent.abstractions",
+          "@type": "PackageDependency",
+          "id": "MentorAgent.Abstractions",
+          "range": "[1.0.0-rc.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/azure.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.OpenAI",
+          "range": "[2.9.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/azure.ai.projects",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.Projects",
+          "range": "[2.1.0-beta.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/azure.identity",
+          "@type": "PackageDependency",
+          "id": "Azure.Identity",
+          "range": "[1.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/microsoft.agents.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/microsoft.agents.ai.foundry",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Foundry",
+          "range": "[1.17.0-preview.260804.1, 1.17.0-preview.260804.1]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/microsoft.agents.ai.hosting.a2a.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Hosting.A2A.AspNetCore",
+          "range": "[1.18.0-preview.260818.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/microsoft.agents.ai.workflows",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Workflows",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/microsoft.aspnetcore.components.authorization",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Authorization",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/microsoft.extensions.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI",
+          "range": "[10.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/microsoft.extensions.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.OpenAI",
+          "range": "[10.6.0, 10.6.0]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#dependencygroup/net10.0/modelcontextprotocol.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol.AspNetCore",
+          "range": "[1.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#MentorAgent.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 13536,
+      "fullName": "MentorAgent.nuspec",
+      "length": 34733,
+      "name": "MentorAgent.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "LICENSE",
+      "length": 1092,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 67741,
+      "fullName": "README.md",
+      "length": 197971,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#buildTransitive/MentorAgent.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 1072,
+      "fullName": "buildTransitive/MentorAgent.targets",
+      "length": 2421,
+      "name": "MentorAgent.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#lib/net10.0/MentorAgent.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 178318,
+      "fullName": "lib/net10.0/MentorAgent.dll",
+      "length": 468480,
+      "name": "MentorAgent.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.18.17.27.54/mentoragent.1.0.0-rc.8.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "blazor",
+    "blazor-server",
+    "blazor-auto",
+    "ai",
+    "chatbot",
+    "chat-widget",
+    "assistant",
+    "agent",
+    "multi-agent",
+    "handoff",
+    "group-chat",
+    "microsoft-agent-framework",
+    "openai",
+    "azure-openai",
+    "ollama",
+    "rag",
+    "retrieval-augmented-generation",
+    "mcp",
+    "model-context-protocol",
+    "a2a",
+    "agent-to-agent",
+    "signalr",
+    "voice",
+    "memory",
+    "skills",
+    "streaming",
+    "wasm",
+    "mentor",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

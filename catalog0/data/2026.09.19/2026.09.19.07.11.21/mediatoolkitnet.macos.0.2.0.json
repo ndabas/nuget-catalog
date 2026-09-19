@@ -1,0 +1,164 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Yaroslav V Tatarenko",
+  "catalog:commitId": "c5bda5ff-9ced-469f-8bc6-9345862e1f1e",
+  "catalog:commitTimeStamp": "2026-09-19T07:11:21.8542274Z",
+  "copyright": "Copyright (c) 2026 Yaroslav V Tatarenko",
+  "created": "2026-09-19T07:08:34.82Z",
+  "description": "macOS backend for MediaToolkit.NET: AVFoundation capture and playback driven through the Objective-C runtime, and CoreAudio AudioQueue for PCM capture and render.",
+  "iconFile": "icon.png",
+  "id": "MediaToolkitNet.MacOS",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-19T07:11:13.017Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "eOvBsrGllt/b90PDPNFvYVk0S21wAukHzDdQcs1A6Fi6NxjbC/nn6kfbyZIQJk4q67MU8hcN9xkWh4kw4Ks6aw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 49849,
+  "projectUrl": "https://github.com/yartat/MediaToolkit.NET",
+  "published": "2026-09-19T07:08:34.82Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "MediaToolkit.NET 0.2.0 - the filter graph release.\n\nFour native stacks can assemble a processing graph, and all four are now wrapped:\nthe DirectShow filter graph on Windows, libavfilter through FFmpeg, mpv's vf and\naf chains, and GStreamer pipelines on Linux. Each is wrapped in its own terms\nrather than behind a common abstraction, because the shapes are genuinely\ndifferent and hiding that would cost more than it saves.\n\nThe README on this page covers what the library does and what it needs at\nruntime. These notes cover only what is specific to this release.\n\nNEW PACKAGE\n\nMediaToolkitNet.GStreamer, for GStreamer 1.x on Linux: a pipeline built from a\ngst-launch description, its state, bus and seeking, the element-factory registry,\nand video and audio frames taken out of an appsink. It implements no capture or\nplayback interface of its own, because the pipeline covers those roles in\nGStreamer's own terms. MediaToolkitNet.All pulls it in.\n\nADDED\n\n- DirectShow filter graph (MediaToolkitNet.Windows). Filters, pins, media types,\n  intelligent connect, RenderFile, transport control, seeking, bus events and a\n  text dump of the graph. A catalogue of thirty built-in filters - the splitters,\n  the parsers, the ACM and MPEG decoders, the DVD Navigator, the tees, the\n  renderers and the muxers - is addressed by name through the DsFilter enum\n  rather than by class id.\n- DirectShow Sample Grabber, which is frame access from inside the graph.\n  VideoGrabbed and AudioGrabbed deliver borrowed frames on the streaming thread;\n  AcceptVideo and AcceptAudio pin the format the graph has to negotiate to, so\n  the builder inserts a decoder and a colour converter as needed. Bottom-up DIBs\n  arrive with a negative stride, which VideoFrame already understands. A buffered\n  snapshot path, SetOneShot with BufferSamples and CopyCurrentBuffer, covers\n  grabbing a single frame out of a file.\n- libavfilter (MediaToolkitNet.FFmpeg). FFmpegFilterGraph.ForVideo and ForAudio\n  take the chain in FFmpeg's own syntax, the same string the command line takes\n  after -vf or -af; the buffer source and sink at either end are added for you.\n  Frames go in as an AVFrame or as a borrowed VideoFrame or AudioFrame and come\n  out borrowed. FFmpegFilters lists what the loaded library was built with, which\n  is not a fixed list the way the DirectShow catalogue is.\n- mpv filter chains (MediaToolkitNet.Mpv). MpvPlayer.VideoFilters and\n  AudioFilters wrap the vf and af properties: Set, Add, Remove, Toggle and Clear,\n  plus MpvFilterChain.Lavfi to hand a libavfilter chain to mpv.\n- Seven sample commands: ds-filters, ds-graph, ds-grab, av-filters, av-filter,\n  gst-elements and gst-run.\n\nCHANGED\n\n- FFmpegGeneration takes an AvFilter major version, as its seventh positional\n  parameter. Code that constructs one has to pass it; nothing else moves.\n- libavfilter is optional, like libavdevice, and is looked for only in the major\n  version belonging to the series that was already loaded. When it is missing,\n  FFmpegFilterGraph.IsAvailable is false and nothing else changes.\n\nVERIFIED BY RUNNING (Windows 11)\n\n- All thirty catalogued DirectShow class ids were instantiated. Twenty-eight\n  resolve; Line21Decoder and WavDest are not registered on current Windows, which\n  is the operating system's doing and not a bad GUID.\n- A WAVE file through the Sample Grabber: 23 buffers, 122868 samples at 22050 Hz,\n  which is 5.5722 seconds and exactly the duration the graph reported.\n- An H.264 file through decoder, colour converter and Sample Grabber to BGR24 at\n  1728x1080: thirty frames per second sustained, a negative stride as a bottom-up\n  DIB should have, and pixels read end to end of every plane rather than at the\n  corners, so a wrong pointer or stride could not pass as a plausible frame count.\n\nNOT EXERCISED YET - PLEASE READ BEFORE DEPENDING ON THIS\n\n- libavfilter has not been run. The development machine has no FFmpeg installed.\n  The two struct layouts it needs are found at startup by parsing a graph and\n  reading the labels back, and the graph refuses to build when that probe does\n  not pass, so a mismatch should produce a clear error rather than corruption -\n  but that path is untested too.\n- The mpv filter chains have not been run; libmpv was not installed either.\n- Nothing in MediaToolkitNet.GStreamer has run at all. It binds the Linux library\n  names, and the development machine is Windows. The four things GStreamer\n  exposes only as macros - the message type, the buffer timestamp, GstMapInfo and\n  the links of a GList - are each found by probing an object built for the\n  purpose rather than hard-coded, and a probe that fails disables the backend.\n  The parts most worth checking first on real hardware are those probes and the\n  floating-reference handling.\n\nEverything 0.1.2 verified still stands: the FFmpeg backend was run on Debian 13\nagainst FFmpeg 7.1.5 and on Windows 11 against FFmpeg 9.0.1.\n\nThat is why this is 0.2.0 rather than 1.0. The public API may still change.\n\nKNOWN LIMITATIONS\n\n- The GStreamer backend reports itself unavailable on Windows and macOS even\n  where GStreamer is installed, because it binds the Linux library names. Lifting\n  that is a matter of the file names and nothing else.\n- The Sample Grabber is registered for SampleCB only. BufferCB returns E_NOTIMPL:\n  SampleCB carries the sample itself, and therefore its timestamps and any\n  mid-stream format change.\n- A filter graph is not a player. None of the four renders audio or video on its\n  own - they hand frames back, and what happens next is the caller's.\n- Media Foundation video recording still needs a video encoder MFT registered on\n  the machine.\n- MacOSBackend cannot write files, because AVAssetWriter is not wrapped.\n- FFmpegPlayer only decodes: no renderer and no audio output.\n- Only the mpv client API is wrapped; the render API is not.\n\nReports from Linux and macOS are especially welcome.\n\nFull notes: https://github.com/yartat/MediaToolkit.NET/releases/tag/v0.2.0\nIssues: https://github.com/yartat/MediaToolkit.NET/issues",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "ecbadc831458b63bec2a911fe2e5eb9361367a9e",
+    "type": "git",
+    "url": "https://github.com/yartat/MediaToolkit.NET"
+  },
+  "verbatimVersion": "0.2.0",
+  "version": "0.2.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#dependencygroup/net10.0/mediatoolkitnet.abstractions",
+          "@type": "PackageDependency",
+          "id": "MediaToolkitNet.Abstractions",
+          "range": "[0.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#dependencygroup/net10.0/mediatoolkitnet.interop",
+          "@type": "PackageDependency",
+          "id": "MediaToolkitNet.Interop",
+          "range": "[0.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#MediaToolkitNet.MacOS.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3421,
+      "fullName": "MediaToolkitNet.MacOS.nuspec",
+      "length": 7370,
+      "name": "MediaToolkitNet.MacOS.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2612,
+      "fullName": "README.md",
+      "length": 5910,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 4981,
+      "fullName": "icon.png",
+      "length": 4976,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#lib/net10.0/MediaToolkitNet.MacOS.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17864,
+      "fullName": "lib/net10.0/MediaToolkitNet.MacOS.dll",
+      "length": 40448,
+      "name": "MediaToolkitNet.MacOS.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#lib/net10.0/MediaToolkitNet.MacOS.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5867,
+      "fullName": "lib/net10.0/MediaToolkitNet.MacOS.xml",
+      "length": 41651,
+      "name": "MediaToolkitNet.MacOS.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.07.11.21/mediatoolkitnet.macos.0.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "macos",
+    "avfoundation",
+    "coreaudio",
+    "audioqueue",
+    "objectivec",
+    "capture",
+    "playback"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,246 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Brainograph",
+  "catalog:commitId": "82f1b40a-c6e8-460a-855d-fd545f84cc26",
+  "catalog:commitTimeStamp": "2026-09-19T13:01:16.4270826Z",
+  "copyright": "Copyright © Brainograph 2026",
+  "created": "2026-09-19T12:58:29.583Z",
+  "description": "Brainograph host bootstrapping for new bg-* services: AddBrainographServiceDefaults / MapBrainographDefaults (Serilog, OpenTelemetry, health probes, auth, rate limiting, exception-to-envelope pipeline, platform JSON wire) plus PlatformControllerBase.",
+  "id": "Brainograph.ServiceDefaults",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-19T13:01:02.343Z",
+  "listed": false,
+  "packageHash": "M+d4erLY2r8eHvJpQ6Kgd1dm7iKCUcewVeTwIJyrYs/BN5xu7yH4mn0nKGkQzzahEryWOIfAnKMGStTN7HoMrg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 155073,
+  "published": "1900-01-01T00:00:00Z",
+  "releaseNotes": "4.6.0 — logging defaults (owner 2026-09-19, «удали все лишние логи»; dev 1's log-noise census), applied by the host as a Serilog Filter.ByExcluding after the level policy and configuration. No rule raises a level and none ever drops Warning or above, because the libraries concerned log some FAILURES at Information; the discriminator is always an event id or an exact message template. (1) IHttpClientFactory's request start and end - event ids 100 and 101 under System.Net.Http.HttpClient.*, in both handlers - are dropped by default: the largest source (one identity client alone: 588 lines / 498 KB a day). Id 104, \"HTTP request failed\", stays: Microsoft.Extensions.Http (decompiled, identical at the 10.0.5 pin and in the 10.0.12 shared framework) logs it at Information with the exception and has no Warning or Error event, so a level raise would have hidden every outbound failure. THE COST, stated: the End line was the only place the pipeline logged a non-success STATUS, so a 4xx/5xx answer is no longer logged by the pipeline and client code logs its own refusals. Observability:LogExclusions:DropHttpClientRequestInformation=false restores the lines. (2) Observability:LogExclusions:Events - a service drops events by (SourceContext namespace, event id), for success chatter that shares a category and a level with its signal: OpenIddict logs token-request successes AND rejections at Information in one category (OpenIddict.Server 7.5.0: 159 of 191 Information calls precede a Reject), so only the id separates them. The prefix is a namespace: OpenIddict.Server matches OpenIddict.Server.X and never OpenIddict.ServerX. Array form, so no environment variable name needs a dot. (3) Wolverine's lifecycle lines are dropped by default: the exact 15 message templates (16 category pairs) that were all 378 id-less Wolverine lines in 7 days of usercontent (dev 3), each a constant template in WolverineFx / WolverineFx.RabbitMQ 6.21.0 (decompiled). NOT \"every id-less line\": WolverineFx also logs dead-lettering, permanent latching, back-pressure, pauses and requeues at Information with no id, and those keep logging, as does every event WITH an id (106 no handler, 107 no routes, 108 discarding, 204-210 transport state). A template Wolverine adds or rewords keeps logging until it is measured and listed. Observability:LogExclusions:DropWolverineLifecycleInformation=false turns it off. A BLANK value in the section means unset (the 4.1.0 rule, so clearing a setting cannot crash-loop the host); a malformed one fails startup with a message naming the section. API: new LogEventExclusions / LogEventExclusionOptions / LogEventExclusionRule (additive). WHAT AN ADOPTER ALSO GETS from the versions it skips: 4.2.0 authorization-denial auditing and 4.3.0 an honest /health/ready (both opt-in, inert unless used); 4.4.0 the ObsoleteOperationTransformer (OpenAPI); 4.5.0 the forwarded-headers pass FAILS CLOSED - a host with it enabled and no trusted peer refuses to start. DEPENDENCY FLOOR, named: the packed nuspec depends on Brainograph.Utilities at the sibling csproj's version at pack time, 6.28.0 (4.5.0 declared 6.26.0; every other dependency is unchanged, measured by diffing the two nuspecs). A service adopting 4.6.0 moves its Utilities pin to 6.28.0 first, as its own named change. From below 6.27.0 that move carries 6.27.0's [HasPermission] change (a service principal holding the scope an action's [AllowServiceScope] declares passes that action's user gate), so it ships alone and named. 4.5.0 — The forwarded-headers pass FAILS CLOSED: with it enabled and no trusted peer, the host\nrefuses to start.\n\nBREAKING ON RE-PIN FOR A MISCONFIGURED SERVICE, inert for every other. Not an API change — nothing\nis removed and no signature moves — but a host that used to start may now refuse to.\n\nWHAT WAS WRONG. AddBrainographServiceDefaults clears KnownIPNetworks and KnownProxies when\nForwardedHeaders:Enabled is true, and restores neither; the in-cluster reasoning is that only the\ningress can reach the pod. But the framework middleware runs its peer check ONLY when one of the two\nlists is non-empty — measured in Microsoft.AspNetCore.HttpOverrides 10.0.12, where\n`KnownIPNetworks.Count > 0 || KnownProxies.Count > 0` gates the CheckKnownAddress branch. So an empty\nPAIR is not \"trust nobody\", it is no check at all, and every caller's X-Forwarded-For is believed.\nThat header is what per-IP rate-limit partitions and access logs are written from.\n\nTHE REFUSAL is a startup validator over ForwardedHeadersOptions, registered only when the pass is\nenabled and armed with ValidateOnStart. It fails when, after every Configure delegate has run, both\ntrust lists are empty. The message names the three ways out by their exact spelling —\nForwardedHeaders:KnownIPNetworks, ForwardedHeaders:KnownProxies, ForwardedHeaders:TrustAllPeers —\nbecause whoever meets it in a test suite would otherwise have to read the kernel to continue. It\nsurfaces as OptionsValidationException from StartAsync.\n\nWHY THE RESOLVED OPTIONS AND NOT THE CONFIGURATION KEYS. bg-identity and bg-gateway re-add their\nnetwork IN CODE with no configuration key at all, so a check over keys would refuse exactly the two\nservices that are correct. Nor can the check live inside the kernel's own Configure delegate: that\ndelegate runs FIRST, so at that moment the lists are empty for everyone. A validator sees the final\nstate by construction — which is also why it still fires for a host that composes its own pipeline\nand never calls MapBrainographDefaults.\n\nTHE DECLARED WAY OUT is ForwardedHeaders:TrustAllPeers=true. The validator then passes and logs one\nWarning per start, EventId 4260, naming the key. It exists so that the answer to a refusal is never\n\"turn the pass off\", which would silently drop X-Forwarded-Proto as well and is invisible in a diff\nof one boolean. NO CURRENT CONSUMER NEEDS IT; it ships unused, on purpose.\n\nFORWARDLIMIT IS UNTOUCHED, deliberately. The framework default is 1 and the kernel never sets it, so\na service that re-adds trust and leaves the default gets a SINGLE-HOP walk — correct behind one\nproxy, wrong behind two. bg-identity and bg-gateway set it to null and let trust bound the walk,\nbecause the number of hops is Azure's deployment detail and any constant is right until an\ninfrastructure change adds one and it fails silently. The guard neither requires a limit nor warns\nwhen it is null; a fact pins that null is accepted.\n\nWHO THIS AFFECTS ON RE-PIN, from each service's committed configuration:\n  bg-identity     pass on in appsettings.Production.json; re-adds 100.100.0.0/16 in code and sets\n                  ForwardLimit = null. STARTS. Adopt FIRST: it owns ForwardedHeadersLayeringTests,\n                  so adopting there proves the guard leaves a correct configuration alone.\n  brainograph-kg  pass on in BOTH appsettings.Production.json and appsettings.Staging.json, and\n                  nothing in its src mentioned either list — the one service this guard would have\n                  stopped. ITS FIX IS ALREADY MERGED, at main 3a602a4: it re-adds the overlay as a\n                  network after the kernel's clear, pinned by four facts on the real host. SO NO\n                  CONSUMER FAILS THIS GUARD TODAY, and adoption is a pin move rather than a repair.\n  bg-gateway      NOT A CONSUMER. It references no Brainograph.ServiceDefaults and no\n                  Brainograph.Utilities at all; its only Brainograph package is Analytics.Contracts.\n                  It configures ForwardedHeadersOptions and calls UseForwardedHeaders itself, and it\n                  does clear then re-add 100.100.0.0/16 with ForwardLimit = null — so it is correct\n                  today FOR ITS OWN REASONS, NOT THE KERNEL'S. There is nothing for it to re-pin and\n                  this guard can never fire for it.\n  bg-content,     the kernel's pass is OFF for both; they call UseForwardedHeaders themselves with\n  bg-media        their own options object and are handed the network through configuration.\n                  Unaffected. bg-media already implements this same predicate for itself\n                  (ForwardedTrust.StartupPermitted) and can later reduce it to the kernel's, as its\n                  own named change rather than part of this one.\n  analytic, dictionary, usercontent, notification, aiagent, feedback, gis — enable nothing, so there\n                  is no middleware and an empty trust list is not a misconfiguration. A fact pins\n                  that the guard stays silent with the pass off.\n\nWHAT AN ADOPTER MUST SATISFY is exactly one thing: with ForwardedHeaders:Enabled true, at least one\nentry in KnownIPNetworks or KnownProxies once its own Configure delegate has run — or TrustAllPeers\ndeclared.\n\nMEASURED 2026-09-17, SDK 10.0.401, container-free: red 7 discovered / 7 executed with the 2\nregistered failures; green 8/8 on the guard's facts and 196/196 on the whole\nBrainograph.ServiceDefaults.Tests project, no Aborted line; six pre-registered mutations all killed\nwith exactly the predicted failure sets. One mutation — dropping ValidateOnStart — SURVIVED the\nfirst round, and that is how the fact for a host which never calls MapBrainographDefaults came to\nexist: without it, the registration that makes the guard general was untested.\n\nWHAT 4.5.0 CARRIES, IN TWO MEASUREMENTS THAT DO NOT AGREE — read both. The only change to\nsrc/Brainograph.ServiceDefaults since 4.4.0's version bump (5fd20d1, 2026-08-28) is this one commit.\nBut the PACKAGE moves the kernel floor: 4.4.0 declared Brainograph.Utilities >= 6.20.0 and 4.5.0\ndeclares >= 6.26.0, and Microsoft.IdentityModel.Protocols.OpenIdConnect 8.16.0 appears as a new\ntransitive dependency. That is not a consequence of this commit — the nuspec dependency rides the\nsibling project's version, so packing stamps whatever Utilities is at in the tree. The floor is left\nat 6.26.0 on purpose: it is what this assembly was compiled against, and a ServiceDefaults floor has\nbeen raised for exactly this reason before (see 3.2.0's clause below — restoring an older Utilities\nsilently fails to deliver its buildTransitive props and XML docs even when the code on disk is the\nsame). Declaring a lower one would assert a compatibility nobody has measured.\n\nSO, PLAINLY: a consumer already on Utilities 6.26.0 takes one pin move. A consumer below it takes\nTWO kernel moves in one restore, the second of which brings the service-token release and everything\nelse between its pin and 6.26.0. Measured on 2026-09-17, brainograph-kg is on 6.26.0 and bg-identity\non 6.25.0; the rest of the fleet sits between 6.11.0 and 6.23.0. Plan the adoption as a kernel pin\nmove, named, not as a patch bump.\n\nAND NOTHING ENFORCES THE SECOND MOVE — measured, because the obvious assumption is wrong in the\ndangerous direction. Every service in this fleet references Brainograph.Utilities with its own\nPackageReference as well as taking it through this package. With such a direct, centrally managed\npin present, NuGet resolves the pinned version and SAYS NOTHING: restoring ServiceDefaults 4.5.0\nbeside a pinned Utilities 6.25.0 exits 0, with no NU1605 and no NU1109, and the assets file records\n4.5.0 sitting on 6.25.0. (Remove the direct reference and the same restore fails with NU1109 — but\nno service is shaped that way.)\n\nSo a service CAN pin this package alone, restore green, build green, and run an assembly compiled\nagainst 6.26.0 on top of 6.25.0 — a pairing nobody has built or tested. The failure that would\nfollow is a MissingMethodException at the moment the affected path first runs: not at restore, not\nat startup, and nowhere near anything that names the pin. MOVE BOTH PINS IN THE SAME COMMIT. It is\na discipline, not a gate, and it is the one thing about this release an adopter cannot discover by\ntrying it.\n\nPREVIOUSLY, 4.4.0 — no note was written into this field at the time. Reconstructed from git, it\ncarried a single commit, 39107aa: ObsoleteOperationTransformer, the shared OpenAPI transformer that\nmakes [Obsolete] visible on a generated operation.\n\nPREVIOUSLY, 4.3.0 — An honest /health/ready (ADDITIVE, opt-in, inert unless used).\n\n/health/ready was a constant: Results.Ok(new { status = \"ready\" }). It checked nothing — not the\nschema, not the broker, not the consumer hosts — so it was a second liveness probe under a\nmisleading name, the exact defect INVARIANTS.md 5 names (\"a check must answer the question it\nappears to answer\"). It is now a real health endpoint filtered to the \"ready\" tag.\n\nNOTHING CHANGES FOR A SERVICE THAT DOES NOT OPT IN. With zero registered checks the aggregate is\nHealthy and the endpoint emits the byte-identical {\"status\":\"ready\"} it always did, still anonymous\nand still ExcludeFromDescription. /health/live remains a constant and can never be answered by a\nreadiness check — the tag filter enforces the split rather than discipline.\n\nOpt in with services.AddBrainographReadiness(), then:\n  .AddStartupGate(gate)        — a latching tri-state; the ONLY thing that can answer 503.\n  .AddDegradedComponent(state) — up/degraded; its worst answer is HTTP 200 + \"degraded\".\n\nDegraded maps to 200 BY CONSTRUCTION, not by convention. Every backend runs at minReplicas:1 in\nSingle revision mode, so a 503 does not shift traffic to a sibling — it takes the service to zero.\nA stalled consumer or an unreachable broker must therefore never de-rotate a replica; it is reported\nin the body, where tooling and humans read it, while the service keeps serving. Making that a TYPE\n(ComponentState cannot return Unhealthy) means no future service can wire \"broker down\" into\nout-of-rotation by accident.\n\nStartupGate is LATCHING on purpose: once it has seen success, MarkFailed is a no-op. It answers a\nquestion about this process's lifetime (\"was the schema this binary needs ever observed current?\"),\nwhich cannot become false again — so a thirty-second database blip cannot redden a serving replica.\nBefore the first success it accepts either outcome, so a migrator that retries with backoff moves\nPending -> Failed -> Succeeded without a restart. Wiring a gate to a migrator that gives up after\none attempt would strand the replica red forever: retry is the caller's obligation.\n\nThe body carries component NAMES only. It is reachable through the public gateway facade, and a\nmigration failure's real message carries host names, user names and connection details; reasons stay\non the gate for logs.\n\nPREVIOUSLY, 4.2.0 — Authorization-denial auditing (ADDITIVE, opt-in, inert unless used).\nAdds Brainograph.ServiceDefaults.Authorization: an AuthorizationDenial record, an\nIAuthorizationDenialSink seam, and middleware that observes a 403 and hands a description to\nwhichever sink the service registered. The kernel owns the MECHANISM; each service owns its audit\nSCHEMA, because the services with audit tables have deliberately different shapes.\n\nEnable with app.UseAuthorizationDenialAuditing() — and call it BEFORE MapBrainographDefaults(),\nwhich invokes UseAuthentication/UseAuthorization itself. Registered after it instead, the middleware\nsits INSIDE authorization, where AuthorizationMiddleware short-circuits a policy failure without\ncalling next, so every class-level [Authorize(Roles=...)] refusal is silently invisible.\n\nDeliberately NOT wired into MapBrainographDefaults(): denied attempts are the first audit rows whose\nrate someone other than an administrator chooses, so a fleet-wide kernel re-pin must never start\nwriting them in a service whose retention sweep has not shipped. With no sink registered the\nmiddleware does nothing at all — one null service lookup per 403 — which is what makes this safe for\nthe services that have no audit table.\n\nRecords numeric permission ordinals (a frozen wire format; also, seven permission names exceed the\n32-character cap a consuming service applies to audit tokens), deduplicated and ordered. The sink is\ngiven CancellationToken.None, never the request's token: this runs after the 403, so the request's\ntoken would let the audited party cancel the write recording their own probe. Denials are throttled\nto one per (actor, endpoint) per five minutes, per replica.\n\nPREVIOUSLY, 3.2.0 — Self-describing OpenAPI. Controller actions returning IActionResult now document their real\nresponse schema: a source generator (shipped as an analyzer asset in this package) recovers the\npayload type from each action's own Ok1/OkMany call, and an application-model convention attaches\nProducesResponseType, so schema generation, XML doc comments and enums are all stock ASP.NET from\nthere. Enums document as string names (previously integers, which contradicted the wire); documents\nare pinned to OpenAPI 3.0; responses advertise application/json only; each service declares its own\nBearerAuth scheme; and actions that can call Fail(...) document the HTTP-200 error union. Also\nexcludes /health/live and /health/ready from the OpenAPI document (ExcludeFromDescription) — they\nare infrastructure probes, not API surface, and the gateway's catalog merger already assumed they\nwere absent; expect them to disappear from a consuming service's document on upgrade. No wire\nchanges — response bytes are unchanged and pinned by EnvelopeWireOverHttpTests. Consuming services\nmust set GenerateDocumentationFile=true to get endpoint descriptions, and should add\n<NoWarn>;CA1014;CA2007;1591</NoWarn> alongside it for their OWN undocumented public members —\nthat covers CS1591 only; this package's buildTransitive targets already demote the OTHER\nXML-documentation diagnostics an 8-service, never-before-XML-documented codebase will actually hit\nthe moment doc generation turns on (CS1570/1572/1573/1574/1584/1734 — e.g. CS1734 from a\n<paramref> naming a parameter that doesn't exist, a hard error under TreatWarningsAsErrors), so\na service does not need to hunt those down itself. Also need a DIRECT PackageReference to\nMicrosoft.AspNetCore.OpenApi (its interceptor wiring ships in build/, not\nbuildTransitive/, so it is not inherited). Depends on Brainograph.Utilities 6.3.0, not just 6.2.0 —\n6.3.0 is the first Utilities version whose own envelope XML doc and buildTransitive props actually\nreach a consumer from the feed (see Brainograph.Utilities' 6.3.0 PackageReleaseNotes); restoring\nUtilities 6.2.0 silently gets neither, even though its code carries the same props/XML on disk.\nPREVIOUSLY, 3.1.0 — No API change; re-versioned because the package now depends on Brainograph.Utilities 6.2.0, which adds PermissionClaimCodec and the compact-permission-claim expansion shim in JwtAuthentication.OnTokenValidated. Bumped rather than repacking 3.0.0 in place: NuGet caches by (id, version), so mutating a published version leaves already-restored machines on stale content. Consumers get the shim — i.e. the ABILITY to read compact tokens — by moving to this version; nothing emits the new format until bg-identity is changed separately. PREVIOUSLY, 3.0.0 — Unified Users: CurrentUserId() now returns Guid (was long; same claim fallback + throw behavior); adds CurrentLegacyUserId() → long? from the additive legacy_sid claim. Depends on Brainograph.Utilities 6.0.0.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#repository",
+    "commit": "47f81a1e87cd93f5b600a3fb9b9e4544e473c8ab",
+    "type": "git"
+  },
+  "verbatimVersion": "4.6.0",
+  "version": "4.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/brainograph.utilities",
+          "@type": "PackageDependency",
+          "id": "Brainograph.Utilities",
+          "range": "[6.28.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/microsoft.aspnetcore.mvc.newtonsoftjson",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Mvc.NewtonsoftJson",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/microsoft.aspnetcore.openapi",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.OpenApi",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/opentelemetry.exporter.console",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.Console",
+          "range": "[1.16.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.16.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.16.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.AspNetCore",
+          "range": "[1.16.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.http",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Http",
+          "range": "[1.16.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/serilog.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Serilog.AspNetCore",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/serilog.formatting.compact",
+          "@type": "PackageDependency",
+          "id": "Serilog.Formatting.Compact",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/microsoft.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/microsoft.identitymodel.protocols.openidconnect",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IdentityModel.Protocols.OpenIdConnect",
+          "range": "[8.16.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/microsoft.identitymodel.tokens",
+          "@type": "PackageDependency",
+          "id": "Microsoft.IdentityModel.Tokens",
+          "range": "[8.16.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/microsoft.openapi",
+          "@type": "PackageDependency",
+          "id": "Microsoft.OpenApi",
+          "range": "[2.7.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#dependencygroup/net10.0/system.identitymodel.tokens.jwt",
+          "@type": "PackageDependency",
+          "id": "System.IdentityModel.Tokens.Jwt",
+          "range": "[8.16.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#Brainograph.ServiceDefaults.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9250,
+      "fullName": "Brainograph.ServiceDefaults.nuspec",
+      "length": 22247,
+      "name": "Brainograph.ServiceDefaults.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#analyzers/dotnet/cs/Brainograph.ServiceDefaults.Generators.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11088,
+      "fullName": "analyzers/dotnet/cs/Brainograph.ServiceDefaults.Generators.dll",
+      "length": 25600,
+      "name": "Brainograph.ServiceDefaults.Generators.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#buildTransitive/Brainograph.ServiceDefaults.props",
+      "@type": "PackageEntry",
+      "compressedLength": 218,
+      "fullName": "buildTransitive/Brainograph.ServiceDefaults.props",
+      "length": 348,
+      "name": "Brainograph.ServiceDefaults.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#buildTransitive/Brainograph.ServiceDefaults.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 1327,
+      "fullName": "buildTransitive/Brainograph.ServiceDefaults.targets",
+      "length": 2708,
+      "name": "Brainograph.ServiceDefaults.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#lib/net10.0/Brainograph.ServiceDefaults.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 91951,
+      "fullName": "lib/net10.0/Brainograph.ServiceDefaults.dll",
+      "length": 342016,
+      "name": "Brainograph.ServiceDefaults.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#lib/net10.0/Brainograph.ServiceDefaults.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25712,
+      "fullName": "lib/net10.0/Brainograph.ServiceDefaults.xml",
+      "length": 113605,
+      "name": "Brainograph.ServiceDefaults.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.19.13.01.16/brainograph.servicedefaults.4.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

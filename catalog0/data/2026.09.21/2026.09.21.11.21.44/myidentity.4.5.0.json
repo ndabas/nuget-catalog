@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kerberos SA",
+  "catalog:commitId": "ac132029-8a7e-477a-b5fb-0b2e6e29c3e0",
+  "catalog:commitTimeStamp": "2026-09-21T11:21:44.0983244Z",
+  "copyright": "Kerberos SA © 2025–2026",
+  "created": "2026-09-21T11:19:02.047Z",
+  "description": "Reusable .NET 10 package that wraps ASP.NET Core Identity with cookie and JWT auth, Google OAuth, a pluggable e-mail provider, a multi-tenant model with dynamic RBAC (roles + module permissions), and secure defaults — wired up with a single AddMyIdentity call. JWT and Google OAuth secrets are supplied by the consumer (never shipped in the package).",
+  "id": "MyIdentity",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-21T11:21:42.757Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "XOxC1DSdH4nKMPAPtYWqWK31NdsYDwgminkE5bDy2IVudxssrmDH3yXCl0Ete1Kv4Apt7gq+gID0zUnyweYigA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 315565,
+  "published": "2026-09-21T11:19:02.047Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v4.5.0: additive, and there is nothing you have to do to adopt it. No recompile, no data migration, no configuration edit -- dotnet add package MyIdentity picks 4.5.0 up and everything 4.4.0 did, it still does. What this release adds is one answer the library already computed twice inside itself and never handed out: IS THIS SESSION BORROWED, BY WHOM, SINCE WHEN, AND UNTIL WHEN. Until now the only public way to ask was to read the MyIdentityClaimTypes.Impersonator claim off the principal by hand, and answering the whole question meant assembling three pieces from three places -- the claim names, a round-trip (\"O\", InvariantCulture, DateTimeStyles.RoundtripKind) parse of the start stamp, and the window from IMyIdentityConfigurationService.MaxImpersonationMinutes() -- and then reproducing the library's expiry rule, fail-closed branch included. THREE NEW PIECES, all additive. MyIdentityImpersonationInfo (namespace MyIdentity.Extensions) is a sealed, init-only description: ImpersonatorUserId (required, verbatim from the claim), ImpersonatorUserName, StartedAt, ExpiresAt, IsExpired. IMyIdentityImpersonationAccessor.GetImpersonationAsync() returns that description for the current principal, or null when the session is the user's own or there is no authenticated user; AddMyIdentity registers the default implementation with AddScoped, after the current-user accessor it composes over, with the same last-wins rule already documented for that accessor in UPGRADE.md section 31 -- register your own after AddMyIdentity and yours wins. MyIdentityImpersonationWindow.Describe(principal, maxImpersonationMinutes, now) is the same answer as a pure static, for code that already holds a ClaimsPrincipal and does not want to go through DI: an endpoint capturing the impersonator's id BEFORE it calls StopImpersonationAsync is exactly that case. NOTHING EXISTING GAINED A MEMBER. IMyIdentityCurrentUserAccessor is untouched, and so is every other interface in the package: a hand-rolled accessor of yours still compiles. That is deliberate rather than incidental -- the shape originally proposed for this feature was a new member on IMyIdentityCurrentUserAccessor, and it was rejected because that interface is a documented replacement seam (UPGRADE.md section 31: \"If you supply your own IMyIdentityCurrentUserAccessor -- registered after AddMyIdentity, which wins\"), so a new member would break the build of every hand-rolled implementation, and a default body to dodge that would have been a second compatibility shim of the kind GetScopesWithAnyPermissionAsync (section 39) calls, in its own remarks, \"a deliberate, one-off exception rather than a new style\". A brand-new interface breaks no implementer and therefore needs no default body at all; the answer it gives is derived entirely from the principal the existing accessor already returns. IsExpired ANSWERS WHETHER THE WINDOW CLOSED; ExpiresAt NEVER DOES -- AND NEITHER OF THEM BELONGS IN A WRITE GUARD. This is the one thing in the release that can be got wrong quietly. ExpiresAt is null in TWO OPPOSITE cases: the limit is disabled (MaxImpersonationMinutes is zero or less, meaning never expires), or there is no StartedAt to derive it from -- a stamp that is absent or unparsable, which the library treats as ALREADY EXPIRED. A null therefore carries no information on its own, and code that writes \"now is before ExpiresAt\", or treats a null ExpiresAt as \"no deadline yet\", re-implements the rule and gets the second case backwards: it admits precisely the session the library fails closed on. That is a fail-open reintroduced in consumer code, over a session this library is about to cut. IsExpired IS the decision, produced by MyIdentityImpersonationWindow.IsImpersonationExpired -- the very function the cookie pipeline and the Blazor circuit revalidator enforce with -- and its fail-closed rule is part of the answer: while the limit is enabled, a missing or unparsable start stamp counts as expired. Read ExpiresAt to show a human how much time is left; ask IsExpired whether the window closed. An expired impersonation is one the library will cut on its next pass, at the next cookie validation or the next circuit revalidation; it is not a session you have to cut yourself. AND KEEP IsExpired OUT OF A WRITE GUARD: it says whether a session is still to be KEPT or SHOWN, never whether it is to be TRUSTED. A rule of the form \"no writes while the session is borrowed\" asks only whether the description is null; adding a \"not IsExpired\" term can only UNBLOCK a write, and it unblocks the session you least want writing -- an impersonation past its window whose Blazor circuit is still alive, because the revalidator runs every RevalidationIntervalMinutes (default 5), so for up to five minutes the claim is still on the principal and the session is still borrowed. WHAT A GUARD BUILT ON THIS DOES NOT COVER: RunAsSystemAsync. Inside a RunAsSystemAsync scope this primitive returns NULL EVEN WHEN the session that opened the scope is impersonated. It has to: within that scope the effective principal is the synthetic system one that MyIdentitySystemAwareCurrentUserAccessor hands out, and that principal carries no impersonation claim. Describe answers about the principal it is given, and the accessor answers about the EFFECTIVE principal, not about the browser session behind it. The consequence is concrete: A WRITE GUARD YOU BUILD ON THIS PRIMITIVE DOES NOT COVER WRITES ROUTED THROUGH A SYSTEM SCOPE. If an impersonated SystemAdmin reaches a code path that opens RunAsSystemAsync and writes inside it, your guard sees null, reads it as \"not impersonated\", and lets the write through. That is the existing contract of the system-aware accessor surfacing -- the decorator exists precisely to replace the effective principal wholesale -- not a new defect, but anyone building a read-only-while-impersonating rule has to know it. If it matters to you, put your guard at the boundary where you ENTER the system scope, where the caller's real principal is still the effective one, rather than inside it. The behaviour is nailed down by a test so that it stays a decision and does not become an accident. AND THE OTHER WAY IT CAN ANSWER NULL ON A BORROWED SESSION: YOUR OWN ACCESSOR. The whole answer comes out of IMyIdentityCurrentUserAccessor.GetUserAsync(), which is a replacement seam (section 31, last-wins) whose contract requires GetUserIdAsync to agree with GetUserAsync -- it does NOT require the principal you return to be the cookie's principal verbatim. An accessor of your own that REBUILDS the principal, say from NameIdentifier plus the roles, drops the impersonation claims with it, and then GetImpersonationAsync() returns null on every call for the whole duration of a real impersonation: the write guard above lets every write through, with no exception, no log and nothing in your suite that notices. A write guard built on this primitive is only as good as the accessor you registered. There is no library-side defence -- reading the cookie behind the accessor's back is exactly what would break RunAsSystemAsync -- so the way out is on your side: if you replace IMyIdentityCurrentUserAccessor, carry the original principal's claims through, or do not use this primitive as a guard. A THIRD CLAIM RIDES ALONG. MyIdentityClaimTypes.ImpersonatorName (\"MyIdentity.ImpersonatorName\") carries the impersonator's display name as it stood when the impersonation started, read from a principal already in hand so that showing \"borrowed by X\" costs no round trip to the user store on every render. ImpersonateAsync stamps it on both principals it writes (the cookie one and the Blazor one) and PreserveImpersonationClaim preserves it across principal refreshes, for the same reason the start stamp is preserved: stamping without preserving would make it vanish at the first refresh. Two absences are normal and neither closes anything: a session that was already live when you upgraded was minted without the claim, so ImpersonatorUserName reads null until that impersonation ends (ImpersonatorUserId, StartedAt and IsExpired are unaffected -- they come from the two claims that have existed since alpha.9); and an impersonator whose principal carried no name produces no claim at all, never an empty string, and again null. ImpersonatorUserName NEVER participates in an authorization decision -- do not gate on it, and do not read its absence as \"not impersonated\": ImpersonatorUserId is the required member, and the question you are actually asking is whether the whole MyIdentityImpersonationInfo is null. THE LIBRARY DESCRIBES; YOUR APPLICATION DECIDES. This release adds no enforcement. Nothing is blocked, nothing denies that did not deny before, and no existing call changes its answer. Whether a borrowed session may write, and what it may write, is your policy: the library states what is the case and stays out of a decision it cannot make for you, because it does not know which of your operations are safe to perform on someone else's behalf. What the library does enforce is unchanged and predates this release -- the impersonation window itself, cut by the cookie pipeline and by the circuit revalidator, exactly as section 22 described it. Internally, those two enforcement sites now read the window through Describe instead of each parsing the stamp themselves; behaviour is identical, including the early exit that makes a principal with no impersonation claim cost one claim lookup and nothing else. The BlazorExample demo's impersonation banner now injects IMyIdentityImpersonationAccessor instead of reading the claim by hand, and says who is borrowing the session -- ImpersonatorUserName, falling back to ImpersonatorUserId when the session was minted before 4.5.0 and carries no name -- and when it expires. When ExpiresAt is null it omits the deadline rather than inventing a text, which covers BOTH of the cases that produce that null: the limit disabled, and no start stamp to derive a deadline from. Read UPGRADE.md section 40. Everything else is as 4.4.0 left it: dependencies are unchanged at 10.0.11 (Microsoft.AspNetCore.Authentication.Google, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.AspNetCore.Identity.EntityFrameworkCore, Microsoft.EntityFrameworkCore.SqlServer); the ASP.NET Core shared framework is consumed through a frameworkReference, so Identity core, Blazor Components(.Authorization), Data Protection and the configuration binders are not package dependencies. The 4.4.0 permission split is untouched and still applies: MyIdentityPermission carries Create, Edit and Delete, Modify keeps its value of 2 as the GROUP of those three, the implication runs both ways and does not distribute over OR, and MyIdentityPermissionExtensions.WithImplications() remains the single public definition -- see section 39. Consumers coming from 3.x: the v3.x to v4.0 migration is UNCHANGED and still lives in UPGRADE.md sections 1-4, with sections 5-6 as the pre-production checklist. Sections 7-40 are the per-release changelog and are historical: you do not walk them one by one, you migrate from 3.x to this release once. The scope limits are unchanged and are the same ones TECHNICAL_OVERVIEW.md section 11 states: two-factor authentication is not shipped; tenant isolation is enforced by the SERVICE LAYER and not by a global query filter, so ad-hoc queries you write outside the services are yours to scope; SaveRolePermissionsAsync and UpsertRolePermissionAsync are last-writer-wins on the same cell, with no typed conflict detection; and security events go to ILogger only, with no persistence seam for non-repudiation -- which this release does not change: it lets you READ who is borrowing a session, not persist a record of it.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#repository",
+    "commit": "7d8c15b74ccc81e7d0a20cf90b8857aab4f4e423",
+    "type": "git"
+  },
+  "title": "Kerberos.MyIdentity",
+  "verbatimVersion": "4.5.0",
+  "version": "4.5.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.google",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.Google",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#dependencygroup/net10.0/microsoft.aspnetcore.identity.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#dependencygroup/net10.0/microsoft.entityframeworkcore.sqlserver",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.SqlServer",
+          "range": "[10.0.11, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#MyIdentity.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5590,
+      "fullName": "MyIdentity.nuspec",
+      "length": 13608,
+      "name": "MyIdentity.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 13886,
+      "fullName": "README.md",
+      "length": 36999,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#lib/net10.0/MyIdentity.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 175077,
+      "fullName": "lib/net10.0/MyIdentity.dll",
+      "length": 495616,
+      "name": "MyIdentity.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#lib/net10.0/MyIdentity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 105927,
+      "fullName": "lib/net10.0/MyIdentity.xml",
+      "length": 530129,
+      "name": "MyIdentity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.11.21.44/myidentity.4.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "identity",
+    "authentication",
+    "authorization",
+    "blazor",
+    "aspnetcore",
+    "jwt",
+    "google-oauth",
+    "multitenant",
+    "rbac",
+    "saas"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

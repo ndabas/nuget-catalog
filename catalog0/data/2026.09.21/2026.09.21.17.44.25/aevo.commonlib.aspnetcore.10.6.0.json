@@ -1,0 +1,150 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "AEVO",
+  "catalog:commitId": "d1e08c82-fe52-46aa-8a48-e319c2b526bb",
+  "catalog:commitTimeStamp": "2026-09-21T17:44:25.4883616Z",
+  "copyright": "© Copyright AEVO 2026",
+  "created": "2026-09-21T17:40:48.453Z",
+  "description": "Biblioteca com extensões para padronizar itens comumente usados em APIs na AEVO.",
+  "id": "Aevo.CommonLib.AspNetCore",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-21T17:44:17.31Z",
+  "licenseUrl": "https://github.com/aevoti/common-lib/blob/master/LICENSE",
+  "listed": true,
+  "packageHash": "3uyR5JtZHNLQcK4RBBhboyfW+JuRtjg+fdFax8xHhDE18N93HHzWRAu3kbuKA2tQy3i2Hy9DCC+BjjONCCgb2w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 23297,
+  "projectUrl": "https://github.com/aevoti/common-lib",
+  "published": "2026-09-21T17:40:48.453Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Versão 10.6.0:\n            - Substitui a abordagem da 10.5.0, que segurava o start do host até o cache de tenants carregar. IClientStore passa a expor WaitUntilLoadedAsync(timeout, cancellationToken): quem lê a lista de clientes UMA vez e age sobre ela — job, migração, CLI — espera explicitamente e decide o que fazer com lista vazia. Serviço de request loop não muda em nada\n            - StartAsync volta a não bloquear. Segurar o start resolvia o problema de um consumidor às custas de todos: orçamento de startupProbe, semântica de cancelamento, risco de deadlock e ordem de subscribe viravam problema do pacote. Nada disso existe mais\n            - O membro novo tem implementação default (retorna true), então test double e implementação de IClientStore fora deste pacote continuam compilando sem alteração\n            - ClientStore passa a repetir a carga inicial (ColdStartRetryAttempts + 1 tentativas), como o bypass legado já fazia. Antes era uma tentativa só: ColdStartRetryAttempts era consumido apenas pelo ColdStartFallbackAsync, que serviço sem snapshot cache nunca alcança, então uma conexão derrubada no boot deixava o store vazio até o próximo CacheRefreshInterval\n            - Os dois stores logam warning quando a primeira carga não trouxe nada. \"0 clientes\" não pode ser indistinguível de \"este catálogo não tem tenants\" — era exatamente o que tornava o defeito original difícil de ler no log\n            - Do lado do consumidor: em Ideias, ClienteRepository.LoadClientes() passa a esperar de verdade (era no-op desde o port para este pacote), então JobService continua com a mesma linha e passa a rodar com os tenants carregados\n\n            Versão 10.5.0:\n            - Aevo.CommonLib.ClientManager: o cache de tenants passa a ser carregado ANTES de o start do host terminar. ClientStore e LegacyDbClientStore faziam a primeira carga dentro do ExecuteAsync, e BackgroundService.StartAsync retorna no primeiro await dele — então um IHostedService registrado depois do store lia o cache ainda vazio\n            - Quem sentia isso é host de job: o Ideias.Jobs lê a lista de clientes dentro do próprio StartAsync e encerra a aplicação em seguida, então rodava sobre zero tenants e saía como sucesso. API web nunca notou, porque a primeira request chega depois da carga\n            - Custo operacional: o start do host esperava a primeira carga, com limite que a própria versão documentava errado. Abordagem revista na 10.6.0 — prefira ela e não dimensione probe por esta\n            - O gate espera a primeira tentativa TERMINAR, não ter sucesso: com o Client Manager (ou o catálogo legado) fora do ar o serviço sobe com cache vazio, em vez de segurar o start por um CacheRefreshInterval inteiro — a garantia continua sendo servir o que tiver\n            - LegacyDbClientStore loga um warning único quando nenhuma tentativa de leitura do catálogo funcionou: \"0 clientes\" e \"esse catálogo não tem tenants\" eram indistinguíveis no log\n\n            Versão 10.4.0:\n            - Aevo.CommonLib.ClientManager: clientes estáticos (ClientManager:UseStaticClients, só em Development) passam a servir Client.Database em vez de null. Novo bloco opcional Database por entry (ServerHost + DatabaseName); sem ele, o banco vem de DatabaseConfig:Server + DatabaseConfig:Database\n            - Breaking em desenvolvimento: em modo estático, sem bloco Database no entry e sem DatabaseConfig:Server + DatabaseConfig:Database o serviço não sobe mais. Antes subia com Client.Database null e quebrava depois, como NullReferenceException dentro da camada de persistência do consumidor (ClientModelMapper, ClienteRepository), que usa null-forgiving na propriedade\n            - Bloco Database pela metade (só ServerHost ou só DatabaseName) também falha no startup: é typo, não pedido de fallback — cair no DatabaseConfig calado conectaria o dev num banco que ele não nomeou\n            - ClientDatabase.CredentialsKey sai vazio no caminho estático, igual à API e ao catálogo legado: usuário e senha continuam vindo do DatabaseConfig do próprio serviço. Region do ClientDatabase é a Region do entry\n            - Declarar Database por entry é o que permite dois clientes estáticos apontarem para bancos diferentes na mesma máquina — ver docs/client-manager-clientes-estaticos.md\n\n            Versão 10.3.0:\n            - Aevo.CommonLib.ClientManager: nova flag ClientManager:UseLegacyDatabase — bypass temporário que lê os tenants do catálogo legado dbo.Cliente (banco de DatabaseConfig:ClienteManager) em vez da API do Client Manager. Sem guarda de ambiente: existe para incidente em produção, e loga warning em todo start enquanto estiver ligada\n            - O bypass troca só o caminho de leitura: IClientManagerApi continua registrado, porque o auth injeta a interface direto para refresh forçado e SSO\n            - Leitura do catálogo legado é lossy: Client.Id passa a ser derivado do Host (UUID v5, estável entre serviços mas diferente do GUID real do tenant), Slug não resolve, Region vem de ClientManager:Region e os timestamps são o horário da carga. Qualquer dado chaveado pelo GUID real em outro serviço não casa enquanto a flag estiver ligada — ver docs/client-manager-bypass-banco-legado.md\n            - DatabaseConfig:Server, ClienteManager, Username ou Password em branco com a flag ligada falha no startup, em vez de virar lista de clientes vazia sob tráfego\n            - Aevo.CommonLib.ClientManager passa a depender de Microsoft.Data.SqlClient (leitura do catálogo legado). Consumidores que fixam uma versão mais antiga do pacote precisam alinhar o pin no upgrade — o mesmo SqlClient que Aevo.CommonLib já traz\n\n            Versão 10.2.0:\n            - Aevo.CommonLib.ClientManager: novo AddSsoConfigStore() / ISsoConfigStore — configuração de SSO em memória, com poll e evento de mudança, assinando o canal client-manager:sso-sync. Opt-in: não entra no AddClientManager, porque só o serviço de autenticação consome SSO\n            - BREAKING: ClientManager:Region agora é o enum Region. Um valor que não nomeia um membro (\"Europe\", \"EU\") falha no startup em vez de filtrar todos os tenants silenciosamente. Valores válidos: BrasilSoutheast, EuropeCentral\n            - BREAKING: Client.Region, ClientDatabase.Region e StaticClientEntry.Region agora são o enum Region. O formato do wire e do snapshot não muda (serializados por nome), mas uma região desconhecida passa a falhar o pull inteiro em vez de custar só os tenants dela: adicione o membro e publique este pacote ANTES de o Client Manager servir uma região nova\n            - TenantStatus renumerado para as linhas que o Client Manager semeia (Provisioning não existia como linha e deslocava Active e todos os membros seguintes)\n            - ClientConfiguration.IsEnabled passa a fazer trim antes do parse, alinhando com o port do aevoinnovate\n\n            Versão 10.0.0:\n            - Atualização para .NET 10.0\n            - Atualização de dependências para versões compatíveis com .NET 10.0\n            - Introdução do Aevo.CommonLib.ClientManager, uma biblioteca para facilitar a identificação e configuração de clientes multi-tenant em serviços da AEVO\n            - Introdução de Aevo.CommonLib.Auth, uma biblioteca para padronizar a autenticação e autorização em serviços da AEVO",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#repository",
+    "commit": "b0e23e8993e4e7e70bafe4a429a1e0f9b8b51db5",
+    "type": "git",
+    "url": "https://github.com/aevo/common-lib"
+  },
+  "verbatimVersion": "10.6.0",
+  "version": "10.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#dependencygroup/net10.0/aspnetcore.healthchecks.sqlserver",
+          "@type": "PackageDependency",
+          "id": "AspNetCore.HealthChecks.SqlServer",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#dependencygroup/net10.0/aspnetcore.healthchecks.ui.client",
+          "@type": "PackageDependency",
+          "id": "AspNetCore.HealthChecks.UI.Client",
+          "range": "[9.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#dependencygroup/net10.0/microsoft.data.sqlclient",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.SqlClient",
+          "range": "[6.1.4, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#Aevo.CommonLib.AspNetCore.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3552,
+      "fullName": "Aevo.CommonLib.AspNetCore.nuspec",
+      "length": 8747,
+      "name": "Aevo.CommonLib.AspNetCore.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 115,
+      "fullName": "README.md",
+      "length": 139,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#lib/net10.0/Aevo.CommonLib.AspNetCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4170,
+      "fullName": "lib/net10.0/Aevo.CommonLib.AspNetCore.dll",
+      "length": 9728,
+      "name": "Aevo.CommonLib.AspNetCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#lib/net10.0/Aevo.CommonLib.AspNetCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 493,
+      "fullName": "lib/net10.0/Aevo.CommonLib.AspNetCore.xml",
+      "length": 1725,
+      "name": "Aevo.CommonLib.AspNetCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.21.17.44.25/aevo.commonlib.aspnetcore.10.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kerberos SA",
+  "catalog:commitId": "98472419-a492-41ec-8489-3137688b8695",
+  "catalog:commitTimeStamp": "2026-09-23T11:20:35.1107093Z",
+  "copyright": "Kerberos SA © 2025–2026",
+  "created": "2026-09-23T11:16:38.963Z",
+  "description": "Reusable .NET 10 package that wraps ASP.NET Core Identity with cookie and JWT auth, Google OAuth, a pluggable e-mail provider, a multi-tenant model with dynamic RBAC (roles + module permissions), and secure defaults — wired up with a single AddMyIdentity call. JWT and Google OAuth secrets are supplied by the consumer (never shipped in the package).",
+  "id": "MyIdentity",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-23T11:20:20.607Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "TYcxRznxbLooNIIqAe6LOQV+wRb7BJkwoH17/NvZ8aV7rRGuZODZv0QVZhJH+kW51CxnQb2X/NGwGhIV9gk/yw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 332692,
+  "published": "2026-09-23T11:16:38.963Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v4.6.0: a minor release with a schema fix, seven code fixes (two of them security fixes that change behaviour), new additive API, and nothing to recompile. ApplyMyIdentityConstraints now declares the three foreign keys between the library's own tables -- MyIdentityRolePermission.RoleId to MyIdentityRole, MyIdentityRolePermission.ModuleCode to MyIdentityModule, and MyIdentityUserRoleAssignment.RoleId to MyIdentityRole -- with OnDelete(DeleteBehavior.Cascade). Until now they were configured only by their [ForeignKey] attributes, so their ON DELETE CASCADE came from EF's convention for a required relationship and from nothing else, while IMyIdentityRoleService.DeleteAsync (since 4.1.0) and GetRolePermissionsAsync both publish that cascade as a contract. A consumer whose OnModelCreating turned every cascade into Restrict before calling the method lost the three keys and kept the UserId one, which the library has declared since alpha.6; for that consumer, DeleteAsync -- and RoleManager.DeleteAsync, which it calls -- threw a foreign-key violation for every role with a permission matrix or an assignment. WHICH CASE ARE YOU IN. If you never reconfigure delete behaviour: nothing; the declarations repeat what the convention produced and generate no migration, and the reference app is held to that by a test. If your OnModelCreating reconfigures delete behaviour BEFORE ApplyMyIdentityConstraints (or ApplyMyIdentityModel): your model changes, add one migration; if you migrate at startup through MyIdentityMigrateAsync, startup fails until you do, because EF 10 throws for PendingModelChangesWarning -- the intended signal. If it reconfigures them AFTER the call -- typical of a context deriving MyIdentityDbContext with such a loop after base.OnModelCreating -- this release changes nothing for you and role deletion is still broken: configuration that runs later wins and nothing in the model can prevent it; exclude the library's entities from the loop, or call ApplyMyIdentityConstraints once more at the end of OnModelCreating (calling it twice is safe). dotnet ef migrations has-pending-model-changes tells you which case you are in. If you set these keys to Restrict on purpose before the call, this release overrides it; configure it after the call to keep it, knowing that it contradicts DeleteAsync's contract. The xmldocs, GETTING_STARTED.md and UPGRADE.md no longer say that the library declared the RoleId cascade before it did, and UPGRADE.md section 2 no longer tells you to declare the UserId key by hand. SEVEN DEFECTS FIXED, found by the documentation audit. SECURITY, BEHAVIOUR CHANGE: RegisterAsync's anonymous overload (registerDto, role, baseUrl) now grants only the built-in User role; every other global role, custom roles seeded as global included, is refused as denied -- a public sign-up that assigned a global role of your own moves to the server-side overload with external: null and tenantId: null, or grants the role afterwards (REG-1). SECURITY, BEHAVIOUR CHANGE: IMyIdentityTenantService.UpdateAsync now requires a SystemAdmin or the tenant's own TenantAdmin, where any authenticated member of the tenant could edit it; a localized describer overrides the new OnlyTenantAdminsCanEditTenant() (TENANT-2). STARTUP CAN NOW FAIL: permission-module codes that differ only in case are refused -- the seed throws AmbiguousModuleCode before writing anything, and startup validation reports them for modules declared in configuration; under SQL Server's default collation they were one primary key, a raw key violation on a fresh database (MOD-2). BUG FIXES: CreateAsync no longer compares a blank LegalName, TaxId or TradingName, so a second tenant without a TaxId is accepted (TENANT-1); MyIdentitySeedDataAsync stamps a tenant you pass it CreatedBy = System, so it is no longer inserted again on every startup -- copies earlier startups left behind are yours to delete (SEED-1); startup validation no longer requires ConnectionStrings:DefaultConnection when your own DbContextOptions for the context was registered before AddMyIdentity (CFG-1). ADDITION: MyIdentityPermissionExtensions.WithFlag(stored, flag, granted) returns the value to store when a matrix editor turns one flag on or off, and ModifyMembers names the three members of Modify -- clearing Delete by hand on a row that keeps the Modify bit revokes nothing, and the server cannot repair that from the value alone (PERM-9). DOCUMENTATION CORRECTED: every XML doc comment on the public surface, README.md, GETTING_STARTED.md and TECHNICAL_OVERVIEW.md were re-verified against the code. Several statements were wrong in ways that change what you should do -- among them: RequireConfirmedEmail's default false lets an unconfirmed account sign in; the package ships no first-run setup page and no migrations; and a stored Modify keeps granting Create, Edit and Delete until the Modify bit itself is cleared, which WithFlag does. UPGRADE.md section 41 has the full list. Every public member is now documented, and an undocumented one no longer compiles. WHAT THIS RELEASE DOES NOT DO: it does not delete a role's dependent rows in code, it does not detect at startup a model that overrides these keys afterwards, and it does not touch ASP.NET Core Identity's own foreign keys. Read UPGRADE.md section 41. DEPENDENCIES MOVE TO 10.0.12, a servicing bump: Microsoft.AspNetCore.Authentication.Google, Microsoft.AspNetCore.Authentication.JwtBearer, Microsoft.AspNetCore.Identity.EntityFrameworkCore and Microsoft.EntityFrameworkCore.SqlServer now require 10.0.12 or later; a project of yours that references any of the four DIRECTLY at 10.0.11 gets NU1605 (package downgrade), which the SDK treats as an error by default -- bump it to 10.0.12. The ASP.NET Core shared framework is still consumed through a frameworkReference. Everything else is as 4.5.0 left it, plus the additions above. The 4.5.0 impersonation primitive -- IMyIdentityImpersonationAccessor, MyIdentityImpersonationWindow.Describe, MyIdentityImpersonationInfo -- is unchanged (section 40), and so is the 4.4.0 permission split (section 39). Consumers coming from 3.x: the v3.x to v4.0 migration still lives in UPGRADE.md sections 1-4, with sections 5-6 as the pre-production checklist. Sections 7-41 are the per-release changelog and are historical. The scope limits are unchanged and are the ones TECHNICAL_OVERVIEW.md section 11 states: two-factor authentication is not shipped; tenant isolation is enforced by the SERVICE LAYER and not by a global query filter; a role's permission matrix is last-writer-wins (UpsertRolePermissionAsync on the same cell, SaveRolePermissionsAsync on the whole matrix); and security events go to ILogger only, with no persistence seam.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#repository",
+    "commit": "3801c95be880ea0a6936d98ddbaa2d870dff5355",
+    "type": "git"
+  },
+  "title": "Kerberos.MyIdentity",
+  "verbatimVersion": "4.6.0",
+  "version": "4.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.google",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.Google",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#dependencygroup/net10.0/microsoft.aspnetcore.identity.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#dependencygroup/net10.0/microsoft.entityframeworkcore.sqlserver",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.SqlServer",
+          "range": "[10.0.12, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#MyIdentity.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3750,
+      "fullName": "MyIdentity.nuspec",
+      "length": 8572,
+      "name": "MyIdentity.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 15676,
+      "fullName": "README.md",
+      "length": 42441,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#lib/net10.0/MyIdentity.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 176682,
+      "fullName": "lib/net10.0/MyIdentity.dll",
+      "length": 501248,
+      "name": "MyIdentity.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#lib/net10.0/MyIdentity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 121498,
+      "fullName": "lib/net10.0/MyIdentity.xml",
+      "length": 617331,
+      "name": "MyIdentity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.11.20.35/myidentity.4.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "identity",
+    "authentication",
+    "authorization",
+    "blazor",
+    "aspnetcore",
+    "jwt",
+    "google-oauth",
+    "multitenant",
+    "rbac",
+    "saas"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

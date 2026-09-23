@@ -1,0 +1,167 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "b966c122-d658-4f52-afc4-b4af127e2a78",
+  "catalog:commitTimeStamp": "2026-09-23T07:23:22.4344086Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-09-23T07:19:08.29Z",
+  "description": "Channel-agnostic identity primitives for the Stratara stack — login/claims/access-token records, sign-in / authentication-state / token-storage abstractions, and a typed HttpClient helper. Shared contract for web, mobile, and desktop hosts.",
+  "iconFile": "icon.png",
+  "id": "Stratara.Identity.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-23T07:23:08.597Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "8IXmXBcqp8FaO2/euhDcRbkt3jo6eEjJ7XVWYOKg6NWxeFVyRzOXirtTYKbKg5uOmVCtf/wlvPajaz3Hh9Gjqg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 87058,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-09-23T07:19:08.29Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "A correctness release for the Orleans execution model's store readers, and the release that makes\nStratara say who acted. The native PostgreSQL commit-order reader could be switched off entirely by a\nconvention this framework's own API reference recommends — silently, in a deployment that reported\nhealthy. Beyond that, an actor acting on a tenant it holds no membership in can now hold a role the\nhost names, and work the platform starts for a tenant has a session shape of its own.\n\n**Upgrading:**\n- **If you read the store in commit order on PostgreSQL, upgrade.** A write context that applies\n  `ApplyRowVersionConvention(RowVersionMode.Uint)` made every projection catch-up fail with\n  `42703: column s.xmin does not exist`, for ever, without the host reporting unhealthy. A consumer\n  who worked around it by unmapping `EventStreamEntry.RowVersion` can drop the workaround.\n- **Check what your `CrossTenantRoles` names mean on both role levels.** The cross-tenant authorizer\n  now also recognises a configured role held through the actor's own membership, so it permits\n  operations it refused before.\n- **A host whose handlers append events needs `AddCommandAuditing()`.** It always did; now it is\n  refused before the commit instead of failing in the database.\n- No schema change, no migration.\n\n### Added\n\n- **`SessionContext.ForPlatform(tenantId)`**: the session for work the platform starts on a tenant's\n  behalf — a durable timer, a saga step, a sweep. It carries the reserved system actor identities, a\n  fresh correlation id and a causation id of its own, so the work can append without a command having\n  preceded it. Strict tenant isolation recognises the shape and permits it without consulting the\n  cross-tenant authorizer, recorded under its own log event (`114_104`): the platform acting *for* a\n  tenant is not one tenant acting *on* another. The data-owner check applies unchanged. A host that\n  wants to decide for itself sets `TenantIsolationOptions.AuthorizePlatformActor`. Until now the\n  sentinels existed, the documentation named them, and nothing in the framework acted on them — the\n  honest session was refused by strict mode, and the session that passed claimed the tenant had acted.\n- **`MembershipAuthorizationOptions.HomeTenantRoles`**: roles that resolve in the tenant the actor is a\n  member of rather than in the tenant the request concerns. For an actor acting on a tenant it holds no\n  membership in and never can: a machine key, which materialises one membership in the tenant it was\n  issued for and serves many, or an operator administering a tenant they never joined — both were\n  refused every role check. Configure it with `AddMembershipAuthorization(o => o.HomeTenantRoles.Add(\"Service\"))`.\n  Empty by default, consulted only when the actor's tenant differs from the data owner's, and only the\n  named roles cross.\n\n### Fixed\n\n- **The native PostgreSQL commit-order reader reads a store under any column mapping.** It selected the\n  event table with a wildcard, which returns no system column. A write context that applies the\n  framework's own row-version convention maps the entry's row version onto PostgreSQL's `xmin`, so every\n  catch-up of every projection grain failed with `42703: column s.xmin does not exist` and retried for\n  ever — no checkpoint written, nothing dead-lettered, the host reporting healthy and every write\n  succeeding. The reader now names the columns the model maps. A consumer who worked around this by\n  unmapping `EventStreamEntry.RowVersion` can drop the workaround.\n- **Entries committed together reach a store-reading projection in stream order.** The native reader\n  returned the entries of one commit in the order the database inserted the rows, which is not the order\n  they were appended in: a stream created and appended to in one save could hand a projection version 2\n  before version 1, and no retry could help, because the beginning was behind it in the same partition\n  rather than late. Each stream's entries are now returned in version order, which is what the portable\n  counter already did. Entries of different streams in one commit may still be interleaved in any order.\n\n### Changed\n\n- **The cross-tenant authorizer now recognises a configured platform role held through the actor's own\n  membership.** `MembershipCrossTenantAuthorizerOptions.CrossTenantRoles` is documented as the path for\n  an operator who holds no membership in the tenant they administer, but the role was looked up through\n  a role check that reads the subject tenant — the very tenant the option says the actor is not a member\n  of. On the membership level it could therefore never pass, and a machine actor has no global role\n  level at all, so for a machine actor the option did nothing. The actor's own membership is now\n  consulted as well.\n  **This permits cross-tenant operations that were refused before.** Before upgrading, check what the\n  names in your `CrossTenantRoles` mean on both role levels: a host that configured `\"Admin\"` intending\n  the global Identity role now also admits an actor holding a tenant-scoped membership role of the same\n  name in its own tenant. `\"Admin\"`, `\"Owner\"` and `\"TenantAdmin\"` collide between the two levels\n  routinely. The widening is in the direction the requirement has always stated, and it reaches only\n  actors holding a role the host itself named.\n\n- **Appending without a causation identity is refused before the commit.** The session context carries a\n  nullable causation id, but the store requires one of every entry, and only `AddCommandAuditing()`\n  supplies it. A host that had not registered it met a `23502` not-null violation from the database that\n  read like a schema fault. `SaveChangesAsync` now refuses the append before the transaction opens, with a\n  message naming the registration. `AddCommandServices()` still does not register the auditing behaviours\n  — where they sit in the pipeline is a consumer's decision.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#repository",
+    "commit": "c9511d7228da6d29bc4ad7ca750150ac58a2d83d",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "4.3.0",
+  "version": "4.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#dependencygroup/net10.0/stratara.shared",
+          "@type": "PackageDependency",
+          "id": "Stratara.Shared",
+          "range": "[4.3.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#Stratara.Identity.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3138,
+      "fullName": "Stratara.Identity.Core.nuspec",
+      "length": 7262,
+      "name": "Stratara.Identity.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1063,
+      "fullName": "README.md",
+      "length": 2139,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#lib/net10.0/Stratara.Identity.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6075,
+      "fullName": "lib/net10.0/Stratara.Identity.Core.dll",
+      "length": 14336,
+      "name": "Stratara.Identity.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#lib/net10.0/Stratara.Identity.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4438,
+      "fullName": "lib/net10.0/Stratara.Identity.Core.xml",
+      "length": 23498,
+      "name": "Stratara.Identity.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.23.22/stratara.identity.core.4.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "identity",
+    "authentication",
+    "authorization",
+    "jwt",
+    "access-token",
+    "sign-in",
+    "abstractions",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

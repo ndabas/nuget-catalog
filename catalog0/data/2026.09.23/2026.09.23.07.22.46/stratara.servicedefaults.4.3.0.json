@@ -1,0 +1,265 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "70d72167-bca1-4807-8c3e-7b13d9c92daa",
+  "catalog:commitTimeStamp": "2026-09-23T07:22:46.1528504Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-09-23T07:19:19.54Z",
+  "description": "Observability defaults for the Stratara stack — ConfigureOpenTelemetry (HTTP, EF Core, RabbitMQ, runtime instrumentation; OTLP exporter) and ConfigureSerilog (structured logging, OTLP sink). Reference from every host.",
+  "iconFile": "icon.png",
+  "id": "Stratara.ServiceDefaults",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-23T07:22:16.113Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "sfPakgA4/YXGngwWa7cu0XQyHGeDGtU926k4Wnelyp3tNeKy/NSah3VIFRwvuYQOoxnUwEzSS5pGtCNhPXyWCA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 86197,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-09-23T07:19:19.54Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "A correctness release for the Orleans execution model's store readers, and the release that makes\nStratara say who acted. The native PostgreSQL commit-order reader could be switched off entirely by a\nconvention this framework's own API reference recommends — silently, in a deployment that reported\nhealthy. Beyond that, an actor acting on a tenant it holds no membership in can now hold a role the\nhost names, and work the platform starts for a tenant has a session shape of its own.\n\n**Upgrading:**\n- **If you read the store in commit order on PostgreSQL, upgrade.** A write context that applies\n  `ApplyRowVersionConvention(RowVersionMode.Uint)` made every projection catch-up fail with\n  `42703: column s.xmin does not exist`, for ever, without the host reporting unhealthy. A consumer\n  who worked around it by unmapping `EventStreamEntry.RowVersion` can drop the workaround.\n- **Check what your `CrossTenantRoles` names mean on both role levels.** The cross-tenant authorizer\n  now also recognises a configured role held through the actor's own membership, so it permits\n  operations it refused before.\n- **A host whose handlers append events needs `AddCommandAuditing()`.** It always did; now it is\n  refused before the commit instead of failing in the database.\n- No schema change, no migration.\n\n### Added\n\n- **`SessionContext.ForPlatform(tenantId)`**: the session for work the platform starts on a tenant's\n  behalf — a durable timer, a saga step, a sweep. It carries the reserved system actor identities, a\n  fresh correlation id and a causation id of its own, so the work can append without a command having\n  preceded it. Strict tenant isolation recognises the shape and permits it without consulting the\n  cross-tenant authorizer, recorded under its own log event (`114_104`): the platform acting *for* a\n  tenant is not one tenant acting *on* another. The data-owner check applies unchanged. A host that\n  wants to decide for itself sets `TenantIsolationOptions.AuthorizePlatformActor`. Until now the\n  sentinels existed, the documentation named them, and nothing in the framework acted on them — the\n  honest session was refused by strict mode, and the session that passed claimed the tenant had acted.\n- **`MembershipAuthorizationOptions.HomeTenantRoles`**: roles that resolve in the tenant the actor is a\n  member of rather than in the tenant the request concerns. For an actor acting on a tenant it holds no\n  membership in and never can: a machine key, which materialises one membership in the tenant it was\n  issued for and serves many, or an operator administering a tenant they never joined — both were\n  refused every role check. Configure it with `AddMembershipAuthorization(o => o.HomeTenantRoles.Add(\"Service\"))`.\n  Empty by default, consulted only when the actor's tenant differs from the data owner's, and only the\n  named roles cross.\n\n### Fixed\n\n- **The native PostgreSQL commit-order reader reads a store under any column mapping.** It selected the\n  event table with a wildcard, which returns no system column. A write context that applies the\n  framework's own row-version convention maps the entry's row version onto PostgreSQL's `xmin`, so every\n  catch-up of every projection grain failed with `42703: column s.xmin does not exist` and retried for\n  ever — no checkpoint written, nothing dead-lettered, the host reporting healthy and every write\n  succeeding. The reader now names the columns the model maps. A consumer who worked around this by\n  unmapping `EventStreamEntry.RowVersion` can drop the workaround.\n- **Entries committed together reach a store-reading projection in stream order.** The native reader\n  returned the entries of one commit in the order the database inserted the rows, which is not the order\n  they were appended in: a stream created and appended to in one save could hand a projection version 2\n  before version 1, and no retry could help, because the beginning was behind it in the same partition\n  rather than late. Each stream's entries are now returned in version order, which is what the portable\n  counter already did. Entries of different streams in one commit may still be interleaved in any order.\n\n### Changed\n\n- **The cross-tenant authorizer now recognises a configured platform role held through the actor's own\n  membership.** `MembershipCrossTenantAuthorizerOptions.CrossTenantRoles` is documented as the path for\n  an operator who holds no membership in the tenant they administer, but the role was looked up through\n  a role check that reads the subject tenant — the very tenant the option says the actor is not a member\n  of. On the membership level it could therefore never pass, and a machine actor has no global role\n  level at all, so for a machine actor the option did nothing. The actor's own membership is now\n  consulted as well.\n  **This permits cross-tenant operations that were refused before.** Before upgrading, check what the\n  names in your `CrossTenantRoles` mean on both role levels: a host that configured `\"Admin\"` intending\n  the global Identity role now also admits an actor holding a tenant-scoped membership role of the same\n  name in its own tenant. `\"Admin\"`, `\"Owner\"` and `\"TenantAdmin\"` collide between the two levels\n  routinely. The widening is in the direction the requirement has always stated, and it reaches only\n  actors holding a role the host itself named.\n\n- **Appending without a causation identity is refused before the commit.** The session context carries a\n  nullable causation id, but the store requires one of every entry, and only `AddCommandAuditing()`\n  supplies it. A host that had not registered it met a `23502` not-null violation from the database that\n  read like a schema fault. `SaveChangesAsync` now refuses the append before the transaction opens, with a\n  message naming the registration. `AddCommandServices()` still does not register the auditing behaviours\n  — where they sit in the pipeline is a consumer's decision.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#repository",
+    "commit": "c9511d7228da6d29bc4ad7ca750150ac58a2d83d",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "4.3.0",
+  "version": "4.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/stratara.shared",
+          "@type": "PackageDependency",
+          "id": "Stratara.Shared",
+          "range": "[4.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/destructurama.attributed",
+          "@type": "PackageDependency",
+          "id": "Destructurama.Attributed",
+          "range": "[5.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/microsoft.extensions.http.resilience",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http.Resilience",
+          "range": "[10.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/microsoft.extensions.servicediscovery",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ServiceDiscovery",
+          "range": "[10.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.EntityFrameworkCore",
+          "range": "[1.18.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.http",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Http",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/opentelemetry.instrumentation.runtime",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Runtime",
+          "range": "[1.18.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/rabbitmq.client.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client.OpenTelemetry",
+          "range": "[1.0.0-rc.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/serilog.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "Serilog.Extensions.Hosting",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/serilog.formatting.compact",
+          "@type": "PackageDependency",
+          "id": "Serilog.Formatting.Compact",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/serilog.settings.configuration",
+          "@type": "PackageDependency",
+          "id": "Serilog.Settings.Configuration",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/serilog.sinks.async",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Async",
+          "range": "[2.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/serilog.sinks.console",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Console",
+          "range": "[6.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/serilog.sinks.file",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.File",
+          "range": "[7.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#dependencygroup/net10.0/serilog.sinks.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.OpenTelemetry",
+          "range": "[4.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#Stratara.ServiceDefaults.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3385,
+      "fullName": "Stratara.ServiceDefaults.nuspec",
+      "length": 8902,
+      "name": "Stratara.ServiceDefaults.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1692,
+      "fullName": "README.md",
+      "length": 3335,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#lib/net10.0/Stratara.ServiceDefaults.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7063,
+      "fullName": "lib/net10.0/Stratara.ServiceDefaults.dll",
+      "length": 16384,
+      "name": "Stratara.ServiceDefaults.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#lib/net10.0/Stratara.ServiceDefaults.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1691,
+      "fullName": "lib/net10.0/Stratara.ServiceDefaults.xml",
+      "length": 5319,
+      "name": "Stratara.ServiceDefaults.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.22.46/stratara.servicedefaults.4.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "opentelemetry",
+    "otel",
+    "serilog",
+    "observability",
+    "logging",
+    "tracing",
+    "metrics",
+    "hosting",
+    "service-discovery",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

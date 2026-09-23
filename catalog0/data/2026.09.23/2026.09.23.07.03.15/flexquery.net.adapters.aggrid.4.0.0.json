@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Peter John Casasola",
+  "catalog:commitId": "abb01dd0-5a5c-4a6b-8e05-bd9f522c3c7d",
+  "catalog:commitTimeStamp": "2026-09-23T07:03:15.3673947Z",
+  "created": "2026-09-23T06:52:04.18Z",
+  "description": "AG Grid filter and sorting payload adapter for FlexQuery.NET — translates AG Grid filterModel and sortModel into canonical FlexQuery.NET query models.",
+  "iconFile": "logo.png",
+  "id": "FlexQuery.NET.Adapters.AgGrid",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-23T07:03:15.19Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "64/dJIWILA0r6L+f2jq1dtePiwQOyXcKiFYYvNECcm3KcenL2ai+4USrskl4ayfAFRfOpfPsYFQdxIYuJeBPEA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 101104,
+  "projectUrl": "https://github.com/peterjohncasasola/FlexQuery.NET",
+  "published": "2026-09-23T06:52:04.18Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# FlexQuery.NET v4.0.0 Release Notes\n\n**Release date:** 2026-09-16\n\n## Overview\n\nv4.0.0 is the largest release in the project's history: **369 commits since v3.1.1** (2026-07-04\nthrough the `v4.0.0-rc.1` cutoff), spanning a rebuilt configuration model, typed DTO projection,\n`include` relationship query blocks\n(filtered, sorted, bounded collection slices), keyset pagination, an aggregate/HAVING redesign, the FQL parser,\nprovider modernization for both EF Core and Dapper, and a new OpenAPI package.\n\nv4 is a **breaking release**. Package renames, restructured option classes, and removed legacy\nsyntaxes require code changes — most are mechanical. The authoritative step-by-step guide is\n[Migrate from v3.1.1 to v4](https://github.com/peterjohncasasola/FlexQuery.NET/tree/main/docs-v4/content/docs/migration/v3-to-v4.mdx),\nwith a compact area-to-area mapping in the\n[Change Matrix](https://github.com/peterjohncasasola/FlexQuery.NET/tree/main/docs-v4/content/docs/migration/change-matrix.mdx).\n\n**Target frameworks** are now `.NET 6.0 / 8.0 / 10.0` (the .NET 7 target is dropped).\n`FlexQuery.NET.OpenApi` targets `.NET 9.0 / 10.0` and requires `Microsoft.AspNetCore.OpenApi`.\n\n---\n\n## Highlights\n\n### 1. Typed DTO Projection\n\nEvery provider now supports `FlexQueryAsync<TEntity, TResponse>` (4 EF Core + 4 Dapper overloads),\nreturning `QueryResult<TResponse>`. All pipeline stages — filter, sort, select, grouping, includes,\npaging — run against the entity model; rows are materialized through entity→DTO maps.\n\n```csharp\nFlexQueryCore.Configure(options =>\n{\n    options.CreateMap<Customer, CustomerResponse>()\n        .ForMember(d => d.CustomerName, e => e.FirstName);\n});\n\nvar result = await db.Customers\n    .FlexQueryAsync<Customer, CustomerResponse>(parameters, cancellationToken: ct);\n```\n\nNew mapping vocabulary (`CreateMap`, `MapField`, `ForMember`, `ForNavigation`) lives in the global\n`FlexQueryMapping` registry, with per-execution overrides via execution options. Navigation members\nproject only the requested navigation graph; computed `ForMember` expressions execute per row after\nprojection on EF Core.\n\n**Affected packages:** `FlexQuery.NET`, `FlexQuery.NET.EntityFrameworkCore`, `FlexQuery.NET.Dapper`\n\n### 2. Relationship Query Blocks on `include`\n\n`FilteredIncludes` is replaced by options written directly in the `include` block - collection\nrelationships can carry their own `filter` / `sort` / `take` (and nested `include`):\n\n```http\ninclude=Orders(take=5;filter=Status:eq:'Active';sort=OrderDate:desc)\n```\n\nDSL and FQL parsers accept nested blocks; options inside a block are semicolon-separated. The\nremoved preview keyword `expand` (v4 previews only; it never appeared in a stable release) folds\ninto `include(...)` - and `expand=` is now rejected with a migration error in both DSL and FQL.\nInclude paths and every block level are governed by the new `AllowedIncludes` governance set (see\nSecurity changes), and collection operations are rejected on single-valued relationships based on\nthe relationship metadata. `QueryOptions.Includes` (a single `IncludeNode` tree) and\n`ApplyIncludes<T>()` are the programmatic entry points.\n\n**Affected packages:** `FlexQuery.NET`, providers, parsers\n\n### 3. Keyset (Cursor) Pagination\n\nOffset paging gets slower the deeper you scroll. v4 adds keyset pagination end-to-end in both core\nparameter parsing and the EF Core and Dapper executors:\n\n```http\nGET /api/customers?useKeysetPagination=true&sort=LastName:asc,Id:asc&pageSize=20\nGET ...&cursor=eyJ2IjoxLCJ2YWx1ZXMiOlsiTWlsbGVyIiw4N119\n```\n\n`QueryResult.NextCursorToken` carries the opaque token; `SeekAfter` is the programmatic predicate\nbuilder. Cursors must match the current sort; mixing `page` with keyset mode is an error.\n\n**Affected packages:** `FlexQuery.NET`, `FlexQuery.NET.EntityFrameworkCore`, `FlexQuery.NET.Dapper`\n\n### 4. Aggregates and HAVING Redesign\n\nAggregates move out of `select` into a dedicated `aggregate` parameter with a typed\n`AggregateFunction` enum (was the string-function `AggregateModel`):\n\n```http\n# v3.1.1 — aggregates inside select\nselect=Status,sum(Total),count(Id)\n\n# v4 — dedicated aggregate parameter\nselect=Status&aggregate=sum:Total,count:Id\n```\n\nAliases default to PascalCase (`SumTotal`); explicit aliasing via `sum:Total:totalSales` (or FQL\n`FUNCTION(field) [AS alias]`). HAVING became a recursive-descent-parsed condition\ntree (`HavingNode` / `HavingLogicalNode` / `HavingConditionNode` / `HavingGroupNode`) with\nAND/OR/parentheses support across DSL and FQL, and a dedicated grouped query executor\n(`DynamicGroupedResult` model) runs grouped queries in both providers.\n\n### 5. Nested `select` Trees with Aliases\n\n`QueryOptions.Select` is now a `List<SelectNode>` tree (was `List<string>`), parsed through a\n`SelectModel` AST. New syntax: `field:alias`, `field as alias`, nested select blocks (children\nmaterialize through mapped TypeMaps), and mixed flat/nested forms. FQL and DSL parsers both gained\nnested alias parsing, and `MergeTree` propagates aliases with conflict detection. Sort gained a\nspace form (`sort=Name ASC, Age DESC`) alongside the colon form.\n\n### 6. FQL Parser (JQL Renamed) + DSL Grammar Extensions\n\n- Package `FlexQuery.NET.Parsers.Jql` → **`FlexQuery.NET.Parsers.Fql`**; `QuerySyntax.Jql` →\n  `QuerySyntax.Fql`; `JqlParseException` → `FqlParseException` (now derived from\n  `FlexQueryException`).\n- DSL filters accept `AND` / `OR` keywords in addition to `&` / `|` (additive). The logical forms\n  build AND-groups inside OR-groups per precedence; `AND`/`OR` become reserved and must be quoted\n  as values.\n- All parsers report structured `Position` / `Expected` / `Found` on internal parse failures, and\n  query parameters gained a `QueryParserRegistry` for per-syntax resolution.\n\n### 7. Fluent Query Building\n\n`Query.Create()` — a full fluent builder (filters via `FilterGroupBuilder`, sort, include blocks,\naggregates, paging) — complements the existing `FilterBuilder`. A strongly-typed\n`FlexQueryRequest` object plus `FlexQueryRequestExtensions` cover the request layer, and\n`MiniODataRequest.ToQueryOptions()` joins the adapter extension set.\n\n### 8. Dapper Provider Modernized\n\n- **Model definitions:** `MappingRegistry` is replaced by an EF-style `ModelBuilder` +\n  `IEntityTypeConfiguration<T>`, configured through the provider facade:\n\n  ```csharp\n  FlexQueryDapper.Configure(options =>\n  {\n      options.Model.Entity<Customer>()\n          .ToTable(\"Customers\")\n          .HasKey(c => c.Id)\n          .HasMany(c => c.Orders)\n          .HasForeignKey(\"CustomerId\");\n  });\n  ```\n\n- **Dialect auto-detection** from the open `DbConnection` — manual `Dialect` /\n  `ISqlDialectResolver` configuration is removed.\n- **SQL execution logging:** the final SQL and bound parameters are logged before every Dapper\n  command, including copy-paste-ready `DECLARE` scripts for reproducing queries in SSMS.\n- **DTO-aware SQL generation** with nested TypeMap field rewrites, include hydration reads the unified include tree,\n   include-only joins excluded from the count query, split-query hydration internalized,\n  and strongly-typed projected entities via the (now-internal) dynamic type builder honoring JSON\n  naming policies.\n- The five dynamic overloads consolidated to three (`FlexQueryParameters`,\n  `IDictionary<string, StringValues>`, `QueryOptions`) plus four typed overloads.\n\n### 9. New Package: `FlexQuery.NET.OpenApi`\n\nQuery-parameter surface for the modern `Microsoft.AspNetCore.OpenApi` (.NET 9/10) stack:\n`AddFlexQueryOpenApi` / `AddFlexQuery` registrations plus an example provider aligned with the v4\n`QueryOptions` model. Swashbuckle-era guidance is obsolete.\n\n### 10. Result Surface and Cross-Cutting Additions\n\n- `QueryResult<T>` gains `NextCursorToken` and `ResultShape` — response JSON is shaped to the\n  selected DTO surface (with a JSON converter), keeping EF and Dapper output identical.\n- `CancellationToken` added to **all** async provider overloads (trailing parameter).\n- Per-request `QuerySyntax` and `DisablePaging` overrides in configuration.\n- ASP.NET Core DI surface: `AddFlexQuerySecurity`, `AddFlexQueryJson`, `AddFlexQuery` (global\n  configuration).\n\n---\n\n## Breaking Changes\n\n### 1. Configuration Model Rebuilt — DI Registration Replaced by Static Facades\n\n```csharp\n// v3.1.1 — DI-era registration\nservices.AddFlexQueryDapper(...);\nservices.AddFlexQueryMiniOData(...);\n\n// v4 — static facades, immutable after first use\nFlexQueryCore.Configure(options => { ... });\nFlexQueryDapper.Configure(options => { ... });\nFlexQueryEFCore.Configure(options => options.UseNoTracking = true);\nFql.Register();\nMiniOData.Register();\n```\n\nCalling any `Configure` **after a query has executed throws `InvalidOperationException`**. Global\noptions are immutable after the first call. No-tracking behavior moves from\n`QueryExecutionOptions.UseNoTracking` / `UseSplitQuery` to provider facade or per-call\n`EfCoreQueryOptions.UseNoTracking` (`bool?`); `UseSplitQuery` is gone — the provider decides the\nSQL shape internally.\n\n### 2. Renamed\n\n| v3.1.1 | v4 | Migration |\n|---|---|---|\n| Package `FlexQuery.NET.Parsers.Jql` | `FlexQuery.NET.Parsers.Fql` | Update package reference |\n| `QuerySyntax.Jql` | `QuerySyntax.Fql` | Find/replace |\n| `JqlParseException : Exception` | `FqlParseException : FlexQueryException` | Update catch blocks |\n| `QueryOptions.FilteredIncludes` (+ string `Includes`) | `QueryOptions.Includes` (single include tree) | Find/replace; block syntax on the Include guide |\n| `ApplyFilteredIncludes<T>()` | `ApplyIncludes<T>()` | Find/replace |\n| `AggregateModel` (string function) | `Aggregate` (typed `AggregateFunction`) | Update construction sites |\n| `HavingCondition` | `HavingNode` tree | Update construction sites |\n| `QueryOptions.Select` (`List<string>`) | `List<SelectNode>` | Update manual tree construction |\n| `DebugResult` | `QueryDebugInfo` (via `ToFlexQueryDebug`) | Find/replace |\n| `Models.IFlexQueryExecutionListener` | `Execution.IFlexQueryExecutionListener` | Update using (members unchanged) |\n| `Models.QueryContext` | `Execution.QueryContext` (sealed) | Update using directives |\n| `Models.BaseQueryOptions` | split: `Options.BaseQueryOptions` + `Options.QueryGovernanceOptions` | Adjust base-class references |\n\n### 3. Removed\n\n| Removed | Replacement |\n|---|---|\n| `expand` query keyword (v4 previews only; never stable) | move branch options into the `include(...)` block |\n| JSON / Indexed / Generic query syntaxes (`JsonQueryParser`, `AutoDetect`) | Native DSL, FQL, or MiniOData |\n| `CaseInsensitive` / `CaseInsensitiveFields` options | — (comparisons follow provider semantics) |\n| Parser DI registration (`ServiceCollectionExtensions` in parser packages, `MiniODataFeature`) | Static `Fql.Register()` / `MiniOData.Register()` |\n| Deprecated `QueryOptions` members: `Skip`, `Top`, `EnableCache`, `Items`, `Ast` | `PagingOptions`, per-call options |\n| `InvalidFilterFieldException` / `InvalidSortFieldException` | `QueryValidationException` with structured errors |\n| Manual Dapper `Dialect` config (`ISqlDialectResolver`, `DefaultSqlDialectResolver`) | Auto-detection from the `DbConnection` |\n| Dapper `MappingRegistry` / `IMappingRegistry` / `IEntityMapping` / `JoinInfo` | `ModelBuilder` + `IEntityTypeConfiguration<T>` |\n| Dapper conventions (`IEntityConvention`, `IForeignKeyConvention`, `IRelationshipConvention`, `Default*`) | Convention-first defaults (now internal) |\n| `QueryableAspNetCoreExtensions.FlexQueryAsync` | Provider `FlexQueryAsync` + `[FieldAccess]` filter |\n| `FromAgGridJson(string)` / `FromKendoJson(string)` | `JsonElement.ToQueryOptions()` |\n| `AgGridQueryOptionsParser` / `AgGridResponseConverter` / `KendoQueryOptionsParser` | `ToQueryOptions()` / `ToAgGridServerSideResponse()` extensions |\n| `UseSplitQuery` option | Split-query include hydration is now internal behavior |\n| Public caches (`ExpressionCache`, `ParserCache`, `ProjectionExpressionCache`) | Internal caching (`FlexQueryCacheSettings` remains public) |\n| Public helpers (`ExpressionBuilder`, `QueryBuilder`, `ProjectionOptimizer`, `GovernanceValidator`, `DynamicTypeBuilder`, `SelectTreeBuilder`, `ExpressionPrinter`, `ExpressionTreeVisualizer`, `ProjectionMetadata*`) | Not replaced — implementation detail |\n| `FlexQueryParameters.RawParameters` (public) | Internal — use model binding |\n\n### 4. DSL Grammar: Comma-Separated Conditions Became Single Values\n\nv3 split combined filter conditions on `,`. In v4 a comma after the value is **part of the value**:\n`Name:eq:Ann,Salary:gt:1000` now matches a `Name` literally equal to `\"Ann,Salary:gt:1000\"`, and\n`;` in a filter is rejected outright. Rewrite multi-condition filters to join with `&` / `|` /\n`AND` / `OR`. This is the one *silent* grammar change in the migration — grep stored/shared filter\nstrings. (`AND`/`OR` are also reserved and cannot appear as unquoted values.)\n\n### 5. Aggregates and HAVING Tightened\n\nAggregates are parsed only from the dedicated `aggregate` parameter (function-first grammar);\nwildcard aggregates are rejected; aliases must be non-empty. Every aggregate referenced in `having`\nmust be declared in `aggregate` (replacing v3.1.1's alias-integrity rule), and `having` without\n`groupBy` is rejected. GROUP BY projection/sort rules now run through `GroupedSortValidator`\nconsistently across providers.\n\n### 6. Paging/Parameter Validation Now Throws\n\n```http\npage=abc      → QueryParseException: not a valid page number\npageSize=-5   → QueryParseException: not a valid page size\ndistinct=x    → QueryParseException: not a valid distinct value\n```\n\nOut-of-range values (e.g. `page=0` or over-sized `pageSize`) are clamped within\n1–`MaxPageSize` (default 1000) instead of erroring. `QuerySyntax` values are validated strictly\nacross all parameters.\n\n### 7. Unified Exception Hierarchy\n\nAll query errors derive from `FlexQueryException`:\n\n```csharp\ncatch (QueryValidationException ex) { ... }   // field access violations\ncatch (QueryParseException ex) { ... }        // malformed parameters\ncatch (FlexQueryException ex) { ... }         // safety net for all FlexQuery errors\n```\n\n### 8. Adapter Entry Points\n\nAG Grid / Kendo `From*Json(string)` methods are replaced by `JsonElement.ToQueryOptions()`\nextensions (null-safe), and the standalone parser/converter classes are removed in favor of\n`ToQueryOptions()` / `ToAgGridServerSideResponse()` extension methods.\n\n### 9. Target Frameworks\n\n`net7.0` targets are dropped; packages build for `net6.0;net8.0;net10.0`, and\n`FlexQuery.NET.OpenApi` for `net9.0;net10.0`.\n\n---\n\n## Security / Governance Changes\n\n- Governance members keep their names but move to `QueryGovernanceOptions`;\n  `DapperQueryOptions` now derives from it as well.\n- `[FieldAccess]` gains `AllowedIncludes`; the attribute class and filter become sealed.\n- Every include block level (including nested branches) is governed by `AllowedIncludes`; DTO public\n  surfaces and navigation projections require their include paths via new validation rules\n  (empty include lists rejected, unknown paths rejected recursively).\n- Validation pipeline extended with include-cardinality/HAVING/grouping/keyset rules and a structured\n  `ValidationResult` / `ValidationError` model; non-strict mode no longer calls\n  `ValidateOrThrow`.\n\n---\n\n## Provider Behavior Changes\n\n| Provider | Change |\n|---|---|\n| EF Core | Include hydration composed as EF Core filtered includes (provider decides SQL shape); include blocks carry per-branch filter/sort/take; grouped queries execute through a dedicated grouped executor; keyset paging wired end-to-end |\n| Dapper | Dialect auto-detection from `DbConnection`; DTO-aware SQL generation with nested TypeMap field rewrites; include-only joins excluded from the COUNT query; SQL execution logging with DECLARE scripts; keyset paging with shared cursor validation |\n| Both providers | Trailing `CancellationToken` on all async overloads; `QueryResult` structure stays field-identical across providers |\n\n---\n\n## Performance and Internals\n\n- **Public-surface enforcement + namespace reorganization** (133 refactor commits): sort,\n  projection, keyset, and group builders enforce public surfaces; the former monolithic model\n  namespaces split (`Options`, `Execution`, `Paging`, serialization under `FlexQuery.NET.*`) while\n  internals are hidden from consumers.\n- **Dapper include materialization** takes a direct projection path and streams simple includes;\n  projections are strongly typed via the internal dynamic type builder and respect configured JSON\n  naming transformers.\n- **Cache keys** updated to include `Sort`/`Take` on selection nodes, preventing stale shape reuse.\n- **Reflection/caches** from v3 retained, now internalized.\n\n---\n\n## Notable Fixes\n\n**Relationship queries / Dapper**\n- Include-block filter/sort fields rewritten through nested TypeMaps instead of leaking entity-only names.\n- Include-only joins excluded from the total-count query (correct `TotalCount` with filtered includes).\n- Principal key resolved from entity mapping rather than hard-coded `Id`.\n- Include validation walks the whole tree: relationship cardinality per level, unknown paths at\n  any nesting depth, and duplicates are reported precisely.\n\n**EF Core**\n- Relationship query blocks are applied inside a single include-tree pass; keyset paging supported in the EF executor.\n- Grouped-query notification path guards a null execution context.\n\n**Parsers / Validation**\n- OR logical operator corrected in `FqlHavingAstParser`.\n- Improved error position reporting for HAVING and FQL safety validation; `*` token position\n  reported in aggregate-field errors.\n- Nested select aliases preserved; mixed flat/nested select syntax allowed.\n- `FlexOptions.QuerySyntax` wired through to the parser via global syntax registration.\n- Aggregate alias resolution uses the actual declared alias; Dapper/FQL/Kendo/AgGrid consumers\n  moved to the `AggregateFunction` enum comparisons.\n\n---\n\n## Behavioral Changes\n\n| Change | Impact | Mitigation |\n|---|---|---|\n| DSL comma becomes value text | Multi-condition filters stored as `a:x,b:y` behave differently | Join conditions with `&`/`|`/`AND`/`OR` |\n| Paging param strictness | Previously tolerated malformed `page`/`pageSize`/`distinct` now throws | Send well-formed values; catch `QueryParseException` |\n| Out-of-range paging clamped 1–1000 | Oversized `pageSize` silently clamped instead of erroring | Design around `MaxPageSize` |\n| `Configure` freeze after first query | Late DI-style reconfiguration throws | Configure at startup |\n| `CaseInsensitive` removed | String comparisons follow provider collation | Handle case at the provider/collation level |\n| Semicolon rejected in DSL filter values | Legacy filters using `;` as separator fail | Restructure to `&`/`|` |\n| `AND`/`OR` reserved tokens | Unquoted values equal to keywords rejected | Quote values: `name:eq:\"AND\"` |\n| Aggregates only via `aggregate` param | `select=sum(Total)` no longer parses | Migrate to `aggregate=sum:Total` |\n| HAVING requires declared aggregates | v3 alias-integrity escapes now rejected | Declare all referenced aggregates |\n\n---\n\n## Test Coverage\n\n- **2,726 tests (2,726 passing, 0 skipped) on net8.0** — up from 888 total at v3.1.1, plus 25 OpenAPI schema tests.\n- New coverage areas from the 65 test-side commits since v3.1.1:\n  - Typed DTO: Dapper include boundary and `ForMember` nested select projection; DTO include-graph\n    boundary semantics; navigation expansion.\n  - Provider semantics: Dapper integration suite (split-query take preservation over include blocks, FQL include-block\n    filter/sort/take), parent-preserving collection include semantics, EF/Dapper grouped executor\n    behavior across the shared fixtures (navigation properties, nullable dates).\n  - Validation: include cardinality-syntax and error-position tests, aggregate alias semantics,\n    HAVING rule error codes, public DTO surface enforcement.\n  - Serialization: EF ↔ Dapper projected-JSON naming-policy parity; DI registration unit tests for\n    `IServiceCollection` extensions.\n\n---\n\n## Documentation\n\n- New **docs-v4** site built with Next.js + Fumadocs (guides, concepts, migration, recipes,\n  troubleshooting), plus the v3 static mirror for legacy pages.\n- Root and per-package READMEs updated for the v4 API surface.\n\n---\n\n## Prerelease History\n\n| Tag | Date |\n|---|---|\n| `v4.0.0-preview.1` | 2026-07-12 |\n| `v4.0.0-preview.2` | 2026-07-14 |\n| `v4.0.0-preview.3` | 2026-07-18 |\n| `v4.0.0-beta1.0` | 2026-09-08 |\n| `v4.0.0-rc.1` | 2026-09-10 (final code cutoff) |\n\n---\n\n## Upgrading\n\n```bash\ndotnet add package FlexQuery.NET --version 4.0.0\ndotnet add package FlexQuery.NET.EntityFrameworkCore --version 4.0.0\ndotnet add package FlexQuery.NET.Dapper --version 4.0.0\ndotnet add package FlexQuery.NET.AspNetCore --version 4.0.0\ndotnet add package FlexQuery.NET.Diagnostics --version 4.0.0\ndotnet add package FlexQuery.NET.Parsers.Fql --version 4.0.0\ndotnet add package FlexQuery.NET.Parsers.MiniOData --version 4.0.0\ndotnet add package FlexQuery.NET.Adapters.AgGrid --version 4.0.0\ndotnet add package FlexQuery.NET.Adapters.Kendo --version 4.0.0\ndotnet add package FlexQuery.NET.OpenApi --version 4.0.0\n```\n\nMigration checklist (details in [Migrate from v3.1.1 to v4](https://github.com/peterjohncasasola/FlexQuery.NET/tree/main/docs-v4/content/docs/migration/v3-to-v4.mdx#migration-steps)):\n\n1. Update package references (`Parsers.Jql` → `Parsers.Fql`; add `OpenApi` if used).\n2. Replace DI registration with `Fql.Register()`, `MiniOData.Register()`,\n   `FlexQueryEFCore.Configure()`, `FlexQueryDapper.Configure()`.\n3. Replace `FilteredIncludes` (and preview `expand`) usage with `include(...)` blocks.\n4. For Dapper: define the entity model via `options.Model` (tables, keys, relationships).\n5. Move aggregates out of `select` into `aggregate`; verify `having` references declared aggregates.\n6. Replace removed exception types with `QueryValidationException` handling.\n7. Remove `CaseInsensitive` and JSON/Indexed/Generic syntax usage.\n8. Replace `FromAgGridJson`/`FromKendoJson` with the `JsonElement` overloads.\n9. Re-run test suites — paging validation and HAVING enforcement are stricter.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#repository",
+    "commit": "948c4789c1cb7031dd789ff6842ba10e69c2ed0b",
+    "type": "git",
+    "url": "https://github.com/peterjohncasasola/FlexQuery.NET"
+  },
+  "verbatimVersion": "4.0.0",
+  "version": "4.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#dependencygroup/net10.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[4.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#dependencygroup/net6.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[4.0.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#dependencygroup/net8.0/flexquery.net",
+          "@type": "PackageDependency",
+          "id": "FlexQuery.NET",
+          "range": "[4.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#FlexQuery.NET.Adapters.AgGrid.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9080,
+      "fullName": "FlexQuery.NET.Adapters.AgGrid.nuspec",
+      "length": 23786,
+      "name": "FlexQuery.NET.Adapters.AgGrid.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1341,
+      "fullName": "README.md",
+      "length": 3244,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#lib/net10.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18673,
+      "fullName": "lib/net10.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 41984,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#lib/net10.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1843,
+      "fullName": "lib/net10.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 9397,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#lib/net6.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18822,
+      "fullName": "lib/net6.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 41984,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#lib/net6.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1843,
+      "fullName": "lib/net6.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 9397,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#lib/net8.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18669,
+      "fullName": "lib/net8.0/FlexQuery.NET.Adapters.AgGrid.dll",
+      "length": 41984,
+      "name": "FlexQuery.NET.Adapters.AgGrid.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#lib/net8.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1843,
+      "fullName": "lib/net8.0/FlexQuery.NET.Adapters.AgGrid.xml",
+      "length": 9397,
+      "name": "FlexQuery.NET.Adapters.AgGrid.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 13187,
+      "fullName": "logo.png",
+      "length": 13213,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.07.03.15/flexquery.net.adapters.aggrid.4.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "flexquery",
+    "ag-grid",
+    "grid",
+    "filter",
+    "sorting",
+    "adapter",
+    "compatibility"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

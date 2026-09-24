@@ -1,0 +1,224 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jonas Flodén",
+  "catalog:commitId": "704dff65-73eb-4e9c-b43b-e3e7ef9cdea4",
+  "catalog:commitTimeStamp": "2026-09-24T05:04:58.5323673Z",
+  "created": "2026-09-24T05:01:59.35Z",
+  "description": "Aspire hosting integration for configurable, per-developer service sources — e.g. a git checkout or a Kubernetes cluster.",
+  "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-24T05:04:34.097Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "uGXGR5eynGuPksvjFU+hjs/9tZWHtl7ld6VkjSKtpVlmSYDn3o5PaXgt9ZF6cimsZjYzd9krGPTt1/+ZWx3+YA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 584454,
+  "projectUrl": "https://github.com/flojon/aspire-servicesources",
+  "published": "2026-09-24T05:01:59.35Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Breaking\n\n- A late `UseDeferredCheckout()` call now throws instead of silently no-opping (#345).\n  `UseDeferredCheckout()` must be called before the first `AddService(...)` — that is where the\n  defer-or-not decision is made for each service, and it used to have no effect on any service\n  resolved before the call, with nothing said about it. It now throws\n  `ServiceSourcesConfigurationException` as soon as it detects a service already resolved on the\n  builder, the same way a too-late `AddServiceCatalog(...)` call already does. Move\n  `builder.UseDeferredCheckout()` above every `AddService(...)` call to migrate — it belongs near\n  the top of the AppHost, next to `AddServiceCatalog()` and `AddLocalKind()`.\n\n- `AddService` returns `IResourceBuilder<ServiceResource>` (#313). `ServiceResource` is a\n  concrete, sealed class implementing `IResourceWithServiceDiscovery`, `IResourceWithEnvironment`,\n  `IResourceWithArgs`, `IResourceWithEndpoints` and `IResourceWithWaitSupport` — so\n  `WithEnvironment`, `WithReference`, `WithArgs`, `WithHttpEndpoint`/`WithHttpsEndpoint`, `WaitFor`\n  and `WaitForCompletion` now bind directly on the result of `AddService(...)`, for every source\n  (`local`, `container`, `kubernetes`, `url`). `Configure<T>` and the ten\n  `WithService*`/`WaitForService*` guest-language shims are removed — there is nothing left for\n  them to reach that native vocabulary doesn't already cover:\n\n  ```csharp\n  // before\n  builder.AddService(\"orders\")\n      .Configure<IResourceWithEnvironment>(r => r.WithReference(ordersDb))\n      .Configure<IResourceWithWaitSupport>(r => r.WaitForCompletion(migrations));\n\n  // after\n  builder.AddService(\"orders\")\n      .WithReference(ordersDb)\n      .WaitForCompletion(migrations);\n  ```\n\n  `As<T>()` is renamed to `Unwrap<T>()`, not removed: `As*` is Aspire's own convention for\n  reinterpreting a resource for publish while returning the *same* builder type (`AsHttp2Service`,\n  and similar) — never a downcast to a different type, which is exactly what this method does, so\n  it moves off that prefix. The capability is unchanged: it stays the escape hatch for\n  kind-specific vocabulary the five interfaces don't cover, on a non-`dotnet` `local` kind's own\n  resource type — `service.Unwrap<JavaScriptAppResource>().WithRunScript(\"dev\")` keeps working\n  exactly as `service.As<JavaScriptAppResource>().WithRunScript(\"dev\")` did. `GetServiceEndpoint()`\n  and `GetEndpoint(...)` are unaffected either way.\n\n  `ServiceResource` is never the object DCP registers or runs — it dual-writes configuration to\n  the real, source-specific resource behind it (Aspire's own `ProjectResource` for `local`; an\n  internal container/executable resource for `container`/`kubernetes`; nothing at all for `url`,\n  which has no process to configure). An assembly compiled against an earlier version that names\n  `IResourceWithServiceDiscovery` as `AddService`'s return type, or calls\n  `Configure<T>`/`As<T>`/any `WithService*` method, no longer compiles against this version.\n\nDeprecated\n\n- `UseJava()`/`UseJavaScript()` are obsolete (#350). Both were made unnecessary by #340 —\n  `java`/`javascript` are built-in local kinds that `LocalKindRegistry` falls back to when nothing\n  is registered — but kept existing without saying so. Neither ever let you substitute a different\n  handler either: each hardcodes the same built-in `JavaLocalResourceKind`/`JavaScriptLocalKind`\n  the fallback already constructs, so calling one changes nothing about how the kind resolves.\n  Delete the call — and delete it rather than adding an `AddLocalKind` call alongside it, since\n  `UseJava()`/`UseJavaScript()` still occupy the registration slot the same way any `AddLocalKind`\n  call does, and a second registration for the same name throws. To register a *different*\n  `ILocalResourceKind` for `\"java\"`/`\"javascript\"` (e.g. a test double), call\n  `AddLocalKind(\"java\"/\"javascript\", yourKind)` directly instead — that is the only method of the\n  two that takes a handler.\n\nAdded\n\n- Catalog entries can declare a `defaultSource`, so a service resolves without a\n  `servicesources.local.json` entry at all (#158). `defaultSource: local` in yaml, or\n  `.WithDefaultSource(\"local\")` in a code-declared catalog, projects that value as the\n  lowest-precedence configuration layer — below `servicesources.local.json`, so any real layer\n  still overrides it. Only the bare source name is projected, never a per-source field, so\n  switching a defaulted service to a different source from a higher layer never leaves a stale\n  field behind. A catalog declaring `defaultSource: local` means every developer, and CI, clones\n  that repository by default — pin an explicit source in CI if that is not wanted. A\n  default-derived entry is excluded from the parallel checkout prefetch (#76); its first clone, if\n  the AppHost actually adds it, runs serialized rather than in parallel with the others.\n- `java`/`javascript` local services export OpenTelemetry to the dashboard. `kind: dotnet`\n  already gets this for free from Aspire's own `AddProject`; `AddJavaApp`/`AddNodeApp`/\n  `AddViteApp` and friends do not, so the `java` and `javascript` kind handlers now call\n  `WithOtlpExporter()` themselves — the same call any Aspire apphost adds by hand for an\n  executable resource. `container`/`kubernetes`/`url` sources are unaffected: they point at a\n  pre-built image or an already-running endpoint the AppHost has no process to inject into.\n- The service catalog can be authored in code (#134). `builder.AddServiceCatalog(catalog => …)`\n  declares services in the AppHost's own language — C# directly, TypeScript (and other guest\n  languages) through Aspire's Type System — instead of, or alongside, `servicesources.yaml`. All\n  four sources are covered: `WithRepository`/`WithKind` for `\"local\"`, `WithUrl` for `\"url\"`,\n  `WithContainer` for `\"container\"`, `WithKubernetes` for `\"kubernetes\"`. A service declared in both\n  catalogs is an error naming both sources — not a merge, and not a silent precedence rule. Yaml\n  stays fully supported as one provider; `servicesources.local.json` is still required either way —\n  see the README's \"Authoring the catalog in code\" section.\n- `WithPrepare` on the code-authored catalog (#134). The code-authoring equivalent of yaml's\n  `prepare:` block — a bootstrap command the `\"local\"` source runs inside the materialized checkout\n  before the kind is allowed to judge it.\n- Typed `AsJava`/`AsJavaScript` handles (#134). Sugar over `WithKind(\"java\"/\"javascript\", …)`:\n  each hands the caller a fluent options handle (`JavaKindOptionsBuilder`/\n  `JavaScriptKindOptionsBuilder`) instead of a raw `Dictionary<string, object>`. The two shipped\n  kinds' options classes (`JavaKindOptions`/`JavaScriptKindOptions`) stay `internal` — only the\n  handles are public.\n- `java.scheme`, so a `kind: java` service can declare an HTTPS endpoint (#247). Previously\n  the endpoint was always named and served as `http`, so an AppHost whose Java service actually\n  speaks TLS had to compensate with a second, redundant `WithHttpsEndpoint` from outside the kind.\n  `scheme: https` (catalog-only, like `port`; defaults to `http`) names the endpoint `https`\n  instead, matching `container.scheme`/`kubernetes.scheme`. Getting the app to actually serve TLS\n  stays a framework concern reached from the AppHost — `As<JavaAppExecutableResource>()` paired\n  with Aspire's `WithHttpsCertificateConfiguration` — rather than something the kind wires up\n  itself.\n- `scheme` on `WithContainer`/`WithKubernetes` in the code-authored catalog (#134). Names\n  that source's endpoint scheme — the code-authoring surface for what was previously reachable\n  only through yaml's `scheme` field.\n- Repositories as a first-class handle, and grouping several services onto one checkout\n  (#291, fixes #66). `AddRepository`/`WithSharedRepository` in code, and `repositories:`/\n  `repositoryRef:` in yaml, let several services share one repository: cloned once and reconciled\n  onto one ref, at `.servicesources/checkouts/<repository name>/`, instead of once per service.\n  An existing catalog is unaffected until you opt a repository into grouping — an ungrouped\n  service's checkout path, and everything about how it resolves, is unchanged; two services that\n  happen to name the same `repository:` URL without joining a `repositories:` entry still get one\n  checkout each, and are now suggested (not required) to group. See the README's \"Several services\n  from one repository\".\n- `prepare` moves to the repository for a grouped service (#291). A shared repository's\n  bootstrap command is declared once — on the `repositories:` entry, or the handle `AddRepository`\n  returns — rather than on each member service, and runs once for the whole group's shared\n  checkout rather than once per member.\n- `ServiceSources:Repositories:<name>` developer-config section (#291). The per-repository\n  counterpart of a service's own `local` block: override a grouped repository's `ref` for every\n  member at once, in `servicesources.local.json` or any layer above it, instead of a member's own\n  `local.ref` — which a grouped service can no longer set (its ref belongs to the whole group).\n- `LocalKinds`, `EndpointScheme`, `JavaScriptAppTypes` and `JavaScriptPackageManagers` are\n  public (#314). Previously `internal` constant holders whose values callers could only find\n  in prose; now discoverable from the API, the way Aspire's own `KnownResourceStates` and\n  `KnownResourceCommands` are. The methods that accept these values still take `string`.\n- Endpoint changes made after a `url` or `kubernetes` service resolves are now detected, reverted\n  and reported (#372). Aspire's own `withEndpointCallback`, `withHttpEndpointCallback` and\n  `withHttpsEndpointCallback` are reachable from a guest-language AppHost — and the shape they take,\n  `EndpointUpdateContext`, is `internal` to Aspire, so no C# shadow can project them. They mutated an\n  out-of-band service's endpoint with no warning at all, which for a `kubernetes` service repointed\n  the real `kubectl port-forward`, sending the configuration to a different process than the one the\n  AppHost author meant. Each service's endpoints are now fingerprinted as its source registers them,\n  and anything changed, added or removed between resolve and start is put back, in one warning naming\n  the endpoint and the fields that changed — `Service 'orders': endpoint 'https' was changed after\n  this service resolved (IsExternal) and has been put back. Its source is 'kubernetes' — …` — so the\n  outcome matches what gating the equivalent C# call already does. An endpoint *added* this way is\n  removed again, so a reference taken to it before start will not resolve, and the warning says so.\n  This measures the state rather than the call, so it also caught `WithExternalHttpEndpoints`\n  (#359), which sets `IsExternal` on existing endpoints directly from C# and was likewise\n  unreported — an in-place writer no method-name audit had found. That call is now gated at the call\n  site instead, and is the entry below; the detector stays the backstop for the guest-language\n  callbacks and for whatever is found next. Nothing changes for a\n  `local` or `container` service, where configuring an endpoint after resolution is legitimate and\n  nothing is installed. The guest-language behaviour was measured in TypeScript, through\n  `samples/DemoAppHostTypeScript`; other guest languages share the same capability ids but were not\n  measured.\n\nChanged\n\n- `repositoryRef` is a reserved top-level key (#291). Every `ServiceMetadata` property\n  reserves its yaml name against a `kind`'s own name (`AddLocalKind`/`UseJavaScript`/`UseJava`\n  refuse a kind whose name collides with one), and `RepositoryRef` is a new one — a kind literally\n  named `repositoryRef` can no longer be registered. A silent public-behaviour change in the sense\n  the top of this file describes, though vanishingly unlikely to affect anyone in practice.\n- Two ungrouped services declaring the same repository URL now warn at startup (#291). Not\n  an error — an existing catalog written this way keeps working — but ServiceSources now names\n  them and suggests grouping via `repositoryRef`/`WithSharedRepository` instead of each paying for\n  its own checkout of the same repository.\n\n- `LocalKindConfig.Parse<T>` accepts an already-typed instance (#134). A `WithKind(kind,\n  options)` call in code can pass an already-typed options object directly — `Parse<T>` now returns\n  it unchanged instead of round-tripping it through yaml, and throws a clearer error naming both\n  types if the options object doesn't match what the kind expects. A dictionary (the shape yaml\n  itself produces) still round-trips exactly as before.\n\n- `java`/`javascript` are built-in local kinds, resolved the same way `dotnet` always has been\n  (#314). `AddService()` now resolves a `kind: java`/`kind: javascript` service whether or not\n  `UseJava()`/`UseJavaScript()` was ever called — `LocalKindRegistry` falls back to the built-in\n  handler when nothing was explicitly registered for the name. `UseJava()`/`UseJavaScript()` still\n  exist and still work exactly as before, for the one case they remain useful: substituting a\n  different `ILocalResourceKind` for the name. The \"call this before the first `AddService()`\"\n  ordering contract no longer applies to either kind.\n\nFixed\n\n- `WithExternalHttpEndpoints` on a `url` or `kubernetes` service is now skipped and reported\n  instead of applied silently (#359). Aspire's method does not add an annotation — it walks the\n  ones the service already has and writes `IsExternal` on each `http`/`https` one — so it went\n  straight past the check every other endpoint call in this package goes through, and neither warned\n  nor appeared in the skipped-calls tally. For a `kubernetes` service that write landed on the real\n  `kubectl port-forward`'s own endpoint, publishing a port-forward to the world on the strength of a\n  line the AppHost author wrote about the service behind it. The call is now intercepted the same way\n  `WithHttpEndpoint` and `WithHttpsEndpoint` already are: nothing is written, and the service's\n  existing skip message names this call by name — `Service 'orders': skipped\n  WithExternalHttpEndpoints because its source is 'kubernetes' — …` — rather than naming the three\n  endpoint methods the shared label covers, which this one forwards to none of. A service that calls\n  both surfaces still gets one grouped message. Nothing changes for a `local` or `container` service,\n  where the call applies exactly as before. The detector added in this release (#372) reported this\n  after the fact; with the call skipped there is no longer any change for it to find, so there is one\n  warning rather than two, and the detector remains the backstop for the guest-language endpoint\n  callbacks, which no C# shadow can reach.\n\n- A configured or caller-controlled name can no longer forge a line in a message this package\n  writes (#372, #375, #385). Every name these messages quote — a service, a backing service,\n  a repository, a launch profile's URL, an endpoint — used to be interpolated exactly as configured\n  or as reported by git/Kubernetes, so one carrying a newline, a Unicode line separator, a closing\n  quote or an apostrophe could end the line early, or write a sentence of its own into output a\n  reader trusts. Every site now composes through one seam that escapes each name by construction and\n  caps all but the URLs and paths a cut would rob of the diagnosis they carry — a message naming ten\n  services still names all ten: the refusals raised while a source resolves, the builders behind the\n  startup-failure notice, the `configuration that nothing read` audits, the launch-profile endpoint\n  warning, the failed prefetch notice, the out-of-band log messages (the skip warning on a `url`/\n  `kubernetes` service, `Unwrap<T>`'s refusal, and the `url`-container refusal), the cause text\n  `ServiceSourcesConfigurationException.Describe` flattens, and the Git/Java/JavaScript/Kubernetes\n  exception hierarchies (`GitAuthenticationFailedException`, `KubernetesSecretException`,\n  `PrepareLaunchException`) plus the structured-logging and `prepare`-command output sinks. `RS0030`,\n  the analyzer banning a raw exception constructor, moves from a tolerated warning to a build error\n  project-wide, so a future call site that skips the seam fails CI instead of shipping. Entirely\n  internal: no public type or method this package documents changed, so there is nothing to migrate\n  on your side.\n\n- The remedy every out-of-band message offers no longer dead-ends (#372). Four messages\n  offered the same way back under this AppHost's control, each in its own words and all of them as\n  an unconditional instruction: the warning for configuration skipped on a `url` or `kubernetes`\n  service, the `Unwrap<T>` exception for each of those two sources, and the exception refusing a\n  container's reference to a `url` service. But a service whose `servicesources.yaml` entry declares\n  neither a repository nor a `container` block, which is the ordinary shape of a service that is\n  only ever a url, got `ServiceSourcesConfigurationException` on both options offered. All four now\n  share one sentence, which names what the catalog entry has to carry for each option, so a reader\n  either makes the switch or learns from the message why it is not theirs to make. The follow-on\n  error for the `local` half now says where `project` belongs too — on the `servicesources.yaml`\n  entry beside `repository`, not in `servicesources.local.json`, which only chooses the source.\n\n- An ungrouped service's repository url is now validated as required (#318). A code-declared\n  service (`WithRepository(url)`) or a yaml service with neither `repository:` nor `repositoryRef:`\n  (and no `url:`/`container:`/`kubernetes:` block either) used to sail through with a blank\n  repository url, which only surfaced later as a confusing failure once the git client tried to\n  clone it. `WithRepository` now rejects an empty or whitespace url immediately, naming the\n  service, the same way `ServiceCatalogBuilder.AddRepository` already does; the yaml loader now\n  rejects the equivalent shape at catalog load, naming the service, the same way it already\n  rejects an entirely empty service entry. A service that legitimately has no local checkout —\n  one sourced only from `url:`/`container:`/`kubernetes:` — is unaffected.\n\n- `source: local` on a service that declares no repository is now refused instead of cloning an\n  empty url (#362). #318's check runs at catalog load and deliberately exempts an entry\n  declaring only `url:`/`container:`/`kubernetes:`, because those are legitimate shapes. But a\n  developer's `source` is chosen independently of which blocks the entry populates, so picking\n  `local` for one of them reached the git client with a blank repository url anyway — the exact\n  symptom #318 fixed, by another route. Every non-`dotnet` kind was exposed, and so was a\n  `dotnet` service that declared `project:` alongside its `url:` block. The `local` source now\n  fails with a `ServiceSourcesConfigurationException` naming the service, the catalog that declares\n  no repository for it, and the configuration key that chose the source — before any clone or\n  network work, so a cold checkout is never paid for to reach the verdict. It says how to give the\n  service a repository, in the terms of the catalog that declared it — yaml properties for a yaml\n  entry, builder calls for a code-declared one — and names the `source` key in the register this\n  package uses wherever a value can come from any configuration layer, so a `source` set by the\n  environment or by a catalog `defaultSource` does not send its reader to edit a file that holds\n  nothing. It deliberately does not suggest switching the source to `url`, `container` or\n  `kubernetes`: whether any of those would resolve depends on that source's own preconditions, which\n  this check does not read, so an entry merely declaring the block is not enough to make the advice\n  true. The speculative prefetch skips such a service too, so resolving a well-formed sibling no\n  longer starts a background clone of a blank url for one the AppHost never added. A `local.path`\n  override is unaffected: it points at a checkout that already exists, so nothing is cloned and the\n  absent `repository` costs it nothing.\n\n  \"Declares no repository\" now includes a `repository:` whose value is only whitespace, which every\n  decision built on the repository url spells the same way. Two consequences a yaml catalog can see:\n  a service whose `repository:` holds `\"   \"` is refused by the check above, where it previously\n  reached the git client and failed as a clone of `'   '`; and two ungrouped `local` services\n  sharing such a value no longer raise the \"declare the same repository, but none of them are\n  grouped\" warning, since no checkout would ever be cloned for either of them.\n\n- The reserved-kind-name check is scoped to the service that actually names the kind from yaml\n  (#133, #317). `url`, `container`, `kubernetes`, `repository`, `project`, `defaultRef` and\n  `kind` collide with a well-known `ServiceMetadata` yaml property, so a kind by one of those names\n  can't have its own options block in a service's yaml entry. That check now runs in\n  `ServiceCatalogLoader.Load`, per service, rather than in `LocalKindRegistry.Register` for the\n  whole AppHost — registering the handler (`AddLocalKind`) always succeeds regardless of the name; a\n  service declared entirely in code (`WithKind(kind, options)`, #134) shares no yaml document with\n  these properties and is unaffected either way. Only a service whose own `servicesources.yaml`\n  entry actually names the reserved kind is rejected, naming the service and the kind.\n\nFull changelog: https://github.com/flojon/aspire-servicesources/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#repository",
+    "commit": "436904cec38cf1f49074d9ae1f1c0229089fd686",
+    "type": "git",
+    "url": "https://github.com/flojon/aspire-servicesources"
+  },
+  "verbatimVersion": "0.6.0",
+  "version": "0.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net10.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net10.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net8.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net8.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net9.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#dependencygroup/net9.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 8877,
+      "fullName": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "length": 23880,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 645,
+      "fullName": "LICENSE",
+      "length": 1070,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 46662,
+      "fullName": "README.md",
+      "length": 137227,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#buildTransitive/KoalaSoft.Aspire.Hosting.ServiceSources.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 1826,
+      "fullName": "buildTransitive/KoalaSoft.Aspire.Hosting.ServiceSources.targets",
+      "length": 6111,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 170367,
+      "fullName": "lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 462336,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 170088,
+      "fullName": "lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 461824,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 170363,
+      "fullName": "lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 462336,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.05.04.58/koalasoft.aspire.hosting.servicesources.0.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspire",
+    "dotnet-aspire",
+    "service-discovery",
+    "apphost",
+    "kubernetes",
+    "git",
+    "microservices",
+    "local-development",
+    "port-forward",
+    "external",
+    "container",
+    "url",
+    "multi-repo",
+    "java",
+    "javascript",
+    "polyglot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

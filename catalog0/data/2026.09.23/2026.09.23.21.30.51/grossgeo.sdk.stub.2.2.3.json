@@ -1,0 +1,223 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "GrossGeo Team",
+  "catalog:commitId": "65e88ca9-302a-4bfe-8635-7092b1e54bca",
+  "catalog:commitTimeStamp": "2026-09-23T21:30:51.9743866Z",
+  "copyright": "© 2025 GrossGeo. All rights reserved.",
+  "created": "2026-09-23T21:28:10.81Z",
+  "description": "Легковесный SDK для лицензирования AutoCAD-плагинов через платформу GrossGeo. Тонкий клиент с IPC-коммуникацией к User Panel.",
+  "frameworkAssemblyGroup": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#frameworkassemblygroup/.netframework4.8",
+    "assembly": [
+      "System.Management",
+      "System.Net.Http",
+      "System.Security"
+    ],
+    "targetFramework": ".NETFramework4.8"
+  },
+  "id": "GrossGeo.SDK.Stub",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-23T21:30:47.653Z",
+  "licenseFile": "LICENSE.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "TDlxvNAz5JpuwPRNEr+s5y5n2jQPR5irMPOVWjyWl91kj/N/PpCJO7rf5iBDVER3yK6HDZCviqUlK4aPVWKdrw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 495318,
+  "projectUrl": "https://github.com/2805028/Grossgeo-Platform-SDK",
+  "published": "2026-09-23T21:28:10.81Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v2.2.3 (REQUIRED — closes an AutoCAD crash and an AutoCAD 2019–2024 hang caused by the SDK, and a Concurrent seat being lost without any event): (1) An exception thrown by your SessionExpired or LicenseRefreshed handler no longer crashes acad.exe: every subscriber is isolated and the error goes to the SDK log; SessionExpired is raised once per session. Both events arrive on background threads — call the AutoCAD API from them only through the main thread (README: a Dispatcher or Control captured synchronously in Initialize). (2) .NET Framework (AutoCAD 2019–2024): an exchange with a User Panel that accepted the connection but never answered blocked the calling thread forever — at load, in a command or on exit. It is now bounded by IpcTimeoutSeconds and ends with CONNECTION_FAILED. (3) Concurrent mode: a licence re-check (purchase or trial of any product, account switch, panel restart, ClearLocalCache) no longer drops the session token. Previously heartbeat stopped silently and the server released your seat. A session that is active but has no token now raises SessionExpired with SESSION_TOKEN_LOST. (4) Concurrent mode with several products in one AutoCAD: one heartbeat timer now serves every active session on its own schedule; a failure or expiry affects only its own product. New: SessionExpiredEventArgs.ProductKey (nullable) — whose seat was released. (5) Shutdown() and Shutdown(productKey) release the Concurrent seat themselves and wait for the panel at most 2 seconds: remove ReleaseSessionAsync().Wait() from Terminate. (6) A temporary refusal (panel busy, timeout, sign-in still in progress) is re-asked in the background (5/15/30/60 s, then every 5 minutes) instead of sticking until restart; LicenseRefreshed fires when the result changes. (7) ProtectOrThrow without a verdict now reports \"not checked yet\" (Status=Unknown, NOT_CHECKED) instead of \"licence invalid\"; RequireFeatureOrThrow tells apart \"could not check, retry\", \"licence invalid\" and \"not in your plan\". No breaking changes: SessionExpiredEventArgs gained the ProductKey property and a three-argument constructor.\nv2.2.2 (documentation only — no code changes; read this if you build for AutoCAD 2027): earlier notes and the shipped README/developer guide said a net8.0-windows build \"loads and runs\" in AutoCAD 2027 and Civil 3D 2027 and left declaring that support up to you after your own testing. That was based on a measurement of whether the build loads, not of binary compatibility. Autodesk's guidance is that a net8.0-windows build is NOT binary-compatible with AutoCAD 2027, even where it does load — full recompile required. This is specific to AutoCAD 2027 itself, not to running on a .NET 10 host in general: net8.0-windows builds load and run normally on AutoCAD 2026.1.2 and 2025 U1.4, which also host .NET 10. AutoCAD 2027 requires a build targeting net10.0-windows; net8.0-windows is not supported for it. Nothing in this SDK version changes — rebuild against net10.0-windows (already supported since v2.2.0) if you are targeting 2027, and do not ship a net8.0-windows build declared for 2027 based on the earlier notes.\nv2.2.1 (recommended if you handle GrossGeoLicense.SessionExpired for a Concurrent-mode product): the event previously always reported ErrorCode=\"HEARTBEAT_FAILED\" once SendSessionHeartbeatForProductAsync had failed MaxHeartbeatFailures times in a row, regardless of why the gateway refused the heartbeat — a revoked licence, a session that legitimately ended, an internal panel error, and a lost connection were all reported identically. The event now carries the ErrorCode/Message the gateway actually returned (falling back to the previous literals only when the response supplied none), so a product that branches on SessionExpired's ErrorCode will start seeing values it has not seen from this event before — most notably LICENSE_NOT_ACTIVE for a revoked/blocked licence, alongside whatever other codes your product's heartbeat path can already receive. SessionExpiredEventArgs itself is unchanged (same two string properties); nothing else on the heartbeat path changes, and a product that does not branch on this event's ErrorCode is unaffected either way.\nv2.2.0 (REQUIRED — closes an entitlement leak on a rejected licence; read this before v2.1.17 below): a rejected or expired verdict could still report having a feature, or fit inside a usage limit, that was signed before the rejection — including a product-wide feature meant to work even WITHOUT a licence. TWO SEPARATE THINGS CHANGE, and they are separate because \"no feature list\" and \"no limit number\" default to opposite answers below. (1) HasFeature/RequireFeature/RequireFeatureOrThrow — both the static form and ForProduct(...) — now correctly answer false/skip for a verdict whose IsValid is false, with NO exception for product-wide \"always on\" features: a rejected verdict grants nothing (owner decision; the SDK has no way to tell a product-wide feature apart from a plan one in the signed list it receives — only the platform does, before it merges them, so a client-side carve-out was not possible). If your product gates a licence-free feature on HasFeature and expects it to keep working with no licence at all, there is no remaining way to make that work through HasFeature/RequireFeature after this release — both already answer false/skip whenever the verdict is rejected, however you call them; stop gating that feature on a licence check at all. The static GrossGeoLicense.Features/.FeatureLimits properties and ForProduct(...).Features now report an empty list/null on such a verdict too, where before they carried the signed values through unchanged. If your UI shows \"your plan includes: ...\" from these, it will now show nothing for a rejected licence instead of a stale entitlement list. (2) CheckLimit/RequireLimit/RequireLimitOrThrow — again both forms — now treat \"a verdict was received and it says no\" as exceeding every limit, regardless of what number the signed envelope carries for it. Before this release, GetFeatureLimit returning null was read as \"no limit configured, therefore not exceeded\" whether the reason was \"this plan has no limit\" or \"this verdict is a rejection\" — the two were indistinguishable, and a rejected-but-signed verdict with a real limit number (a seat not assigned, a machine fingerprint mismatch — cases that reach the client centrally signed) let RequireLimit run. THIS DOES NOT CHANGE THE CASE WHERE NO VERDICT HAS EVER BEEN ASKED FOR (no Initialize/CheckAsync completed yet): CheckLimit still answers \"not exceeded\" there, unchanged — that is a separate, still-open question this release does not decide. Grace period, trial, offline cache and the free-tier soft landing all carry IsValid=true and are not affected by either change. The platform clears both plan and product-wide \"always on\" features server-side on a rejected verdict as of the same release this SDK version ships with; an interim server build kept product-wide features signed while the owner's decision above was still open, and that interim form is being replaced to match. This client-side gate does not depend on the platform's timing either way: it answers false on its own, before any server-provided list is even consulted. featureLimits is not yet cleared server-side either, which is exactly why the client-side guard in this release is what actually closes it for limits today. Nothing on the wire, in the cache file, or in the fingerprint changes, and no method signature changes — a product built against 2.1.17 keeps compiling against this version unmodified, but a rebuild changes what HasFeature/CheckLimit answer for a rejected licence, and that is the point of shipping it as 2.2.0 rather than a patch release. (3) A product blocked by moderation (PRODUCT_BLOCKED) is now a final answer, not a connectivity blip: an SDK built against 2.1.17 or earlier read a moderation block the same way it read a lost connection, and kept serving the last positive verdict from the signed offline cache for as long as that cache stayed valid — up to 30 days depending on licence mode (7 for a user-bound subscription, none for Concurrent; see the corrected v2.1.14 note further down). PRODUCT_BLOCKED is now in the same authoritative-denial set as LICENSE_EXPIRED/LICENSE_NOT_FOUND: no cache fallback, an immediate Blocked/PRODUCT_BLOCKED once your product is moderated off the platform. That set is compiled into the SDK inside your product, same as every other entry in it — the platform side of this pairing does not change what an already-shipped build does; only a rebuild against 2.2.0 closes the gap. Nothing new to plan for server-side — the platform already stops signing fresh verdicts for a blocked product; this release only stops the SDK from stretching the last one it already had. (4) A smaller, related fix found while re-testing the above: AcquireSessionAsync/AcquireSessionForProductAsync used to answer the same NOT_CONCURRENT_MODE both when a licence genuinely isn't Concurrent and when no verdict was available yet (its message claims a plan fact that was never actually read in the second case) — the second case now returns LICENSE_MODE_UNKNOWN instead; if you branch on AcquireSessionAsync's ErrorCode, add that case.\nv2.1.17 (IMPORTANT for any product family that runs more than one GrossGeo product in the same AutoCAD process): WaitUntilReady and WhenReadyAsync now have a per-product form. Until this release both were static only, and a static wait answers as soon as ANY initialized product in the process is ready — not necessarily the one whose command is running. A developer who ships two GrossGeo products loaded together (this is exactly how the pattern was found: a developer's own second plugin finished initializing first, WaitUntilReady returned, and the OTHER product's Protect() call then read a not-yet-existing verdict for itself and blocked a command that a moment later would have been valid) would see one product's readiness leak into the other's wait, producing a refusal indistinguishable on the surface from \"not licensed\" while the truth was \"not asked yet, for THIS product.\" ForProduct(productKey) now returns an accessor carrying its own WaitUntilReady(timeout) and WhenReadyAsync(timeout, ct), each backed by a signal scoped to that product alone; use them instead of the static forms whenever more than one ProductKey is initialized in the same process. THE STATIC METHODS ARE UNCHANGED — this is an addition, not a behavior change on the existing surface — they now carry a doc warning pointing at the per-product replacement instead of silently keeping the ambiguity undocumented. The seven internal call sites that record a per-product verdict (Initialize, CheckAsync, CheckForProductAsync, RefreshForProductAsync, RevalidateAllProductsAsync, RefreshAsync, ScheduleRecheckWhenPanelAppears) now funnel through one internal setter that completes both the result store and the new per-product signal together, and every place that already cleared a stale result (cache clear, per-product Shutdown, full Shutdown) clears the matching signal alongside it for the same reason the original static ReadySignal is reset on Shutdown: a signal left completed with a past verdict answers instantly and wrongly once the session it belonged to is gone. Nothing on the wire, in the cache file, or in the fingerprint changes; a product built against 2.1.16 keeps working exactly as before and gains nothing until it is rebuilt against this version and adopts the per-product wait where it runs more than one product.\nv2.1.16 (REQUIRED if you rebuilt against 2.1.15 expecting the offline soft landing: it is NOT in that package). The package 2.1.15 was built on 06.09 at 21:48; the change that adds the soft landing reached the source tree on 07.09 at 04:23, six and a half hours later, and the version number was never raised in between. The tree and the published package therefore carried the same number while their contents differed, and packing again without a bump would have produced a second, different 2.1.15. That is the whole reason this release exists, and the number was moved before anything was packed. WHAT CHANGES IN BEHAVIOUR, two items, both code. (1) OFFLINE SOFT LANDING. Until now, when the paid horizon of a signed verdict expired while you were offline, your product was told the licence had expired and stopped. It now falls back to the free tier for as long as the fallback horizon in the same signed envelope is alive: the verdict carries the free plan tier and the free feature set instead of a refusal. The server has been signing the three fallback fields since 24.08; until this release nothing read them. They are read on BOTH targets, including the hand-written parser used on .NET Framework, because on net48 this SDK parses the envelope with its own code since 2.1.13 and a field absent from that parser is silently zero. If your product branches on a refusal to show a purchase prompt, note that on the eighth day of a trip your user will now be working on the free tier instead of seeing a refusal. (2) The dormant multi-key path is now marked dormant BY DECISION rather than by accident, so that a reader does not take it for a working feature. No behaviour of yours depends on it. WHAT CHANGES ONLY IN THE EXPLANATION, three items, no behaviour at all: a series code R24.4 that never existed was removed from the texts people learn from, and two docblocks that read wider than the truth were narrowed. They are listed separately from the two items above on purpose: you should be able to see at a glance what changes in what your product DOES and what changes only in what we SAY about it. NOTHING is removed or renamed on the public surface, and no wire format, fingerprint or cache file layout changes. A product built against 2.1.15 keeps working; rebuilding is what delivers the soft landing. AND ONE THING WORTH READING TWICE, because it has now happened twice. The notes for 2.1.15 already said that a version number is a snapshot of the tree at the moment it was raised, not a snapshot of the release; there the gap was 36 minutes and the item was merely written late. Here the gap was six and a half hours AND it crossed the packing itself, so the gap stopped being an omission in the notes and became a difference between two artefacts sharing one number. The rule that follows is not «raise the number earlier» but «measure from the packing, not from the bump»: from the bump 36 commits had landed, from the packing 5, and only the second number answers what is missing from what you downloaded.\n\nv2.1.15 (REQUIRED for any product that uses per-product usage limits via GrossGeoLicense.ForProduct): usage was accounted against the WRONG product. ProductLicenseAccessor.IncrementUsageAsync and GetCurrentUsageAsync did not pass the accessor's own product key and fell back to the key of the last Initialize call. In a host that runs several GrossGeo products — AutoCAD is exactly that — the paid limit stopped applying SILENTLY: the other plan has no limit under that code, the server answers \"allowed, unlimited\" and records nothing, so GetCurrentUsageAsync keeps returning zero and nothing appears in any log. Also in this release: a failed signing-key rotation is no longer indistinguishable from losing the network — it now says the server sent a key this product version does not trust and that the product must be updated, instead of degrading into the offline cache and, once the cache expires, into a plain refusal. The list of trusted signing keys is UNCHANGED: products built on 2.1.14 trust exactly the same keys, and nothing in the field starts refusing because of this release. ALSO IN THIS RELEASE, AND WRITTEN HERE LATE: three enums gained an Unknown member — PlanTier.Unknown, BillingModel.Unknown and LicenseMode.Unknown, all 255. Until now, when no verdict was available your product silently received Free, Free and Machine: the absence of an answer looked exactly like an answer, and Machine is the most expensive of the three modes by consequence. It now receives Unknown. Existing members keep their numbers, nothing is removed, and 255 was free in all three — so this adds to the public surface and takes nothing away. But if you branch on any of these enums, check that you have a default arm: code that previously always landed somewhere will now land nowhere. This item says plainly that it was added late, because the reason matters more than the omission: the change reached the tree 36 minutes after the version number was raised, and the summary above was written before it. A version number is a snapshot of the tree at the moment it was raised, not a snapshot of the release.\nv2.1.14 (IMPORTANT for any product that branches on LicenseResult.Status or ErrorCode): refusals now name themselves, and \"we could not check\" is no longer reported as \"you are denied\". A WITHDRAWN LICENCE NOW STOPS ON TIME, ONCE YOU REBUILD — and of everything described here this is the change most likely to alter what your users see, and the one item that does not arrive on its own. Until this release a refusal grounded in a non-operational licence state — revoked, suspended, expired, blocked — arrived carrying no error code at all. A refusal without a code is read by the SDK as a transient failure, so it fell back to the last positive verdict held in the signed offline cache and went on serving it for as long as that cache remained valid — a ceiling the platform sets per licence mode and billing model, from none at all for Concurrent up to 30 days for most others (7 for a user-bound subscription); \"up to seven days\" in earlier notes was a simplification, corrected here. The refusal is now named (LICENSE_NOT_ACTIVE) and treated as authoritative, so the cache no longer masks it. A product that in practice behaved as though a licence kept working for a week after it was withdrawn will behave differently: it stops when the platform says it stopped — BUT ONLY ONCE YOU REBUILD AGAINST THIS VERSION, and that is why this item is first. The set of codes treated as an authoritative denial is compiled into the SDK that ships inside your product; it is not held by the platform and not held by the User Panel. A product built against an earlier SDK does not recognise LICENSE_NOT_ACTIVE, reads the refusal as transient exactly as before, and goes on serving the last positive verdict from its offline cache for as long as that cache is valid — up to 30 days depending on licence mode (7 for a user-bound subscription, none for Concurrent). Updating the User Panel on the end user's machine does not change this, because the decision is taken inside your own assembly. There is nothing to change in your source code; there is something to do — rebuild and ship. Four factories that previously left ErrorCode null now carry a code: NotFound -> LICENSE_NOT_FOUND, Expired -> LICENSE_EXPIRED, NoAvailableSeats -> NO_SEATS, NoAssignment -> LICENSE_NOT_ASSIGNED. The first two reuse constants the package already shipped and already sent over the wire; a product testing ErrorCode for null on these paths will now see a value. Related, and in the other direction: six places substituted a fallback only when ErrorCode or ErrorMessage was null, while the panel sends an empty string rather than null — so the substitution never fired, and a product received an empty ErrorCode where it expected a code. Those places now yield UNKNOWN and the matching fallback message. A product testing ErrorCode against the empty string will stop matching; test the value instead. Success and GracePeriod deliberately never carry a code: both are valid states, and a product reading \"ErrorCode != null\" as \"something is wrong\" would otherwise declare a working grace-period licence a refusal. TWO STATUS VALUES CHANGE, and this is the part to read before upgrading. (1) A call to Check() made before any check has completed returned Status=NotFound with a message telling the user to activate a product they had already activated; it now returns Status=Unknown with ErrorCode=NOT_CHECKED. (2) Failure to verify the signature of the offline cache returned Status=Blocked; it now returns Status=Unknown with ErrorCode=SIGNATURE_INVALID, through a new factory LicenseResult.CouldNotVerify. In both cases IsValid stays false, so access is not widened — what changes is truthfulness: a product can now tell \"we could not establish your licence\" from \"the platform denied you\", and stop sending people to buy what they own. Three cache-mismatch causes that all reported SIGNATURE_INVALID are now separate, because the person in front of the screen has to do something different in each: CACHE_EXPIRED (the stored copy aged out), CACHE_CLOCK_MISMATCH (the machine clock is wrong — fixable in ten seconds), CACHE_BINDING_MISMATCH (the stored licence belongs to another machine or another Windows account — not fixable by the user). The SDK-side rate limiter now reports LOCAL_RATE_LIMITED instead of RATE_LIMITED: the platform uses RATE_LIMIT_EXCEEDED for \"we asked and were refused\", while this one means \"we did not ask at all\", and the two were one keystroke apart. Protect() gained overloads that hand the refusal reason to the fallback instead of nothing. User-facing message texts were rewritten where they described our procedure or told the reader to renew a subscription they had not bought. Status has gained a third route to Unknown: a status number this SDK does not recognise is now mapped to Unknown rather than to whichever name happened to carry that number. The shared dictionary of error codes is now a public type — GrossGeo.Contracts.Licensing.IpcErrorCodes — in the GrossGeo.Contracts assembly that has always shipped inside this package; it adds a type and removes or renames nothing you already use. Nothing anywhere in this release removes or renames anything on the public surface, so a rebuild will not fail to compile on our account — but compiling is not the same as behaving identically, and here they differ on purpose. The three items above change what your code is handed at run time: a withdrawn licence stops instead of lingering, two paths that reported NotFound and Blocked now report Unknown, and an ErrorCode that used to arrive empty now arrives with a value. If you branch on Status or compare error codes, read those items before you ship, not after. NOTHING IN THIS RELEASE CHANGES THE WIRE FORMAT, the fingerprint, or the cache file layout, so signed envelopes and existing cache files keep working; and no product needs rebuilding to keep FUNCTIONING. Rebuilding is what delivers the new codes — and, as set out at the top, it is also what makes a withdrawn licence stop on time. Read that item before deciding you can skip this release.\nv2.1.13 (REQUIRED for AutoCAD 2019–2024 — supersedes 2.1.12, which fixed only half of it): on .NET Framework the SDK still did not reach the User Panel. 2.1.12 stopped the obfuscated assembly from referencing a .NET runtime core library, and that part holds — but the package still depended on System.Text.Json, which on .NET Framework arrives with eight companion assemblies whose versions are reconciled by binding redirects in the application's configuration file. A plugin is a library loaded into someone else's process: the configuration in force is the host application's, and it is not ours to write. In AutoCAD the result was a TypeInitializationException on System.Text.Json.JsonSerializer, raised by a missing System.Runtime.CompilerServices.Unsafe 4.0.4.1 while 6.0.0.0 sat in the same folder. This release removes the dependency instead of arguing with it: on net48 the SDK now serialises and parses the IPC protocol with code of its own, and its assembly references are down to mscorlib, System, System.Core, System.Management and GrossGeo.Contracts — nothing external, exactly like the AutoCAD plugin that has always loaded cleanly beside it. The wire format is unchanged to the character, verified against a reference captured from the running panel: property names, null fields, request type as a number, ISO-8601 timestamps with seven fractional digits, dictionaries as objects, and \\u escaping including the plus sign that every RSA signature and PEM block contains. On net8.0-windows System.Text.Json is retained; the change is confined to the .NET Framework target. Verified end to end in a live AutoCAD 2022: the SDK initialises, reaches the panel, and returns a licence verdict.\nv2.1.12 (partial fix — superseded by 2.1.13; for AutoCAD 2019–2024 — supersedes every earlier 2.1.x on .NET Framework): on .NET Framework the SDK did not initialise at all, and it did so without leaving a trace. While hiding string literals, the obfuscation step emitted a generated decryptor that referenced System.Private.CoreLib — the core library of the .NET runtime the obfuscation tool itself runs on, which does not exist on .NET Framework 4.8. The first touch of the SDK therefore threw a TypeInitializationException before anything ran, including before the SDK could create its own diagnostic log, so a product on AutoCAD 2019–2024 simply never received a licence verdict and nothing anywhere said why. Products targeting AutoCAD 2025 and later were unaffected: there the referenced library exists. Changing which runtime the obfuscation tool runs on does not help — it only changes the version of the missing library — so the build now points the obfuscator at the .NET Framework 4.8 reference assemblies, and the code it generates targets the platform the assembly is actually for. String hiding is retained in full. The packaging step now reads the finished net48 assembly and refuses to produce a package if that reference reappears: a silent defect is only caught by inspecting the result, never by the tool reporting success. Any product shipping 2.1.0 through 2.1.11 must be rebuilt against this version to work on AutoCAD 2019–2024.\nv2.1.11 (REQUIRED — supersedes 2.1.10): the offline relaxation shipped in 2.1.9 never fired, because it asked a question that cannot be answered. It tested whether the only difference between the stored and the current machine fingerprint was the volatile component; the fingerprint is a hash, so its components cannot be recovered from it, and disabling the network does not remove the MAC address at all — the SDK picks the fastest working non-loopback interface, so a virtual adapter (Hyper-V, VMware, VirtualBox, Bluetooth PAN, WSL) simply takes over and the MAC becomes different rather than absent. The question is now the one that can be answered: is the machine identity measured, and does it match exactly? Identity is the four stable components — CPU, motherboard, machine GUID, volume serial — and all four must match exactly, with no scoring or threshold. As a consequence the relaxation now applies to any MAC change, not only its disappearance: docking, a VPN coming up, a replaced network card, a change in adapter order. That is deliberate: the MAC is not a property of the machine, it is a property of whichever interface happens to be fastest at that moment.\nv2.1.10 (REQUIRED for offline to work at all — supersedes 2.1.9): the offline licence cache was being written empty in obfuscated builds. The cache record type carried no explicit JSON names and was not excluded from renaming, so obfuscation renamed its properties and the record round-tripped to almost nothing — measured at 230 bytes against 1830 for the same licence written by a non-obfuscated build. Nothing reported an error: the file was created, encrypted, decrypted and parsed successfully; it simply held no data. Every offline mechanism that reads it therefore had nothing to lean on, including the fingerprint relaxation shipped in 2.1.9. Three independent layers now protect it: explicit JSON names on every field of the record, exclusion of the type from renaming, and a round-trip self-check performed at write time which reads the file back, compares the payload length with what was stored, and logs CACHE ROUND-TRIP BROKEN with the three numbers on any mismatch. The third layer holds even if the first two are defeated by a future change, which is the point: this defect failed silently for months.\nv2.1.9 (IMPORTANT — supersedes 2.1.8 for any product that must work offline): going offline no longer invalidates the offline licence. The machine fingerprint includes the MAC address, which is only readable while a network adapter is up; disabling the network turned it into \"UNKNOWN_MAC\", the fingerprint string changed, and an exact comparison then rejected a genuinely signed, valid licence. The fallback to the on-disk cache could not save it either, because the cache encryption key was derived from the same fingerprint, so the file could no longer be decrypted. A product taken offline therefore lost its licence at the moment it went offline, rather than at the end of the period the platform had signed for. This release introduces a separate stable fingerprint (CPU, motherboard, machine GUID, volume serial — no MAC) which the cache key is derived from, and accepts a fingerprint difference only when all three hold at once: an anchor was recorded while the machine was fully measurable, the only unreadable part is the volatile component, and every stable component matches exactly. The wire fingerprint sent to and signed by the platform is unchanged, so existing signed envelopes keep verifying. Rejections now name the product they concern, so a diagnostic log can be attributed.\nv2.1.8: \"Could not ask\" is no longer reported to the product as \"no licence\" — a new LicenseResult.Unavailable carries the transient case (User Panel not running, channel silent, client-side rate limit) separately from a platform denial, so a product can stop gating features forever and stop prompting to buy a licence the user already owns. The cached verdict now has its own per-product store keyed by ProductKey: offline works without an active lease and survives a restart, which previously it did not for free products. The on-disk cache record is merged rather than replaced by whichever writer touched it last — lease renewal no longer erases ProductKey and the offline expiry, which used to break offline degradation from the very first renewal. A cached status is raised only on proof, never by default. The panel's answer budget is now derived from the channel timeout (IpcProtocol.HandlerBudgetMs) instead of being an independent number, so the panel cannot think for longer than the product is willing to wait. Half-connectivity (captive portal) is read as absence of network rather than as a server denial.\nv2.1.7: Offline grace now lasts the full period the server signed (cacheValidUntil, 7 days) instead of being cut to 24 hours by the live-path replay window; a failed signature or integrity check no longer deletes the cached licence, so a single transient failure can no longer destroy the only offline artefact. Adds a second trusted central-key thumbprint, so replacing the signing key no longer requires every user to reinstall. Reports the plugin version to the platform on license validation (diagnostics only, no version gating).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#repository",
+    "commit": "f0e28146cdd91d9924140ae8a8201226118770c6",
+    "type": "git",
+    "url": "https://github.com/2805028/Grossgeo-Platform-SDK"
+  },
+  "verbatimVersion": "2.2.3",
+  "version": "2.2.3",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#dependencygroup/net8.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#dependencygroup/net8.0-windows7.0/system.management",
+          "@type": "PackageDependency",
+          "id": "System.Management",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#dependencygroup/net8.0-windows7.0/system.security.cryptography.protecteddata",
+          "@type": "PackageDependency",
+          "id": "System.Security.Cryptography.ProtectedData",
+          "range": "[8.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0-windows7.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#GrossGeo.SDK.Stub.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 12839,
+      "fullName": "GrossGeo.SDK.Stub.nuspec",
+      "length": 33105,
+      "name": "GrossGeo.SDK.Stub.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#LICENSE.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 548,
+      "fullName": "LICENSE.txt",
+      "length": 928,
+      "name": "LICENSE.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 15033,
+      "fullName": "README.md",
+      "length": 51702,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#lib/net48/GrossGeo.Contracts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27620,
+      "fullName": "lib/net48/GrossGeo.Contracts.dll",
+      "length": 52760,
+      "name": "GrossGeo.Contracts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#lib/net48/GrossGeo.Contracts.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 30137,
+      "fullName": "lib/net48/GrossGeo.Contracts.xml",
+      "length": 134147,
+      "name": "GrossGeo.Contracts.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#lib/net48/GrossGeo.SDK.Stub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 91884,
+      "fullName": "lib/net48/GrossGeo.SDK.Stub.dll",
+      "length": 181784,
+      "name": "GrossGeo.SDK.Stub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#lib/net48/GrossGeo.SDK.Stub.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 67249,
+      "fullName": "lib/net48/GrossGeo.SDK.Stub.xml",
+      "length": 316249,
+      "name": "GrossGeo.SDK.Stub.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#lib/net8.0-windows7.0/GrossGeo.Contracts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27614,
+      "fullName": "lib/net8.0-windows7.0/GrossGeo.Contracts.dll",
+      "length": 52760,
+      "name": "GrossGeo.Contracts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#lib/net8.0-windows7.0/GrossGeo.Contracts.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 30137,
+      "fullName": "lib/net8.0-windows7.0/GrossGeo.Contracts.xml",
+      "length": 134147,
+      "name": "GrossGeo.Contracts.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#lib/net8.0-windows7.0/GrossGeo.SDK.Stub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 94401,
+      "fullName": "lib/net8.0-windows7.0/GrossGeo.SDK.Stub.dll",
+      "length": 188440,
+      "name": "GrossGeo.SDK.Stub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#lib/net8.0-windows7.0/GrossGeo.SDK.Stub.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 66967,
+      "fullName": "lib/net8.0-windows7.0/GrossGeo.SDK.Stub.xml",
+      "length": 315132,
+      "name": "GrossGeo.SDK.Stub.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.21.30.51/grossgeo.sdk.stub.2.2.3.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 27704,
+      "fullName": ".signature.p7s",
+      "length": 27704,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "autocad",
+    "licensing",
+    "sdk",
+    "plugin",
+    "subscription",
+    "lightweight"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

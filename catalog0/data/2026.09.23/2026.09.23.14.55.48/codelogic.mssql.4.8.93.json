@@ -1,0 +1,193 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Media2A",
+  "catalog:commitId": "298617b0-5ee4-4dc4-947b-eb8d9abb93c6",
+  "catalog:commitTimeStamp": "2026-09-23T14:55:48.94059Z",
+  "copyright": "Copyright © 2026 Media2A",
+  "created": "2026-09-23T14:48:49.863Z",
+  "description": "SQL Server and Azure SQL with typed LINQ, aggregation, projection pushdown, compiled materializers, schema management, and caching.",
+  "id": "CodeLogic.MSSQL",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-23T14:55:37.123Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "YIx/rxTxy6zLudeq19GGxOqSNhrtF1/0vXu2yEqULXtIvDCn7S5sDvaw58z2wOx64aHVHubUlEbksS2mTgXrOA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 259064,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-09-23T14:48:49.863Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Changelog\n\n## 2026-09-13\n\n### Changed — behaviour\n\n- **`Repository<T>.CountAsync` now excludes soft-deleted rows.** For an entity carrying\n  `[SoftDelete]` it emitted a bare `SELECT COUNT(*)` while `GetAllAsync` and the count inside\n  `GetPagedAsync` both filtered on the same soft-delete column, so the two contradicted each\n  other. They now agree. **If you relied on `CountAsync` returning the physical row count of a\n  soft-delete entity, switch to `Query<T>().IncludeDeleted().CountAsync()`.** No other read\n  path changes; entities without `[SoftDelete]` are unaffected.\n- **A configured `MaxBatchInsertSize` now actually applies.** `GetRepository<T>()` never\n  passed it, so every repository chunked at the constructor default of 500. A database that\n  configured a different value now gets it — in both the `connectionId` and the\n  `TransactionScope` overload. Statements are still capped further so a batch stays under\n  SQL Server's 2,100-parameter limit.\n- **A configured `QueryTimeoutMs` now applies** as the command timeout on the query commands\n  the library issues (repositories, query builder, projections, joins, grouped queries),\n  overriding the connection string's `Command Timeout` for those commands. The default of\n  30 000 ms matches the provider's own 30 s default, so a default configuration is unchanged;\n  a database that set `CommandTimeout` above 30 s but left `QueryTimeoutMs` alone will see\n  library queries bounded at 30 s. Set `QueryTimeoutMs` to `0` to leave the connection-string\n  value in place.\n- **A configured `DefaultStringSize` now applies** to schema generation for string properties\n  with no explicit `[Column(Size = ...)]`. The default is still 255, so generated DDL and the\n  schema CRC are unchanged unless you change the setting.\n- **A configured `CacheEnabledOverride` now applies**, winning over the global\n  `mssql.cache.Enabled` switch for that connection id. `null` (the default) keeps today's\n  behaviour.\n\n### Documentation\n\n- Corrected the `SqlFn` XML documentation, which had been copied from the MySQL library and\n  named functions T-SQL does not have (`HOUR`, `MINUTE`, `DATE`, `DAYOFWEEK`, `IFNULL`,\n  `FROM_UNIXTIME`). It now describes the `DATEPART`/`CONVERT`/`COALESCE` SQL actually emitted.\n- Documented `SqlFn` and the transaction-scoped `GetRepository<T>(tx)` / `Query<T>(tx)`\n  accessors in the queries guide, and added the missing soft-delete and retention sections to\n  the schema guide — the index page had linked to them all along.\n- Corrected more comments carried over from the MySQL port: `[Column(PreviousName = ...)]`\n  renames via `EXEC sys.sp_rename`, not `CHANGE COLUMN`; the LIKE escaper escapes `%`, `_`\n  and `[`, not a backslash; column references are bracket-quoted, not backtick-quoted; and\n  `UpsertAsync` does not use any `AS new` alias syntax — it stages the row in a table\n  variable and matches it with `UPDLOCK`/`HOLDLOCK` under a `SERIALIZABLE` transaction.\n- **Raw SQL cannot join a `TransactionScope`.** The queries guide showed `ExecuteSqlAsync`\n  calls inside an open scope being committed by `tx.CommitAsync()`; they in fact open their\n  own connection and run outside the transaction. The example is replaced with an explicit\n  warning and the supported alternatives.\n- The configuration tables in the library index and the performance guide now describe what\n  each setting does, after the wiring below: `QueryTimeoutMs`, `MaxBatchInsertSize`,\n  `MaxInClauseValues` (advisory — it warns, it does not chunk), `N1DetectorThreshold`,\n  `DefaultStringSize`, `CacheEnabledOverride`, `BackupDirectory`, `DefaultTtlSeconds` and\n  `PublishEvents`. `PreparedStatementCacheSize` and `MaxMemoryMb` are documented as obsolete\n  and point at the real control.\n- The N+1 detection section documents the implemented detector: the one-second rolling\n  window, publish-once-per-window, the normalized template, and that `0` disables it.\n- Documented slow-query plan capture as it actually behaves. Unlike the sibling libraries,\n  `CaptureExplainOnSlowQuery` was already read and already gating the cached-ShowPlan-XML\n  lookup in `QueryObservability`; every `RecordSlow` call site reaches it. The guide now\n  states that the capture runs on its own connection (never inside the callers\n  transaction) and is strictly best-effort — valid ShowPlan XML or `null`, never a throw —\n  and that the default remains on.\n- Fixed the `MinPoolSize` default in the configuration table: it is `0`, not `1`.\n- Fixed the imperative-migration example, which would not compile — the `Migration` base\n  supplies `Version` and `Description` from its `(appVersion, order, description)`\n  constructor and neither is virtual.\n- Corrected the retention description: each pass loops until a batch deletes fewer rows than\n  `BatchSize`, not until it deletes zero. The worker's entity list is now live, so the\n  \"entities synced after start are never purged\" caveat is gone with it.\n- Clarified that table-version invalidation is skipped for tables with live `SmartCachePool`\n  entries, that `QueryCache.Enabled` / `TimeQuantizeSeconds` are internal rather than part of\n  the public facade, and that `MaxMemoryMb` is obsolete (eviction is by entry count).\n- Noted that composition-time guard errors (unsupported expressions, `.Join` after\n  `.OrderBy`, `WhereExists` on the outer table) throw rather than returning a `Result`.\n\n### Added\n\n- `GetRepository<T>(TransactionScope)` and `Query<T>(TransactionScope)`.\n  `BeginTransactionAsync` returned a scope that neither accessor took, so callers had to\n  construct `Repository<T>` by hand to do any work inside a transaction.\n- `RetentionWorker.RunOnceAsync()` is now public; it already existed but was internal, so\n  the three libraries now expose the same retention surface.\n- `MSSQLLibrary.RunRetentionOnceAsync(ct)` — an operator-triggered purge over every registered\n  `[RetainDays]` entity, without constructing a worker by hand.\n- `RetentionWorker.TryRegister(Type)` and `RetentionWorker.Entities` — the worker's entry list\n  is now live and can be added to while the loop runs.\n- `QueryBuilder<T>.WithCache()` and `ProjectedQuery<,>.WithCache()` — parameterless overloads\n  that use the configured `mssql.cache` → `DefaultTtlSeconds` (60 s by default).\n- `QueryCache.SetConnectionOverride(connectionId, enabled)` — registers a per-database\n  override of the global cache switch; the library calls it from `CacheEnabledOverride`.\n- `QueryObservability.ConfigureN1Detection(connectionId, threshold)` — registers a\n  connection's N+1 threshold; the library calls it from `N1DetectorThreshold`.\n- `QueryCache.Configure` takes `defaultTtlSeconds` and `publishEvents` (both optional, both\n  defaulting to today's values).\n- Configuration validation for the newly wired fields: `MaxInClauseValues`, `QueryTimeoutMs`,\n  `N1DetectorThreshold` and `DefaultStringSize`.\n\n### Deprecated\n\n- `SqlServerDatabaseConfig.PreparedStatementCacheSize` is `[Obsolete]` and not applied.\n  `Microsoft.Data.SqlClient` has no client-side prepared-statement cache to size and SQL\n  Server's plan cache is automatic; configure pooling on the connection string instead. The\n  property is kept so existing configuration keeps compiling and deserializing.\n- `CacheConfiguration.MaxMemoryMb` is `[Obsolete]` and not applied. The in-process store\n  bounds the cache by entry count — use `MaxEntries`.\n\n### Fixed\n\n- **Retention purged every entity against the `Default` connection.** The registered-entity\n  set recorded types with no connection association, so an entity synced against a named\n  connection was purged from the wrong database — in practice the `DELETE` hit a database\n  where the table did not exist, the failure was caught and logged, and the retention the\n  `[RetainDays]` attribute described silently never happened. Registrations now carry the\n  connection they were made against, and the same entity synced to two connections is two\n  registrations. Only reachable since the worker began running at all in this same release.\n  `RetentionWorker.TryRegister(Type, string)` and a `Registrations` view are added; the existing\n  type-only overload keeps its meaning and registers against the worker's own connection.\n- **`ids.Contains(x.Id)` on a `List<T>` or `HashSet<T>` threw instead of emitting `IN`.**\n  The expression visitor's first `Contains` case matched any single-argument instance call,\n  so a collection membership test took the string `LIKE` branch and tried to emit the\n  collection itself as a column. Arrays were unaffected because they bind to the static\n  two-argument `Enumerable.Contains`, which had its own case. The `LIKE` branch is now\n  restricted to a string receiver, and both membership shapes share one emitter.\n- **Retention never ran.** `OnStartAsync` built the `RetentionWorker` from the set of\n  registered entities and the constructor snapshotted it, but every documented flow registers\n  entities through `SyncTableAsync` / `SyncSchemaAsync` *after* `CodeLogic.StartAsync()`. So\n  `HasWork` was false, the background loop never started, and `[RetainDays]` was dead in\n  normal usage. The worker's entry list is now live, the library feeds it every registration,\n  and it starts the loop the first time a `[RetainDays]` entity appears. The 5-minute initial\n  delay, the 24-hour interval and `RunOnceAsync()` are unchanged, and disposal still cancels\n  the loop cleanly.\n- **The N+1 detector never fired.** `QueryObservability.RecordN1` had no call sites and\n  `N1DetectorThreshold` was never read, so `N1QueryDetectedEvent` could not be published.\n  Executions of the same normalized statement are now counted per connection in a one-second\n  rolling window and the event is published once per window when the threshold is crossed.\n  Bookkeeping is bounded by a fixed-capacity map pruned by age. A threshold of `0` — the\n  default — costs nothing: no dictionary touch and no allocation on the query path.\n- **`ProjectedQuery` and `JoinedQuery` dropped the caller's `CancellationToken`** when handing\n  their work to the connection manager, so an already-cancelled call still opened a connection\n  (and could still be retried by the transient-failure logic). Both now forward it, as\n  `QueryBuilder` and `Repository` already did.\n- **`.WhereExists(...).Select(...).WithCache(...)` cached a cross-table result under one\n  table's version** and would serve it stale after the other table changed. `QueryBuilder`\n  refuses to cache a subquery-filtered query, but `Select` and `GroupBy` forwarded the TTL and\n  smart-cache pool into the projection regardless, and `ProjectedQuery.WithCache` could set\n  one afterwards. The refusal now propagates to the projected and grouped queries, which log a\n  warning and execute uncached.\n- **`BackupDirectory` is honoured.** Schema backups were always written to\n  `<DataDirectory>/backups`; a configured directory (absolute, or relative to the data\n  directory) is now used for both writing and reading back the latest file.\n- **`CacheConfiguration.PublishEvents` is honoured** — `CacheHitEvent` / `CacheMissEvent` are\n  only published when it is true (it is by default).\n- **`MaxInClauseValues` is reported.** A generated `IN (...)` list longer than the configured\n  cap logs one warning per query build, naming the entity and the value count. Nothing is\n  chunked, truncated or rejected: callers that exceed it today keep working.\n- **`SqlFn.Like` in a projection, `GROUP BY` key or `UPDATE ... SET` was a syntax error.**\n  T-SQL has no boolean expression type, so the emitted `a LIKE b` is a predicate and is\n  rejected anywhere a value is expected (`Incorrect syntax near the keyword 'LIKE'`). It\n  now materializes as `CAST(CASE WHEN a LIKE b THEN 1 ELSE 0 END AS bit)`. `Where(...)`\n  was never affected — it takes a different translation path.\n- **A migration registered twice ran twice.** `Register` and `RegisterFrom` both appended\n  unconditionally, so pairing `RegisterMigrationsFrom(assembly)` with an explicit\n  `RegisterMigration(...)` held two copies, and both passed the apply filter. Registration\n  now deduplicates by migration id.\n- **`HealthChangedEvent` was declared but never raised.** It is now published on a health\n  state transition.\n- **The schema-state sentinel was keyed on the bare table name**, so two entities with the\n  same table name in different schemas shared one row and masked each other's CRC. The key\n  is now `schema.table`; `SchemaStateStore` resolves an unqualified name against `dbo`, so\n  the public diagnostic API still accepts a bare table name.\n- Restoring a table from backup cleared the sentinel by the bare name, which no longer\n  matched the qualified key and left a stale CRC behind.\n- `Contains()` over an empty collection emitted `IN ()`, which is a syntax error. It now\n  emits `1 = 0`.\n- Cancellation tokens are forwarded to connection acquisition, so opening a connection can\n  be cancelled.\n- `ConnectionManager` held its configuration map in a non-concurrent `Dictionary` that could\n  be written by `RegisterConfiguration` while another thread read it.\n\n## 2026-09-12\n\n### Changed\n\n- Unified the version line with the CodeLogic framework on **4.8.x**. Every official\n  library and the framework now share one `major.minor`, so a given `4.8.<patch>`\n  means the same generation across all packages.\n- `version.txt` moved from `4.6` to `4.8`. The patch component remains the CI run\n  number, composed at pack time; `AssemblyVersion` stays pinned at `Major.Minor.0.0`\n  (now `4.8.0.0`) so every patch in the line loads interchangeably.\n\n## Initial release\n\n- Initial `CodeLogic.MSSQL` release for SQL Server 2019+, SQL Server 2022/2025, and Azure SQL Database.\n- Added repository, fluent-query, projection, grouping, paging, transaction, raw SQL, cache, health, migration, retention, backup, and named-connection workflows matching `CL.MySQL2`.\n- Added SQL Server-native mappings, schemas, identity output, parameter-capped batches, lock-based non-`MERGE` upserts, `sys.*` schema management, application locks, transient retry, and estimated-plan capture.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#repository",
+    "commit": "d843c0ef8f74f5f9f3d0a5435ea3124463c1ada7",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "4.8.93+d843c0e",
+  "version": "4.8.93+d843c0e",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#dependencygroup/net10.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[4.0.0, 5.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#dependencygroup/net10.0/microsoft.data.sqlclient",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.SqlClient",
+          "range": "[7.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#dependencygroup/net10.0/microsoft.data.sqlclient.extensions.azure",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.SqlClient.Extensions.Azure",
+          "range": "[7.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#lib/net10.0/CL.MSSQL.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 195818,
+      "fullName": "lib/net10.0/CL.MSSQL.dll",
+      "length": 520704,
+      "name": "CL.MSSQL.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#lib/net10.0/CL.MSSQL.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 33587,
+      "fullName": "lib/net10.0/CL.MSSQL.xml",
+      "length": 165192,
+      "name": "CL.MSSQL.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6043,
+      "fullName": "CHANGELOG.md",
+      "length": 14124,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#CodeLogic.MSSQL.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6649,
+      "fullName": "CodeLogic.MSSQL.nuspec",
+      "length": 15528,
+      "name": "CodeLogic.MSSQL.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 635,
+      "fullName": "LICENSE",
+      "length": 1064,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1319,
+      "fullName": "README.md",
+      "length": 2605,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.55.48/codelogic.mssql.4.8.93.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "sqlserver",
+    "azure-sql",
+    "database",
+    "orm",
+    "linq",
+    "query-builder",
+    "aggregation",
+    "cache"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

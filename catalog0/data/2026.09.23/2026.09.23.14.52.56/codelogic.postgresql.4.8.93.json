@@ -1,0 +1,187 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Media2A",
+  "catalog:commitId": "b9b5e4d9-9d38-45fc-ab1b-ba95e50e6d35",
+  "catalog:commitTimeStamp": "2026-09-23T14:52:56.710637Z",
+  "copyright": "Copyright © 2026 Media2A",
+  "created": "2026-09-23T14:48:48.837Z",
+  "description": "Typed PostgreSQL data access for CodeLogic 4: repositories, a LINQ query builder with joins, projections and cursor paging, ON CONFLICT upserts, declarative schema sync, database-tracked migrations, and a self-invalidating result cache.",
+  "id": "CodeLogic.PostgreSQL",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-23T14:52:54.067Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "hCdXK7r3GuvoP/L0mgvrdo+4trrv4W0HeJYc7B9hIJk8cbYYimG7upI+HVxU429MFZmrYQhYQ5gd0zNg6/TDlQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 290746,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-09-23T14:48:48.837Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.PostgreSQL — Changelog\n\nAll notable changes to **CodeLogic.PostgreSQL** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/).\n\n## 2026-09-13\n\n### Changed\n\n> **Read this before upgrading if you set `defaultSchema`.**\n\n- **BREAKING — `defaultSchema` now moves your entities.** It used to be applied only as the\n  Npgsql `SearchPath` on the connection string while every generated statement was qualified\n  with the hard-coded constant `public`. Setting `\"defaultSchema\": \"app\"` therefore gave you\n  a `search_path` of `app` while all DDL and DML targeted `public`. It now does what it says:\n  an entity **without** `[Table(Schema = \"…\")]` is created in, and every statement for it\n  qualified with, the configured schema. `[Table(Schema = \"…\")]` still wins where present,\n  and the schema is created with `CREATE SCHEMA IF NOT EXISTS` on first sync.\n\n  *Migration.* If you left `defaultSchema` at its default `public`, nothing changes. If you\n  set it to anything else, your live tables are in `public` and the library will now look for\n  them in the configured schema — it will create empty tables there on the next sync. Either\n  set `defaultSchema` back to `public` (and pin per-entity schemas with\n  `[Table(Schema = \"…\")]` if you want them elsewhere), or move the tables first:\n\n  ```sql\n  CREATE SCHEMA IF NOT EXISTS app;\n  ALTER TABLE public.users SET SCHEMA app;   -- per table\n  ```\n\n  Resolution is per connection, so two named connections may now map the same entity types\n  into different schemas. `PostgreSQLLibrary.RestoreSchemaAsync` follows suit: its\n  `schemaName` parameter defaults to `null`, meaning \"the connection's configured schema\",\n  instead of the literal `public`.\n\n- **BEHAVIOUR — `Repository<T>.CountAsync` now applies the soft-delete filter.** It emitted\n  a bare `SELECT COUNT(*)` while `GetAllAsync` and `GetPagedAsync` in the same class filtered\n  `IS NULL`, so the two contradicted each other on a `[SoftDelete]` entity. `CountAsync()`\n  and `GetAllAsync().Count` now agree. If you were relying on it to report the physical row\n  count, use `Query<T>().IncludeDeleted().CountAsync()`.\n\n- **DEFAULT — `captureExplainOnSlowQuery` now defaults to `false`.** It was declared `true`\n  but nothing read it, so no plan was ever captured. Now that the capture is implemented,\n  defaulting it to `true` would have started running an `EXPLAIN` for every slow query on\n  upgrade; the default was flipped so runtime behaviour is unchanged. Set it to `true` to\n  opt in.\n\n  *Caveat.* Changing the declared default only covers configs that never wrote the key. A\n  `config.postgresql.json` persisted by an earlier version may already contain\n  `\"captureExplainOnSlowQuery\": true` on disk — that value is now honoured, and such an\n  install **will** start capturing plans on upgrade. Set it to `false` explicitly if that is\n  not what you want. The same applies to `n1DetectorThreshold` if a persisted config carries\n  a non-zero value.\n\n- `CacheConfiguration.MaxMemoryMb` and `PostgreSqlDatabaseConfig.PreparedStatementCacheSize`\n  are marked `[Obsolete]`. Neither is read: the in-process cache evicts by entry count\n  (`MaxEntries`), and statement caching is Npgsql's, configured on the connection string via\n  `Max Auto Prepare` / `Auto Prepare Min Usages`. Both still compile and round-trip.\n\n### Added\n\n- **Slow-query `EXPLAIN` capture.** With `captureExplainOnSlowQuery` on, a query that\n  crosses `slowQueryThresholdMs` has `EXPLAIN (FORMAT JSON) <sql>` run with the same bound\n  parameters on a separate connection, and the plan attached to `SlowQueryEvent.ExplainJson`.\n  Strictly best-effort: fetched off the query path, skipped entirely for a query inside a\n  transaction scope, skipped for statements `EXPLAIN` cannot accept (DDL, utility commands,\n  multi-statement batches) and for parameterized statements whose values were not captured,\n  and any failure leaves the event publishing with a null payload.\n- **N+1 detection.** With `n1DetectorThreshold` above 0, executions of the same normalized\n  SQL template are counted per connection over a rolling one-second window, and\n  `N1QueryDetectedEvent` is published once per window when the count reaches the threshold.\n  `0` (the default) disables it at the cost of a single bool read per query; the bookkeeping\n  is capped at 512 templates and pruned by age.\n- **`WithCache()` with no arguments**, on both the query builder and a projected query, using\n  `postgresql.cache.defaultTtlSeconds` (60). Purely additive — `WithCache(TimeSpan)` is\n  unchanged.\n- `BackupManager.CleanupOldBackupsAsync` and `GetLatestBackupFile` take a `connectionId` so\n  they resolve the same backup directory the writes used.\n\n### Fixed (configuration that was declared but never read)\n\n- **`queryTimeoutMs` is applied** as the command timeout on the commands the library creates\n  (rounded up to whole seconds; `0` = no timeout). The 30 000 ms default matches both\n  `commandTimeout` and Npgsql's own 30-second default, so nothing changes unless you change it.\n- **`maxBatchInsertSize` reaches the repository.** `GetRepository<T>()` passed\n  `slowQueryThresholdMs` but not the batch size, so the constructor default of 500 always\n  won whatever the config said. Now plumbed through in both overloads (the `connectionId`\n  one and the `TransactionScope` one).\n- **`defaultStringSize` drives type inference.** `TypeConverter.InferColumn` hard-coded 255;\n  schema sync now threads the connection's configured value through. Same default, so no\n  change unless you set it.\n- **`cacheEnabledOverride` is honoured** — when non-null it wins over the cache section's\n  `enabled` for that connection. `null` (the default) inherits as before.\n- **`backupDirectory` is honoured** by `BackupManager`. `null` keeps `DataDirectory/backups`.\n- **`maxInClauseValues` is reported.** A generated `IN` list wider than the ceiling logs a\n  warning once per query build, naming the entity and the value count. It deliberately does\n  **not** throw or chunk — that would break callers who exceed it today.\n- **`postgresql.cache.defaultTtlSeconds` and `publishEvents` are read.** The former backs the\n  new parameterless `WithCache()`; the latter gates `CacheHitEvent` / `CacheMissEvent`\n  publication (still `true` by default, so unchanged).\n- `sslCertificatePath` / `sslKeyPath` / `sslRootCertificatePath` map to Npgsql's\n  `SslCertificate`, `SslKey` and `RootCertificate`. This was already wired; the XML and docs\n  now say which option each one is, since the field names do not match one-for-one.\n\n### Fixed (correctness)\n\n- **Retention never ran.** `RetentionWorker` snapshotted the registered entity set with\n  `.ToList()` at construction, and the worker is constructed during `OnStartAsync` — but\n  entities only register through `SyncTableAsync` / `SyncSchemaAsync`, which every documented\n  flow calls *after* `CodeLogic.StartAsync()`. `HasWork` was therefore always false, the loop\n  never started, and `[RetainDays]` was dead in normal usage. The worker's entry list is now\n  live: registration hands each entity to it as it happens and starts the loop (idempotently)\n  on the first `[RetainDays]` entity. The 5-minute initial delay, 24-hour interval,\n  `RunOnceAsync()` and clean disposal are unchanged.\n- **`ProjectedQuery` and `JoinedQuery` dropped the caller's `CancellationToken`** when\n  handing work to `ConnectionManager.ExecuteWithConnectionAsync`, so opening the connection\n  and the transient-retry backoff around it ignored cancellation. Forwarded, matching\n  `QueryBuilder` and `Repository`.\n- **`WhereExists(...).Select(...).WithCache(...)` could serve stale cross-table results.**\n  `ShouldCache` / `ShouldSmartCache` deliberately refuse to cache a subquery-filtered query —\n  the cache stamps an entry with one table's version counter, so a mutation on the inner\n  table cannot invalidate it — but `Select` forwarded the cache decoration into the projection\n  without that guard, and `.WithCache` called on the projection afterwards re-armed it. The\n  verdict now travels with the query into `Select` and `GroupBy`, and a `WithCache` /\n  `SmartCache` call on such a projection is ignored and logged instead of silently caching.\n\n### Documentation\n\n- Corrected the `SqlFn` XML documentation for the date-part helpers, which still described\n  MySQL's `DAYOFWEEK(d) - 1` adjustment. PostgreSQL's `EXTRACT(DOW …)` already matches .NET's\n  numbering and no adjustment is applied.\n- **Raw SQL never joins a `TransactionScope`.** `SqlQueryAsync`, `SqlScalarAsync` and\n  `ExecuteSqlAsync` have no scope overload and always take their own pooled connection, so a\n  call inside an `await using` scope commits independently and is not rolled back with it.\n  The query-builder page now warns about this and points at `GetRepository<T>(tx)`,\n  `Query<T>(tx)` and `IMigrationContext`.\n- **`[RetainDays]` only runs for entities synced before `CodeLogic.StartAsync()`.** The\n  retention worker is constructed at start-up from a snapshot of the registered entity\n  types, and entities register through `SyncTableAsync` / `SyncSchemaAsync`. Syncing after\n  `StartAsync()` — the order every quick-start shows — leaves the worker with nothing to do.\n  The schema page now states the ordering requirement and the `RunOnceAsync` alternative.\n- **`RegisterDatabase` does not exist.** The README and overview showed\n  `pg.RegisterDatabase(id, config)` for adding a connection at runtime; the real call is\n  `pg.ConnectionManager.RegisterConfiguration(config, id)` — config first, id second.\n- **The typed join sample would not compile.** `Join<TRight, TKey, TResult>` takes a left\n  key selector, a right key selector and a result selector; the sample passed a two-argument\n  join *condition* instead. `WhereIn` was shown with a two-parameter outer selector for the\n  same reason — it takes `u => u.Column`.\n- **Offset paging on the query builder is `ToPagedListAsync(page, pageSize)`**, not\n  `GetPagedAsync` (which is the repository's method).\n- **`RollbackAsync` takes a `MigrationVersion`**, not a `toVersion` string; the migrations\n  sample now shows `new MigrationVersion(\"1.3.0\", 0)`. `pg.RestoreSchemaAsync(...)` is the\n  library-level restore entry point, not `pg.RestoreTableSchemaAsync`.\n- **`RegisterCachePool`'s third argument is `maxIdleFires` (an `int`), and its warm-up\n  callback is a `Func<Task>`** — the caching sample passed a query lambda in the int slot.\n  The default `maxIdleFires` is 10, not 3, and it retires an idle *entry* rather than\n  stopping the pool's timer.\n- **There is no `AnyAsync` terminal** on the query builder; `Any` exists only inside a\n  grouped projection as `g.Any()`.\n- **Date-part translations normalise to UTC.** The query-builder page now shows the real\n  SQL — `EXTRACT(… FROM (x) AT TIME ZONE 'UTC')::int`, `((x) AT TIME ZONE 'UTC')::date`, and\n  `ROUND(v::numeric, d)::double precision` for `SqlFn.Round`.\n- **`IN` lists are never chunked.** Several pages claimed `Contains` chunked at\n  `maxInClauseValues`; every value is emitted in one list and the setting is not consulted.\n  Chunk large sets yourself.\n- **`EXPLAIN` capture and the N+1 detector are not implemented.** `captureExplainOnSlowQuery`\n  and `n1DetectorThreshold` are reserved: no call site runs `EXPLAIN`, so\n  `SlowQueryEvent.ExplainJson` is always null, and `N1QueryDetectedEvent` is never published.\n  The feature list, event table and performance page no longer advertise them as working.\n- **Documented several configuration keys that nothing reads.** `maxBatchInsertSize`,\n  `maxInClauseValues`, `defaultStringSize`, `queryTimeoutMs`, `preparedStatementCacheSize`,\n  `backupDirectory`, `cacheEnabledOverride`, and the cache section's `defaultTtlSeconds` and\n  `publishEvents` are now marked as not currently applied, naming the value actually in force.\n- **`defaultSchema` does not move entities.** It is applied as the connection's\n  `search_path`; an entity without `[Table(Schema = …)]` always maps to the literal `public`.\n- **`GetCacheStats()` returns structure, not counters** — total entries, entries by table\n  and table-version counters. It has never reported hits, misses or evictions.\n  `GetCachePoolStats()` likewise reports interval, entry count and tick counts, not hit counts.\n- **Transient retry also covers SQLSTATE `55P03`** (lock not available), alongside `40001`\n  and `40P01`. The config field's XML still named MySQL's error numbers 1213 and 1205.\n- **`UpsertWithIncrementsAsync` return value.** Its XML documented MySQL's\n  \"2 = update\" affected-row convention; PostgreSQL counts an `ON CONFLICT … DO UPDATE` row\n  once, so the result is 1 whether the row was inserted or updated.\n- Removed further MySQL leftovers from the XML comments: the config file was named\n  `config.mysql.json` and the localization file `mysql.{culture}.json`; the column-reference\n  builder claimed backtick quoting (PostgreSQL uses double quotes); the CRC, schema-state and\n  sync comments said `information_schema` where the analyzer reads `pg_catalog`; the\n  retention worker described a `DELETE … LIMIT` friendly to \"InnoDB's undo log\" rather than\n  its actual `ctid` + `FOR UPDATE SKIP LOCKED` batching; and the query-builder samples called\n  `mysql.Query<T>()`.\n- `[Column(Charset = …)]` is documented as what it emits — a `COLLATE` clause — and\n  `[Column(Unsigned = …)]` as inert, since PostgreSQL has no unsigned integer types.\n- `IMigrationContext` offers `ExecuteAsync`, `QueryAsync<T>`, `ScalarAsync<T>` and\n  `SyncTableAsync<T>` plus the raw connection and transaction; it has no `TableExistsAsync`\n  and does not expose the analyzer.\n- Retention's schedule is stated: a first pass five minutes after startup, then every 24 hours.\n- Removed a duplicated `<summary>` block on the schema analyzer's column-diff check whose\n  first copy still described MySQL facets (auto-increment, charset).\n- Corrected the `connectionLifetime` XML (it is the pooled *idle* lifetime) and the\n  `TypeConverter` example type strings (`character varying(255)`, not `VARCHAR(255)`).\n\n### Fixed (found while completing PostgreSQL coverage)\n\n- **A migration registered twice ran twice.** `Register` and `RegisterFrom` both appended\n  unconditionally, so the documented pairing of `RegisterMigrationsFrom(assembly)` with an\n  explicit `RegisterMigration(...)` held two copies of the same migration — and because the\n  apply pass filters candidates against a snapshot of applied ids taken before it starts,\n  both copies passed the filter. A non-idempotent body (an INSERT, a backfill, an ALTER\n  without IF NOT EXISTS) would be applied twice. Registration now deduplicates by\n  migration id.\n- **`HealthChangedEvent` was declared but never raised**, so anything subscribing to it\n  waited forever. It is now published when the aggregate health state transitions — not on\n  every poll — and a failing subscriber cannot turn a healthy library unhealthy.\n\n### Fixed (SQL functions)\n\n- **`SqlFn.Round(value, digits)` generated invalid SQL.** PostgreSQL's two-argument\n  `round` accepts `numeric` only, so `round(double precision, integer)` does not exist.\n  The value is now cast for the call and back for the result.\n- **Date-part functions read the session time zone, not UTC.** `EXTRACT` over a\n  `timestamptz` uses the server's `TimeZone` setting, so on a server set to `Europe/Paris`\n  an instant stored as 15:09 UTC reported hour 16 — and around midnight the day, month and\n  year shifted too. Since the library writes every `DateTime` as UTC, `Year`, `Month`,\n  `Day`, `Hour`, `Minute`, `DayOfWeek` and `Date` now read back in UTC.\n- `ConnectionManager.GetServerInfoAsync` still ran the MySQL query\n  `SELECT VERSION(), @@version_comment, DATABASE(), @@hostname`, which PostgreSQL rejects\n  outright. Replaced with `version()`, `current_setting`, `current_database()` and\n  `inet_server_addr()`.\n\n### Fixed (schema scoping)\n\n- **The schema-state sentinel was keyed on the bare table name.** Two entities with the\n  same table name in different schemas therefore shared one row: whichever synced last\n  owned the CRC, and a later model change to the other was skipped by the fast path. The\n  key is now `schema.table`. `SchemaStateStore` resolves an unqualified name against the\n  default schema, so the public diagnostic API still accepts a bare table name.\n- **Sync now creates the schema it needs.** An entity declaring\n  `[Table(Schema = \"...\")]` failed on first run with `3F000: schema does not exist`, even\n  though sync already creates tables, indexes, constraints and triggers. `CL.MSSQL` had\n  always created its own; PostgreSQL now matches.\n- **Restoring a table from backup did not clear its CRC sentinel**, so the next sync would\n  skip a table that had just been rebuilt from possibly-different DDL.\n\n### Changed\n\n- **Rebuilt on the `CL.MySQL2` architecture.** The library's internals were replaced with a\n  dialect-swapped port of `CL.MySQL2`, the same way `CL.MSSQL` was built, taking the source\n  tree from 17 files to 45 and bringing the three database libraries onto one codebase shape.\n\n### Added\n\n- `RetentionWorker.RunOnceAsync()` — the retention pass was only reachable from a\n  background loop that wakes once a day behind an initial delay, so there was no way for an\n  operator to trigger a purge (or for a test to exercise one deterministically).\n\n- Query cache with table-version invalidation, named smart-cache pools with background\n  refresh, and a pluggable cache store / coordinator for multi-node deployments.\n- Database-backed migrations: `IMigration`, `MigrationRunner`, `IMigrationContext`,\n  version-ordered plans, and rollback. Migration history now lives in a table rather than a\n  local JSON file, so instances of the same application no longer each keep their own copy\n  and re-run everything.\n- CRC-gated schema state tracking plus a `pg_advisory_lock`-based sync lock, so several\n  instances starting at once no longer race on DDL.\n- Joins, typed projections, grouping, cursor (keyset) pagination, `WhereIn`, `WhereNotIn`,\n  `WhereExists` and `WhereNotExists`.\n- `ON CONFLICT` upserts (`UpsertAsync`, `UpsertManyAsync`, `UpsertWithIncrementsAsync`),\n  soft delete, a retention worker, and query observability events.\n- `EntityMetadata<T>` with compiled property accessors and a compiled row materializer,\n  replacing the previous per-row reflection -- the old mapper ran a linear property scan\n  with a `GetCustomAttribute` call for every column of every row.\n- PostgreSQL-native type support: `uuid`, `timestamptz`, `jsonb`, arrays, ranges, `inet`,\n  `macaddr`, identity columns, and `INCLUDE` covering indexes.\n\n### Security\n\n- **Fixed SQL injection through unvalidated column names.** `GetByColumnAsync`,\n  `GetPagedAsync(orderByColumn)` and the dictionary overload of `QueryBuilder.UpdateAsync`\n  interpolated caller-supplied strings directly into SQL. All string-typed column APIs now\n  resolve through an `EntityMetadata<T>` allow-list, and identifiers are rendered through\n  `PostgreSqlDialect.Quote` and validated where they enter the metadata.\n- **Fixed connection-string injection.** Connection strings were assembled by string\n  concatenation, so a `;` in a password or database name could append arbitrary connection\n  options. They are now built with `NpgsqlConnectionStringBuilder`.\n- **`AllowDestructiveSync` is no longer a dead setting.** It was declared, surfaced in the\n  configuration UI as a guard against `DROP` during schema sync, and never read anywhere in\n  the library. Destructive DDL is now gated by `SyncMode` / `SchemaSyncLevel`, with\n  `AllowDestructiveSync` honoured for backwards compatibility.\n- LIKE metacharacters in user-supplied values are escaped, so a `%` in a search term no\n  longer silently changes the result set.\n- Backup filenames are sanitised rather than interpolated from schema and table names.\n\n### Fixed\n\n- **Retention purged every entity against the `Default` connection.** The registered-entity\n  set recorded types with no connection association, so an entity synced against a named\n  connection was purged from the wrong database — in practice the `DELETE` hit a database\n  where the table did not exist, the failure was caught and logged, and the retention the\n  `[RetainDays]` attribute described silently never happened. Registrations now carry the\n  connection they were made against, and the same entity synced to two connections is two\n  registrations. Only reachable since the worker began running at all in this same release.\n  `RetentionWorker.Register(Type, string)` and a `Registrations` view are added; the existing\n  type-only overload keeps its meaning and registers against the worker's own connection.\n- **`ids.Contains(x.Id)` on a `List<T>` or `HashSet<T>` threw instead of emitting `IN`.**\n  The expression visitor's first `Contains` case matched any single-argument instance call,\n  so a collection membership test took the string `LIKE` branch and tried to emit the\n  collection itself as a column. Arrays were unaffected because they bind to the static\n  two-argument `Enumerable.Contains`, which had its own case. The `LIKE` branch is now\n  restricted to a string receiver, and both membership shapes share one emitter.\n- **Schema sync no longer rewrites every table on every startup.** The analyzer compared\n  `information_schema.data_type` against the generated DDL with a lowercase string compare.\n  Those vocabularies never match -- PostgreSQL reports `character varying`, `numeric`,\n  `timestamp with time zone`; the generator emitted `VARCHAR(255)`, `NUMERIC(10,2)`,\n  `TIMESTAMPTZ` -- so every string, decimal, timestamp, time and array column was issued an\n  `ALTER COLUMN ... TYPE` on each sync, taking an `ACCESS EXCLUSIVE` lock and rewriting the\n  table. Types are now canonicalised through an alias table before comparison.\n- Unique columns produced two unique constraints: one inline in the column definition and\n  one as a separate named constraint.\n- DDL scripts were split on bare `;`, which broke any statement containing a semicolon in a\n  default or comment, and each fragment ran on its own connection so a table and its indexes\n  were not created atomically.\n- `Contains()` over an empty collection emitted `IN ()`, a syntax error. It now emits a\n  false literal.\n- `ToPagedListAsync` returned the first group's row count instead of the number of groups\n  when combined with `GroupBy`.\n- `InsertManyAsync` issued one round trip per row and was not transactional, so a failure\n  part-way through left earlier rows committed. Inserts are now batched and bounded by\n  PostgreSQL's 65535-parameter statement limit.\n- Bitwise `&` and `|` in a predicate were translated to logical `AND` / `OR`, silently\n  corrupting integer bitmask comparisons.\n- The retention worker used `DELETE ... LIMIT`, which PostgreSQL does not support; batches\n  are now selected by `ctid` with `FOR UPDATE SKIP LOCKED`.\n- Cancellation tokens were not forwarded to connection acquisition, so opening a connection\n  could not be cancelled.\n- `ConnectionManager` held its configuration map in a non-concurrent `Dictionary` that could\n  be written by `RegisterConfiguration` while another thread read it.\n- `ExecuteWithConnectionAsync` disposed the connection twice.\n\n### Verified against a live server\n\nEvery integration test runs against PostgreSQL 18.4 (156 tests, none skipped), covering\nall 45 `DataType` members, every inferred CLR mapping, value round-trips, the full set of\n`ALTER` operations, both sync modes, migrations, caching, retention and the observability\nevents. Three defects only execution could surface were fixed:\n\nEvery integration test now runs against PostgreSQL 18.4 (115 tests, none skipped). Two\ndefects that only execution could surface were fixed in the process:\n\n- `SchemaSyncLock` issued `SET lock_timeout = @ms`. `SET` is parsed before parameters are\n  bound, so the server saw `SET lock_timeout = $1` and raised `42601`. The advisory lock is\n  taken at the start of every sync, so this broke schema synchronisation outright. Now uses\n  `set_config()`, which takes the value as a bound argument.\n- The catalog readers in `SchemaAnalyzer` and `BackupManager` read `a.attidentity` as a\n  string. It is the internal `\"char\"` type, which Npgsql will not return as one, and this\n  broke every `ALTER` path. Both now cast to `text` in SQL.\n- A `daterange` column returns `NpgsqlRange<DateTime>`, so a property declared\n  `NpgsqlRange<DateOnly>` failed with a message naming both sides as ``NpgsqlRange`1`` — a\n  message that names neither type usefully. Range bounds are now converted element-wise,\n  and conversion failures report full generic type names.\n\n### Added (API)\n\n- `GetRepository<T>(TransactionScope)` and `Query<T>(TransactionScope)`.\n  `BeginTransactionAsync` returned a scope that neither accessor took, so callers had to\n  construct `Repository<T>` by hand to do any work inside a transaction.\n\n### Migration notes\n\nThis release is **not source-compatible**. Renames and behaviour changes:\n\n| Before | After |\n|--------|-------|\n| `PostgreSQLConfig` | `DatabaseConfiguration` |\n| `DatabaseConfig` | `PostgreSqlDatabaseConfig` |\n| config section `mysql` (a port leftover) | `postgresql` |\n| `SslMode` | `PostgreSqlSslMode` |\n| default port `3306` | `5432` |\n| `QueryRaw()` | `SqlQueryAsync<T>()` / `ExecuteSqlAsync()` |\n| `Models/Configuration.cs` | `Configuration/DatabaseConfiguration.cs` |\n\n- The `DataType` enum is now PostgreSQL's type set. `DataType.Unspecified` is the default\n  and infers from the CLR property type; `Guid` infers `uuid` rather than `CHAR(36)`, and\n  `DateTime` infers `timestamptz`.\n- Upserts need a conflict target. `ON CONFLICT` arbitrates on one named unique key rather\n  than MySQL's \"any duplicate key\". It is inferred when the entity has exactly one candidate\n  and must otherwise be passed as `conflictTarget`.\n- Non-nullable CLR value types now generate `NOT NULL` columns.\n- Identifiers are emitted double-quoted and are therefore case-sensitive.\n\n## 2026-09-12\n\n### Changed\n\n- Unified the version line with the CodeLogic framework on **4.8.x**. Every official\n  library and the framework now share one `major.minor`, so a given `4.8.<patch>`\n  means the same generation across all packages.\n- `version.txt` moved from `4.6` to `4.8`. The patch component remains the CI run\n  number, composed at pack time; `AssemblyVersion` stays pinned at `Major.Minor.0.0`\n  (now `4.8.0.0`) so every patch in the line loads interchangeably.\n\n## 2026-06-20\n\n### Fixed\n\n- Query-builder parameter re-keying could corrupt SQL when a predicate emitted\n  11+ parameters (`@p1` substring-collided with `@p10`/`@p11`); parameters are\n  now renamed longest-name-first.\n- The expression translator wiped the entire WHERE buffer for a `null == x.Prop`\n  comparison (it called `_sql.Clear()`), producing malformed SQL when combined\n  with other clauses; null comparisons in both operand orders now translate to\n  `IS [NOT] NULL` without discarding accumulated SQL.\n\n### Documentation\n\n- Full README rewrite to the unified house style: concise NuGet + MIT badges,\n  one-line tagline, `Install` / `Quick start` / `Features` / `Configuration`\n  (table + JSON) / `Documentation` / `Requirements` / `License`, with the API\n  detail moved to the docs site (no full API dump in the README).\n- Replaced the single `docs/libs/postgresql.md` guide with a three-page docs set\n  mirroring CL.MySQL2's depth model: **Overview** (load, multi-database,\n  repository CRUD, entry points, config, health, events), **Query Builder**\n  (fluent methods, terminals, aggregates, bulk update/delete, raw SQL via\n  `QueryRaw`/repository raw, transactions), and **Schema & Sync** (entity\n  attributes, the `DataType` enum, table/set/namespace sync, `SyncResult`,\n  schema backups, the migration tracker).\n- The old `docs/libs/postgresql.md` is now a thin redirect to the new Overview.\n- No API changes — documentation only.\n\n## [4.5.2] — 2026-06-20\n\n### Documentation\n\n- Documented the full **query builder** surface: `OrderByDescending`, `Limit`/`Offset`\n  (and `Take`/`Skip` aliases), `Join`, `Select`, `GroupBy`, `WithConnection`,\n  `ToPagedListAsync`, `FirstOrDefaultAsync`, the `CountAsync`/`MaxAsync`/`MinAsync`/\n  `SumAsync`/`AverageAsync` aggregates, and bulk `UpdateAsync`/`DeleteAsync`. Earlier\n  docs listed only `Where`/`OrderBy`/`ToListAsync`.\n- Documented raw SQL access via `QueryRaw()` (`QueryAsync`/`ExecuteAsync`).\n- Documented the **repository** beyond basic CRUD: `InsertManyAsync`, `GetByColumnAsync`,\n  `GetPagedAsync`, `FindAsync`, `IncrementAsync`/`DecrementAsync`, and\n  `RawQueryAsync`/`RawExecuteAsync`.\n- Documented the schema attributes `[Table]`, `[Column]`, `[ForeignKey]`,\n  `[CompositeIndex]`, and `[Ignore]`, plus the `DataType` enum.\n- Documented **table sync / migrations**: `SyncTablesAsync`, `SyncNamespaceAsync`,\n  `SyncResult`, the `BackupManager` (schema backups + cleanup), and the\n  `MigrationTracker` JSON history.\n- Documented **transactions** via `BeginTransactionAsync` (auto-rollback on dispose).\n- Documented previously-omitted configuration: `MaxIdleTime`, `AllowDestructiveSync`,\n  multi-database `connectionId` selection, and runtime `RegisterDatabase`.\n\n### Notes\n\n- The 4.0.0 \"repository CRUD only\" note is superseded — the query builder\n  (joins, aggregation, paging, bulk update/delete) is present and now documented.\n\n## [4.5.0] — 2026-05-24\n\n### Changed\n\n- **Unified versioning.** All CodeLogic.Libs now share a single version line\n  controlled by `version.txt` in the repo root. This is a version alignment\n  release — no functional changes to this library.\n## [4.0.4] — 2026-04-16\n\n### Changed\n\n- README + manifest refresh for the v4 baseline. No functional changes vs 4.0.3.\n- `LibraryManifest.Version` now reads from assembly metadata.\n\n## [4.0.2] — 2026-04-09\n\n### Changed\n\n- Annotated PostgreSQL configuration with `[ConfigField]` for the admin UI surface.\n- Aligned with the v4 baseline across all libraries.\n\n\n---\n\nRelease notes truncated to fit NuGet's 35 000 character limit. The complete changelog ships inside this package as CHANGELOG.md.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#repository",
+    "commit": "d843c0ef8f74f5f9f3d0a5435ea3124463c1ada7",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "4.8.93+d843c0e",
+  "version": "4.8.93+d843c0e",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#dependencygroup/net10.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[4.0.0, 5.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#dependencygroup/net10.0/npgsql",
+          "@type": "PackageDependency",
+          "id": "Npgsql",
+          "range": "[9.0.5, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#lib/net10.0/CL.PostgreSQL.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 199758,
+      "fullName": "lib/net10.0/CL.PostgreSQL.dll",
+      "length": 523776,
+      "name": "CL.PostgreSQL.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#lib/net10.0/CL.PostgreSQL.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 45116,
+      "fullName": "lib/net10.0/CL.PostgreSQL.xml",
+      "length": 222366,
+      "name": "CL.PostgreSQL.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 12631,
+      "fullName": "CHANGELOG.md",
+      "length": 30589,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#CodeLogic.PostgreSQL.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 13141,
+      "fullName": "CodeLogic.PostgreSQL.nuspec",
+      "length": 31671,
+      "name": "CodeLogic.PostgreSQL.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 635,
+      "fullName": "LICENSE",
+      "length": 1064,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4372,
+      "fullName": "README.md",
+      "length": 10039,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.14.52.56/codelogic.postgresql.4.8.93.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "postgresql",
+    "postgres",
+    "npgsql",
+    "database",
+    "orm",
+    "linq",
+    "repository",
+    "migrations"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

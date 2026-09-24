@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Egil Hansen",
+  "catalog:commitId": "498098b5-5ec6-4c5a-a678-ec7ed8248617",
+  "catalog:commitTimeStamp": "2026-09-23T15:52:14.9461414Z",
+  "copyright": "Egil Hansen",
+  "created": "2026-09-23T15:45:48.227Z",
+  "description": "Version-aware JSON migration helpers for System.Text.Json with explicit migrator registration and source-generation support.",
+  "id": "Egil.SystemTextJson.Migration",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-23T15:51:56.197Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "e0cW+8/U+E2reeoER0OrZAUbv2SYuusePPBAjZ6gfzNTjQgh7alkAEJh3G1zqiwBK27RJlGSWt8hydLLautvew==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 152823,
+  "projectUrl": "https://github.com/egil/framework/tree/main/Egil.SystemTextJson.Migration",
+  "published": "2026-09-23T15:45:48.227Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "New Features:\n- support .NET 11 with union classification and full numeric source matching\n  Multi-targets net10.0 and net11.0 (the .NET 11 asset is built with the RC1 SDK\n  under a go-live licence).\n  On .NET 11, AddJsonMigrationSupport() registers a JsonTypeClassifierFactory so\n  a C# union whose cases are [JsonMigratable] types is classified by migration\n  discriminator: current and old payloads route to the case that migrates them,\n  nested unions forward their discriminators, and any situation that cannot be\n  resolved safely throws a JsonException listing the known discriminators.\n  Source-generated contexts opt in with\n  [JsonUnion(TypeClassifier = typeof(JsonMigratableUnionTypeClassifier))].\n  Non-object payload matching now recognises every numeric type System.Text.Json\n  can read (Half, Int128, UInt128 and, on .NET 11, BFloat16 and Decimal32/64/128),\n  honours JsonNumberHandling for quoted numbers and named floating-point literals,\n  matches byte[] and other string-shaped sources, disambiguates collection sources\n  by element discriminator and contract kind, and never shape-matches a source\n  read through a converter override.\n  [JsonMigratable] on a union, collection or dictionary now fails with\n  JsonMigratableTargetKindNotSupportedException pointing at the recipe instead of\n  an opaque STJ error.\n  Documentation covers .NET 11 unions, the unchanged [JsonPolymorphic] limitation,\n  an NDJSON read-migrate-write-back recipe, and states that trimmed/NativeAOT\n  publishing is not supported yet.\n  🤖 Generated with [Claude Code](https://claude.com/claude-code)\nBug Fixes:\n- match a quoted number to 1.x's numeric sources before 2.0's\n  The quoted-number tier considered every numeric source at once, so a\n  target migrating from int and Half threw on \"42\" as ambiguous although\n  a plain 42 goes to int. The tier is now split, legacy numeric types\n  first and then the ones 2.0 added, for top-level payloads and for the\n  first element of a collection alike.\n- name every source of a union case's converter override\n  Picking the converter branch whenever options.Converters held a\n  matching converter misattributed a resolver-supplied override when a\n  converter had been added after registration too. Which source served\n  the contract is not recorded on it, so the diagnostic now names all\n  three with the fix for each.\n- name the actual source of a union case's converter override\n  A union case served by a converter other than migration's was always\n  told to register its converters after AddJsonMigrationSupport(), also\n  when the override came from a resolver ahead of the migration entry or\n  from an attribute, where no converter registration is involved. The\n  diagnostic now distinguishes a converter in options.Converters from a\n  resolver or attribute override and gives the fix for each.\n- keep the building registry for a union configured inside a converter build\n  The union classifier re-rooted the options' scope to the resolver that\n  served the union's first case. Inside a converter build that scope is\n  the building registry, and the case being built has no migration\n  converter to ask, so it fell back to whichever registry served the\n  first case; a nested case then got that registry's discriminator and\n  migrators. Since each migratable case now reads its registry from its\n  own converter, the scope is kept as is, and the first case's resolver\n  stands in only when the options carry no registration at all.\n- stop inferring a shared registration from the shape of a registered chain\n  A resolver at the front of a registered chain that no longer shows its\n  migration resolver looks the same whether it wraps that resolver or was\n  left behind when the resolver was removed, so independently created\n  options reusing it inherited a registration they never had and their\n  own registration call ran no configuration.\n  Registration carries over to a copy only by identity, through the chain\n  object STJ's copy constructor shares with it. A copy that changed its\n  own chain behind a wrapper registers like any other options, with the\n  configuration it passes.\n- never call a user's resolver during registration\n  Discovery probed application-defined resolvers with a marker type, so\n  the first registration on options whose resolver wraps a\n  DefaultJsonTypeInfoResolver resolved through it and froze its\n  Modifiers, the side effect registration promises not to have.\n  The probe has no case left to serve: a copy finds its registration\n  through the chain object it shares with the original or the wrapper at\n  the front of that chain, a cached registration is kept while an\n  application-defined resolver is in the chain, and union routing reads\n  each case's registry from the converter the case resolves to. It is\n  removed; discovery walks STJ's chains and decorators and calls nothing.\n- infer a shared registration only from the entry hiding its resolver\n  Matching any application-defined resolver shared with a registered\n  chain made independently created options that reuse a downstream\n  resolver inherit that chain's registration: their own registration\n  call returned without inserting a resolver or running its\n  configuration.\n  Registration puts the migration resolver at the front of the chain, so\n  the inference now requires the registered chain to no longer show its\n  resolver and the shared instance to be the application-defined entry\n  at its front, the one that took the resolver's place. A downstream\n  resolver shared with a registered chain says nothing.\n- forward nested union routes from the registry serving the nested case\n  The outer union forwarded a nested union's case discriminators and\n  sources from its own registry, while a type-selective resolver can\n  serve the nested case through another migration resolver whose\n  registry holds the external migrators for it. Old nested payloads then\n  went unclassified although the inner union could migrate them.\n  A nested migratable case now forwards its routes from the registry that\n  built its converter, as a direct case does.\n- find a copy's registration through shared chain entries and route union cases per registry\n  A copy that extended its own chain gets a chain object of its own, so\n  the chain the original registered on no longer identified it; behind a\n  type-selective wrapper neither the walk nor the probe could recover the\n  registration and a fresh registry went in front. The copy's chain is\n  built from the entries of the chain it was copied from, so an\n  application-defined resolver it shares with a registered chain now\n  identifies that registration.\n  Union routing used one registry for every case, the first served case's,\n  while a type-selective wrapper can send cases to different migration\n  resolvers. Each case now routes with the registry that built its\n  converter; a case inside its own migration build keeps the scope's.\n- route unions with the registry that serves their cases\n  The union classifier routed with whatever registration was cached for\n  the options. A registration the options no longer use can stay cached\n  behind an application-defined resolver that answers no probe, and a\n  wrapper can send the cases to a resolver registered on other options;\n  in both cases the routes came from the wrong registry.\n  The classifier now reads the resolver from the migration converter a\n  case resolves to and routes with its registry, using the cached lookup\n  only for the exclusions of the options being resolved. A case that\n  resolves to its plain contract without a converter override is\n  reported as missing migration support rather than as a converter\n  ordering problem.\n- treat a silent resolver probe as unknown, not as removal\n  A resolver that forwards only its own application's types never sees\n  the probe's marker, so its silence said nothing, yet the guard read it\n  as the registration having been removed and put a fresh registry in\n  front of it, losing the explicitly registered migrators.\n  A positive probe remains proof. A silent application-defined resolver\n  now keeps the cached registration, as the walk cannot tell it from a\n  wrapper. Copies of registered options, which carry no cached\n  registration, find the original's through the chain object STJ's copy\n  constructor shares with them until they change their own chain.\n- probe application-defined resolvers for the migration entry they wrap\n  A copy of options whose migration entry sits behind an application-\n  defined wrapper carries no cached registration, and the chain walk\n  cannot see through the wrapper, so registering again on the copy put a\n  fresh registry in front of it and the union classifier reported missing\n  migration support.\n  Registration discovery now asks each application-defined resolver in\n  the chain for the contract of a marker type that only the migration\n  resolver answers, and takes the resolver stamped on the answer as the\n  one behind it. That replaces the assumption that any such resolver was\n  wrapping the entry: replacing the chain with one's own resolver and\n  registering again now registers again, as with STJ's resolvers.\n- leave a wrapped migration entry in place and route unions through it\n  Restoring a hidden registration by inserting its resolver at the front\n  of the chain took the migratable types away from the application-defined\n  wrapper that had been consulted first; the wrapper's own contracts for\n  those types no longer applied. The guard now leaves the chain as the\n  user shaped it: an application-defined resolver in the chain is assumed\n  to be wrapping the registered entry, and a chain made of STJ's own\n  resolvers is the only shape that counts as having removed it.\n  The union classifier used the strict structural check and reported\n  missing migration support behind such a wrapper; it now applies the same\n  rule and routes with the registration cached for the options.\n- keep the first registration when a wrapper hides its resolver\n  The registration guard cannot see through an application-defined\n  wrapper, so calling AddJsonMigrationSupport() again after wrapping the\n  chain entry inserted a fresh resolver with an empty registry, and the\n  migrators the first call registered were no longer consulted.\n  The cached registration is now kept when the chain holds a resolver the\n  structural walk cannot see through, and its resolver is put back in\n  front where a later call finds it. Replacing the chain with STJ's own\n  resolvers still counts as removal and registers again.\n- honour exclusion scopes from any active migration resolver\n  Registering migration again after an application-defined wrapper hid\n  the first resolver adds a second one, and both stay active. Each\n  resolver then rejected the exclusion scope the other had registered for\n  a clone, so neither stepped aside for the type being built and the\n  converter build recursed until the stack overflowed.\n  A scope's exclusions and root options describe the options instance,\n  not the resolver that registered it, so a resolver now honours whatever\n  scope it finds; when it builds a converter under a scope another\n  resolver registered it re-roots the clone's scope to itself, so the\n  discriminator metadata comes from the registry that builds the\n  converter. The registration guard keeps its structural check for\n  replaced or cleared resolvers.\n- apply entry decorators to migratable plain contracts and refuse stale union routing\n  When the migration entry stands in for the default resolver and is\n  decorated with a modifier, the plain contract of a migratable type was\n  produced by the exclusion clone's wrapper, outside the decorator, so the\n  modifier applied to every type except the migratable ones. The migration\n  resolver now returns the reflection contract itself for the type being\n  built, so it travels back through the decorator like any other contract.\n  The .NET 11 union classifier read the cached registration without\n  checking that its resolver was still reachable, so after the resolver\n  chain was cleared or replaced it built routing against a registry the\n  options no longer used. It now uses a reachability-checked lookup that\n  never removes entries and reports missing migration support instead.\n- keep the exclusion scope while resolving through an opaque resolver wrapper\n  Structural validation of a cached scope cannot see the migration\n  resolver behind an application-defined wrapper, so while a migratable\n  type's converter was being built through such a wrapper the resolver\n  dropped the exclusion clone's own scope, no longer stepped aside for the\n  type, and started building the same converter again without end.\n  The executing resolver now authenticates a scope by identity: a scope\n  whose resolver is the one being called is valid however the chain is\n  wrapped. Structural validation, with removal of a stale entry, is done\n  only by the registration guard in AddJsonMigrationSupport(), the one\n  place that must detect a resolver that was replaced or cleared, and it\n  never runs during a resolution. With an opaque wrapper and no downstream\n  resolver the failure is STJ's own missing-metadata error rather than a\n  stack overflow.\n- match the scalar sources 1.x knew before the ones 2.0 added\n  A target with both a string and a Guid source received a JSON string\n  from the string source in 1.x, because Guid was not a scalar source\n  then. 2.0 classified both as string-shaped and reported the payload as\n  ambiguous, so a stored payload stopped migrating. Scalar matching now\n  runs in tiers: the types 1.x matched by TypeCode first (plain sources\n  ahead of ones behind a converter override), then the types 2.0 added,\n  then quoted numbers, then overridden sources of the newer types. The\n  same order applies to the first element when collection sources\n  compete. A source 1.x selected is therefore selected again, and a 2.0\n  source only where 1.x had no match; two sources in one tier are still\n  ambiguous.\n- discover migration support through the chain, not by resolver identity\n  The idempotency guard in AddJsonMigrationSupport() and the union\n  classifier's registry lookup both scanned TypeInfoResolverChain for the\n  migration resolver by type. A decorated entry (WithAddedModifier or an\n  application wrapper) hid it, so a second AddJsonMigrationSupport() call\n  inserted a fresh registry ahead of the decorated one and dropped the\n  configured external migrators, and a copy of such options (which carries\n  no registered scope) made the .NET 11 classifier report that migration\n  support was missing.\n  Discovery now also asks the chain for a private marker type that only\n  the migration resolver answers; decorators forward the request, and the\n  answer carries the resolver. Calling the resolver directly rather than\n  options.GetTypeInfo leaves mutable options mutable. The Stryker mutate\n  list names the renamed resolver files.\n- match overridden sources by their CLR shape as a last resort, as 1.x did\n  The enum-only fallback added earlier left other sources with a converter\n  override behind: an int read through a custom JsonConverter<int> was\n  matched by TypeCode in 1.x, and 2.0 rejected its stored numeric payloads.\n  Every source with a converter override now keeps the token family of its\n  CLR type as a last-resort match, considered only after all other sources,\n  so 1.x-readable payloads stay readable while a plain source of the same\n  shape still wins.\n- decide migration precedence from the options in use, not chain identity\n  The migration resolver located itself in TypeInfoResolverChain by\n  reference when building a type's converter, so any decorator around\n  that entry (WithAddedModifier, or an application wrapper) made the\n  lookup fail with ArgumentOutOfRangeException on the first migratable\n  type. The exclusion clone now wraps whatever resolver it inherited and a\n  per-options scope tells the migration resolver when to step aside for\n  the type being built; the union classifier finds the registry through\n  the same scope. Decorated entries work, and a decorator's modifiers\n  keep applying to everything the chain returns.\n  A converter registered before AddJsonMigrationSupport() also kept its\n  precedence in copies of the options that no longer contained it,\n  leaving the type with a plain contract and no $type. Precedence is now\n  checked against the converters of the options being resolved.\n- keep numeric payloads reaching an enum source that has a string converter\n  1.x routed a JSON number to an enum source by TypeCode even when\n  JsonStringEnumConverter was registered, and that converter reads integers\n  by default. The 2.0 rule that excludes sources with a converter override\n  from shape matching therefore rejected stored numeric payloads whose only\n  source is such an enum. The number is now offered to an overridden enum\n  source when no other source matched, so those payloads migrate as they\n  did in 1.x while a plain numeric source still wins over the enum.\n- make AddJsonMigrationSupport() idempotent\n  Calling AddJsonMigrationSupport() twice on the same options put two\n  migration resolvers in the resolver chain. The reflection fallback only\n  stands in while the migration resolver is the sole chain entry, so a\n  second call made options without any other resolver fail to serialize\n  plain types. A second call now keeps the first registration, which is\n  what the previous converter-factory registration did in effect because\n  System.Text.Json only consulted the first matching converter.\nPerformance:\n- keep STJ fast-path serialization by registering through the resolver chain\n  AddJsonMigrationSupport() no longer adds a converter factory to\n  options.Converters. System.Text.Json only uses a JsonSerializerContext's\n  generated fast-path serializers when that list is empty, so one entry\n  switched every type in the options to the metadata path, including\n  types that never take part in migration. Migration is now a resolver\n  inserted at the front of TypeInfoResolverChain. Types outside migration\n  keep their generated serializer; a [JsonMigratable] type itself, and\n  any type whose properties reach one, still serializes through the\n  metadata path because its contract carries the injected discriminator.\n  Precedence is unchanged for converters: one registered in\n  options.Converters before AddJsonMigrationSupport() still wins for a\n  [JsonMigratable] type, one registered after still does not. Options\n  without any resolver keep reflection-based serialization.\n  Two setups behave differently. A custom IJsonTypeInfoResolver that\n  serves a [JsonMigratable] type with its own converter used to win\n  silently because it never consulted options.Converters; it now has to\n  be inserted ahead of migration with TypeInfoResolverChain.Insert(0, ...)\n  after AddJsonMigrationSupport(), otherwise migration owns the type and\n  rejects the non-object contract. Clearing TypeInfoResolverChain or\n  assigning TypeInfoResolver after AddJsonMigrationSupport() now removes\n  migration support, since that is where it lives.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#repository",
+    "branch": "refs/heads/release/egil-systemtextjson-migration/v2.0",
+    "commit": "acecc24cad450555874a7b70074e6301df98f7de",
+    "type": "git",
+    "url": "https://github.com/egil/framework"
+  },
+  "title": "System.Text.Json Migration",
+  "verbatimVersion": "2.0.47",
+  "version": "2.0.47",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#Egil.SystemTextJson.Migration.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7015,
+      "fullName": "Egil.SystemTextJson.Migration.nuspec",
+      "length": 20277,
+      "name": "Egil.SystemTextJson.Migration.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 638,
+      "fullName": "LICENSE",
+      "length": 1068,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7287,
+      "fullName": "README.md",
+      "length": 25234,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#lib/net10.0/Egil.SystemTextJson.Migration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 48402,
+      "fullName": "lib/net10.0/Egil.SystemTextJson.Migration.dll",
+      "length": 89088,
+      "name": "Egil.SystemTextJson.Migration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#lib/net10.0/Egil.SystemTextJson.Migration.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7996,
+      "fullName": "lib/net10.0/Egil.SystemTextJson.Migration.xml",
+      "length": 40864,
+      "name": "Egil.SystemTextJson.Migration.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#lib/net11.0/Egil.SystemTextJson.Migration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 57348,
+      "fullName": "lib/net11.0/Egil.SystemTextJson.Migration.dll",
+      "length": 110080,
+      "name": "Egil.SystemTextJson.Migration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#lib/net11.0/Egil.SystemTextJson.Migration.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8664,
+      "fullName": "lib/net11.0/Egil.SystemTextJson.Migration.xml",
+      "length": 44033,
+      "name": "Egil.SystemTextJson.Migration.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.23.15.52.14/egil.systemtextjson.migration.2.0.47.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "system-text-json",
+    "json",
+    "migration",
+    "egil"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

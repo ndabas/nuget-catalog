@@ -1,0 +1,223 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "GrossGeo Team",
+  "catalog:commitId": "4f03bda9-f00a-40c2-9c88-ed4010b2c56c",
+  "catalog:commitTimeStamp": "2026-09-25T09:12:51.3138087Z",
+  "copyright": "© 2025 GrossGeo. All rights reserved.",
+  "created": "2026-09-25T09:09:32.42Z",
+  "description": "Легковесный SDK для лицензирования AutoCAD-плагинов через платформу GrossGeo. Тонкий клиент с IPC-коммуникацией к User Panel.",
+  "frameworkAssemblyGroup": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#frameworkassemblygroup/.netframework4.8",
+    "assembly": [
+      "System.Management",
+      "System.Net.Http",
+      "System.Security"
+    ],
+    "targetFramework": ".NETFramework4.8"
+  },
+  "id": "GrossGeo.SDK.Stub",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-25T09:12:42.56Z",
+  "licenseFile": "LICENSE.txt",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "05YdoWkOyqXrDkHpuq+8lIJ2RMQyNbUrTKZXNq+IY8DrAA8NykwPjH1jEcAdKphfAb4dabMkFuxGTXgPYYWKog==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 530200,
+  "projectUrl": "https://github.com/2805028/Grossgeo-Platform-SDK",
+  "published": "2026-09-25T09:09:32.42Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v2.2.4 (recommended if your product uses Concurrent seats, or if it targets a machine whose WMI subsystem can be slow to start, e.g. shortly after boot or inside a VM): (1) A Concurrent seat request left unfulfilled after a temporary AcquireSession refusal (panel busy, connection lost) used to stay that way until your product called Acquire again on its own — typically not until the next restart. AcquireSessionAsync/AcquireSessionForProductAsync now retry a non-authoritative refusal in the background with the same rhythm LicenseRefreshed already uses (5/15/30/60 s, then every 5 minutes) until the seat is acquired, the SDK shuts down, or the request is released. A refusal by substance (SESSION_LIMIT_REACHED, LICENSE_NOT_ACTIVE and similar) still returns immediately, unchanged. New: SessionResult.IsRetrying — true while a background retry is in progress; GrossGeoLicense.SessionAcquired event — fires once when a retry succeeds, so a product that showed \"connecting…\" on IsRetrying=true can clear it. (LGC-1353×LGC-1354.) (2) A machine whose WMI subsystem had not warmed up yet (cold boot, some VMs) could get its licence check answered using placeholder hardware IDs (UNKNOWN_CPU/ UNKNOWN_MB/UNKNOWN_VOL) instead of waiting — which could quietly change the machine fingerprint, and the offline-cache key derived from it, between runs of the same physical machine. WMI reads are now bounded by a 15-second window started at Initialize, before the first licence request is even sent; a machine that answers inside the window gets its real fingerprint. A machine that still has not answered when the window closes now gets a new transient result instead — ErrorCode=MACHINE_NOT_IDENTIFIED — picked up by the same retry rhythm as (1), so the check is simply asked again once WMI responds. If you branch on LicenseResult.ErrorCode, add this case; it is new, not a renaming of anything you already handle. (LGC-1356.) (3) The SDK now checks the loaded copy of GrossGeo.Contracts against the revision this SDK version was built for, at Initialize, and logs one diagnostic line — no exception, no behavior change — when an older copy from another GrossGeo product in the same AutoCAD process won a strong-name collision. Useful for diagnosing a TypeLoadException traced to a co-loaded product; see the developer guide. (LGC-1358.) (4) Gateway error code FEATURE_NOT_AVAILABLE covered three different situations under one code: not in your plan, no limit data cached right now, and a limit the studio never configured. The last two now have their own codes, FEATURE_LIMITS_UNAVAILABLE and FEATURE_LIMIT_NOT_CONFIGURED, recognized starting with this SDK version; an SDK built against an earlier version keeps receiving FEATURE_NOT_AVAILABLE for both, unchanged. No product code path in this SDK sends the two request types these codes answer today (GrossGeoLicense.GetFeatureLimit reads the local cache, not IPC) — forward groundwork, not something you will observe with the SDK as shipped. (LGC-1376.) (4b) On AutoCAD 2025+ (the platform preload from LGC-1358) every product in the process runs the code of the newest loaded SDK.Stub, no matter which version each was individually built against — so far, that meant a visible-semantics change shipped in one release (v2.2.3's ProtectOrThrow reporting \"not checked yet\" instead of \"licence invalid\" when no verdict exists yet — see v2.2.3 above) reached even a product that had never been rebuilt against 2.2.3, because the loaded SDK.Stub had no way to tell it apart from one that had. Starting with this version, the SDK determines what a product was built against from that product's own assembly reference to GrossGeo.SDK.Stub, not from the loaded copy's version — every public entry point that can initialize a product (Initialize, InitializeSync, and their overloads) captures its own caller independently, so a product not yet rebuilt against 2.2.3 keeps getting the exact pre-2.2.3 ProtectOrThrow reason, even running under a newer preloaded SDK.Stub. No product code changes are required; rebuilding against 2.2.3 or later is what switches ProtectOrThrow to the newer, more truthful reason. This mechanism is the general fix for the class of problem LGC-1355 exposed — later semantic changes will use the same gate. (LGC-1385.) No breaking changes: items (1) to (4b) above are additive (a new SessionResult property, a new event, a new ErrorCode value, a new diagnostic log line, two new wire-level codes an unmodified SDK never receives, and a version-awareness mechanism that only preserves old behavior for old builds); nothing existing is removed or renamed, and a product built against 2.2.3 keeps compiling and behaving as before without a rebuild — rebuilding is what gets you the retry and the wait window. (5) Offline cache is now kept per runtime (net48 and net8 each have their own file). Previously a product running in AutoCAD 2022 (.NET Framework) and in AutoCAD 2025 (.NET 8) on the same machine overwrote each other's offline cache and read the other's as missing, so offline for more than a day the user was refused while the signed offline window was still open. On first use the previous shared cache file is picked up once if it is in this runtime's format; the old file itself is left untouched. Resetting the licence (refresh, invalidate, clear) removes the cache for all runtimes. (LGC-1380.) (5b) An authoritative refusal about the product right itself — LICENSE_NOT_FOUND, LICENSE_EXPIRED, LICENSE_NOT_ACTIVE, PRODUCT_BLOCKED, USER_NOT_ASSIGNED — that the User Panel delivers live in response to a licence check now erases the SDK's offline licence cache for that product. Previously a revoked or blocked licence kept working from that cache — when the panel was not running, answered without network, or the check threw — until the signed offline window ended (up to 7 days for a per-user subscription, up to 30 for per-machine and perpetual; never past the signed expiry date), then on the free-tier fallback where the product offers one. The LicenseResult of the refusal itself is unchanged (same ErrorCode, Status, IsValid). Later checks no longer fall back to the erased cache: if the panel is not running and the SDK cannot start it, Initialize and later checks return Status = NetworkError with ErrorCode USER_PANEL_NOT_RUNNING; if the check throws, NetworkError with NETWORK_ERROR; if the panel runs without network, you get what the panel itself holds — its stored answer flagged IsFromStaleCache, or NetworkError with the panel's transient code. The cache is kept on temporary refusals (panel busy, timeout, no network); on refusals that are not about the right (FEATURE_NOT_AVAILABLE, SESSION_EXPIRED, INVALID_PRODUCT_KEY, FINGERPRINT_REQUIRED and, for now, MACHINE_NOT_BOUND / MACHINE_LIMIT_EXCEEDED); on refusals to a usage counter or a Concurrent seat request; and on any answer the panel serves from its own records (IsFromStaleCache = true) — including a refusal it received from the server earlier and replays offline. A refusal flagged IsFromStaleCache means the cache was kept, and a later check without the panel may return the old cached verdict. With User Panel 1.0.2633.8001 to 1.0.2638.19001, machine and fingerprint refusals arrive as LICENSE_NOT_ACTIVE and therefore do erase it. User Panel 1.0.2632.3001 and older sends every refusal the server returns inside a licence answer — revoked, suspended or blocked licence, user not assigned, machine, fingerprint — without a code; the SDK treats them as temporary and keeps (and serves) the cache, so with those panels only LICENSE_NOT_FOUND, LICENSE_EXPIRED and, when the panel has no record of its own, PRODUCT_BLOCKED erase it. No code change is required. (LGC-1150.) (6) When all SDK gateway slots of a running User Panel were busy, the SDK treated the panel as not running and started a second copy, which popped the panel window up over the user's work. The SDK now checks the panel's single-instance mutex: a running panel that does not answer — busy, still starting, or shutting down — is not launched again, and the check returns a new transient result — ErrorCode=USER_PANEL_BUSY — picked up by the same retry mechanism as (1). OpenProductPageAsync and RequestTrialAsync, which are explicit user actions, still bring the running panel's window up and now also deliver the navigation to the product page. (LGC-1381.) Items (5) to (6) change what the SDK does at run time without changing any public signature; each says so in its own text.\nv2.2.3 (REQUIRED — closes an AutoCAD crash and an AutoCAD 2019–2024 hang caused by the SDK, and a Concurrent seat being lost without any event): (1) An exception thrown by your SessionExpired or LicenseRefreshed handler no longer crashes acad.exe: every subscriber is isolated and the error goes to the SDK log; SessionExpired is raised once per session. Both events arrive on background threads — call the AutoCAD API from them only through the main thread (README: a Dispatcher or Control captured synchronously in Initialize). (2) .NET Framework (AutoCAD 2019–2024): an exchange with a User Panel that accepted the connection but never answered blocked the calling thread forever — at load, in a command or on exit. It is now bounded by IpcTimeoutSeconds and ends with CONNECTION_FAILED. (3) Concurrent mode: a licence re-check (purchase or trial of any product, account switch, panel restart, ClearLocalCache) no longer drops the session token. Previously heartbeat stopped silently and the server released your seat. A session that is active but has no token now raises SessionExpired with SESSION_TOKEN_LOST. (4) Concurrent mode with several products in one AutoCAD: one heartbeat timer now serves every active session on its own schedule; a failure or expiry affects only its own product. New: SessionExpiredEventArgs.ProductKey (nullable) — whose seat was released. (5) Shutdown() and Shutdown(productKey) release the Concurrent seat themselves and wait for the panel at most 2 seconds: remove ReleaseSessionAsync().Wait() from Terminate. (6) A temporary refusal (panel busy, timeout, sign-in still in progress) is re-asked in the background (5/15/30/60 s, then every 5 minutes) instead of sticking until restart; LicenseRefreshed fires when the result changes. (7) ProtectOrThrow without a verdict now reports \"not checked yet\" (Status=Unknown, NOT_CHECKED) instead of \"licence invalid\"; RequireFeatureOrThrow tells apart \"could not check, retry\", \"licence invalid\" and \"not in your plan\". No breaking changes: SessionExpiredEventArgs gained the ProductKey property and a three-argument constructor.\nEarlier versions (v2.2.2 and older): see CHANGELOG.md in the public repository, https://github.com/2805028/Grossgeo-Platform-SDK/blob/HEAD/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#repository",
+    "commit": "5785483e614e71b0ac77c048c2e2bd61249fbb32",
+    "type": "git",
+    "url": "https://github.com/2805028/Grossgeo-Platform-SDK"
+  },
+  "verbatimVersion": "2.2.4",
+  "version": "2.2.4",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#dependencygroup/net8.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#dependencygroup/net8.0-windows7.0/system.management",
+          "@type": "PackageDependency",
+          "id": "System.Management",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#dependencygroup/net8.0-windows7.0/system.security.cryptography.protecteddata",
+          "@type": "PackageDependency",
+          "id": "System.Security.Cryptography.ProtectedData",
+          "range": "[8.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0-windows7.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#GrossGeo.SDK.Stub.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5414,
+      "fullName": "GrossGeo.SDK.Stub.nuspec",
+      "length": 12568,
+      "name": "GrossGeo.SDK.Stub.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#LICENSE.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 548,
+      "fullName": "LICENSE.txt",
+      "length": 928,
+      "name": "LICENSE.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 15033,
+      "fullName": "README.md",
+      "length": 51702,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#lib/net48/GrossGeo.Contracts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27744,
+      "fullName": "lib/net48/GrossGeo.Contracts.dll",
+      "length": 53272,
+      "name": "GrossGeo.Contracts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#lib/net48/GrossGeo.Contracts.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 31703,
+      "fullName": "lib/net48/GrossGeo.Contracts.xml",
+      "length": 139964,
+      "name": "GrossGeo.Contracts.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#lib/net48/GrossGeo.SDK.Stub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 100188,
+      "fullName": "lib/net48/GrossGeo.SDK.Stub.dll",
+      "length": 199192,
+      "name": "GrossGeo.SDK.Stub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#lib/net48/GrossGeo.SDK.Stub.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 78366,
+      "fullName": "lib/net48/GrossGeo.SDK.Stub.xml",
+      "length": 364094,
+      "name": "GrossGeo.SDK.Stub.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#lib/net8.0-windows7.0/GrossGeo.Contracts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27742,
+      "fullName": "lib/net8.0-windows7.0/GrossGeo.Contracts.dll",
+      "length": 53272,
+      "name": "GrossGeo.Contracts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#lib/net8.0-windows7.0/GrossGeo.Contracts.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 31703,
+      "fullName": "lib/net8.0-windows7.0/GrossGeo.Contracts.xml",
+      "length": 139964,
+      "name": "GrossGeo.Contracts.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#lib/net8.0-windows7.0/GrossGeo.SDK.Stub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 102757,
+      "fullName": "lib/net8.0-windows7.0/GrossGeo.SDK.Stub.dll",
+      "length": 206360,
+      "name": "GrossGeo.SDK.Stub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#lib/net8.0-windows7.0/GrossGeo.SDK.Stub.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 78113,
+      "fullName": "lib/net8.0-windows7.0/GrossGeo.SDK.Stub.xml",
+      "length": 362977,
+      "name": "GrossGeo.SDK.Stub.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.25.09.12.51/grossgeo.sdk.stub.2.2.4.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 27703,
+      "fullName": ".signature.p7s",
+      "length": 27703,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "autocad",
+    "licensing",
+    "sdk",
+    "plugin",
+    "subscription",
+    "lightweight"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Egil Hansen",
+  "catalog:commitId": "c9c07704-c817-440a-bfdd-d7c51715ddd6",
+  "catalog:commitTimeStamp": "2026-09-24T14:55:03.7554983Z",
+  "copyright": "Egil Hansen",
+  "created": "2026-09-24T14:51:58.857Z",
+  "description": "Version-aware JSON migration helpers for System.Text.Json with explicit migrator registration and source-generation support.",
+  "id": "Egil.SystemTextJson.Migration",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-24T14:54:48.66Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "6XrQwxic4Kyvrh2CC4blEeCYZnNtGlijIvVnC0IfXLp+ccu+8juRrfSIIVIK+7qfqSAtKloeEAvxAeiPJ2HU6A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 201655,
+  "projectUrl": "https://github.com/egil/framework/tree/main/Egil.SystemTextJson.Migration",
+  "published": "2026-09-24T14:51:58.857Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "New Features:\n- detect ambiguous non-object migration sources (#254)\n  The analyzer now warns when static migration sources for one target share a primitive or collection JSON shape that cannot carry a discriminator. This exposes ambiguous historical payloads before deserialization depends on registration order.\n- detect missing source metadata in JSON contexts (#253)\n  Source-generated contexts now warn when a reachable migratable target lacks metadata for an IMigrateFrom source type it needs. The analyzer follows inherited and included members and collection elements, respects ignored members, and reports each missing target/source pair once per context. This identifies incomplete metadata before historical payloads fail to deserialize without requiring redundant explicit registrations.\n  Converter-controlled and unresolved generic contracts are treated conservatively because their metadata requirements cannot be inferred from CLR members. Ordinary targets in the same context remain checked.\n- name missing migration union classifiers (#252)\n  Source-generated contexts now warn when a union with a migratable case lacks JsonMigratableUnionTypeClassifier. The warning names the required JsonUnion configuration so it complements SYSLIB1227.\n- detect duplicate migration source discriminators (#250)\n  The analyzer now warns when two source types for one target resolve to the same discriminator key. It distinguishes independent targets and skips callback-based discriminator configuration whose values are only known at runtime.\n- detect missing string metadata in JSON contexts (#251)\n  STJM0007 warns when a source-generated JSON context contains migratable payload types but lacks metadata for their injected string discriminator. Registering string explicitly or making it reachable through registered metadata resolves the warning. The analysis follows inherited and nested members and collection contracts, respects ignored members, and keeps each context independent.\n  Closes #235\n- warn on STJ polymorphism conflicts (#243)\n  * feat(stjm): detect polymorphism migration conflicts\n  The analyzer now warns when JsonMigratable is combined with System.Text.Json polymorphism in one hierarchy. The diagnostic links directly to migration guidance so consumers can choose a supported design before serialization fails at runtime.\n  * fix(stjm): keep migration diagnostics active without STJ\n  Migration diagnostics now remain available when a consumer compilation omits System.Text.Json. STJM0005 alone disables itself until its polymorphism metadata is present, so consumers still receive applicable migration warnings.\n- validate undiscriminated source contracts (#247)\n  Undiscriminated source configuration now reports STJM0003 when no target-owned static migration or visible external migration contract can supply the selected source. This identifies configuration that would otherwise fail only when an undiscriminated payload is deserialized.\n  During review, inherited configurations showed that a derived target could be warned at a valid base attribute. Report that case on the derived type and cover it with a two-file regression.\n- warn on unsupported migratable target kinds (#246)\n  STJM0004 now warns when a migratable target is a collection, dictionary, asynchronous enumerable, or .NET 11 union. Use ordinary object targets or mark union case types so the JSON contract can carry the migration discriminator.\n  The analyzer recognizes inherited migration markers and distinguishes collection interfaces from ordinary GetEnumerator methods. Union detection remains compatible with older analyzer hosts while checking actual .NET 11 union declarations.\n- detect orphaned legacy payload types (#245)\n  Marked historical payload types now warn when no migration contract in the compilation uses them as a source. Set MigratedExternally when the contract lives in another assembly, or remove the marker when the historical type is no longer migrated.\n- warn on legacy payload usage outside migration (#241)\n  Mark historical payload classes, structs, and enums with JsonMigrationLegacyType to receive STJM0010 warnings when application code names or infers them outside their direct migration boundary. Required JSON metadata and migration registration remain supported, while ordinary replacement APIs and tests follow the same boundary.\n  The marker has no runtime effect. MigratedExternally is reserved for future orphan-source analysis and does not suppress legacy-use warnings.\n- warn on target-owned external migrators (#242)\n  Migratable targets now receive STJM0002 when they directly implement the external IMigrate<TSource, TTarget> contract. The diagnostic points to the offending contract and guides consumers to use IMigrateFrom or an external migrator, helping catch configurations that cannot use the target-owned migration path.\nBug Fixes:\n- account for uncertain collection discriminators\n  Warn when non-object migration sources may collide because a builder selector or default discriminator property changes the element key, or because an element converter owns its JSON representation. Preserve precise checks when the discriminator remains statically known. Add focused cases for these configurations.\n- follow generated JSON metadata paths accurately\n  Include polymorphic derived types and selected constructor parameters when checking migration source metadata. Treat member converter paths as unable to require migration while preserving their emitted type metadata, and stop unresolved recursive generic graphs without a speculative warning. SDK-backed tests exercise the generated contexts.\n- address legacy and metadata diagnostic edge cases\n  Allow legacy sources inside direct migration contracts and registration types, report duplicate discriminators from referenced assemblies at a useful source location, and avoid speculative string metadata warnings for open generic graphs. Index visible legacy source contracts once so orphan checks remain responsive in larger projects. Clarify the diagnostics documentation for inherited contracts and conditional ignore behavior.\n- key source discriminators by property and value (#248)\n  Migration sources can now share a discriminator value when their effective discriminator property names differ. Deserialization matches the complete pair, honors case-sensitive property names and builder defaults, and rejects ambiguous shared-value payloads. Duplicate pairs still raise the dedicated exception, and static migration retains precedence over external migration for the same source and target.\n  Closes #244\n- track migrations on struct targets\n  A struct target that implements IJsonMigrationTracked now reports MigratedDuringDeserialization after a migration or a legacy read. The flag was previously set on a boxed copy, so the returned value always reported false.\nPerformance:\n- use typed migration dispatch\n  Migrations now read the source and call the migrator through typed code instead of object-typed invokers. A migration whose source or target is a value type no longer boxes either value, saving two allocations per migration; in pinned .NET 10 and .NET 11 benchmarks such migrations ran 4-9% faster. Reference-type migrations are unchanged.\n  Existing behavior is preserved, including quoted numeric sources, source converters declared for a base type, inherited static contracts with public or non-public derived-target overloads, per-call service provider resolution, and cached fallback construction failures.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#repository",
+    "branch": "refs/heads/release/egil-systemtextjson-migration/v2.0",
+    "commit": "6fe190fb0681c59eb1eb301108d04dc8a624d026",
+    "type": "git",
+    "url": "https://github.com/egil/framework"
+  },
+  "title": "System.Text.Json Migration",
+  "verbatimVersion": "2.0.76",
+  "version": "2.0.76",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#Egil.SystemTextJson.Migration.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3447,
+      "fullName": "Egil.SystemTextJson.Migration.nuspec",
+      "length": 8683,
+      "name": "Egil.SystemTextJson.Migration.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 638,
+      "fullName": "LICENSE",
+      "length": 1068,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7287,
+      "fullName": "README.md",
+      "length": 25234,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#analyzers/dotnet/cs/Egil.SystemTextJson.Migration.Analyzers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 50655,
+      "fullName": "analyzers/dotnet/cs/Egil.SystemTextJson.Migration.Analyzers.dll",
+      "length": 99328,
+      "name": "Egil.SystemTextJson.Migration.Analyzers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#lib/net10.0/Egil.SystemTextJson.Migration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 48881,
+      "fullName": "lib/net10.0/Egil.SystemTextJson.Migration.dll",
+      "length": 90112,
+      "name": "Egil.SystemTextJson.Migration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#lib/net10.0/Egil.SystemTextJson.Migration.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8069,
+      "fullName": "lib/net10.0/Egil.SystemTextJson.Migration.xml",
+      "length": 41334,
+      "name": "Egil.SystemTextJson.Migration.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#lib/net11.0/Egil.SystemTextJson.Migration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 58066,
+      "fullName": "lib/net11.0/Egil.SystemTextJson.Migration.dll",
+      "length": 111616,
+      "name": "Egil.SystemTextJson.Migration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#lib/net11.0/Egil.SystemTextJson.Migration.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 8937,
+      "fullName": "lib/net11.0/Egil.SystemTextJson.Migration.xml",
+      "length": 45860,
+      "name": "Egil.SystemTextJson.Migration.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.14.55.03/egil.systemtextjson.migration.2.0.76.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "system-text-json",
+    "json",
+    "migration",
+    "egil"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Immanuel R",
+  "catalog:commitId": "80718a65-e8d6-450f-92f6-f859ba405015",
+  "catalog:commitTimeStamp": "2026-09-24T16:45:55.9108727Z",
+  "created": "2026-09-24T16:43:21.58Z",
+  "description": "simple database helper library\n\t\t\t- creating table from object\n\t\t\t- creating dml query generation (update, insert)\n\t\t\t- enable delete options for all databases table.",
+  "iconFile": "ark_logo.png",
+  "id": "Ark.Rapid.Database",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-24T16:45:29.193Z",
+  "listed": true,
+  "packageHash": "xbYiYvpbFggIfEDQZFtLua/V2Ku1sy9CMkkA+99f4gvH8Y7qkcTC0Li/PNqMDv5WKAIU0vfsiLaETac6CzYo0A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 154276,
+  "published": "2026-09-24T16:43:21.58Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "0.0.20 — all three providers (Postgres/TablePostgreScript.cs, Maria/TableMariaScript.cs,\nSqlite/TableSqliteScript.cs, and each provider's *Manager.cs), plus\nVALIDATION.md/AI-SPEC.md/IMPLEMENTATION.md/README.md/ai-spec.json docs.\n\nAdded: VALIDATION.md — a new companion doc alongside AI-SPEC.md/IMPLEMENTATION.md/README.md, packed\nthe same way (docs\\VALIDATION.md in the .nupkg, copied to every consuming project's own build\noutput). It is a scannable pass/fail checklist (stable IDs V1, V2, ...) of every known cross-\nprovider failure mode in this library, each with a Trigger/Symptom/Root cause/Fix and a cross-\nreference back to the full detail in AI-SPEC.md/IMPLEMENTATION.md — meant to be run against code\nright after writing or generating it, not just read once.\n\nAdded: V1, a previously-undocumented failure mode found and fixed in a consuming project —\nPostgreSQL rejects a GROUP BY query that selects a JOINed table's other columns ungrouped unless\nthat table's own primary key (not just a foreign key that happens to equal it) is also in the\nGROUP BY list ('42803: column ... must appear in the GROUP BY clause or be used in an aggregate\nfunction'). SQLite/MariaDB run the identical query without complaint, so this is easy to ship\nunnoticed if development/CI runs SQLite. See VALIDATION.md §V1, AI-SPEC.md §11, and\nIMPLEMENTATION.md §10.12 for the full explanation and worked before/after fix.\n\nFixed: Constraint.Primary_AutoIncrement now adds a table-level PRIMARY KEY constraint on\nPostgreSQL, matching Constraint.Primary. Before this fix, an autoincrement id column (the standard\nway every \"id\" column in the AI-SPEC.md worked examples is declared) only got the column-level\nGENERATED ALWAYS AS IDENTITY clause on PostgreSQL — no PRIMARY KEY, no UNIQUE constraint, nothing.\nThis silently invalidated V1's documented GROUP BY fix above, since PostgreSQL's\nfunctional-dependency rule (which that fix relies on) only fires for a column with a real PRIMARY\nKEY constraint. Found while debugging a live 42803 error that persisted even after applying V1's\nfix exactly as documented.\n\nExisting tables created by a pre-0.0.20 build are NOT retroactively fixed by upgrading —\nCREATE TABLE IF NOT EXISTS is a no-op against a table that already exists, constraint gap and all.\nThey need either a one-time \"ALTER TABLE ... ADD PRIMARY KEY (id)\" migration per table, or every\naffected query needs to list its selected non-aggregate columns explicitly in GROUP BY instead of\nrelying on V1's shorter \"group by the joined table's id\" form. See VALIDATION.md §V16, AI-SPEC.md\n§8.2, and IMPLEMENTATION.md §10.13 for the full explanation and worked example of both options.\n\nFixed: Constraint.Default/ColumnProp.Default now works on SQLite and PostgreSQL — both previously\nhad no effect at all. SQLite's Constraint.Default case emitted an empty, uniquely-named\nCONSTRAINT CST_DEF_xxxxx fragment and never appended DEFAULT <value>; PostgreSQL's\ncreate-table/add-column generators had no case for it whatsoever. MariaDB was the only provider\nwhere Default did anything, and even there the value was guessed from the raw string alone rather\nthan driven by ColumnProp.DataType. All three now parse Default against DataType (Nullable<T>\nunwrapped) and re-format it through the same literal-formatting path an inserted value uses, so a\ncolumn's default and an app-supplied value for it always agree on format — across every CLR type\neach provider's type-mapper recognizes, for CreateTableAsync, AddColumnAsync, and\nModifyColumnAsync.\n\nAdded: two case-insensitive keyword sentinels for ColumnProp.Default, independent of DataType —\n\"CURRENT_TIMESTAMP\" (the engine's own now) and \"UTC_TIMESTAMP\" (guaranteed current UTC instant\nregardless of session timezone: MariaDB's UTC_TIMESTAMP(), Postgres's\n(CURRENT_TIMESTAMP AT TIME ZONE 'UTC'), SQLite's CURRENT_TIMESTAMP). Use \"UTC_TIMESTAMP\" for a\nDateTime column that must always default to a real UTC instant on every provider.\n\nFixed: ModifyColumnAsync no longer throws NotImplementedException on any provider. MariaDB's and\nPostgreSQL's previously-commented-out implementations are wired up (PostgreSQL's now also\nsets/drops Default and NotNull). SQLite gets a new table-rebuild implementation (SQLite has no\nALTER COLUMN): rename the table aside, CREATE it fresh with the target column redefined and every\nsibling column's original definition preserved verbatim, copy the data across, drop the renamed\noriginal. All three share full-redefinition semantics matching MariaDB's own MODIFY COLUMN — a\nconstraint absent from the given ColumnProp is dropped, not left as-is. Known limitation: the\nSQLite rebuild does not support a table with hand-written table-level constraints, and\nPostgreSQL's ALTER COLUMN ... TYPE always rewrites the column even if only the default changed.\n\nFixed: SQLite's literal DateTime formatting (GetSqliteValue) used a 12-hour clock with no AM/PM\ndesignator and appended the executing machine's local UTC offset regardless of the value's own\ntimezone info — both silent correctness bugs for any UTC DateTime, discovered while building this\nrelease's cross-provider test. Now an unambiguous 24-hour, offset-free format whose date+time\nprefix matches SQLite's own CURRENT_TIMESTAMP output.\n\nFixed: MariaDB's column-constraint clause order was caller-array-order-dependent, which is what\nmade a string Default paired with NotNull unreliable. Now canonical (NotNull, then Default, then\nPrimary_AutoIncrement) regardless of the order ColumnProp.Constraints lists them in.\n\nVerified with a 42-check cross-provider test (SQLite, a local MariaDB container, a local\nPostgreSQL container) covering CreateTableAsync/AddColumnAsync/ModifyColumnAsync with a DateTime\nUTC_TIMESTAMP default, a literal DateTime default, and one default each for\nbool/decimal/string/Guid — including confirming AddColumnAsync backfills pre-existing rows and\nModifyColumnAsync preserves pre-existing rows/sibling columns intact through Postgres's rewrite\nand SQLite's rebuild.\n\nDocs: VALIDATION.md gains §V1 and §V16 (cross-referenced from each other); AI-SPEC.md §5, §8.1\n(bool/SQLite type-mapping row correction), §8.2, §11, and §12 are corrected/updated to match;\nIMPLEMENTATION.md gains §10.12 and §10.13 with worked before/after patterns; README.md's \"validate\na query\" checklist prompt is extended to include V1 and V16, and gains prompts for the §10.13\nworkaround and for auditing which tables still need the migration.\n\nFull detail and the machine-readable change log: see docs/AI-SPEC.md §12 and docs/ai-spec.json\n(changeLog, entry for 0.0.20; capabilities.columnDefaultValueSupport_0_0_20 /\ncapabilities.modifyColumnAsyncImplemented_0_0_20 / capabilities.postgresAutoIncrementPrimaryKeyFix)\ninside this package, or AI-SPEC.md/ai-spec.json in the repository.\n\n0.0.18 — DatabaseUtil (Common/DatabaseUtil.cs), plus IMPLEMENTATION.md/README.md docs.\n\nAdded: Qry_Diff_Days(end, start) — day difference between two datetime columns, always fractional\n(seconds-based) on every provider. Unlike Qry_Diff_Hrs/Qry_Diff_Mins, which follow each provider's\nnative truncation for their unit (whole HOUR/MINUTE on MariaDB/mssql), Qry_Diff_Days never\ntruncates — use it for duration/average reports (e.g. \"average days a request has stayed open\")\nwhere whole-day truncation would lose most of the signal. Casts both operands to ::timestamptz on\nPostgreSQL. Argument order is (end, start), same as Qry_Diff_Hrs/Qry_Diff_Mins.\n\nFixed: Qry_Diff_Mins's PostgreSQL branch now casts both operands to ::timestamptz before\nsubtracting, matching Qry_Diff_Hrs. Previously, diffing a `timestamp without time zone` expression\n(e.g. Qry_UtcNow(), which returns \"CURRENT_TIMESTAMP AT TIME ZONE 'UTC'\") against a `timestamptz`\ncolumn relied on Postgres's implicit cast of the naive side through the session's timezone, which\nsilently returns a wrong result whenever that session timezone isn't UTC.\n\nDocs: added IMPLEMENTATION.md section 10.11 (average/fractional-day duration report worked\npattern — the Qry_Diff_Days counterpart to section 10.8) and a matching README.md AI-coding-agent\nprompt for converting an existing hand-written, single-provider duration expression to this\npattern.\n\nFull detail and a machine-readable change log for coding agents: see docs/AI-SPEC.md §11 and\ndocs/ai-spec.json (changeLog, capabilities.databaseUtilAdditions_0_0_18) inside this package, or\nAI-SPEC.md/ai-spec.json in the repository.\n\n0.0.17 — README.md only; no library code or runtime behavior changed.\n\nAdded: a new AI-coding-agent prompt, \"Sweep the whole project: migrate every existing raw SQL\nquery to Ark.Rapid.Database's portable helpers.\" Unlike the existing per-scenario prompts (each\nscoped to one new query), this one instructs an agent to audit an entire existing codebase —\nincluding raw SQL not yet routed through ArkDbManager at all — replace every dialect-specific\nfragment with the matching DatabaseUtil Qry_* method, replace concatenated external input with\nGetSqlValueAsync per the security model in AI-SPEC.md §7, and report what it converted.\n\nFull detail: see the \"Sweep the whole project\" prompt in README.md (repository root or packed at\nthe package root as PackageReadmeFile).\n\n0.0.16 — DatabaseUtil only (Common/DatabaseUtil.cs); purely additive, no existing method's behavior\nchanged.\n\nAdded: Qry_Greatest(params string[] values) / Qry_Least(params string[] values) — row-wise\n(scalar) greatest/least of 2+ expressions, e.g. clamping a shortfall at zero with\nQry_Greatest(\"0\", \"required - filled\"). This is not the aggregate MAX()/MIN() over rows. NULL-\nhandling differs by provider if any argument can be NULL: sqlite/maria return NULL if any argument\nis NULL, postgres ignores NULLs (returns NULL only if all arguments are NULL), and the mssql\nemulation (no native GREATEST/LEAST pre-2022) is order-dependent and inconsistent with all three.\nWrap arguments in Qry_IfNull(value, \"0\") first for identical results across providers.\n\nAdded: Qry_Bool(bool value) — a boolean literal for a native/conventional boolean column ('1'/'0'\non sqlite/maria/mssql, 'TRUE'/'FALSE' on postgres — required there, since PostgreSQL's boolean type\nrejects a bare 1/0 comparison). Not interchangeable with GetSqlValueAsync(bool), which targets a\ncolumn this library created itself via CreateTableAsync with ColumnProp.DataType = typeof(bool)\n(stored as TEXT holding 'TRUE'/'FALSE' strings on SQLite).\n\nAdded: Qry_Concat(params string[] values) — string concatenation ( || on sqlite/postgres, CONCAT()\non maria/mssql). NULL propagates on sqlite/postgres/maria; mssql's CONCAT() treats NULL as an empty\nstring instead.\n\nAdded: Qry_Limit(int limit, int? offset = null) — a LIMIT/OFFSET paging fragment; the mssql branch\ncompiles to OFFSET/FETCH, which requires the query to already have an ORDER BY clause.\n\nFull detail and a machine-readable change log for coding agents: see docs/AI-SPEC.md §11 and\ndocs/ai-spec.json (changeLog, capabilities.databaseUtilAdditions_0_0_16) inside this package, or\nAI-SPEC.md/ai-spec.json in the repository.\n\n0.0.14 — PostgreSQL provider only (TablePostgresScript.cs, PostgresManager.cs); SQLite and MariaDB unchanged.\n\nBREAKING: InsertTableAsync now appends \"RETURNING id;\" instead of \"RETURNING *;\". The returned\ndynamic row now carries only an `id` field instead of every inserted column, and the target table\nmust have a column literally named \"id\" (a different key name, a composite key, or no primary key\nthrows a Postgres \"column \\\"id\\\" does not exist\" error, or returns null for that field). There is\nno flag to restore the old full-row behavior; run your own \"INSERT ... RETURNING *\" through\nExecuteQueryAsync/ExecuteAsync if you need it.\n\nFixed: nullable value types (int?, long?, DateTime?, Guid?, decimal?, enum?, etc.) passed as\nColumnProp.DataType now map to their real Postgres column type instead of always falling back to\nTEXT.\n\nFixed: GetSqlValue (used by InsertTableAsync/UpdateTableAsync/GetSqlValueAsync) now correctly\nquotes DateOnly, TimeOnly, TimeSpan (including a day component), and enum values, which previously\nserialized as unquoted, syntactically invalid SQL. DBNull.Value now maps to NULL instead of an\nempty string literal. JsonElement/JsonDocument/JsonObject values are now serialized via\nJsonSerializer.Serialize into a proper JSON string literal for JSONB columns.\n\nFull before/after detail, migration guidance, and a machine-readable change log for coding agents:\nsee docs/AI-SPEC.md §7.1-7.2/§8.1 and docs/ai-spec.json (changeLog, capabilities.insertReturnShape,\ncapabilities.nullableColumnTypeMapping, capabilities.postgresLiteralEncodingFixes) inside this\npackage, or IMPLEMENTATION.md/AI-SPEC.md/ai-spec.json in the repository.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#repository",
+    "branch": "main",
+    "commit": "efb9afef43da40286bfb733c989ea45246880ee8",
+    "type": "git",
+    "url": "https://github.com/ir-dev/ark-efcore/tree/main/Ark.Efcore/Ark.Rapid.Database"
+  },
+  "title": "Database help library",
+  "verbatimVersion": "0.0.23",
+  "version": "0.0.23",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#dependencygroup/net9.0/dapper",
+          "@type": "PackageDependency",
+          "id": "Dapper",
+          "range": "[2.1.66, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#dependencygroup/net9.0/microsoft.data.sqlite",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.Sqlite",
+          "range": "[9.0.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#dependencygroup/net9.0/mysqlconnector",
+          "@type": "PackageDependency",
+          "id": "MySqlConnector",
+          "range": "[2.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#dependencygroup/net9.0/npgsql",
+          "@type": "PackageDependency",
+          "id": "Npgsql",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#dependencygroup/net9.0/sqlitepclraw.bundle_e_sqlite3",
+          "@type": "PackageDependency",
+          "id": "SQLitePCLRaw.bundle_e_sqlite3",
+          "range": "[2.1.13, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#Ark.Rapid.Database.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5930,
+      "fullName": "Ark.Rapid.Database.nuspec",
+      "length": 14129,
+      "name": "Ark.Rapid.Database.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#lib/net9.0/Ark.Rapid.Database.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 56342,
+      "fullName": "lib/net9.0/Ark.Rapid.Database.dll",
+      "length": 151040,
+      "name": "Ark.Rapid.Database.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#ark_logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 6498,
+      "fullName": "ark_logo.png",
+      "length": 7250,
+      "name": "ark_logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#docs/AI-SPEC.md",
+      "@type": "PackageEntry",
+      "compressedLength": 19661,
+      "fullName": "docs/AI-SPEC.md",
+      "length": 53623,
+      "name": "AI-SPEC.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#docs/ai-spec.json",
+      "@type": "PackageEntry",
+      "compressedLength": 17495,
+      "fullName": "docs/ai-spec.json",
+      "length": 60479,
+      "name": "ai-spec.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#docs/IMPLEMENTATION.md",
+      "@type": "PackageEntry",
+      "compressedLength": 11861,
+      "fullName": "docs/IMPLEMENTATION.md",
+      "length": 33097,
+      "name": "IMPLEMENTATION.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#docs/VALIDATION.md",
+      "@type": "PackageEntry",
+      "compressedLength": 10904,
+      "fullName": "docs/VALIDATION.md",
+      "length": 29822,
+      "name": "VALIDATION.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#build/Ark.Rapid.Database.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 742,
+      "fullName": "build/Ark.Rapid.Database.targets",
+      "length": 1689,
+      "name": "Ark.Rapid.Database.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#buildTransitive/Ark.Rapid.Database.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 742,
+      "fullName": "buildTransitive/Ark.Rapid.Database.targets",
+      "length": 1689,
+      "name": "Ark.Rapid.Database.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 8346,
+      "fullName": "README.md",
+      "length": 24052,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.24.16.45.55/ark.rapid.database.0.0.23.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12987,
+      "fullName": ".signature.p7s",
+      "length": 12987,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "ark-rapid-database",
+    "database-helper"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

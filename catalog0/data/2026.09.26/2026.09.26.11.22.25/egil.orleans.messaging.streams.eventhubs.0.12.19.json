@@ -1,0 +1,163 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Egil Hansen",
+  "catalog:commitId": "9e2312c8-2c04-4ed3-ab78-b60c91a29d3e",
+  "catalog:commitTimeStamp": "2026-09-26T11:22:25.2182079Z",
+  "copyright": "Egil Hansen",
+  "created": "2026-09-26T11:20:21.433Z",
+  "description": "Event Hubs-specific stream token enrichment for Egil.Orleans.Messaging.",
+  "id": "Egil.Orleans.Messaging.Streams.EventHubs",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-26T11:22:24.537Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "YHuFTQNaMSdlnyvNx6daqT0qSmv7YKuXIFhQZfXlBBrh++TNIzSQDeC1mAR2GTN8pXuhjzZbzp0HSvv4Y3GqOA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 82833,
+  "projectUrl": "https://github.com/egil/framework",
+  "published": "2026-09-26T11:20:21.433Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "New Features:\n- let outbox MessageTraceOptions.None join an existing trace\n  OutboxProcessorOptions.Trace = MessageTraceOptions.None now matches the\n  stream side: it joins an existing trace and never starts one.\n  - When a request drives the drain, the orleans.outbox.post span behaves\n    as with Link: a child of the ambient activity with a link to the\n    traceparent captured when the message was added.\n  - On timer, reminder, and background drains nothing is ambient, so no\n    span starts and postmen run with no activity.\n  Choose None to silence background drains and redeliveries while keeping\n  spans inside request-driven work. The outbox.post.* metrics are still\n  recorded, and Outbox<T> still captures each message's traceparent.\n- choose how outbox delivery spans relate to the producing trace\n  OutboxProcessorOptions.Trace takes the same MessageTraceOptions as\n  stream subscriptions, per processor or as a silo default through\n  ConfigureOutboxProcessor:\n  - MessageTraceOptions.Link (default, unchanged): the orleans.outbox.post\n    span joins the ambient activity, if any, and links to the traceparent\n    captured when the message was added.\n  - MessageTraceOptions.Parent: the span is a child of the captured\n    traceparent instead of the ambient activity, with no link.\n  - MessageTraceOptions.ParentWithinLag(maxLag): parent when the message was\n    added at most maxLag ago, measured with the processor's TimeProvider,\n    otherwise link. Timer and reminder retries long after the message was\n    added fall back to a link.\n  - MessageTraceOptions.None: no span. Postmen run under the ambient\n    activity, so EnrichedEventHubAdapter stamps whatever is ambient.\n  None turns off the span only. The outbox.post.* metrics are still\n  recorded, and Outbox<T> still captures each message's traceparent for\n  log correlation. An unparseable traceparent behaves as before.\n- default outbox processor clock to the registered TimeProvider\n  OutboxProcessorOptions.TimeProvider is now null by default. A null clock\n  uses the TimeProvider registered in the silo's services, or\n  TimeProvider.System when none is registered. A clock set in the silo\n  defaults or in the processor's configure callback still wins.\n  Silos that register a TimeProvider now enforce ProcessingTimeout with it\n  without extra configuration.\n- configure outbox processors through a callback with silo-wide defaults\n  RegisterOutboxProcessor now takes the outbox accessor and a configure\n  callback instead of an OutboxProcessorOptions<T> instance:\n      this.RegisterOutboxProcessor(() => state.State.Outbox, options =>\n      {\n          options.AcknowledgePosted = RemovePosted;\n          options.RetryDelay = TimeSpan.FromMinutes(1);\n      })\n  The scheduling settings (ProcessingTimeout, RetryDelay, Interleave,\n  InterleaveAcknowledgementCallbacks, KeepAlive, TimeProvider) moved to a\n  non-generic OutboxProcessorOptions base class, so a silo can set them\n  once for every processor. Each processor starts from these defaults and\n  its callback overrides them:\n      siloBuilder.ConfigureOutboxProcessor((options, services) =>\n      {\n          options.RetryDelay = TimeSpan.FromMinutes(1);\n          options.TimeProvider = services.GetRequiredKeyedService<TimeProvider>(\"pricing\");\n      });\n  The same overloads exist on IServiceCollection, and they compose with\n  services.Configure<OutboxProcessorOptions>(...). The acknowledgement\n  callbacks stay on OutboxProcessorOptions<T>, because they are typed to\n  each grain's payload. The processor copies the options when the callback\n  returns and validates the result, so an invalid silo default fails\n  registration with the configure parameter named.\n  OutboxProcessorOptions<T>.OutboxAccessor is removed; pass the accessor\n  as the first argument. When the accessor returns a collection expression,\n  give the lambda an explicit return type so the payload type can be\n  inferred, for example static Outbox<string> () => []. The README Beta API\n  changes section shows the migration.\n- set a silo-wide MessageTracker clock\n  MessageTracker stamps each accepted source with a Received time that\n  eviction compares against. The clock is not persisted, so grains had to\n  call RegisterTimeProvider on every tracker after each read, typically\n  through IConfigurableState, or fall back to the system clock.\n  A silo can now set the clock once:\n      siloBuilder.ConfigureMessageTracker((options, services) =>\n          options.TimeProvider = services.GetRequiredKeyedService<TimeProvider>(\"pricing\"));\n  A tracker uses the first clock it finds: its own from\n  RegisterTimeProvider, then the silo-wide clock, then TimeProvider.System.\n  The silo-wide clock is MessageTrackerOptions.TimeProvider when set,\n  otherwise the TimeProvider registered in the silo's services, so\n  ConfigureMessageTracker(_ => { }) adopts the silo's registered clock. It\n  covers trackers created with new MessageTracker() and trackers\n  deserialized from grain state. The silo installs it before any grain\n  activates and removes it when it stops. ConfigureMessageTracker has the\n  same Action<TOptions> and Action<TOptions, IServiceProvider> overloads as\n  the other silo-wide options, composes through the options pattern, and\n  exists on IServiceCollection too.\n  The clock is process-wide, so silos sharing a process, as in an\n  in-process test cluster, share the clock of the last silo to start.\n  Without ConfigureMessageTracker, trackers behave as before.\n- let MessageTraceOptions.None join an existing trace\n  MessageTraceOptions.None now means \"do not start a trace\" rather than\n  \"never trace\". For a stream subscription:\n  - When an activity is ambient, the orleans.stream.process span starts as\n    its child, with a link to the producer when the traceparent parses.\n  - When nothing is ambient, no span starts and the handler runs with no\n    activity.\n  This keeps spans inside request-driven work, such as an in-memory stream\n  delivered inside the producer's call, while silencing deliveries that\n  would otherwise each start a trace. The stream.* metrics are recorded\n  either way.\n- share the message trace mode and add a None mode\n  StreamTraceOptions and StreamTraceMode are renamed to MessageTraceOptions\n  and MessageTraceMode and move to the Egil.Orleans.Messaging namespace, so\n  the outbox processor can use the same setting for its span.\n  MessageTraceOptions.None starts no orleans.stream.process span. The\n  handler runs under the ambient activity, and the stream.* metrics are\n  still recorded. Link stays the default.\n- default stream subscription clock to the registered TimeProvider\n  StreamSubscriptionOptions.TimeProvider is now null by default. A null\n  clock uses the TimeProvider registered in the silo's services, or\n  TimeProvider.System when none is registered. A clock set in the silo\n  defaults or in a subscription's configure callback still wins.\n  Silos that register a TimeProvider, including test clusters that\n  register a fake clock, now measure ParentWithinLag against it without\n  extra configuration.\n- configure stream subscriptions through options with silo-wide defaults\n  StreamManager subscriptions are now configured through an optional\n  callback that receives StreamSubscriptionOptions, instead of optional\n  parameters:\n      .ConfigureImplicitSubscription(\"prices\", HandleAsync, options =>\n      {\n          options.OnError = LogStreamError;\n          options.UseTrackedResumeToken = false;\n      })\n  Settings shared by every grain can be set once per silo. Each\n  subscription starts from these defaults and its callback overrides them:\n      siloBuilder.ConfigureStreamManager((options, services) =>\n      {\n          options.Trace = StreamTraceOptions.ParentWithinLag(TimeSpan.FromMinutes(5));\n          options.TimeProvider = services.GetRequiredKeyedService<TimeProvider>(\"pricing\");\n      });\n  The same overloads exist on IServiceCollection, and they compose with\n  services.Configure<StreamSubscriptionOptions>(...).\n  StreamSubscriptionOptions.Trace controls how each delivery's\n  orleans.stream.process span relates to the producer's W3C traceparent:\n  - StreamTraceOptions.Link (default, unchanged behavior): new trace with\n    an ActivityLink to the producer span.\n  - StreamTraceOptions.Parent: child of the producer span, no link.\n  - StreamTraceOptions.ParentWithinLag(maxLag): parent when the enqueue lag\n    is at most maxLag, otherwise link. Tokens without an enqueue time link.\n  Parenting keeps internal grain-to-grain fan-out in one trace. Backends\n  that build the transaction tree from the trace id, such as the\n  Application Insights end-to-end view, ignore links, and tail samplers\n  decide per trace id, so linked consumer traces are sampled apart from\n  the producer. ParentWithinLag keeps a backlog replayed after an outage\n  from stretching producer traces across hours. The lag is measured with\n  StreamSubscriptionOptions.TimeProvider. A missing or unparseable\n  traceparent behaves as before in every mode.\n  The onError and useTrackedResumeToken parameters are removed. Set\n  StreamSubscriptionOptions.OnError and UseTrackedResumeToken in the\n  callback instead. The README Beta API changes section shows the\n  migration.\nBug Fixes:\n- compare ParentWithinLag outbox age by magnitude\n  The outbox's ParentWithinLag compared now - envelope timestamp with the\n  limit. The timestamp comes from whichever silo added the message, so a\n  processor clock running behind made the age negative and parented an old\n  message. The age is now compared by magnitude, as on the stream side.\n- keep the running silo's tracker clock when silos stop out of order\n  Each silo's installer saved the clock that was installed when it started\n  and put it back when it stopped. With two silos in one process, stopping\n  the first while the second still ran restored no clock, and stopping in\n  the other order left a stopped silo's clock installed.\n  Each running silo now owns one entry in a process-wide list. The most\n  recently started running silo's clock wins, and a stopping silo removes\n  only its own entry.\n- compare ParentWithinLag stream lag by magnitude\n  ParentWithinLag parented a delivery when now - enqueuedTime was at most\n  the limit. The enqueue time comes from the broker's clock, so a consumer\n  clock running behind made the lag negative and let an old backlog\n  message pass the guard and join the producer's trace.\n  The lag is now compared by magnitude. Small clock skew still parents a\n  fresh delivery; skew beyond the limit in either direction links.\n- start linked stream consumer spans as their own trace\n  A linked orleans.stream.process span was started with parentContext:\n  default, which ActivitySource treats as \"use Activity.Current\". A\n  delivery running under an ambient activity, for example an in-memory\n  stream delivered inside the producer's call, therefore joined that\n  trace even with StreamTraceOptions.Link or the ParentWithinLag fallback.\n  The manager now clears the ambient activity before starting a linked\n  span, so it is a true root with a link to the producer, and restores the\n  ambient activity once the span stops. Spans without a usable traceparent\n  still join the ambient activity when there is one.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#repository",
+    "branch": "refs/heads/release/egil-orleans-messaging/v0.12",
+    "commit": "c28cf0892437e88a1b9ca7de09c21b52fc93a25f",
+    "type": "git",
+    "url": "https://github.com/egil/framework"
+  },
+  "title": "Orleans Messaging Event Hubs Extensions",
+  "verbatimVersion": "0.12.19",
+  "version": "0.12.19",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#dependencygroup/net10.0/egil.orleans.messaging",
+          "@type": "PackageDependency",
+          "id": "Egil.Orleans.Messaging",
+          "range": "[0.12.19, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#dependencygroup/net10.0/microsoft.orleans.streaming.eventhubs",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Orleans.Streaming.EventHubs",
+          "range": "[10.3.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#Egil.Orleans.Messaging.Streams.EventHubs.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4286,
+      "fullName": "Egil.Orleans.Messaging.Streams.EventHubs.nuspec",
+      "length": 12621,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 638,
+      "fullName": "LICENSE",
+      "length": 1068,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 25530,
+      "fullName": "README.md",
+      "length": 78882,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30891,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.dll",
+      "length": 47104,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6298,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.Streams.EventHubs.xml",
+      "length": 36353,
+      "name": "Egil.Orleans.Messaging.Streams.EventHubs.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.11.22.25/egil.orleans.messaging.streams.eventhubs.0.12.19.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "orleans",
+    "messaging",
+    "streams",
+    "eventhubs",
+    "event-hubs",
+    "egil"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

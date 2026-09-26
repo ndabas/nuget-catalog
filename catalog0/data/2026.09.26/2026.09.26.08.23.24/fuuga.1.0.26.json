@@ -1,0 +1,649 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Tuomas Hietanen",
+  "catalog:commitId": "83ad35dc-b251-4657-bf40-5ab1bce8f191",
+  "catalog:commitTimeStamp": "2026-09-26T08:23:24.1007241Z",
+  "copyright": "Unlicense - Public Domain",
+  "created": "2026-09-26T08:13:22.91Z",
+  "description": "Large Language Model (LLM) generator. And Small as well, SML. Give data and generate your model. Fuuga implements a complete language model pipeline: tokenization, data ingestion, model training, fine-tuning, and text generation. Code in .NET (F#).",
+  "iconFile": "logo.png",
+  "id": "Fuuga",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-26T08:22:51.33Z",
+  "licenseExpression": "Unlicense",
+  "licenseUrl": "https://licenses.nuget.org/Unlicense",
+  "listed": true,
+  "packageHash": "pOV4CdsOU+s/EJe2rkbVO5BY1D4AZHmR5b7zd7Wk96WYCfUXyolil+iqG0ywuoa9n9Rf6SNrRQQ29JClTmJ8aw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 15178770,
+  "published": "2026-09-26T08:13:22.91Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "ROBUSTNESS FIXES FROM A STATIC-ANALYSIS PASS (fsharp-refactor notes, each finding verified in the source before it was changed). GUARDRAILS: one invalid regex in CustomPatterns threw out of the input check on every checked request, and every custom pattern was recompiled per input; the input check now shares the output side's compiled cache, which logs an invalid pattern once and skips it while the valid ones still apply. RESUME NO LONGER DESTROYS STATE: `fuuga agent --resume` reported an unreadable agent-session.json as \"no previous session\" and then overwrote it, and `fuuga orchestrate --resume` silently replaced a checkpoint it could not read while re-running every subtask; both files are now moved aside as <name>.unreadable-<UTC timestamp> with a message saying so (new AgentSession.setAsideUnreadable). SERVER (fuuga-serve): a literal JSON null request body bound to a null record and the handler answered 500; it is now a 400, and all six JSON endpoints report the serializer's own message (\"Could not parse request body: ...\") where five said only \"Invalid JSON\" even for valid JSON that did not bind. Tool-call arguments the model produced that are not a JSON object now travel as the call's error (FunctionCallContent.Exception) instead of running the tool with no arguments. The guardrail-filtered streaming path awaits the output enumerator's disposal instead of blocking a request thread on it. SMALLER: the LSP client disposes its cancellation source; the weight-streaming autograd warning no longer names {Blocks} twice in one template; the repetition penalty enumerates the token history once; single-character StartsWith/EndsWith checks (comment markers, JSON braces, trailing newlines, the BPE space marker) compare ordinally, so an invisible character such as a soft hyphen no longer changes the answer. No public API removed. PREVIOUS (1.0.25) - DRIFT MONITORING AND TRAINING SAFETY FIXES. SUSTAINED DRIFT NOW KEEPS ALERTING. The adaptive threshold (mean + 2 sigma over the last 30 windows) is a rolling one, so it absorbs any level that lasts - which is exactly what stops it alerting on a signal's own noise, and equally stopped it alerting on drift nobody had fixed. A sustained shift fired one alert in 52 windows and then went quiet; a shift that began soon after a reference capture, or in the very first analysed window, never alerted at all; and a critical plateau sitting just over the threshold never alerted under any previous version. Operators saw Critical in GET /v1/drift with no pending retraining trigger. The adaptive gate may now delay an alert but never suppress one: a new SustainedCriticalWindowsRequired (default 10) fires on consecutive critical windows whatever the baseline makes of them, because a signal's own noise crosses back below critical long before ten windows and a real shift does not. The gate also now needs AdaptiveMinimumSamples (default 5) windows before it has an opinion at all - a threshold built from two scores sits barely above the pair and the next ordinary window clears it. Measured on the same series, before and after, at the shipped defaults: sustained shift after a healthy run 1 alert then silence, now alerting every 10 windows indefinitely; shift two windows after a reference capture 0, now 4 in 42 windows; shift from the first window 0, now 4 in 40; critical plateau just over the line 1, now 4. Nothing new fires on quiet signals: isolated spikes 0 before and after, a noisy stationary signal wandering across the warning line 0 before and after, a stationary signal sitting on the critical line 0 before and 0.15 per 300 windows after - that residual is inherent, since ten critical windows in a row out of a signal that is critical half the time by chance cannot be told from a genuine plateau except by waiting longer; raise SustainedCriticalWindowsRequired to trade it away. A trigger the backstop raises says so in its brief - it reports that the adaptive threshold has absorbed the level rather than quoting it as exceeded - so an operator approving from the brief sees why it fired. An earlier attempt that kept critical scores out of the baseline was measured and rejected: it truncates the baseline to the quiet tail, so a signal that normally sits near the threshold is compared against a picture of its calmest windows and crosses constantly. TRAINING NO LONGER OVERWRITES ITS OWN SOURCE. fuuga decide train and fuuga merge both write model_weights.dat and checkpoint.json flat into --output, under the same names they read from their input, so pointing both at one directory replaced the source in place: decide train left the donor re-tagged Bidirectional, which fuuga serve then refuses as a generative model, and merge dropped BaseCheckpointPath, so a second run would load the already-merged weights and apply the adapters on top of them again. Both now exit 1 with an explanation before any work happens (Checkpoint.resolvesToSameDirectory). TESTS: every alerting test shrank the configuration to 1-2 consecutive windows, a 3-5 window baseline and 1 sigma, so the shipped numbers were never exercised; a new section runs the defaults from both directions - drift that does not resolve must keep alerting, and a stationary signal must not alert however close to the threshold it sits - with the stationary cases swept over seeds rather than resting on one. PREVIOUS (1.0.24) - DID THE RE-TRAINED MODEL ACTUALLY GET BETTER? A/B AGAINST RECORDED OUTCOMES (TypedDecisions): pair two prediction dumps by (example, question), score both against the labels a business already records as a by-product of operating, and report accuracy, NLL, Brier, ECE/MCE, reliability bins and selective accuracy at each act-threshold side by side, with a paired McNemar exact test, a Wilson interval on the win share and a per-question breakdown; the verdict is BETTER, WORSE, INDISTINGUISHABLE or NO EVIDENCE. fuuga decide compare keeps the existing fidelity gate when called without --data and switches to the measured A/B when --data supplies labelled fixtures; exit 3 means a measured regression only, wiring errors exit 1. TYPED LLM-AS-JUDGE (JudgeArena, fuuga decide judge): judge two models' free-text answers pairwise as a typed choice over A, B or tie, both presentation orders averaged so position bias is measured and a pair whose orders disagree is a tie, never a win; win rate with a Wilson interval and an exact-test p-value, per-category breakdown, gating, a JSONL audit trail, and the judge's own agreement and calibration against any human labels. EXAMPLE: examples/retrain-verification.fsx verifies a re-trained donor model end to end offline on CPU in about a minute.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#repository",
+    "branch": "refs/heads/master",
+    "commit": "3886059323ad21b52906a776f7bbe297e9b6a9fd",
+    "type": "git",
+    "url": "https://bitbucket.org/Thorium/fuuga"
+  },
+  "title": "Fuuga",
+  "verbatimVersion": "1.0.26",
+  "version": "1.0.26",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/a2a",
+          "@type": "PackageDependency",
+          "id": "A2A",
+          "range": "[1.0.0-preview2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.1.302, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/fsharp.systemtextjson",
+          "@type": "PackageDependency",
+          "id": "FSharp.SystemTextJson",
+          "range": "[1.4.36, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/google.protobuf",
+          "@type": "PackageDependency",
+          "id": "Google.Protobuf",
+          "range": "[3.35.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/llamasharp",
+          "@type": "PackageDependency",
+          "id": "LLamaSharp",
+          "range": "[0.27.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/llamasharp.backend.cpu",
+          "@type": "PackageDependency",
+          "id": "LLamaSharp.Backend.Cpu",
+          "range": "[0.27.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/markdig",
+          "@type": "PackageDependency",
+          "id": "Markdig",
+          "range": "[1.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/mathnet.numerics.fsharp",
+          "@type": "PackageDependency",
+          "id": "MathNet.Numerics.FSharp",
+          "range": "[5.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/microsoft.extensions.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI",
+          "range": "[10.8.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/microsoft.extensions.ai.evaluation",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.Evaluation",
+          "range": "[10.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/microsoft.extensions.ai.evaluation.quality",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.Evaluation.Quality",
+          "range": "[10.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/microsoft.extensions.ai.evaluation.reporting",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.Evaluation.Reporting",
+          "range": "[10.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/microsoft.ml.onnxruntime",
+          "@type": "PackageDependency",
+          "id": "Microsoft.ML.OnnxRuntime",
+          "range": "[1.28.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/microsoft.ml.tokenizers",
+          "@type": "PackageDependency",
+          "id": "Microsoft.ML.Tokenizers",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/modelcontextprotocol",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/onnxsharp",
+          "@type": "PackageDependency",
+          "id": "OnnxSharp",
+          "range": "[0.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/opentelemetry",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry",
+          "range": "[1.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/parquet.net",
+          "@type": "PackageDependency",
+          "id": "Parquet.Net",
+          "range": "[6.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/serilog",
+          "@type": "PackageDependency",
+          "id": "Serilog",
+          "range": "[4.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/serilog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Serilog.Extensions.Logging",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/serilog.sinks.console",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Console",
+          "range": "[6.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/serilog.sinks.file",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.File",
+          "range": "[7.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/serilog.sinks.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.OpenTelemetry",
+          "range": "[4.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/skiasharp",
+          "@type": "PackageDependency",
+          "id": "SkiaSharp",
+          "range": "[2.88.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/skiasharp.nativeassets.linux",
+          "@type": "PackageDependency",
+          "id": "SkiaSharp.NativeAssets.Linux",
+          "range": "[2.88.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/spectre.console",
+          "@type": "PackageDependency",
+          "id": "Spectre.Console",
+          "range": "[0.57.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/system.numerics.tensors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Tensors",
+          "range": "[10.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/torchsharp",
+          "@type": "PackageDependency",
+          "id": "TorchSharp",
+          "range": "[0.107.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/torchsharp.pybridge",
+          "@type": "PackageDependency",
+          "id": "TorchSharp.PyBridge",
+          "range": "[1.4.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/treesitter.dotnet",
+          "@type": "PackageDependency",
+          "id": "TreeSitter.DotNet",
+          "range": "[1.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/versone.epub",
+          "@type": "PackageDependency",
+          "id": "VersOne.Epub",
+          "range": "[3.3.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/zstdsharp.port",
+          "@type": "PackageDependency",
+          "id": "ZstdSharp.Port",
+          "range": "[0.8.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#dependencygroup/net10.0/libtorch-cuda-12.8-win-x64",
+          "@type": "PackageDependency",
+          "id": "libtorch-cuda-12.8-win-x64",
+          "range": "[2.10.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#Fuuga.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4545,
+      "fullName": "Fuuga.nuspec",
+      "length": 12444,
+      "name": "Fuuga.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 23609,
+      "fullName": "README.md",
+      "length": 62397,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 128876,
+      "fullName": "logo.png",
+      "length": 133516,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/ggml-base.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 342690,
+      "fullName": "content/ggml-base.dll",
+      "length": 768512,
+      "name": "ggml-base.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/ggml-cpu.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 279273,
+      "fullName": "content/ggml-cpu.dll",
+      "length": 664576,
+      "name": "ggml-cpu.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/ggml.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29997,
+      "fullName": "content/ggml.dll",
+      "length": 67072,
+      "name": "ggml.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libggml-base.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 301954,
+      "fullName": "content/libggml-base.dylib",
+      "length": 748616,
+      "name": "libggml-base.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libggml-base.so",
+      "@type": "PackageEntry",
+      "compressedLength": 333499,
+      "fullName": "content/libggml-base.so",
+      "length": 804384,
+      "name": "libggml-base.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libggml-blas.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 8132,
+      "fullName": "content/libggml-blas.dylib",
+      "length": 58536,
+      "name": "libggml-blas.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libggml-cpu.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 363720,
+      "fullName": "content/libggml-cpu.dylib",
+      "length": 882184,
+      "name": "libggml-cpu.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libggml-cpu.so",
+      "@type": "PackageEntry",
+      "compressedLength": 373002,
+      "fullName": "content/libggml-cpu.so",
+      "length": 928224,
+      "name": "libggml-cpu.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libggml-metal.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 166292,
+      "fullName": "content/libggml-metal.dylib",
+      "length": 814616,
+      "name": "libggml-metal.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libggml.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 14649,
+      "fullName": "content/libggml.dylib",
+      "length": 59944,
+      "name": "libggml.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libggml.so",
+      "@type": "PackageEntry",
+      "compressedLength": 20076,
+      "fullName": "content/libggml.so",
+      "length": 78336,
+      "name": "libggml.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libllama.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 910852,
+      "fullName": "content/libllama.dylib",
+      "length": 2497528,
+      "name": "libllama.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libllama.so",
+      "@type": "PackageEntry",
+      "compressedLength": 1098441,
+      "fullName": "content/libllama.so",
+      "length": 3170456,
+      "name": "libllama.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libmtmd.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 387991,
+      "fullName": "content/libmtmd.dylib",
+      "length": 943416,
+      "name": "libmtmd.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/libmtmd.so",
+      "@type": "PackageEntry",
+      "compressedLength": 480857,
+      "fullName": "content/libmtmd.so",
+      "length": 1169544,
+      "name": "libmtmd.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/llama.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 812272,
+      "fullName": "content/llama.dll",
+      "length": 2071040,
+      "name": "llama.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#content/mtmd.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 336872,
+      "fullName": "content/mtmd.dll",
+      "length": 785920,
+      "name": "mtmd.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/ggml-base.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 342690,
+      "fullName": "contentFiles/any/net10.0/ggml-base.dll",
+      "length": 768512,
+      "name": "ggml-base.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/ggml-cpu.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 279273,
+      "fullName": "contentFiles/any/net10.0/ggml-cpu.dll",
+      "length": 664576,
+      "name": "ggml-cpu.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/ggml.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29997,
+      "fullName": "contentFiles/any/net10.0/ggml.dll",
+      "length": 67072,
+      "name": "ggml.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libggml-base.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 301954,
+      "fullName": "contentFiles/any/net10.0/libggml-base.dylib",
+      "length": 748616,
+      "name": "libggml-base.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libggml-base.so",
+      "@type": "PackageEntry",
+      "compressedLength": 333499,
+      "fullName": "contentFiles/any/net10.0/libggml-base.so",
+      "length": 804384,
+      "name": "libggml-base.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libggml-blas.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 8132,
+      "fullName": "contentFiles/any/net10.0/libggml-blas.dylib",
+      "length": 58536,
+      "name": "libggml-blas.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libggml-cpu.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 363720,
+      "fullName": "contentFiles/any/net10.0/libggml-cpu.dylib",
+      "length": 882184,
+      "name": "libggml-cpu.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libggml-cpu.so",
+      "@type": "PackageEntry",
+      "compressedLength": 373002,
+      "fullName": "contentFiles/any/net10.0/libggml-cpu.so",
+      "length": 928224,
+      "name": "libggml-cpu.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libggml-metal.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 166292,
+      "fullName": "contentFiles/any/net10.0/libggml-metal.dylib",
+      "length": 814616,
+      "name": "libggml-metal.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libggml.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 14649,
+      "fullName": "contentFiles/any/net10.0/libggml.dylib",
+      "length": 59944,
+      "name": "libggml.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libggml.so",
+      "@type": "PackageEntry",
+      "compressedLength": 20076,
+      "fullName": "contentFiles/any/net10.0/libggml.so",
+      "length": 78336,
+      "name": "libggml.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libllama.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 910852,
+      "fullName": "contentFiles/any/net10.0/libllama.dylib",
+      "length": 2497528,
+      "name": "libllama.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libllama.so",
+      "@type": "PackageEntry",
+      "compressedLength": 1098441,
+      "fullName": "contentFiles/any/net10.0/libllama.so",
+      "length": 3170456,
+      "name": "libllama.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libmtmd.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 387991,
+      "fullName": "contentFiles/any/net10.0/libmtmd.dylib",
+      "length": 943416,
+      "name": "libmtmd.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/libmtmd.so",
+      "@type": "PackageEntry",
+      "compressedLength": 480857,
+      "fullName": "contentFiles/any/net10.0/libmtmd.so",
+      "length": 1169544,
+      "name": "libmtmd.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/llama.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 812272,
+      "fullName": "contentFiles/any/net10.0/llama.dll",
+      "length": 2071040,
+      "name": "llama.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#contentFiles/any/net10.0/mtmd.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 336872,
+      "fullName": "contentFiles/any/net10.0/mtmd.dll",
+      "length": 785920,
+      "name": "mtmd.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#lib/net10.0/Fuuga.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2153723,
+      "fullName": "lib/net10.0/Fuuga.dll",
+      "length": 5454336,
+      "name": "Fuuga.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#lib/net10.0/Fuuga.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 212,
+      "fullName": "lib/net10.0/Fuuga.runtimeconfig.json",
+      "length": 342,
+      "name": "Fuuga.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#lib/net10.0/Fuuga.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 326793,
+      "fullName": "lib/net10.0/Fuuga.xml",
+      "length": 1309915,
+      "name": "Fuuga.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.08.23.24/fuuga.1.0.26.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "F#",
+    "FSharp",
+    "LLM",
+    "large",
+    "language",
+    "model",
+    "generator",
+    "SML",
+    "small",
+    "Fuuga",
+    "tokenization",
+    "data",
+    "ingestion",
+    "training"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

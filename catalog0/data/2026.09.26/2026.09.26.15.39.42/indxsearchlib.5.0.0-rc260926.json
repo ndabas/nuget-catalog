@@ -1,0 +1,211 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Indx Search / Bionic AS",
+  "catalog:commitId": "0cae4d34-1e29-416f-acc3-367ce6fdf92e",
+  "catalog:commitTimeStamp": "2026-09-26T15:39:42.6554261Z",
+  "copyright": "Copyright © 2026 Indx Search (Bionic AS)",
+  "created": "2026-09-26T15:36:21.323Z",
+  "description": "A new type of search system with pattern recognition. Enterprise-grade search in a class library.",
+  "iconFile": "indx.png",
+  "id": "IndxSearchLib",
+  "isPrerelease": true,
+  "lastEdited": "2026-09-26T15:39:28.63Z",
+  "licenseFile": "LICENSE.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "XsI+I9T1vBpNxaruUJLl4hPhTDc6khcHflOsKpNo0wZTod6ICtZlwS24BYOK97GOtEdtEuWgH2juwugfq3vl9w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 608006,
+  "projectUrl": "https://indx.co/",
+  "published": "2026-09-26T15:36:21.323Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Release candidate. Fixes for reading and writing the same dataset at the same time, most of which\n      returned wrong results without an error rather than failing, and for a facet panel that counted\n      the documents as they were before an insert or delete. Found by tests that run searches, filter\n      loads or vector searches beside inserts and updates; each fix below was reproduced that way unless\n      it says otherwise. Nothing stored needs converting. One removal: the obsolete `Indx.CloudApi`\n      aliases, below. One rule made explicit: the field's type decides the filter kind, and a filter\n      of the other kind is refused; see the first entry. Two additions: a flag on `ValueFilterProxy`,\n      and `Index()` on a disposed engine answering through the monitor.\n      \n      - Changed: **a range filter needs a field whose values are numbers, and a value filter a field\n        whose values are not.** `CreateRangeFilter` on a text field - which is what a number stored as\n        a JSON string is - returns null with the fix in `error`: store the values as numbers and load\n        again. `CreateValueFilter` on a numeric field returns null with the filter to use instead: a\n        range with equal limits, which compares as numbers and reads the field's index. Both used to\n        be accepted and answered by walking every document; the range over text was correct and\n        O(documents) for every new range, the value over a number compared JSON text and missed\n        `129.0` when asked for `129`. A serialized key of the refused kind no longer rebuilds\n        (`GetFilterFromKey` returns null), so a client holding such a token re-creates the filter.\n      - Changed: `Index()` that built the search index but could not build the per-field filter\n        indexes reports it as the call's failure: `Succeeded` false and the reason on the monitor, an\n        `InvalidOperationException` on the synchronous path. The engine is Ready and searches;\n        filters are built by walking the documents until the next `Index()`. This used to be a bare\n        catch with nothing to show for it.\n      - Changed: a score the 16-bit encoder cannot represent is clamped both ways and counted, where a\n        negative used to wrap to near the ceiling - the least significant term of a query then made the\n        most confident-looking score, so a large part of a corpus could come back looking like perfect\n        matches. The cause of those negatives is fixed; if one ever comes back,\n        `ScoreEncodingDiagnostics` counts it and the engine logs one error per `Search` or `Index()` that\n        saw it. Ordinary results are unchanged.\n      - Changed: term-frequency handling now adapts to `Field.BM25k1` instead of assuming the default, so\n        a field configured with a small k1 keeps more resolution than it did. Scores for the default k1\n        are unchanged; a field carrying a non-default k1 may rank slightly differently.\n      - Fixed: a filter load running at the same time as an insert could throw `NullReferenceException`.\n        It affected only the filters that have to examine every document: a case-sensitive value\n        filter, a filter on an array field, or one on a field made `Filterable` since the last `Index()`.\n        A filter that can use the field's index, which is most of them, was never affected. Reproduced on\n        ARM64, in three runs of ten, and fixed for every affected filter kind.\n      - Fixed: an array field nobody configured still cost memory per element on every document. Every\n        leaf of every array was stored for lookup, whether or not the field had a role, where a scalar\n        without a role was skipped. On documents carrying long unconfigured arrays that ran to tens of\n        megabytes on a corpus of moderate size. Array leaves now follow the scalar\n        rule on every load path, the dynamic ops and the rebuild inside `Index()`. Nothing that is read\n        has changed.\n      - Fixed: waking a small dataset from the database took as long as the team's largest. No index\n        served a single-dataset lookup, so each one scanned everything stored for that team. Where a team\n        holds a lot, loading a dataset of a hundred documents took on the order of a second; it is now\n        sub-millisecond, and a small dataset was the worst case. New databases get the index when they\n        are created, and `SqLiteManager.EnsureDatasetIndex()` adds it to an existing one; the Indx server\n        calls that at startup.\n      - Added `FilterLoadDiagnostics.IndexedFieldLoads` and `ScanFieldLoads`: every value or range\n        filter load, split by whether it read the field's posting index or walked the documents\n        (array fields, case-sensitive value filters, a field made Filterable since the last `Index()`).\n      \n      - Removed the `[Obsolete]` aliases for the pre-rename HTTP shapes: `Indx.CloudApi.CloudQuery`,\n        `Indx.CloudApi.FilterProxy` and its siblings, and `Indx.Api.ICloudSearchEngine`. Use the\n        `Indx.Http` names (`QueryProxy`, `FilterProxy`, ...) and `IServerSearchEngine`; the JSON on the\n        wire is unchanged. RC140926 said the aliases would stay until the next major version; they go in\n        the release candidate instead, because nothing but the 5.0 betas ever shipped them, and a\n        compile error naming the replacement is a better guide than a warning nobody reads.\n      - Added `ValueFilterProxy.IsCaseSensitive`, off by default, for the server's `filters/value`\n        endpoint. Facets count distinct stored values with their casing, so only a case-sensitive filter\n        agrees with a facet count. `Value` is documented as a string, number or boolean.\n      - Changed: `Index()` on a disposed engine no longer throws `ObjectDisposedException` from inside a\n        lock. It reports through the monitor - `Succeeded` false, \"Index called on a disposed engine\" -\n        the way `Search` already answers a disposed engine.\n      - Fixed: `UpdateField` could throw \"Stack empty\" when a range filter on a scalar field had been\n        deleted from the cache while a combination built on it stayed, and the updated value lay outside\n        the range. The combination is now evaluated by asking its operands about the document, which is\n        also how a value or range filter is evaluated on its own; the second implementation that did\n        this by parsing the filter's key is gone.\n      \n      - Fixed: an empty search with facets - what a facet panel sends - counted the documents as they\n        were before the last insert or delete. The result was cached and nothing cleared it on insert or\n        delete, and the count walked deleted documents too, which also listed them among the records.\n      - Fixed: a filter combined with `&`, `|` or `!`, or rebuilt from its key, could keep the answer it\n        had before the documents changed. After a `Load`, a clone, or an `Index()` that reads a field into\n        use for the first time, every cached filter is marked for reloading but keeps its old mask, and\n        combinations were built from those old masks and marked current. Measured: `red | blue` on a\n        field given its first role returned none of 26 documents after `Index()`. Combinations now wait\n        for their operands to reload.\n      - Fixed: a filtered search running while another thread loaded the same filter, for example during\n        `LoadAllFilters`, could run unfiltered, or filter against a mask still being filled and return too\n        few results. Rare, and dependent on a precise interleaving; on ARM64 the ordering of the two writes made it\n        likelier. A search now reads the filter's mask when it checks it, and a mask is published only once\n        complete.\n      - Fixed: a filter loaded while an insert or update wrote to the same field could come back wrong.\n        A range filter could throw \"Collection was modified\", in up to half the loads under a steady\n        stream of `UpdateField`; a value filter on a document being updated could miss it, 2499 of 2500\n        documents when a value was respelled from \"Red\" to \"RED\". The per-field posting indexes now take\n        a lock, once per filter load and once per document update.\n      - Fixed: reading a field while an insert or update brought a field name never seen before - a new\n        field, or an array longer than any before, whose elements each have a name - could find the field\n        missing for a document. A filter scan missed up to 78 of 1500 documents, with no error. Affects\n        filters, facets, sorting and coverage alike.\n      - Fixed: a vector or hybrid search beside inserts, updates or deletes of embedded documents could\n        lose hits: a search on a document's own vector returned as few as none of its ten neighbours.\n        `EmbeddingIndex` now takes a reader-writer lock, so vector searches still run side by side.\n      - Fixed: `LoadAllFilters` could throw \"Collection was modified\" when filters were created or\n        evicted while it ran.\n      - Fixed: after a `Load` on an engine that already held data, a filter without a posting index - one\n        built case-sensitive, or on an array field - matched none of the new documents, and `UpdateField`\n        changed a document but left the filters answering as before, while returning true. The reload\n        gave the engine a new document store and the filter layer kept reading the old one; it now\n        empties the one store instead. A first `Load` was never affected.\n      - Fixed, found by review and not reproduced: a search running when `Index()` or `LoadAsync` started\n        could read the model or documents being rebuilt under it; a search that skipped the compaction\n        lock after a dynamic op could, on ARM64, read a term's new document list beside its old weights;\n        and an empty search beside an insert could, on ARM64, read a document not yet fully in the list.\n        `Index()` still returns as soon as the build has started; the build waits for such searches.",
+  "requireLicenseAcceptance": true,
+  "title": "IndxSearchLib",
+  "verbatimVersion": "5.0.0-RC260926",
+  "version": "5.0.0-RC260926",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/communitytoolkit.highperformance",
+          "@type": "PackageDependency",
+          "id": "CommunityToolkit.HighPerformance",
+          "range": "[8.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/hnsw",
+          "@type": "PackageDependency",
+          "id": "HNSW",
+          "range": "[26.6.1848, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/messagepack",
+          "@type": "PackageDependency",
+          "id": "MessagePack",
+          "range": "[3.1.7, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/microsoft.data.sqlite",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.Sqlite",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/nlog",
+          "@type": "PackageDependency",
+          "id": "NLog",
+          "range": "[6.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/nlog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "NLog.Extensions.Logging",
+          "range": "[6.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#dependencygroup/net10.0/sqlitepclraw.bundle_e_sqlite3",
+          "@type": "PackageDependency",
+          "id": "SQLitePCLRaw.bundle_e_sqlite3",
+          "range": "[3.0.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#IndxSearchLib.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4701,
+      "fullName": "IndxSearchLib.nuspec",
+      "length": 11717,
+      "name": "IndxSearchLib.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#lib/net10.0/Indx.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 296829,
+      "fullName": "lib/net10.0/Indx.dll",
+      "length": 713728,
+      "name": "Indx.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#lib/net10.0/Indx.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 104671,
+      "fullName": "lib/net10.0/Indx.xml",
+      "length": 467815,
+      "name": "Indx.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1284,
+      "fullName": "README.md",
+      "length": 2506,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1940,
+      "fullName": "LICENSE.md",
+      "length": 4556,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#indx.png",
+      "@type": "PackageEntry",
+      "compressedLength": 183431,
+      "fullName": "indx.png",
+      "length": 183371,
+      "name": "indx.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.26.15.39.42/indxsearchlib.5.0.0-rc260926.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12978,
+      "fullName": ".signature.p7s",
+      "length": 12978,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Indx",
+    "Search",
+    "Searching",
+    "Fuzzy",
+    "String",
+    "matching",
+    "Indexing",
+    "Index",
+    "library"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

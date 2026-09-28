@@ -1,0 +1,164 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Egil Hansen",
+  "catalog:commitId": "42095503-b269-42d2-8656-cdc6c04abdaf",
+  "catalog:commitTimeStamp": "2026-09-28T10:06:20.3831318Z",
+  "copyright": "Egil Hansen",
+  "created": "2026-09-28T10:01:06.53Z",
+  "description": "Azure Table and Blob storage-aware state manager support for Egil.Orleans.Messaging.",
+  "id": "Egil.Orleans.Messaging.State.AzureStorage",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-28T10:05:40.1Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "DuPNFwMuGtm0SbAyw+Xt27Hr8SNs+cvOEtHbgwk3pR4h9RYFg3xoNpxBRn/dIIfHbfDjVZ25NLLE3f1CFITHvQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 72898,
+  "projectUrl": "https://github.com/egil/framework",
+  "published": "2026-09-28T10:01:06.53Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "New Features:\n- expose scoped outbox tokens in request context\n  Expose RequestContext.AttachOutboxToken(token), nullable GetOutboxToken(),\n  and DetachOutboxToken() for custom stream fanout and receiving methods\n  that cannot accept a token parameter. Attachment restores prior context\n  on disposal; detachment returns and removes the incoming token.\n  Reuse the APIs in built-in publishing and reception. Detach incoming\n  identity before handling a delivered event so unrelated downstream\n  publications are not mistaken for retries. Keep the observer entry\n  async to isolate that removal from the publisher's context.\n  Transport the typed token through each provider's normal serializer,\n  removing additional JSON encoding while keeping persisted token and\n  receipt formats unchanged. The former v1 JSON context format is no\n  longer accepted; participating endpoints need the Messaging serializers.\n  Cover scope lifetime, typed provider round-trips, explicit grain\n  propagation, durable fanout retry deduplication, and the same-stream\n  identity collision that detachment prevents.\n- deduplicate retried outbox stream publications\n  Stream postmen now publish stable logical identity as scoped Orleans request-context metadata while keeping domain payloads plain. Custom stream postmen can opt in through PublishFromOutboxAsync; generic and RPC callbacks retain their existing explicit transport contracts.\n  Receivers persist exact receipts with business changes, independent of native provider positions. Full stream source identity flows through checkpoints, binary and JSON snapshots, journaling, and explicit eviction. Tracked subscriptions require deliberate rebinding of legacy namespace-only checkpoints, and retained receipts suppress retries even at new or null native positions.\n- configure outbox reminder retention\n  Allow applications to retain a durable outbox reminder across batches and activations with ReminderPolicy.KeepRegistered. The first post establishes the reminder before dispatch or scheduling, including for an empty outbox, and later posts reuse it without another registration write.\n  Keep OnRetry as the default so successful initial delivery avoids reminder registration. Document the remaining gap before the first post, idle wakeups, and switching back to cleanup-on-drain. Alternative durable retry providers remain outside this change.\n- unify postman handler registration\n  Replace AddGrainPostman resolver and call delegates with a single AddPostman handler. Only the payload is required; delivery token, grain factory, and cancellation can be requested independently, with Task and ValueTask variants for all eight shapes.\n  Use overload priorities to preserve the existing token-based defaults and prefer ValueTask within each shape on C# 13 and newer. Grain resolution and invocation now fit in one handler without a TGrain type argument. Dispatch ordering, delivery identity, acknowledgement, and cancellation behavior remain shared with the existing pipeline.\n- configure state recovery with fencing by default\n  Default and Azure state managers now fence after a failed storage mutation and request grain deactivation, preventing reuse of uncertain state and deactivation-time writes. Applications that can safely retain an expensive activation can opt into the existing ReadBack behavior.\n  Recovery settings layer silo-wide configuration, factory registration, and grain-local overrides into an isolated lifetime snapshot. Custom factories receive resolved options and grain context; async registration adds configuration before the cancellation token. Includes storage-boundary and real Orleans activation recovery coverage for issue #191.\nBug Fixes:\n- preserve fallback on reminder adjustment failures\n  KeepRegistered chooses the active recovery period when activation has pending work. Failed period adjustments log a warning without failing posts when a fallback is already established. Initial registration remains required, and constructor attachment fails activation if it cannot establish the reminder.\n- register recovery reminders on deactivation\n  Rename the default OnRetry policy to OnDeactivation. Active posts and failures now retry automatically using grain timers, without registering reminders. Only orderly deactivation with pending work establishes a durable wakeup under this policy; failed registration continues to log OutboxDeactivationReminderFailed.\n  Reminder recovery timing is independent of RetryDelay. ActiveReminderPeriod defaults to five minutes and IdleReminderPeriod defaults to one hour; both are configurable and require at least one minute. Replace explicit OnRetry references with OnDeactivation and configure reminder periods separately from timer retries.\n- clean up idle reminders and use a slow activation fallback\n  OnRetry now removes its reminder when the outbox drains, preventing idle ticks from keeping grains alive indefinitely. Reminder lookups occur only when a delivered inherited reminder needs a removal handle; successful posts and required registrations remain lookup-free.\n  KeepRegistered starts a fallback during activation, uses the configurable IdleReminderPeriod while idle, switches to RetryDelay when retries are needed, and removes the fallback during empty deactivation. Configure IdleReminderPeriod above the grain's idle collection age with a margin for collection and shutdown. Delayed ticks no longer suppress required durable retry registration.\n- minimize outbox reminder API calls\n  Both reminder policies now establish reminders with a single upsert when needed and reuse successful registrations or matching ticks across retries and batches without lookups. This removes reminder I/O from successful OnRetry posts and avoids repeated registration writes.\n  OnRetry retains reminders until deactivation and removes a locally held reminder only when the outbox is empty. KeepRegistered retains reminders across activations. A direct upsert can reset an inherited reminder's schedule to the current retry period, while inherited reminders without a local handle may continue firing indefinitely.\n- honor cancellation after outbox reminder registration\n  Recheck the caller's cancellation token after establishing a retained reminder\n  and before scheduling background dispatch. A cancellation during reminder I/O\n  now cancels the post call while preserving the registered reminder for later use.\n  Add deterministic storage-boundary tests for cancellation and overlapping\n  foreground/background posts sharing one initial reminder registration.\n- preserve outbox wakeups on deactivation\n  Orderly grain deactivation now attempts to establish a durable reminder when\n  pending outbox work has no known reminder, including after a failed retry\n  registration. Empty outboxes avoid reminder writes and existing reminders keep\n  their schedules. Failure or cancellation emits a Warning with GrainId,\n  GrainType, ReminderName, and the exception so operators can identify grains\n  that may need manual reactivation and an explicit post.\n  Constructor registration installs the safeguard automatically. Grains that\n  register in OnActivateAsync or later must call ConfigureOutboxProcessor on the\n  silo builder first; existing options overloads also install the hook. This\n  keeps deactivation handling automatic without per-grain shutdown callbacks.\n  Abrupt crashes and unavailable reminder storage remain best-effort limits.\n- reject late storage completions after fencing\n  An operation already waiting on storage must not adopt state or run configuration and lifecycle callbacks after another mutation fences the manager. Recheck the fence when successful storage calls return, preserving the original fencing failure in completion rejection.\n  Storage operations must still not overlap. This defensive check protects the permanent fence without adding serialization or supporting overlapping mutations. Deterministic storage-boundary tests cover late read, write, and clear completions.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#repository",
+    "branch": "refs/heads/release/egil-orleans-messaging/v0.14",
+    "commit": "ac967eca8b68f8f070acda75063c5ecd03dd0fef",
+    "type": "git",
+    "url": "https://github.com/egil/framework"
+  },
+  "title": "Orleans Messaging Azure Storage State Manager",
+  "verbatimVersion": "0.14.12",
+  "version": "0.14.12",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#dependencygroup/net10.0/egil.orleans.messaging",
+          "@type": "PackageDependency",
+          "id": "Egil.Orleans.Messaging",
+          "range": "[0.14.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#dependencygroup/net10.0/azure.core",
+          "@type": "PackageDependency",
+          "id": "Azure.Core",
+          "range": "[1.51.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#Egil.Orleans.Messaging.State.AzureStorage.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3796,
+      "fullName": "Egil.Orleans.Messaging.State.AzureStorage.nuspec",
+      "length": 9287,
+      "name": "Egil.Orleans.Messaging.State.AzureStorage.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 638,
+      "fullName": "LICENSE",
+      "length": 1068,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 34791,
+      "fullName": "README.md",
+      "length": 107153,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#lib/net10.0/Egil.Orleans.Messaging.State.AzureStorage.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17697,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.State.AzureStorage.dll",
+      "length": 24576,
+      "name": "Egil.Orleans.Messaging.State.AzureStorage.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#lib/net10.0/Egil.Orleans.Messaging.State.AzureStorage.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 766,
+      "fullName": "lib/net10.0/Egil.Orleans.Messaging.State.AzureStorage.xml",
+      "length": 4269,
+      "name": "Egil.Orleans.Messaging.State.AzureStorage.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.10.06.20/egil.orleans.messaging.state.azurestorage.0.14.12.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12978,
+      "fullName": ".signature.p7s",
+      "length": 12978,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "orleans",
+    "messaging",
+    "state",
+    "azure-storage",
+    "table-storage",
+    "blob-storage",
+    "egil"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

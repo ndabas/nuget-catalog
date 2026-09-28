@@ -1,0 +1,224 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jonas Flodén",
+  "catalog:commitId": "4186aa7a-20c0-4d04-86ce-4ff115629fa1",
+  "catalog:commitTimeStamp": "2026-09-28T11:37:34.9130854Z",
+  "created": "2026-09-28T11:34:42.493Z",
+  "description": "Aspire hosting integration for configurable, per-developer service sources — e.g. a git checkout or a Kubernetes cluster.",
+  "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-28T11:37:06.18Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "yqGZqFkqBamaxCoQWSOGR8QrJ/MWN39LwAfs8x8v9W872YI+p2a950bObLjmMnk7IvLlIhgLLEMaxGCksbCP8g==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 565970,
+  "projectUrl": "https://github.com/flojon/aspire-servicesources",
+  "published": "2026-09-28T11:34:42.493Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Breaking\n\n- The `\"local\"` source is renamed to `\"repository\"`. Same behavior — clone the catalog's\n  `repository:` url, reconcile onto `ref` — new name: `\"local\"` was the only source whose value\n  didn't match its own catalog block (`url`↔`url:`, `container`↔`container:`,\n  `kubernetes`↔`kubernetes:`, but `local`↔`repository:`), and it collided in spelling, though not\n  in meaning, with `servicesources.local.json` — a different \"local\" (per-developer settings)\n  entirely. `\"local\"` is retired, not aliased: a `source: \"local\"` entry, a `defaultSource: local`\n  catalog field, or a `.WithDefaultSource(\"local\")` call now throws\n  `ServiceSourcesConfigurationException` naming the rename and the fix, rather than silently\n  resolving as before or falling through to a generic \"unrecognized source\" message. Change\n  `source: \"local\"` to `source: \"repository\"` in `servicesources.local.json` (or wherever it's\n  set), and `defaultSource: local`/`.WithDefaultSource(\"local\")` to `\"repository\"` in the catalog,\n  to migrate. The developer's per-service override block nested under `source` is renamed to match\n  — see Deprecated below; unlike the source value, the old block name keeps working as a\n  deprecated alias rather than being retired.\n- `path` is now a reserved `kind` name in `servicesources.yaml`. The new `path:` catalog field\n  (see Added) makes `path` a well-known top-level property of a service entry, so a yaml service\n  declaring `kind: path` — a custom kind registered under that name — is now refused with \"kind\n  'path' collides with a well-known property\", the same rule `kind: repository` or `kind: url`\n  already hit: its options block would otherwise be read as the new field. Register the kind under\n  another name. A kind used only through `WithKind(\"path\", …)` in code is unaffected.\n\nAdded\n\n- New source: `\"path\"`. Points a service at a directory that's already checked out beside the\n  AppHost — the shape a genuine monorepo has, with no clone, no `ref`, and no reconciliation ever\n  involved:\n\n  ```yaml\n  services:\n    orders:\n      path: services/orders\n      project: src/Orders.Api/Orders.Api.csproj\n  ```\n\n  ```json\n  { \"services\": { \"orders\": { \"source\": \"path\" } } }\n  ```\n\n  It's the existing `local.path` mechanism (see Deprecated below) promoted to a first-class\n  source, so a service already checked out next to the AppHost no longer needs a `repository:` url\n  it has nothing to clone from, and every developer no longer has to write the same personal\n  `local.path` override for a path that's actually a fact about the shared catalog. `path:` combines\n  freely with `repository:`/`url:`/`container:`/`kubernetes:` on one entry — see\n  Combining sources on one catalog entry (docs/sources/index.md#combining-sources-on-one-catalog-entry)\n  — so one developer can clone the service while another uses the copy they already have. A\n  catalog-declared `path:` is written relative to the AppHost directory and confined to the\n  repository the AppHost lives in (the nearest directory holding `.git`), so `../Orders.Api` beside a\n  `src/MyApp.AppHost/` works while an absolute path or one climbing out of the repository is refused;\n  a developer's own override (`path.path` in `servicesources.local.json`) is unconfined, exactly like\n  `repository.path` today. A copy with no `.git` — a source archive, or a container build context that\n  leaves it out — names its root with the new `ServiceSources:RepositoryRoot` setting (e.g.\n  `ServiceSources__RepositoryRoot=/src`, or `\"repositoryRoot\"` in `servicesources.local.json`),\n  read only when no `.git` is found; with neither, the AppHost directory is the boundary. `prepare` runs as `once`/`always`/`never` — never `oncePerCommit`, since there's\n  no separate commit for the directory to move to on its own, so an unwritten `mode`, or a catalog's\n  `oncePerCommit` written for the `\"repository\"` source on the same entry, means `once` there. A\n  catalog-declared `path:`'s own `prepare:` block runs normally; under a `path.path` override it is\n  not run, exactly as under `repository.path`, and a startup notice shows the command to declare as your\n  own `path.prepare`. See the `\"path\"` source (docs/sources/path.md) for the\n  full behavior, including `defaultSource: path` and its (lack of) interaction with\n  `UseDeferredCheckout()` and `repositories:` grouping.\n- A `\"disabled\"` source for `AddService`. Turns a service off — `AddService(\"orders\")` still\n  returns a valid resource builder, but nothing runs and nothing is reachable — without deleting\n  the `AddService` call or the catalog entry. Needs no catalog block: set\n  `\"source\": \"disabled\"` in `servicesources.local.json` for a service declared any other way.\n  Configuration calls (`WithEnvironment`, `WithReference`, endpoints, commands, …) are skipped and\n  logged exactly as they are for `\"url\"`/`\"kubernetes\"`, and a consumer's `WaitFor`/`WaitForCompletion`\n  on a disabled service resolves immediately instead of waiting, the same protection `\"url\"` has\n  against #170. See the `\"disabled\"` source (docs/sources/disabled.md).\n\n- `Unwrap<T>` overload that takes a configuration delegate, and skips it instead of throwing\n  when the service doesn't resolve to a `T`. The existing `Unwrap<T>()` has to throw then, because\n  it has to hand back a `T` builder and there is none to give; the new\n  `Unwrap<T>(Action<IResourceBuilder<T>> configure)` returns the service itself instead, so\n  `configure` is simply skipped and the skip is logged at startup, the same way `WithEnvironment`\n  and every other native method already behave:\n\n  ```csharp\n  service\n      .Unwrap<JavaScriptAppResource>(js => js.WithRunScript(\"dev\"))\n      .WithEnvironment(\"MODE\", \"dev\");\n  ```\n\n  That covers the `\"url\"`, `\"kubernetes\"` and `\"disabled\"` sources, and a reachable source that\n  resolves to a different resource type — a `java` service switched to `\"container\"` in\n  `servicesources.local.json` — so a switch like that no longer breaks a `Program.cs` calling\n  kind-specific vocabulary. `Unwrap<IResourceWithWaitSupport>(...)` on a `\"kubernetes\"` service\n  still runs against the port-forward, matching `WaitFor`.\n\n  A call no source the catalog entry declares could ever satisfy — `Unwrap<ProjectResource>`\n  on a `kind: java` service with a `container:` block — throws at startup instead, naming each\n  declared source and the type it resolves to, since no source switch would ever make it apply.\n\n- `ILocalResourceKind.ResourceType`, an optional member naming the type every resource the\n  kind's `Resolve` returns is, or derives from. The built-in `java` and `javascript` kinds declare\n  theirs. It is what lets `Unwrap<T>(configure)` tell a call no source could satisfy apart from\n  one a source switch skipped; a kind that doesn't declare it is assumed to match anything, so it\n  never causes that throw. A kind that declares one is held to it: a resource from its `Resolve` or\n  `ResolveDeferred` that is not that type fails startup, as does a `ResourceType` that returns null\n  or throws, naming the service and kind.\n\nDeprecated\n\n- The developer's per-service block for the `\"repository\"` source is renamed from `local` to\n  `repository`, matching the source's own name. `\"local\"` was the same spelling collision one\n  level down that motivated the source rename above — `\"repository\": { ... }` paired with a\n  `\"local\": { ... }` block for its settings read oddly next to each other, and, unlike every other\n  source, didn't match `servicesources.local.json`'s own use of \"local\" for something else. Unlike\n  the source value, `local` is a deprecated alias here, not a retired spelling: it keeps resolving\n  exactly as it does today (also as the environment-variable segment,\n  `ServiceSources__Services__<service>__Local__Ref`), behind a one-time startup notice naming the\n  new spelling. Setting both `local` and `repository` on the same entry is a configuration error —\n  there is no rule for which one would win. Migrate by renaming the key: `\"local\": { \"path\": \"...\",\n  \"ref\": \"...\" } }` becomes `\"repository\": { \"path\": \"...\", \"ref\": \"...\" } }`.\n- `repository.path` is deprecated in favor of the new `\"path\"` source. The `\"path\"` source\n  resolves a directory the same way — no clone, no ref — as a first-class source\n  (`\"source\": \"path\"`, `\"path\": { \"path\": \"...\" }`) rather than a hidden mode of `\"repository\"`.\n  `repository.path` keeps working exactly as it does today; there is no removal planned. A\n  developer using it now gets a one-time startup notice naming the replacement:\n\n  ```\n  warn: Aspire.Hosting.ServiceSources\n        Service 'orders': 'repository.path' is deprecated. Use the 'path' source instead:\n        \"source\": \"path\", \"path\": { \"path\": \"/home/dev/code/orders\" } — which resolves the\n        directory the same way, with no clone and no ref.\n  ```\n\n  A `repository.prepare` block doesn't carry over by itself — it isn't read under `\"path\"` — so\n  when one is declared the notice also says to move it to `path.prepare`. The catalog's own\n  `prepare` step is not run in the directory under either spelling. (The deprecated `local` alias\n  above behaves the same way here too: a service still written under `local` gets both notices,\n  independently.)\n\nFull changelog: https://github.com/flojon/aspire-servicesources/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#repository",
+    "commit": "bea1a026cebc7c4b3e66cd82a2691a0097946a8f",
+    "type": "git",
+    "url": "https://github.com/flojon/aspire-servicesources"
+  },
+  "verbatimVersion": "0.7.0",
+  "version": "0.7.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net10.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net10.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net8.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net8.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net9.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.5.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#dependencygroup/net9.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4340,
+      "fullName": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "length": 11146,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 645,
+      "fullName": "LICENSE",
+      "length": 1070,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1691,
+      "fullName": "README.md",
+      "length": 4507,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#buildTransitive/KoalaSoft.Aspire.Hosting.ServiceSources.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 1826,
+      "fullName": "buildTransitive/KoalaSoft.Aspire.Hosting.ServiceSources.targets",
+      "length": 6111,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 180628,
+      "fullName": "lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 492544,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 180550,
+      "fullName": "lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 492032,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 180664,
+      "fullName": "lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 492544,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.11.37.34/koalasoft.aspire.hosting.servicesources.0.7.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspire",
+    "dotnet-aspire",
+    "service-discovery",
+    "apphost",
+    "kubernetes",
+    "git",
+    "microservices",
+    "local-development",
+    "port-forward",
+    "external",
+    "container",
+    "url",
+    "multi-repo",
+    "java",
+    "javascript",
+    "polyglot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

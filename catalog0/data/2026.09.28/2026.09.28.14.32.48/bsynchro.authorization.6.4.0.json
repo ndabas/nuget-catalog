@@ -1,0 +1,135 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "BSynchro.Authorization",
+  "catalog:commitId": "d9d88521-1436-4b6f-9841-db641778fe76",
+  "catalog:commitTimeStamp": "2026-09-28T14:32:48.4374102Z",
+  "created": "2026-09-28T14:27:54.38Z",
+  "description": "Package Description",
+  "id": "BSynchro.Authorization",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-28T14:32:45.92Z",
+  "listed": true,
+  "packageHash": "6DMmkohXqwMfE15rnjujZodIWKASkrJqPWlbmuMRV3FFjpK9GadsmVMac4Qmyn8w9FU8TH0+amKgN3JdO9SCng==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 58726,
+  "published": "2026-09-28T14:27:54.38Z",
+  "releaseNotes": "Behaviour change: a caller carrying the superadmin profile claim now holds every permission - HasPermissionAsync answers true without consulting policy data, and Evaluate reports the superadmin role plus every permission each policy defines. New permissions and unseeded tenants therefore reach Super Admin without a seed migration. Adds SuperAdmin.IsHeldBy and Role.Matches. Catalog refresh: CoraPermissions and the committed catalog snapshot are brought level with the 8.x line at 8.12.0 - 137 permissions. Fourteen constants are new to this line (scheduler.*, calendar.* and notifications.providers.*). The snapshot had drifted 16 names behind the generated file, so the two drift tests were failing on the branch tip before this release; refreshing both together is the standing obligation this line carries in place of the catalog itself, which lives only on 8.x. Fix: a 403 now names only the permissions that actually failed, taken from the authorization failure rather than from the merged policy. A service composing [RequiresPermission] with another [Authorize(Policy = ...)] previously got \"This action requires the 'x' permission\" even when a different requirement - a capability scope, say - was what refused the caller. Where the failure names no requirement at all, the denial is left to the framework instead of being attributed by guesswork. This is the net6 counterpart of 8.5.3. Brings the permission enforcement package to the net6 line. Adds [RequiresPermission] plus a policy-provider registration so an endpoint can be gated by a catalog permission, and PermissionDeniedResultHandler so a denial says which permission was missing. Behaviour change: authorization policies are now cached per tenant and loaded on first use rather than at startup; single-host deployments are unaffected, but a deployment serving several tenants from one process previously shared one tenant's policies across all of them. Behaviour change: AuthorizationConfigurationClient now sends an access token - the request token when there is one, and a client-credentials machine token configured via AuthorizationSettings.TokenSettings when there is not, which is the message-bus consume case. It previously sent none. The machine token is cached per tenant, each entry under its own lock, and TokenSettings.TokenEndpointAddress accepts the same {0} placeholder as Address. Behaviour change: policy cache invalidation evicts and re-fetches within the changed tenant's own region, and InvalidationMode.Multiple is honoured. Fix: the claims-augmentation path that runs on message-bus consume resolves the tenant from the ambient bus tenant when there is no HTTP request, instead of falling to the single-tenant cache region. Binary-breaking change: AuthorizationConfigurationClient's public constructor gained IAccessTokenAccessor, IAuthorizationAddressResolver and IMachineTokenProvider parameters, and PolicyCacheMessageEventHandler's gained ICacheDataSource<IPolicy> and ILogger; consumers resolving them through DI are unaffected, but anything constructing them by hand must pass the new arguments. Fix: a caller whose entity claim reaches several companies is now evaluated against all of their copies of a policy, not one. Since each entity holds its own copy of every policy name, the entity-scoped fetch answers with one row per company; the cache keyed by name alone kept result.FirstOrDefault(), so a permission granted to an ordinary role in any other company's copy was silently discarded and the caller was refused with nothing in the log naming the cause. Super Admin never saw it, because that profile short-circuits evaluation. The cache key is now the policy name plus the caller's claimed entity ids, and the copies are combined by PolicyUnion, which qualifies each copy's role names so a role can only satisfy the permissions of the copy it came from - deliberately not a merge by role name, because two companies may define the same role name against different profiles, ProductIds and DataListGroupIds, and merging those would let one company's grants answer for another's. Role names are reported unqualified, so an Evaluate response is unchanged. Any tenant running per-entity policies should take this version: without it, a multi-company caller holds only whatever the arbitrarily-kept copy grants. The policies are fetched through api/policy/searchForEntities on the authorization service, which resolves the claimed ids through the organization hierarchy. Behaviour change: a role granting \"all data list groups\" reaches the groups of the company whose policy granted it, not every group the caller can see. DataListGroupAccess gains EntityIds - the companies whose every group is covered - and CoversAll is Super Admin alone; a consumer that reads CoversAll and ignores EntityIds will under-grant rather than over-grant, but must be updated to resolve those companies' own groups. Policy gains EntityId, and a derived entity that declared its own must drop it: two members mapped to one element make the Mongo class map throw on every read. Adds product scope: AuthorizationSettings.ProductScopeEnforced, IProductScopeAccessor, IProductScopeGuard and [ProductScopeExempt], so a service whose routes carry a productId can gate a products.* permission on the product the request addresses and constrain its reads to it. Off by default, and unchanged for a service that does not enable it. Fix: policy cache invalidation no longer declines in silence. The handler now logs a warning when a message names no region it can safely evict, and when the changed policy has no cache key registered in that region; both paths previously returned without a trace, which is what let a revoked permission go on being served by a consuming service with nothing anywhere saying so. Every composite key a region holds for a policy name is evicted, through PolicyCacheKeyRegistry, rather than one key. Binary-breaking change: PolicyCacheDataSource's constructor gained ICallerEntityIdAccessor, and PolicyCacheMessageEventHandler's gained PolicyCacheKeyRegistry; IPolicyEvaluator and IAuthorizationRuntimeClient gained product-scoped overloads. Consumers resolving these through DI are unaffected, but anything constructing them by hand, or implementing those interfaces, must be updated. Fix: a caller's policies are now loaded for the user being checked, not for whatever principal the request held when the gate was built. The per-entity load ran as an IConfigureOptions<PolicyOptions> step, which executes when the framework builds the authorization handlers - before it authenticates the endpoint's own scheme. On a host whose default scheme is not its API's (ms.identity-server: the IdentityServer cookie against Bearer controllers) that principal was still anonymous, the fetch named no company, and every caller but Super Admin was refused. Hosts defaulting to Bearer are unaffected. Binary-breaking change: AuthorizationRuntimeClient's constructor takes ICallerPolicySource instead of PolicyOptions, PolicyOptionsService is replaced by CallerPolicySource, ConfiguredPolicySource serves a fixed set, and PolicyOptions is no longer registered by value; consumers resolving the client through DI are unaffected, but anything constructing it by hand or injecting PolicyOptions must be updated. Adds the datalists.rows.read constant (DatalistsRowsRead, \"Read Datalist Values\"): the runtime read that DataList/QueryDataListRows requires in place of the administration permission datalists.group.view. Additive only. A tenant must run the migration that seeds it (seedDataListRowsRead) before a data-list build using it is deployed, or every caller of that lookup except Super Admin is refused.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#repository",
+    "commit": "9e6fb753fd47e4879d7e0bb9a66a6747a931d140",
+    "type": "git"
+  },
+  "verbatimVersion": "6.4.0",
+  "version": "6.4.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#dependencygroup/net6.0/bsynchro.cache",
+          "@type": "PackageDependency",
+          "id": "BSynchro.Cache",
+          "range": "[6.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#dependencygroup/net6.0/bsynchro.common",
+          "@type": "PackageDependency",
+          "id": "BSynchro.Common",
+          "range": "[6.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#dependencygroup/net6.0/bsynchro.identity.public",
+          "@type": "PackageDependency",
+          "id": "BSynchro.Identity.Public",
+          "range": "[6.3.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#dependencygroup/net6.0/bsynchro.messagebus.hosting",
+          "@type": "PackageDependency",
+          "id": "BSynchro.MessageBus.Hosting",
+          "range": "[6.3.3, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#BSynchro.Authorization.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3558,
+      "fullName": "BSynchro.Authorization.nuspec",
+      "length": 8793,
+      "name": "BSynchro.Authorization.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#lib/net6.0/BSynchro.Authorization.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 40383,
+      "fullName": "lib/net6.0/BSynchro.Authorization.dll",
+      "length": 96256,
+      "name": "BSynchro.Authorization.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.14.32.48/bsynchro.authorization.6.4.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13036,
+      "fullName": ".signature.p7s",
+      "length": 13036,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

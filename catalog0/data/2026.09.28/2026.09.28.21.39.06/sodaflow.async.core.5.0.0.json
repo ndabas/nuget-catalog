@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "MorseCode Software LLC",
+  "catalog:commitId": "e2639087-f1b5-440e-93c0-babf68f785d1",
+  "catalog:commitTimeStamp": "2026-09-28T21:39:06.3990559Z",
+  "created": "2026-09-28T21:36:19.62Z",
+  "description": "SodaFlow Async Extensions library for .NET core library.",
+  "iconFile": "SodaFlow.png",
+  "id": "SodaFlow.Async.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-28T21:38:44.773Z",
+  "licenseExpression": "BSD-3-Clause",
+  "licenseUrl": "https://licenses.nuget.org/BSD-3-Clause",
+  "listed": true,
+  "packageHash": "KjibQgs6M5Yumr1Hl+bqvZSmEe3YCN2pAxZ6dxogMLGv/Kkk/W1FXH5qhZkXkT92LATrjrqDclT5RWtD7sZ6AQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 135749,
+  "projectUrl": "https://github.com/MorseCode-Software/SodaFlow",
+  "published": "2026-09-28T21:36:19.62Z",
+  "releaseNotes": "5.0.0\n\nAdds Execute, which puts one value into a pipeline and answers with the Task of\nthat value alone.\n\nExecute has one purpose: the operation of a MapAsync pipeline calls a second\nMapAsync pipeline with it, and waits for the result of that one value. Thus, an\noperation can be a pipeline of its own, and the strategy of the inner pipeline\ncontrols the inner work. An operation is an async method, thus it can await the\nTask.\n\nOther code does not use Execute. Code that has a value for a pipeline sends that\nvalue on the source stream of the pipeline, and reads the results stream. That is\nthe interface of a pipeline, and it keeps the identity of one value out of code\nthat has no need of it.\n\nThe value goes through the strategy as a value from the source stream does, thus\nthe call obeys the concurrency rules of the pipeline, and the result reaches the\nresults stream as well. Execute gives the same object and does not divert it.\n\nA second overload takes a Cell<TInput>. It reads the cell in the transaction that\nputs the value in, thus the pipeline admits the value that the cell has at that\ninstant. A caller that samples the cell first, and then calls the other overload,\nhas two transactions, and the cell can take a new value between them.\n\nThe Task ends one time, in each condition. It gives the result where the\noperation gives one and the strategy publishes it. It carries the exception\nwhere the operation throws and the strategy publishes that, and the errors\nstream gets the same exception. It is canceled where a cancellation stops the\nvalue, where the strategy refuses the value, where the strategy does not publish\nthe outcome, and where the pipeline is disposed before the value is admitted. A\nstrategy that does not publish says that no code wants the result, which is a\ncancellation at a later moment, thus the Task treats it as one.\n\nOne condition gives no end to the Task, and it is outside the position that Execute\nis for. A strategy that keeps a value in the queue permanently, and does not\ncancel that value, gives the pipeline no end to read. Each strategy in this\nlibrary ends each value, and the documented method for a strategy to refuse a\nvalue cancels that value, thus that method ends the Task.\n\nA transaction that fails cancels the Task. Where a transaction is open, Execute\ndefers the value into the post queue of that transaction. A throw while that\ntransaction propagates discards that queue, thus the value never enters the\npipeline, and Execute registers a cancellation for that condition. A throw from\nthe body of a transaction is different: that transaction still closes, the queue\nstill drains, and the pipeline admits the value.\n\nA call with a transaction open is legal. The code of an operation before its first\nawait runs in the transaction that started that operation, thus Execute cannot ask\nits caller for a thread with no transaction open. It defers the value to a\ntransaction of its own in that condition, and the pipeline admits the value after\nthe transaction of the caller ends. The overload that takes a cell reads that cell\nin the transaction of the send, thus a deferral carries the read with it.\n\nThe Task runs its continuations asynchronously. The pipeline answers it in the\ntransaction that publishes, and a continuation on that thread would be in that\ntransaction, where a send is not legal.\n\nExecute lives on a new AsyncMapStatus<TInput, TResult>, which extends\nAsyncMapStatus<TInput>, and MapAsyncImpl answers with that type. Thus, the count\nof the type parameters a caller keeps says what that caller does: the\nnon-generic AsyncMapStatus for IsRunning and the disposal, AsyncMapStatus<TInput>\nfor Items also, and AsyncMapStatus<TInput, TResult> for Execute also.\nAsyncMapStatus<TInput> is no longer sealed for this, and its constructor is\nprivate protected, thus no code outside this assembly can extend it.\n\nFixed: a cancellation now ends each item that it cancels, and the pipeline\nstops tracking it. Two conditions left an item in the queue with no operation\nbehind it, and IsRunning and Items reported that item for the life of the\npipeline.\n\nThe first was a Queued item. A cancellation cancels the token of each item,\nand a Queued item runs no operation, thus nothing observed that token. The end\nof such an item waited for a promotion, and a promotion comes from the end of\na different item, thus an item that no other end followed stayed in the queue.\n\nThe second was a Running item, and it needed a particular shape of operation.\nCancel() runs the registrations of a token on the thread that calls it. Where\none of those ends the Task of the operation, and that Task runs its\ncontinuations on the completing thread, the end of the item ran on that\nthread, inside the callback of the listener for the cancellation stream. A\nsend is not legal there, thus the end threw, and the throw went into the\nmachinery of Cancel() where no code reports it. The strategy had the end of\nthat item and the pipeline kept it. An operation that awaits a plain\nTaskCompletionSource, which a caller writes to wrap a callback API or to build\na gate, meets this. An operation that awaits Task.Delay with the token does\nnot, because that one schedules its continuation.\n\nBREAKING: the queue that a strategy reads in Admit and in OnCompleted is the\nqueue as the pipeline holds it at the moment of the call, and not a snapshot\nfrom the start of the transaction. OnCompleted no longer finds the item that\nends now: the pipeline removes that one before the call, thus a strategy can\ntake the first Queued item with no test against it. A strategy that filtered\nthat item out by hand must drop the filter, or it skips a real item. Admit is\nunchanged in this: the value that the pipeline admits now is still absent,\nbecause the pipeline adds it after the call.\n\nBREAKING: a strategy now has two hooks for the ends of its items. OnCompleted\nreads one item whose operation returned or threw. OnCanceled reads the items that\na cancellation ended. The signature of OnCompleted is the signature of the\nrelease before this one: one AsyncQueuedItem, one AsyncCompletion, and the queue.\nAsyncStrategyResult keeps its boolean Publish property.\n\nA cancellation is what makes a list necessary. One send of cancelAll or of\ncancelMatching can end more than one item at one instant: each Queued item that\nit removes, and each Running item whose operation observes its token. Before this\nrelease, one call for each of them asked the strategy to decide again, and the\nqueue took an edit for each one. Each of those decisions read a queue that held\nthe other items which end at the same instant, thus a strategy started an item\nthat was about to end. OnCanceled gets all of them in one call, over the queue\nthat all of them leave.\n\nOnCanceled makes no publish decision, because a canceled item sends nothing to\nthe results stream and nothing to the errors stream. Thus, it returns the items\nto start, as an IReadOnlyList<AsyncToStart<TInput>>, which is what Admit returns.\nGive AsyncStrategyResult<TInput>.None for no items. A strategy starts the next\nQueued item here, where a cancellation makes a position free. A strategy that\nholds a reference to its current run clears that reference here also.\n\nOnCompleted reads one item and never a list. A stream carries one value for each\ntransaction, thus one such end is the most that a transaction can hold. The edit\nof the queue for that end is in the transaction that sends it, or a graph that\nreads Items and results together sees two instants where the pipeline made one. A\ncaller that wants a result for a batch of inputs asks for that in the types: one\nMapAsync from TInput to a list of TInput, and a second from that list to a list\nof results. MapAsync is TInput to TResult, and it does not model two results at\none instant.\n\nAsyncCompletion has two ends now, Succeeded and Failed, and Match and MatchVoid\ntake two handlers. A cancellation is not one of those ends: it goes to OnCanceled,\nwhich reads the items alone, because a canceled end carries nothing to read.\n\nA custom strategy adds OnCanceled. The compiler asks for it, because the method\nis abstract: a default that starts nothing makes a queue stall where a\ncancellation ends the item that runs. A strategy that starts the next Queued item\nmust also test the queue in OnCanceled, because more than one item can end at one\ninstant: Queue in this library starts nothing while an item is Running, and\nQueuePerGroup starts one item for each group that becomes free.\n\nFixed: a MapAsync call no longer stalls where the graph feeds results back\ninto inputs. A published result can fire the input stream in the transaction\nthat ended the previous item, thus OnCompleted and Admit run one after the\nother in one transaction. Each read the queue from the start of that\ntransaction before, thus OnCompleted found nothing Queued and Admit found the\nitem that ended still Running. Neither started anything, and the new item\nstayed Queued with no event to start it. Queue and QueuePerGroup had this, and\nParallel and SwitchLatest did not, because their Admit starts an item at each\ncall.\n\nThe queue is one value that the pipeline computes in one sequence of edits,\nand the cell behind the Items property takes that value. Before, the strategy\nread a sequential fold and the cell accumulated the edits of a transaction in\ngroups: all the removals, then the additions, then the promotions. The two\nagreed for the inputs that occur, but agreement was a coincidence and not a\nproperty. The cell still takes one new value for each transaction, at the end\nof it, thus nothing sees a queue with some of the edits.\n\nBREAKING: the operation of a MapAsync call is a MapAsyncOperation<TInput,\nTResult> delegate, where it was a Func<TInput, CancellationToken,\nTask<TResult>>. It takes a third argument, a ResultFactory<TResult>,\nand answers with what that factory makes:\n\n  resultFactory.FromValue(value)        a value the operation has\n  resultFactory.Construct(() => .) a function the pipeline calls\n\nThe second one is the cause for the change. The pipeline calls that function\nin the transaction that sends the result, so a result that holds a cell, a\nstream, or a view model built out of them comes into existence in that\ntransaction. An operation runs outside a transaction and cannot do that for\nitself.\n\nKeep such a function short, because it holds the transaction while it runs, and\nput no effect in it that matters outside the value it returns: the pipeline\ncalls it only for an item that it publishes, and a strategy can decide not to\npublish. A throw from it goes to the errors stream in place of a result.\n\nA lambda takes the third parameter and compiles. A stored Func does not convert\nto the delegate and needs its own edit.\n\nBREAKING: Admit and OnCompleted take one more argument, the queue of the\npipeline: each item that it tracks, Queued or Running, in the sequence of their\nadmissions, as an IReadOnlyList<AsyncTrackedItem<TInput>>. An entry holds the\nAsyncQueuedItem that the strategy received at the admission, which is the same\ninstance, and the status of that item now.\n\nA strategy that schedules on the sequence alone thus keeps no queue of its own.\nTwo limits decide what the next item is: in Admit the list does not hold the\nvalue that the pipeline admits now, and in OnCompleted it holds no item that\nends now. It does not change while the call runs, and an item that the call\nstarts is Queued in it.\n\nEach custom strategy takes the new parameter, also one that does not read it.\n\nQueue and QueuePerGroup in this library read that queue now and hold no queue of\ntheir own. Their behavior does not change - the same sequence, the same\ntreatment of an item that a cancellation removed before its turn - and a\nmeasurement of 5,000 items through each one gives the same time as before, in\none group and in 500 groups. The state type of Queue is gone with its queue, and\nthe state of QueuePerGroup holds the group comparer alone.\n\n\nBREAKING: a strategy no longer reads a result. OnCompleted takes an\nAsyncCompletion - the operation returned, it threw, with the exception, or a\ncancellation stopped it - in place of an AsyncOutcome<TStrategyResult>. The\npipeline asks the strategy first and makes the result after, and only for an\nitem that it publishes, which is what the paragraph above describes.\n\nThe result type of a strategy existed to carry that value, so it is gone with\nit:\n\n  AsyncConcurrencyStrategyBase<TInput, TResult>\n      becomes AsyncConcurrencyStrategyBase<TInput>\n  AsyncConcurrencyStrategy<TInput, TResult, TState>\n      becomes AsyncConcurrencyStrategy<TInput, TState>\n\nMapAsyncImpl loses its TStrategyResult and its resultConverter with them. None\nof the strategies in this library read a result, and a strategy that wants to\nselect what reaches a consumer can filter the results stream instead.\n\nBREAKING: AsyncMapStatus<TInput> is a class, where it was a readonly struct, and\nit now extends a new non-generic AsyncMapStatus that carries IsRunning and\nDispose. Items stays on the generic type, because only that part depends on the\ninput type.\n\nThe point of the split is the caller that never reads Items. It can hold an\nAsyncMapStatus and does not have to name the input type to do it - a view model\nthat shows a busy indicator and disposes the pipeline is the usual case.\n\nSource that names AsyncMapStatus<TInput> and reads its members needs no edit.\nAnything compiled against 4.x does, because a struct and a class are not the\nsame type to the runtime, which is what makes this a major. Two smaller changes\ncome with the type: the value is a reference now, so default(AsyncMapStatus<T>)\nis null where it was a zeroed value, and two of them compare by reference where\nthey compared field by field.\n\n4.0.1\n\nAdds the package icon that nuget.org shows beside this package.\n\nOne expression in MapAsyncUtility is written on a single line where it was split\nacross two. Nothing else changed, and nothing behaves differently.\n\nEvery package here ships this release together, so the dependency versions\nmove with it.\n\n4.0.0\n\nNo API change of its own. This release moves to SodaFlow.Core 4.x, and\nis a major because taking it obliges a consumer to take that.\n\nNothing in this package's own code changed but its layout: file-scoped\nnamespaces in place of braced ones, which moves every line left by four\ncolumns and alters no behavior.\n\nRequires System.ValueTuple 4.6.2, where it required 4.4.0. Nothing here\nuses it differently: this repository named two versions of it, one in\nthe shipping projects and one in the test projects, and now names a\nsingle version in both. A consumer does nothing about this; NuGet\nresolves the higher floor.\n\n3.0.0\n\nNo code change. This release exists to move a dependency, and is a major\nversion because of what moving it does to a consumer.\n\nDependencies between these packages are now declared as ranges bounded at\nthe next major, so NuGet refuses a pairing which would fail rather than\nresolving it and leaving the failure until the code runs. This package now\nrequires SodaFlow.Core 3.x, where it required 2.x before.\n\nThat ceiling is why this is not a minor version. Taking this release obliges\na consumer to take SodaFlow.Core 3.x as well, and one who names\nSodaFlow.Core directly, or who uses anything removed there, cannot adopt it\nwithout changing their own code. A version they cannot adopt is not a minor\none.\n\n2.0.1\n\nAdds the release notes below. 2.0.0 shipped without any, because the mechanism\nthat reads them from a file landed after that version was tagged. No code\nchange since 2.0.0.\n\n2.0.0\n\nNo public API change. Major because this assembly calls SodaFlow.Core's\ninternals, and 2.0.0 of the core renamed them: ListenWeakImpl became\nListenImpl, while ListenImpl kept its name and changed meaning from the strong\nlistener to the weak one.\n\nThat makes the pairing load-bearing in both directions. Against a 1.0.0 core\nthis version throws MissingMethodException; a 1.0.0 of this package against a\n2.x core binds to the strong listener instead and roots the whole async\npipeline for good. Upgrade the two together.\n\n---\n\nAbout this package\n\nThe engine behind MapAsync: the tracking, the concurrency strategies and the\nAsyncMapStatus a caller holds, which is non-generic for IsRunning and the\ndisposal, generic in the input type for the tracked items also, and generic in the\ninput type and the result type for Execute also. An operation uses Execute to\ndrive a second pipeline. An operation answers with a\nMapAsyncResult, which carries a value or a function that this engine calls in\nthe transaction that publishes. Not installed directly - take SodaFlow.Async for\nC# or SodaFlow.FSharp.Async for F#, both of which bring it with them.\n\nFull notes: https://github.com/MorseCode-Software/SodaFlow/releases",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#repository",
+    "commit": "a369c146ca759c18884d1a1e09a64401b0e96661",
+    "type": "git"
+  },
+  "title": "SodaFlow Async Core for .NET",
+  "verbatimVersion": "5.0.0",
+  "version": "5.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/.netframework4.7.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/.netframework4.7.2/sodaflow.core",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Core",
+          "range": "[5.0.0, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/.netframework4.7.2/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/net6.0/sodaflow.core",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Core",
+          "range": "[5.0.0, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/net6.0/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/.netstandard2.0/sodaflow.core",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Core",
+          "range": "[5.0.0, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#dependencygroup/.netstandard2.0/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#SodaFlow.Async.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6574,
+      "fullName": "SodaFlow.Async.Core.nuspec",
+      "length": 18785,
+      "name": "SodaFlow.Async.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#SodaFlow.png",
+      "@type": "PackageEntry",
+      "compressedLength": 13741,
+      "fullName": "SodaFlow.png",
+      "length": 14813,
+      "name": "SodaFlow.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#lib/net472/SodaFlow.Core.Async.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19301,
+      "fullName": "lib/net472/SodaFlow.Core.Async.dll",
+      "length": 41984,
+      "name": "SodaFlow.Core.Async.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#lib/net472/SodaFlow.Core.Async.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 14000,
+      "fullName": "lib/net472/SodaFlow.Core.Async.xml",
+      "length": 79932,
+      "name": "SodaFlow.Core.Async.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#lib/net6.0/SodaFlow.Core.Async.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19299,
+      "fullName": "lib/net6.0/SodaFlow.Core.Async.dll",
+      "length": 41984,
+      "name": "SodaFlow.Core.Async.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#lib/net6.0/SodaFlow.Core.Async.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 14000,
+      "fullName": "lib/net6.0/SodaFlow.Core.Async.xml",
+      "length": 79932,
+      "name": "SodaFlow.Core.Async.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#lib/netstandard2.0/SodaFlow.Core.Async.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19301,
+      "fullName": "lib/netstandard2.0/SodaFlow.Core.Async.dll",
+      "length": 41984,
+      "name": "SodaFlow.Core.Async.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#lib/netstandard2.0/SodaFlow.Core.Async.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 14000,
+      "fullName": "lib/netstandard2.0/SodaFlow.Core.Async.xml",
+      "length": 79932,
+      "name": "SodaFlow.Core.Async.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.39.06/sodaflow.async.core.5.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12992,
+      "fullName": ".signature.p7s",
+      "length": 12992,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

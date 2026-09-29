@@ -1,0 +1,196 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "MorseCode Software LLC",
+  "catalog:commitId": "88116ea2-973a-4798-aa7c-75e859735009",
+  "catalog:commitTimeStamp": "2026-09-28T21:10:02.1388391Z",
+  "created": "2026-09-28T21:07:17.117Z",
+  "description": "SodaFlow - Functional Reactive Programming (FRP) library for .NET core library.",
+  "iconFile": "SodaFlow.png",
+  "id": "SodaFlow.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-28T21:09:42.29Z",
+  "licenseExpression": "BSD-3-Clause",
+  "licenseUrl": "https://licenses.nuget.org/BSD-3-Clause",
+  "listed": true,
+  "packageHash": "+uqUlYGJMEesz1u/7ZA716uZgRJsnDu1EEU/VZgxmB5617YfJRgNoScMmLXrPzTazYD4A2QyoxjKaMU7dnAVkA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 219553,
+  "projectUrl": "https://github.com/MorseCode-Software/SodaFlow",
+  "published": "2026-09-28T21:07:17.117Z",
+  "releaseNotes": "5.0.0\n\nAdds StreamExtensionMethodsInternal.DebounceImpl, which each language surface\ngives as a debounce of a stream. It fires the last value after a time with no\nother value, and each firing moves the alarm out. The method takes the clock,\na function that makes an alarm from a cell, a function that arms a deadline, and\nthe value for no deadline. Thus, it holds no optional type, as FilterSomeImpl\ndoes not.\n\nPostImpl takes one more argument, for the packages that reach these internals\nand for the public Post that SodaFlow and SodaFlow.FSharp give: the action to\nrun where the posted action does not run or does not complete. A transaction\nthat fails while it propagates discards each action that Post holds. Code that\ngives a value to something which waits, and gives that value from a posted\naction, had no way to release it, thus the waiting code waited forever.\n\nThe release runs one time, and only where the posted action does not complete.\nTwo conditions give that: the transaction fails before it runs the action, and\nthe action itself throws. The argument is the exception of the transaction in\nthe first condition, and the exception of the action in the second. An action\nthat completes runs no release.\n\nA throw from a release does not stop the release of another posted action, and\nit does not replace the exception that caused it. The caller gets an\nAggregateException with that exception first and the throw from the release\nafter it, thus no code loses a failure.\n\nThe release belongs to one posted action, at the call that posts it, and not to\na transaction. Thus, no code can ask for a release with nothing to release, and\nnone must find the transaction that is open to ask.\n\nSodaFlow.Core.Async is the first caller. Its Execute gives a Task to code that\nwaits, and it gives the value of that Task from a posted action.\n\nAdds SnapshotLatestImpl, for the SnapshotLatest that SodaFlow and\nSodaFlow.FSharp give. It samples a behavior when a stream fires, as SnapshotImpl\ndoes. SnapshotImpl gives the value from before the transaction. SnapshotLatestImpl\ngives the value at the end of the transaction.\n\nIt uses the mechanism of LiftImpl. The stream and the updates of the behavior\nsend into one pulse. A coalesce operation that ranks above both reads the\ncaptured update. Thus, the behavior can update before the output fires. A stream\nthat fires more than once in a transaction gives one output firing for each, as\nSnapshotImpl does.\n\nSnapshotLatestImpl takes up to eight behaviors or cells. All of its forms use one\nprivate method. Each form gives a capture for each behavior, a function that\nreads the captured values, and the function that puts them together. The\ncaptures are StreamInternal.Pulse on the updates of each behavior. The reads are\nBehavior.Take, which LiftImpl also uses, and which is internal now and not\nprivate.\n\nAdds MergeMaybesImpl, for the Merge of streams of different types that SodaFlow\nand SodaFlow.FSharp give. It takes two to eight streams and a function\nthat gets one MaybeInternal for each stream. The mechanism is the one of\nLiftImpl, with streams in place of the updates of behaviors. Each stream\ncaptures its firing and sends into one pulse. A coalesce operation that ranks\nabove the pulse makes one output firing from the captured values. This is less\nexpensive than a merge of mapped streams, and no stream has priority.\n\nLiftImpl takes up to eight behaviors or cells, where it took up to six, and\nSnapshotImpl takes up to eight, where it took up to four. They are for the wider\nLift and Snapshot that SodaFlow gives. Each new form is the form before it with\none more input.\n\nThe name is not MergeImpl. With that name, the F# type inference at the call in\nmergeOptions2 also uses the MergeImpl for streams of one type. Thus,\nmergeOptions2 accepts only two streams of one type. The F# package builds without an\nerror, and a call with two types fails only in the code that calls it.\n\nStreamInternal.Pulse is new. It connects a stream to a pulse, and it takes the\nplace of the private Behavior.Pulse, which connected only the updates of a\nbehavior. LiftImpl, SnapshotLatestImpl, and MergeMaybesImpl call it, and give it\nthe updates of a behavior where the input is a behavior.\n\nBREAKING for the packages that reach these internals: AttachListenerImpl is\nnamed AttachListenerInternal. The Impl suffix here marks a method that a public\nextension forwards to, and the extension that forwarded to this one is gone from\nSodaFlow and SodaFlow.FSharp, so the name follows the one HoldInternal and\nHoldLazyInternal use for a method with no public counterpart. Only those two\npackages called it, and both move with this release.\n\nBREAKING for the packages that reach these internals, though this assembly has\nno public API of its own to move: ListenOnceImpl returns IWeakListener, where it\nreturned IStrongListener, and ListenOnceStrongImpl is new and returns what\nListenOnceImpl used to. Internal is not private here - this assembly grants\nInternalsVisibleTo to the shipping packages around it - so a SodaFlow or a\nSodaFlow.FSharp built against 4.x names a method whose return type has changed\nand cannot bind to it at run time. Both of those packages carry 5.0.0 as their\nfloor. No other package calls either method.\n\nThe two one-shot listeners are one generic method now rather than two copies of\nthe same thirty lines, which is what the split would otherwise have created.\nNothing about the sequence changed: the listener stops itself at the first\nvalue, a value that the call to listen sends again unlistens early, and the\ncaller gets a listener that does nothing in that case.\n\nThis is the last of the rename that 2.0.0 began. That release swapped ListenImpl\nto the weak listener and removed ListenWeakImpl; ListenOnceImpl kept the old\nmeaning until now, and was the one name left where the short form rooted the\nstream.\n\n4.0.2\n\nAdds the package icon that nuget.org shows beside this package. No source file\nchanged since 4.0.1.\n\n4.0.1\n\nGrants InternalsVisibleTo to the three collections assemblies:\nSodaFlow.Core.Collections, SodaFlow.Collections and\nSodaFlow.FSharp.Collections.\n\nRequired rather than cosmetic, for the reason 2.1.0 was. The CLR checks\nthe friend-assembly attribute on the assembly that declares the\ninternals, so those three throw MethodAccessException at run time\nagainst a 4.0.0 core, even though they build cleanly from source, where\nthe grants are present. Anything depending on SodaFlow.Collections or\nSodaFlow.FSharp.Collections needs this version, and both carry it as\ntheir floor.\n\nNo other change, public or internal.\n\n4.0.0\n\nBREAKING: internal members are gone or changed shape. Internal is not\nprivate here - this assembly grants InternalsVisibleTo to the shipping\npackages around it, so what it declares internal is API to them, and\nremoving any of it is a break they have to be rebuilt against.\n\nGone: TransactionInternal.IsActiveImpl, its parameterless constructor,\nClose and the Post overload; the Utilities class and its Yield;\nMaybeInternal's NoneType, the None field and the implicit conversion\nfrom it; the three Lazy overloads of\nLazyExtensionMethodsInternal.LiftImpl; LazyBehavior's LazyInitialValue;\nTransactionInternal's ActionEntry and its Entry.IsRemoved.\nTransactionInternal.Split returns void where it returned UnitInternal,\nwhich is a different method to a compiler and to the runtime.\n\nAdded: the NoListener type, and an Equals overload on MaybeInternal\ntaking its own type rather than object.\n\nThe public surface is unchanged. Every type this package exposes -\nStream, Cell, Behavior, their sinks and loops - has the same members it\nhad in 3.0.0, so code which only uses the published API needs nothing\nbut the recompile a new major asks for.\n\nA major rather than a 3.x, and the version is doing real work. Published\nSodaFlow.FSharp 3.1.0 calls TransactionInternal.IsActiveImpl and depends\non this package as [3.0.0, 4.0.0). Shipped as 3.0.1 or 3.1.0 this would\nresolve against that package and fail when the call was made; shipped as\n4.0.0 it falls outside the range and NuGet declines the pairing instead.\nThat is the whole reason the ranges carry an upper bound.\n\nRequires System.ValueTuple 4.6.2, where it required 4.4.0. Nothing here\nuses it differently: this repository named two versions of it, one in\nthe shipping projects and one in the test projects, and now names a\nsingle version in both. A consumer does nothing about this; NuGet\nresolves the higher floor.\n\n3.0.0\n\nBREAKING: FilterMaybeImpl and FilterMaybeInternal are renamed to FilterSomeImpl\nand FilterSomeInternal, following the rename in SodaFlow and SodaFlow.FSharp.\n\nThese are declared internal, but internal is not private here. This assembly\ngrants InternalsVisibleTo to eight shipping packages - SodaFlow,\nSodaFlow.FSharp, SodaFlow.Core.Async, SodaFlow.Async, SodaFlow.FSharp.Async and\nthe three bindable object model packages - so anything internal is API as far\nas they are concerned, and renaming one breaks them exactly as renaming a\npublic member would. A wrapper compiled against the old names throws\nMissingMethodException against this version.\n\nThat is why this is a major version even though nothing changed for a caller\noutside those eight.\n\nNo one has to remember that. Every package here now declares the range of this\none it was built against, bounded at the next major, so NuGet refuses a pairing\nthat would fail rather than resolving it and leaving the failure until someone\nruns the code. SodaFlow and SodaFlow.FSharp ship alongside this release; the\nasync and bindable object model packages follow with compatibility releases,\neach of which moves a dependency range and nothing else.\n\n2.1.1\n\nAdds the release notes below. 2.1.0 shipped with the repository-wide notes\ninstead, which described the 2.0.0 listen rename and said nothing about what\n2.1.0 actually changed. No code change since 2.1.0.\n\n2.1.0\n\nGrants InternalsVisibleTo to the three bindable object model assemblies:\nSodaFlow.Core.Bindable.ObjectModel, SodaFlow.Bindable.ObjectModel and\nSodaFlow.FSharp.Bindable.ObjectModel.\n\nRequired rather than cosmetic. The CLR checks the friend-assembly attribute on\nthe assembly that declares the internals, so those three throw\nMethodAccessException at run time against a 2.0.0 core - even though they\nbuild cleanly from source, where the grants are present. Anything depending on\nSodaFlow.Bindable.ObjectModel needs this version.\n\nNo API change otherwise.\n\n2.0.0\n\nFixed: Cell.updates is volatile, so its lazily created stream is published\nsafely on weak memory models. It was read outside the transaction lock with\nnothing ordering the write, letting a reader observe a partly constructed\nobject on arm64.\n\nCalm is expressed over CarryState rather than duplicating its state protocol,\nand a throwing transaction now releases all five of its queues rather than\nthree.\n\nBreaking for the packages that reach these internals, though no public API\nmoved: ListenImpl kept its name and swapped from the strong listener to the\nweak one, and ListenWeakImpl is gone.\n\n---\n\nAbout this package\n\nThe engine: Stream<T>, Cell<T>, Behavior<T>, Transaction, the listener\ninterfaces, and the dependency graph that makes updates atomic. Language\nneutral, and not installed directly - take SodaFlow for C# or SodaFlow.FSharp\nfor F#, both of which bring it with them and expose its operations.\n\nFull notes: https://github.com/MorseCode-Software/SodaFlow/releases",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#repository",
+    "commit": "a369c146ca759c18884d1a1e09a64401b0e96661",
+    "type": "git"
+  },
+  "title": "SodaFlow Core for .NET",
+  "verbatimVersion": "5.0.0",
+  "version": "5.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#dependencygroup/.netframework4.7.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#dependencygroup/.netframework4.7.2/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#dependencygroup/net6.0/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#dependencygroup/.netstandard2.0/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#SodaFlow.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4785,
+      "fullName": "SodaFlow.Core.nuspec",
+      "length": 12938,
+      "name": "SodaFlow.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#SodaFlow.png",
+      "@type": "PackageEntry",
+      "compressedLength": 13741,
+      "fullName": "SodaFlow.png",
+      "length": 14813,
+      "name": "SodaFlow.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#lib/net472/SodaFlow.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55469,
+      "fullName": "lib/net472/SodaFlow.Core.dll",
+      "length": 132096,
+      "name": "SodaFlow.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#lib/net472/SodaFlow.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6336,
+      "fullName": "lib/net472/SodaFlow.Core.xml",
+      "length": 28648,
+      "name": "SodaFlow.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#lib/net6.0/SodaFlow.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55620,
+      "fullName": "lib/net6.0/SodaFlow.Core.dll",
+      "length": 132096,
+      "name": "SodaFlow.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#lib/net6.0/SodaFlow.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6336,
+      "fullName": "lib/net6.0/SodaFlow.Core.xml",
+      "length": 28648,
+      "name": "SodaFlow.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#lib/netstandard2.0/SodaFlow.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55472,
+      "fullName": "lib/netstandard2.0/SodaFlow.Core.dll",
+      "length": 132096,
+      "name": "SodaFlow.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#lib/netstandard2.0/SodaFlow.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6336,
+      "fullName": "lib/netstandard2.0/SodaFlow.Core.xml",
+      "length": 28648,
+      "name": "SodaFlow.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.21.10.02/sodaflow.core.5.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12991,
+      "fullName": ".signature.p7s",
+      "length": 12991,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Joe Zhuo",
+  "catalog:commitId": "ab9dca77-5366-4a29-bdc6-ca4082c0280e",
+  "catalog:commitTimeStamp": "2026-09-28T17:06:23.9662084Z",
+  "copyright": "Copyright (c) 2026 Joe Zhuo",
+  "created": "2026-09-28T16:59:27.07Z",
+  "description": "Roslyn analyzer for Unity C# that flags allocations in hot paths - new objects, hidden allocations such as strings, closures, LINQ (including LINQ-style extension methods), boxing, iterator and async state machines and boxed foreach enumerators, and allocating Unity APIs, outside Burst-compiled code - reports Unity job structs holding managed fields, native containers (NativeArray, NativeList, ...) that are not disposed on every path, Resources.Load and Addressables loads in hot paths, and GetComponent and GameObject.Find lookups that belong in Awake, and offers code fixes that route object allocations through an object pool - writing the pool class when none exists - rent local arrays from ArrayPool<T>.Shared inside a try/finally, and rewrite closures, delegates, string interpolation, simple LINQ chains, tag comparisons, GetComponents calls and Input.touches into cached, reused or non-allocating forms, minimizing GC and frame hitches. Includes a source generator that writes the pool class itself from an [ObjectPool] attribute, and a suppressor that stays quiet for allocations behind a first-frame guard, an editor-only region, a static latch or a field assignment. Configurable from .editorconfig, with a warning for misspelled options.",
+  "developmentDependency": true,
+  "iconFile": "icon.png",
+  "id": "ObjectPoolLinter",
+  "isPrerelease": false,
+  "lastEdited": "2026-09-28T17:06:13.663Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "DtOI0lp/r5oSNrA3bOEZs0El+7XSk/3JTAhk87t4Vz8rTPFoD4AbXlHX4kHvRp8EwK0fA+2pBKEZ8O0bgtDzjA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 155020,
+  "projectUrl": "https://github.com/joezhuo2/ObjectPoolLinter",
+  "published": "2026-09-28T16:59:27.07Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "*This release tests the analyzers the way Roslyn and the IDE actually run them: concurrently, with one\nset of analyzer instances shared by several compilations, and over a project with hundreds of types\nunder a deep MonoBehaviour hierarchy. It also gives the whole test suite one Unity stub to compile\nagainst. The analyzers, code fixes, generator and suppressor are unchanged from 1.6.11.*\n\nIt also caps the development arc from `v1.6.1` through `v1.6.11`. Over that period ObjectPoolLinter\ngained a ninth rule for component and scene lookups, OPL003 learned the Unity APIs that build a new\nstring or object rather than an array, the NuGet package started carrying its own release notes, and\nnine test-and-documentation releases took the suite from 300 to 470 tests, pinned the rules against\neach other and against the code a Unity project really compiles, and wrote down what each rule does\nnot report.\n\n### Highlights\n\n- **OPL009, component and scene lookups (`v1.6.1`)**: `GetComponent<T>()`, `TryGetComponent`,\n  `GetComponentInChildren`, `GetComponentInParent`, `GameObject.Find` and the `FindObjectOfType`\n  family are reported inside a hot path when called on this object or one reached through fields, with\n  the advice to look it up once and keep it in a field. A lookup on a parameter, local or method\n  result (`other.GetComponent<T>()` in `OnTriggerStay`) is left alone, and a lookup cached in a field\n  is suppressed as `OPLS004`\n- **OPL003 reaches further (`v1.6.1`)**: array-returning members of `UnityEngine.SceneManagement` and\n  `UnityEngine.AI` are matched, along with the getters and methods that build a new string or object\n  on every call (`Application.dataPath` and the other paths, `Scene.name`, `Animator.GetParameter`,\n  `NavMeshAgent.path`, `JsonUtility.ToJson` / `FromJson`). The OPL003 page stopped recommending\n  `Renderer.sharedMaterials`, which copies its array too\n- **A package that explains itself (`v1.6.2`)**: the `.nupkg` carries the changelog section for its\n  version as `PackageReleaseNotes` and an icon, `build/pack-unity.ps1 -UnityVersion` sets the minimum\n  Unity the UPM package declares, and CI packs the Unity artifacts on every push and fails on a\n  manifest with a leftover placeholder\n- **Tests that see what Unity sees (`v1.6.4`)**: test sources compile against .NET Standard 2.1, the\n  default API level of Unity 2021.3, so interpolation boxes its holes as it does in a Unity project;\n  `OPL_TEST_REFERENCE_ASSEMBLIES=newest` reruns everything against .NET 10, and CI runs both. CI also\n  collects coverage and fails below 90% line coverage\n- **The rules run together (`v1.6.3`, `v1.6.7` to `v1.6.11`)**: `IntegrationTests.cs` runs OPL001,\n  OPL002 and OPL003 over one compilation, so a case one rule skips cannot be reported by another. It\n  covers multi-file partials and base classes, per-file `.editorconfig` sections, delegates and\n  `params`, LINQ chains, lambda captures, compound assignment, hole-less interpolation, initializers\n  and multi-dimensional arrays, `Instantiate` overloads, deep-namespace hot methods, excluded-type\n  lists, generated code, and OPL003's namespace and derived-reference rules\n- **The code fix contract, pinned (`v1.6.5`, `v1.6.6`)**: `Instantiate` gets only the TODO comment,\n  the pool's `Get` is matched by argument count with optional and `params` parameters, every fix\n  writes the file's own line ending, and the comment fix can be followed by the pool rewrite\n- **Concurrency, scale and one shared stub (`v1.7.0`)**: detailed below\n\n### Added\n- **Concurrent execution tests** in the new `ConcurrentExecutionTests.cs`. They run OPL001, OPL002,\n  OPL003, OPL008 and OPL009 through `CompilationWithAnalyzers` rather than the testing library, which\n  analyzes one small project at a time, and compare what is reported per file, method and rule with\n  what each file's options ask for. Every file's hot methods allocate once for each rule, and all of\n  them call the same iterator, so OPL002's per-compilation cache of state-machine kinds is shared\n  between threads. An analyzer exception fails the test instead of turning into an `AD0001`\n  diagnostic.\n  - **Per-file options under concurrent analysis**: 200 files with `additional_hot_methods = Tick` in\n    the odd-numbered ones only. A sequential run and three concurrent runs each report exactly `Update`\n    everywhere and `Tick` in the odd files.\n  - **One set of analyzer instances, two compilations at once**: `Tick` is hot everywhere in one\n    compilation and nowhere in the other, and four analyses (two of each) run in parallel three times\n    over. Each reports only what its own options ask for.\n  - Making `HotPathDetector`'s options cache static and keyed by file path, or giving every file the\n    same entry, fails these tests.\n- **Large compilation test**: 400 MonoBehaviours spread under a 150-deep chain of base classes, each\n  file also holding a plain class whose `Update` is not a Unity message, with `Tick` hot in every third\n  file. Analysis finishes inside a two-minute limit (about three seconds locally) and reports exactly\n  3,204 diagnostics: six per hot method, none in the plain classes.\n- **Allocating and buffer-filling overloads in one `Update`** in `IntegrationTests.cs`:\n  `GetComponentsInChildren<T>()` and `(List<T>)`, `GetComponentsInChildren<T>(true)` and\n  `(true, List<T>)`, `GetComponents<T>()` and `(List<T>)`, `GetComponentsInParent<T>()` and\n  `(false, List<T>)`, `Renderer.sharedMaterials` and `GetSharedMaterials(List<Material>)`,\n  `Physics.RaycastAll` and `RaycastNonAlloc`, `NavMeshPath.corners` and `GetCornersNonAlloc`, and\n  `Scene.GetRootGameObjects()` and `(List<GameObject>)`. Only the array-returning call of each pair\n  reports.\n- **Fix-all provider tests** in `FixAllProviderTests.cs`: `ObjectPoolCodeFixProvider` returns\n  `WellKnownFixAllProviders.BatchFixer`, and the OPL002 and OPL003 providers return `null`. A fourth\n  test lists every `CodeFixProvider` in the assembly, so a new one fails it until its fix-all behavior\n  is decided.\n- **`new Vector3()` in `Update`** in `ObjectPoolAnalyzerTests.cs`: constructing the struct is not\n  reported, the copy boxed to `object` is, and the same two lines in `Update2` report nothing.\n- 9 tests, for 479 in total, passing against both reference-assembly profiles. Line coverage is 94.0%.\n\n### Changed\n- **One Unity stub for every test file.** Sixteen test files each declared their own `UnityStub`\n  (533 lines between them), with different members and some conflicting shapes: `Collider` derived\n  from `Object` in one and from `Component` in another, and `NativeArray<T>` had fields in one and\n  members in the other. They are replaced by `tests/ObjectPoolLinter.Tests/SharedUnityStub.cs`, the\n  union of all of them, with no syntax newer than the C# 9 some tests compile it under. Three\n  tests that declared a `UnityEngine` type the stub now has (`Resources`, `GameObject`, `Collider`)\n  lost their local copy. The few tests that need a different Unity surface on purpose (no\n  `UnityEngine.Object`, a `MonoBehaviour` nested in another class, no Unity at all) still pass their\n  own. All 470 existing tests pass against it.\n- `samples/SampleUnityCode/SampleBehaviour.cs`: `new Vector3()` moves into the real `Update`, where it\n  shows that constructing a struct is not reported, next to the boxed copy that is. `Update2` now\n  holds a `List<int>` allocation and says what it actually demonstrates: Unity never calls a method\n  of that name, so nothing in it is reported. `build/verify-sample.ps1` still sees its 17 warnings.\n- [docs/rules/OPL001.md](docs/rules/OPL001.md#code-fixes) says the fixes support Fix All through\n  Roslyn's batch fixer and why the OPL002 and OPL003 fixes do not, and the\n  [README](README.md#code-fixes) says the same in one line.\n- [docs/rules/OPL003.md](docs/rules/OPL003.md#what-is-not-reported-and-why) lists every buffer-filling\n  overload the tests cover and says that a method calling both overloads of one API gets one\n  diagnostic, on the array-returning call.\n- The README's build section points test authors at the shared stub.\n\nFull changelog: https://github.com/joezhuo2/ObjectPoolLinter/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#repository",
+    "commit": "2dffb1df8c3b3e1b6104f7542fee5ec2bbe408c5",
+    "type": "git",
+    "url": "https://github.com/joezhuo2/ObjectPoolLinter.git"
+  },
+  "verbatimVersion": "1.7.0",
+  "version": "1.7.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#ObjectPoolLinter.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4599,
+      "fullName": "ObjectPoolLinter.nuspec",
+      "length": 10533,
+      "name": "ObjectPoolLinter.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 626,
+      "fullName": "LICENSE",
+      "length": 1065,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 13479,
+      "fullName": "README.md",
+      "length": 36517,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 4531,
+      "fullName": "icon.png",
+      "length": 4526,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#analyzers/dotnet/cs/ObjectPoolLinter.CodeFixes.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34204,
+      "fullName": "analyzers/dotnet/cs/ObjectPoolLinter.CodeFixes.dll",
+      "length": 75776,
+      "name": "ObjectPoolLinter.CodeFixes.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#analyzers/dotnet/cs/ObjectPoolLinter.CodeFixes.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 15247,
+      "fullName": "analyzers/dotnet/cs/ObjectPoolLinter.CodeFixes.pdb",
+      "length": 27172,
+      "name": "ObjectPoolLinter.CodeFixes.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#analyzers/dotnet/cs/ObjectPoolLinter.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 46731,
+      "fullName": "analyzers/dotnet/cs/ObjectPoolLinter.dll",
+      "length": 116224,
+      "name": "ObjectPoolLinter.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#analyzers/dotnet/cs/ObjectPoolLinter.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 19464,
+      "fullName": "analyzers/dotnet/cs/ObjectPoolLinter.pdb",
+      "length": 34592,
+      "name": "ObjectPoolLinter.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.09.28.17.06.23/objectpoollinter.1.7.0.json#packagetypes/Analyzer",
+      "@type": "PackageType",
+      "name": "Analyzer"
+    }
+  ],
+  "tags": [
+    "roslyn",
+    "analyzer",
+    "analyzers",
+    "unity",
+    "performance",
+    "allocation",
+    "object-pool",
+    "gc",
+    "codefix",
+    "sourcegenerator"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

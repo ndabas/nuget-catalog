@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "MorseCode Software LLC",
+  "catalog:commitId": "e5e0ba4d-457a-4948-863c-8e9c670a1d02",
+  "catalog:commitTimeStamp": "2026-10-02T01:16:34.5817885Z",
+  "created": "2026-10-02T01:13:38.893Z",
+  "description": "Building blocks for view models written in a functional reactive style on SodaFlow.",
+  "iconFile": "MorseCode.png",
+  "id": "MorseCode.Mvvm",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-02T01:16:16.627Z",
+  "licenseExpression": "BSD-3-Clause",
+  "licenseUrl": "https://licenses.nuget.org/BSD-3-Clause",
+  "listed": true,
+  "packageHash": "v2h6nRZI+Y7o+f1z1y0N2X/URpnNeD63TT71sP5LFUy6VjZFrLSCul175s3AYrPZtuh3hRHOWEmgZTA977MgRw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 51518,
+  "projectUrl": "https://github.com/MorseCode-Software/MorseCode.Toolkit",
+  "published": "2026-10-02T01:13:38.893Z",
+  "releaseNotes": "0.2.2\n\nThe registrations of a view model now stay open while the constructor that\nConstruct calls runs, and they close when that constructor returns. In 0.2.1\nand before, they closed before the constructor ran, so a registration in the\nconstructor of a view model failed. Now the constructor of a view model that\nderives from ViewModelBase can add its own subscriptions to IOutput, and Dispose\nreleases them with the others. A registration after the constructor returns\nstill fails with an InvalidOperationException.\n\nDispose on the base now releases the registrations made so far, also when it\nruns inside the constructor or on a different thread, and it closes the\nregistrations. If the constructor throws, the base releases the registrations\nmade so far, and the exception goes to the caller unchanged. If a registration\nalso throws as it is released, the caller gets an AggregateException that holds\nthe exception of the constructor first. The message of the\nInvalidOperationException for a late registration now says that the\nregistrations are closed. No signature changed.\n\n0.2.1\n\nViewModelBase is no longer sealed. A view model can derive from it: its\nconstructor gives the base that Construct gives to the new protected\nconstructor, ViewModelBase(ViewModelBase), and the view model then is an\nIViewModel with no members of its own for that. The protected constructor takes\nthe registrations of that base, and Dispose on the view model releases them.\n\nOne view model only can take a base. A second call to the protected constructor\nwith the same base fails with an InvalidOperationException, because two view\nmodels cannot own the same registrations. A null base fails with an\nArgumentNullException.\n\nDispose now calls GC.SuppressFinalize, so a view model that derives from\nViewModelBase and adds a finalizer does not have to implement IDisposable again.\n\nA view model that keeps the base in a field, as in 0.2.0, works as before. This\nrelease adds to the API and changes nothing that a view model built against\n0.2.0 uses.\n\n0.2.0\n\nThis package now targets net472, net6.0, and netstandard2.0, and not net10.0\nonly. The behavior is the same on every target.\n\nBreaking change: ViewModelBase.CreateBase takes a\nStageContinuation<IOutput, Constructor<ViewModelBase>, TResult>, and not an\nIConstruct<ViewModelBase>. MorseCode.StagedConstruction 0.2.0 replaced the\nIConstruct interface with the Constructor class, and this package depends on\n0.2.0 or a later 0.2.x. Change the signature of each view model that calls\nCreateBase, and compile it again.\n\nCreateBase now refuses a null continuation with an ArgumentNullException, as it\nrefuses a null scheduler.\n\nThe dependency on MorseCode.StagedConstruction now has the next minor version as\nits ceiling while the version is below 1.0.0, and not 1.0.0. MorseCode.Mvvm\n0.1.0 admits MorseCode.StagedConstruction 0.2.0, and does not work with it. Do\nnot use MorseCode.Mvvm 0.1.0 with MorseCode.StagedConstruction 0.2.0 or later.\n\n0.1.0\n\nThe first release. It contains ViewModelBase, the IViewModel interface, and the\nDisposable helpers that ViewModelBase uses.\n\nA view model that SodaFlow builds holds subscriptions into the graph: one for\neach bindable value, command, and listener that it exposes. The view model must\nrelease all of them when it is disposed, and must not read a part of itself\nbefore that part exists.\n\nViewModelBase does both, with MorseCode.StagedConstruction. A view model's\nstatic Create method calls ViewModelBase.CreateBase. The base gives it an\nViewModelBase.IOutput to register each subscription with, and its\nBindableFactory registers each bindable value and action that it makes. When\nthe view model calls Construct, the base seals the registrations and gives\nitself to the view model's constructor. The view model keeps it and sends its\nDispose and PropertyChanged to it:\n\n  public static CounterViewModel Create(IBindingScheduler bindingScheduler) =>\n      Transaction.Run(() =>\n          ViewModelBase.CreateBase(bindingScheduler, (output, construct) =>\n          {\n              StreamSink<Unit> increments = Stream.CreateSink<Unit>();\n              Cell<int> count = increments.Accum(0, (_, total) => total + 1);\n\n              IOneWayBindableValue<int> countValue = output.BindableFactory.CreateOneWay(count);\n              IBindableAction increment = output.BindableFactory.CreateBindableAction(increments);\n\n              return construct.Construct(viewModelBase =>\n                  new CounterViewModel(viewModelBase, countValue, increment));\n          }));\n\nDispose releases each registration one time, the last registration first,\nlisteners and disposables together. Thus, a registration stops before the\nregistrations that it uses. A second call does nothing, also when two threads\ncall at the same time. An exception from one registration does not stop the\nothers.\n\nA registration after Construct fails with an InvalidOperationException, and so\ndoes a second Construct. Thus, nothing that the construction made can be left\nout of Dispose, and nothing can be added to it later. A null registration fails\nat the call, with an ArgumentNullException.\n\nAddListener keeps a reference to the listener. Thus, the garbage collector does\nnot remove a weak listener while the view model is alive.\n\nPropertyChanged never occurs and keeps no handler. The properties of a view\nmodel do not change, and each bindable value sends its own notifications. The\nevent is there for INotifyPropertyChanged, because WPF watches a binding source\nwithout that interface through a PropertyDescriptor, which keeps the source\nalive.\n\nDisposable.Composite, Disposable.FromAction, and Disposable.Empty are public\ntoo. Composite disposes a fixed list as one, in the order of the list, with the\nonce-only and exception behavior above. FromAction calls an action at the first\nDispose only. Empty does nothing.\n\nThis package is pre-1.0. Its API can change in a minor version until 1.0.0.\n\n---\n\nAbout this package\n\nBuilding blocks for view models written in a functional reactive style on\nSodaFlow. It is part of the MorseCode toolkit, which holds the conventions that\nMorseCode Software builds its own applications with.\n\nTargets net472, net6.0, and netstandard2.0. Depends on SodaFlow.Bindable.ObjectModel and\nMorseCode.StagedConstruction.\n\nSource: https://github.com/MorseCode-Software/MorseCode.Toolkit",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#repository",
+    "commit": "dae089276ca9e423680428f146b8f34e89fea9b4",
+    "type": "git"
+  },
+  "title": "MorseCode.Mvvm",
+  "verbatimVersion": "0.2.2",
+  "version": "0.2.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/.netframework4.7.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/.netframework4.7.2/morsecode.stagedconstruction",
+          "@type": "PackageDependency",
+          "id": "MorseCode.StagedConstruction",
+          "range": "[0.2.0, 0.3.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/.netframework4.7.2/sodaflow.bindable.objectmodel",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Bindable.ObjectModel",
+          "range": "[4.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/net6.0/morsecode.stagedconstruction",
+          "@type": "PackageDependency",
+          "id": "MorseCode.StagedConstruction",
+          "range": "[0.2.0, 0.3.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/net6.0/sodaflow.bindable.objectmodel",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Bindable.ObjectModel",
+          "range": "[4.0.0, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/.netstandard2.0/morsecode.stagedconstruction",
+          "@type": "PackageDependency",
+          "id": "MorseCode.StagedConstruction",
+          "range": "[0.2.0, 0.3.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#dependencygroup/.netstandard2.0/sodaflow.bindable.objectmodel",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Bindable.ObjectModel",
+          "range": "[4.0.0, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#MorseCode.Mvvm.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2851,
+      "fullName": "MorseCode.Mvvm.nuspec",
+      "length": 8180,
+      "name": "MorseCode.Mvvm.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#MorseCode.png",
+      "@type": "PackageEntry",
+      "compressedLength": 3912,
+      "fullName": "MorseCode.png",
+      "length": 5497,
+      "name": "MorseCode.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#lib/net472/MorseCode.Mvvm.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6578,
+      "fullName": "lib/net472/MorseCode.Mvvm.dll",
+      "length": 14848,
+      "name": "MorseCode.Mvvm.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#lib/net472/MorseCode.Mvvm.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3160,
+      "fullName": "lib/net472/MorseCode.Mvvm.xml",
+      "length": 19173,
+      "name": "MorseCode.Mvvm.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#lib/net6.0/MorseCode.Mvvm.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6651,
+      "fullName": "lib/net6.0/MorseCode.Mvvm.dll",
+      "length": 14848,
+      "name": "MorseCode.Mvvm.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#lib/net6.0/MorseCode.Mvvm.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3160,
+      "fullName": "lib/net6.0/MorseCode.Mvvm.xml",
+      "length": 19173,
+      "name": "MorseCode.Mvvm.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#lib/netstandard2.0/MorseCode.Mvvm.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 6564,
+      "fullName": "lib/netstandard2.0/MorseCode.Mvvm.dll",
+      "length": 14848,
+      "name": "MorseCode.Mvvm.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#lib/netstandard2.0/MorseCode.Mvvm.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3160,
+      "fullName": "lib/netstandard2.0/MorseCode.Mvvm.xml",
+      "length": 19173,
+      "name": "MorseCode.Mvvm.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.02.01.16.34/morsecode.mvvm.0.2.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12992,
+      "fullName": ".signature.p7s",
+      "length": 12992,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

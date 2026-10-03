@@ -1,0 +1,197 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Antonio Macrì",
+  "catalog:commitId": "f99e6963-a9ed-489b-ae0a-b0d2b13aab2a",
+  "catalog:commitTimeStamp": "2026-10-03T12:03:04.4787621Z",
+  "created": "2026-10-03T11:59:51.907Z",
+  "description": "Blazor WebAssembly client for MentorAgent. Install in your Blazor WASM / Blazor Auto client project. Connects to a MentorAgent.Server hub via SignalR and provides the same ChatWidget experience as Blazor Server.",
+  "iconFile": "IconMA.png",
+  "id": "MentorAgent.Blazor",
+  "isPrerelease": true,
+  "lastEdited": "2026-10-03T12:02:28.41Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "4roaRsP1DmfwWsqtUugG24d7Z26Pl2PU9CayMOsZYnZVPpGMXf75vkNs5G9yN11v5bfQ2nE0hkGBeG7eGTrhbQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 120436,
+  "published": "2026-10-03T11:59:51.907Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.0.0-rc.14 - 2026-10-03\n\n### Added\n\n- **MentorAgent:** `[MentorAction(ReadOnly = true)]` and `MentorOptions.IsReadOnlyAction` (by tool name, for\n  `[Description]` methods) declare the actions that only read. MentorAgent takes the host's word for it: such an\n  action is published to MCP clients with `readOnlyHint`. A confirmation-gated action is never read-only.\n- **MentorAgent:** `MentorOptions.RequireLookupForRecordQuestions`, off by default (BUG-106, the residue). When a\n  classifier model says a message asks for a value of the application's records, the first model call must call\n  a declared read-only action that the tool filter selected for that message, or hand the request to a\n  specialist (`ChatToolMode.RequireAny`). One classifier call (`ClassifierChatClient` when set, bounded by\n  `SafetyCheckTimeout`) per turn whose selection holds a declared read — about one second of median latency\n  on the ApiServer sample, two to three where a read now happens that did not; a classifier that fails or\n  answers anything else leaves the turn as without the option. Measured on the ApiServer sample (with its\n  rc.14 changes: products looked up by name, the seed's IDs) against the previous build and samples: the\n  Dell's price from a read 19/19 against 17/20, the iPad Air stock 20/20 against 19/20, a product that does\n  not exist answered without an invented figure 10/10 on both. Needs `EnableToolFiltering`, an `EmbeddingGenerator` and\n  declared reads; a startup warning says when it has no effect.\n- **MentorAgent:** `MentorOptions.RequireActionForChangeRequests`, off by default (BUG-118). When the classifier says\n  a message asks to carry out one of the confirmation-gated actions the tool filter selected for it, and gives every\n  input that action needs, the first model call must call one of them, or hand the request to a specialist or a\n  team — so the confirmation banner comes before any sentence; when it says the message asks for a page, the first\n  call must be `navigate_to`. The classifier is shown each action's required inputs: a request that leaves one out\n  (\"Annulla l'ordine 1004\" when `cancel_order` needs a reason), only describes the entry (\"the last order\"), gives a\n  name where the input is an ID, or needs the current value (\"add 5 units\") is not forced, and the assistant may ask.\n  Only actions that will show a banner are ever required (declared confirmation, with `RequireConfirmation` on; with\n  `HitlMode.Native` no `AutoApprovalRules` rule is consulted for the required call), and never one whose input\n  schema cannot be shown faithfully (a `$ref`, a combination of schemas, parameters none of which is marked\n  required). A page request is matched against the application's `[MentorPage]` pages; a request from another agent\n  is never required to navigate. One classifier call per turn while the application has\n  a page or the message selected such an action — the same call as `RequireLookupForRecordQuestions` when both are\n  on. Classifier measured on Azure gpt-4.1 before release, three repetitions per message: with the two actions a\n  stock or price request usually selects listed, 207/207 on 69 development messages and 60/60 on 20 written after\n  the last change; with all nine of the ApiServer's gated actions listed, 204/207 and 58/60, the misses complete\n  requests left unforced; an incomplete request or a read question was never labelled ACTION. Live on the ApiServer sample (3 Oct), the\n  same build with the option off and on, alternating: asked \"Imposta lo stock dell'iPad Air a 30\", the assistant\n  said it was done with no tool called 11 times in 25 with the option off, and showed the banner 25/25 with it on\n  (15/15 on the final build); \"Portami alla pagina prodotti\" navigated 5/10 off, 10/10 and 8/8 on; requests missing\n  a value were asked about every time; reads and greetings unchanged. Needs `EnableToolFiltering`\n  and an `EmbeddingGenerator`; a startup warning says when it has no effect or covers page requests only.\n\n### Security\n\n- **MentorAgent:** BUG-103 (S1): with `McpCallerPrincipal` set and roles in a claim type other than\n  `ClaimTypes.Role` (a `roles` claim, as Entra ID tokens and JwtBearer with `MapInboundClaims = false`\n  carry), a signed-in caller with no roles listed and called a role-gated action once an entitled caller\n  had asked first. The tool list was cached per caller under a key built from `ClaimTypes.Role` claims,\n  while the decision used `IsInRole`. The list is now decided on every request, with the resolver asked\n  once and `ClaimsPrincipal.IsInRole` as the only test, for `tools/list` and `tools/call` alike.\n- **MentorAgent.Server:** BUG-110 (S3): `GET /mentor/session` handed the client the conversation in\n  clear; an edited snapshot was restored as history, and another user's snapshot restored into one's own\n  connection. The snapshot is now protected with ASP.NET Core Data Protection under a purpose naming the\n  connection's user: opaque, tamper-evident, and restorable only for that user (on a host without\n  sign-in every visitor is the same anonymous user). `POST` checks the owner before reading the body.\n\n### Changed\n\n- **Breaking — MentorAgent:** `MapMentorAgentMcp()` no longer attaches the `MentorAgentMcp` CORS policy\n  (BUG-108). MCP clients that are not browsers need none. For a browser-based client call `app.UseCors()`\n  and `MapMentorAgentMcp(configure: e => e.RequireCors(\"MentorAgentMcp\"))`; a host that replaced that\n  policy as the rc.13 README suggested needs the `configure` line too. A `MentorAgentMcp` policy the host\n  registers before `AddMentorAgent` is no longer replaced by the any-origin one.\n- **Breaking — MentorAgent.Server:** the `/mentor/session` body is opaque (see Security). Snapshots saved\n  by clients before rc.14 are refused with `400`: save the conversation again. Restoring after a restart\n  or on another instance needs the Data Protection key ring persisted and shared.\n- **MentorAgent:** the classifier behind `RequireLookupForRecordQuestions` is asked at temperature 0, the\n  temperature its wording was measured at, like the other classifiers; it ran at the provider's default. No\n  difference was measured on the rc.14 messages (141/141 at either temperature). With reads alone it is asked the\n  rc.14 question, unchanged; `RequireActionForChangeRequests` (see Added) adds its labels only when that option\n  is on. The turn that answers an approval a Stop left open (BUG-116) is no longer forced: the stopped action is\n  declared there for its answer, a required call could be satisfied by calling it again, and on a message that\n  matched nothing the carried action was left out of the forced request while its answer was in it.\n- **MentorAgent:** tool filtering: when no action clears `ToolFilterMinScore`, the three best-ranked\n  actions that need no confirmation and no role are sent anyway (an MCP tool only when its server marks it\n  `readOnlyHint`), within `ToolFilterMaxTools`. About 80 input tokens per model call on such turns,\n  greetings included. Give every action that changes data `RequiresConfirmation` (BUG-106).\n- **MentorAgent:** the coordinator's prompt states record values only from a tool, the page data or the\n  documents, and the web-search capability no longer names prices (BUG-106).\n- **MentorAgent:** `RateLimitPerUser`, `OnToolResult` and the dashboard's top actions now cover MCP\n  `tools/call` (BUG-107). MCP calls have an allowance of their own, separate from chat messages, per\n  `NameIdentifier`, `sub` or `oid`; a caller with none is counted by remote address when\n  `IHttpContextAccessor` is registered, otherwise all such callers share one. Each call writes one\n  Information line with a fingerprint of the caller.\n- **MentorAgent:** `RefuseOutOfScope` refusals count in `GuardrailBlockCount` and\n  `mentoragent.guardrail_blocks`. With `RefuseOutOfScope` and the safety check on, the hosted-tool scope\n  check asks its own question on turns where a hosted tool is about to be declared (BUG-105).\n- **MentorAgent:** compaction is not installed with `UseServiceManagedHistory` (it had nothing to\n  compact). A reset of the conversation writes one Information line.\n- **MentorAgent.Abstractions:** the widget's \"New conversation\" button is disabled from the moment a\n  message is sent until its reply ends, and while a confirmation is pending; a confirmation banner still\n  up when the turn ends (Stop) is dismissed.\n- **MentorAgent:** A2A: a navigation, a UI action, a memory write or a skill no longer counts as grounding,\n  so such a reply is put once more like a tool-less one (BUG-106).\n- **MentorAgent:** tool filtering: a message that matches no action carries the actions the previous message\n  selected — one message back only, never what was itself carried, a confirmation-gated action never alone. The\n  answer to the assistant's own question (\"Sì, procedi\", the reason it asked for) used to arrive without the\n  action the question was about (OSS-01). A new or restored conversation carries nothing.\n- **MentorAgent:** `MentorshipLevel.Proactive`: a next step may be offered only when a tool of the current\n  request, a page, a skill, a specialist or a team can carry it out — otherwise none, and never an export, an\n  e-mail, a ticket, a reminder or an alert, or parcel tracking (BUG-074). With tool filtering on, the prompt no\n  longer presents the number of actions as the tools at hand.\n\n### Fixed\n\n- **MentorAgent:** BUG-104 (S1): with `EnableCompaction` on and a local history (the built-in provider,\n  `ChatHistoryProviderFactory` or `ChatHistoryProvider`), the question of every turn that called a tool\n  or ran a UI action was not stored — the Agent Framework's compaction marked it as history in place\n  (microsoft/agent-framework#8441) — and stored messages were stamped with its attribution. Compaction now\n  works on copies. Questions lost on earlier versions cannot be recovered from their snapshots.\n- **MentorAgent:** BUG-105 (S2): `RefuseOutOfScope` refused price questions about the application's own\n  catalogue (4 of 4 measured). It judged messages against the hosted-tool cost rule and saw page names\n  only. It now asks a question of its own, which defaults to answering, with the pages' descriptions; the\n  classifier's labels are read by position (`Contains(\"OUT\")` matched \"about\" and \"without\").\n- **MentorAgent:** BUG-106 (S2): a catalogue question no action matched was sent with the core tools only,\n  and the reply invented a price range or said the catalogue lacked it. See Changed.\n- **MentorAgent:** BUG-107 (S2): MCP `tools/call` skipped `OnToolResult`, the per-user rate limit and the\n  tool metrics: a host that redacts results served them unredacted to MCP callers. A hook that throws now\n  withholds the result (`isError`).\n- **MentorAgent:** BUG-108 (S2): the README's MCP steps, followed as written, answered 500 to every\n  request on a pipeline without `app.UseCors()`. See Changed.\n- **MentorAgent.Blazor:** BUG-109 (S3): \"New conversation\" before the first message on WebAssembly raised\n  the Blazor error bar (the hub was not connected yet).\n- BUG-110 (S3): `/mentor/session` and `RestoreSessionAsync`: a non-integer marker answered 500; a\n  snapshot saved by a host that keeps its history another way (Responses vs Chat Completions, another\n  history provider) was accepted, then failed every turn or restored empty; a restored conversation the\n  service no longer knew failed every turn until a reset — now, when the first turn after the restore\n  fails because the provider says it does not know the conversation, a new one starts (a content filter, a\n  missing deployment, a 429 or a 5xx keep it). WebAssembly's `NotSupportedException` points to\n  `/mentor/session`.\n- **MentorAgent.Server:** BUG-111 (S3): the package README now carries BUG-102's rule (keep the\n  transcript in the session) with its recipe, and no longer says a reset clears history.\n- **MentorAgent:** BUG-114 (S3): over A2A, the judge of a second reply without data withheld policies that\n  contain a number (\"meals up to 50 €\") as `NOT GROUNDED`, and passed \"the catalogue does not list the price\"\n  (nobody looked). Measured on Azure gpt-4.1, fourteen replies × 3: 25/42 before, 42/42 now.\n- **MentorAgent:** BUG-115 (S2): after the user declined a confirmation the reply could invent why the action had\n  not run (\"the order is probably already being processed\", for an order that was Pending). The localized text\n  said \"the operation was cancelled\" — for a request to cancel an order — and the Native flow sent no instruction\n  at all. Both modes now send the same structured result, stating that nothing was checked or changed and that no\n  other reason or record state is to be given; `confirm.denied` no longer uses the verb for cancelling (10\n  languages).\n- **MentorAgent:** BUG-116 (S2): with `HitlMode.Native`, Stop pressed while a confirmation waited made every\n  later turn fail (`ToolApprovalRequestContent found … no matching ToolApprovalResponseContent`) until \"New\n  conversation\". The open request is now answered, as not run, at the start of the next turn; no extra model\n  call. Also covered: a second Stop, or a failure, before that answer is stored; a run that fails after the user\n  confirmed (the action may have run: reported as of unknown outcome, never run again); the approval-round cap.\n  On that turn the tool filter and the router decide on the new message. A snapshot saved in that state and\n  restored, here or elsewhere, still carries the open request.\n- **MentorAgent:** BUG-117 (S2): a provider error that arrived inside the stream — a 429 on the Responses\n  API, a hosted tool that failed — on a run that wrote no text ended the turn with nothing on screen: no reply,\n  no `Error` event. It now takes the path of a thrown provider error (the localized message, `OnException`, the\n  error metrics). Text written after the last tool call is kept with no error under it; a sentence written\n  before a tool call is not an answer. A model refusal reads as a block (`guardrail.blocked`), not as an error.\n\n### Known issues\n\n- **MentorAgent:** BUG-074 (S3): with `MentorshipLevel.Proactive`, the assistant can still offer next steps the\n  application does not have — 3 in 15 turns on the Blazor Server sample after the rc.14 rule, 5 before (\"add it\n  to the cart\", \"the available deals\", \"plan a reorder\").\n- **MentorAgent:** BUG-118 (S2) is closed for hosts that opt in to `RequireActionForChangeRequests` (see Added).\n  Without it the model can still narrate an action it never performed — \"Stock aggiornato\" with no tool called,\n  or \"Ecco la pagina Prodotti\" with no navigation — and with it a complete request the classifier does not\n  recognise runs as without the option.\n- BUG-106's residue is closed for hosts that opt in to `RequireLookupForRecordQuestions` (see Added); without\n  it, a catalogue question can still be answered with an offer to look the value up.\n\nThe full history is in CHANGELOG.md, inside this package.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#repository",
+    "commit": "28569520b0d74e0fd1de3722d663cca153dbb8ef",
+    "type": "git"
+  },
+  "title": "MentorAgent.Blazor",
+  "verbatimVersion": "1.0.0-rc.14",
+  "version": "1.0.0-rc.14",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#dependencygroup/net10.0/mentoragent.abstractions",
+          "@type": "PackageDependency",
+          "id": "MentorAgent.Abstractions",
+          "range": "[1.0.0-rc.14, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#dependencygroup/net10.0/microsoft.aspnetcore.signalr.client",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.SignalR.Client",
+          "range": "[10.0.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#MentorAgent.Blazor.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6783,
+      "fullName": "MentorAgent.Blazor.nuspec",
+      "length": 16532,
+      "name": "MentorAgent.Blazor.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 30730,
+      "fullName": "CHANGELOG.md",
+      "length": 90871,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 648,
+      "fullName": "LICENSE",
+      "length": 1092,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#THIRD-PARTY-NOTICES.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1537,
+      "fullName": "THIRD-PARTY-NOTICES.md",
+      "length": 3124,
+      "name": "THIRD-PARTY-NOTICES.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19439,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 19231,
+      "fullName": "README.md",
+      "length": 57132,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#lib/net10.0/MentorAgent.Blazor.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21096,
+      "fullName": "lib/net10.0/MentorAgent.Blazor.dll",
+      "length": 52224,
+      "name": "MentorAgent.Blazor.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#lib/net10.0/MentorAgent.Blazor.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5451,
+      "fullName": "lib/net10.0/MentorAgent.Blazor.xml",
+      "length": 21748,
+      "name": "MentorAgent.Blazor.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.12.03.04/mentoragent.blazor.1.0.0-rc.14.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "blazor",
+    "blazor-wasm",
+    "blazor-auto",
+    "webassembly",
+    "wasm",
+    "ai",
+    "chatbot",
+    "chat-widget",
+    "assistant",
+    "agent",
+    "signalr",
+    "streaming",
+    "voice",
+    "rag",
+    "memory",
+    "skills",
+    "mentor",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

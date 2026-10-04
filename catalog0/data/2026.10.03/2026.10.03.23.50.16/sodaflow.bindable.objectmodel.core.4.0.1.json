@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "MorseCode Software LLC",
+  "catalog:commitId": "41eedf42-b890-4479-8168-cf88ca5b7982",
+  "catalog:commitTimeStamp": "2026-10-03T23:50:16.9648215Z",
+  "created": "2026-10-03T23:46:29.337Z",
+  "description": "SodaFlow Bindable Object Model library for .NET core library.",
+  "iconFile": "SodaFlow.png",
+  "id": "SodaFlow.Bindable.ObjectModel.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-03T23:50:04.837Z",
+  "licenseExpression": "BSD-3-Clause",
+  "licenseUrl": "https://licenses.nuget.org/BSD-3-Clause",
+  "listed": true,
+  "packageHash": "7dTELDL1iviTPKtsPDRjVQ05hyd1Id+Fy1/GK56YoyT1khiMxZN4fMxrqRMpU6uT7wu3Gj2IZSMRv5ML8iYJPw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 92877,
+  "projectUrl": "https://github.com/MorseCode-Software/SodaFlow",
+  "published": "2026-10-03T23:46:29.337Z",
+  "releaseNotes": "4.0.1\n\nFixed: a bindable can be built from a looped cell. Each bindable used to sample its cell in its constructor. Inside a\nloop block the looped cell has no value yet, so building a one-way value, a two-way value, or a command from it threw\n\"BehaviorLoop was sampled before it was looped\".\n\nA bindable now takes its initial value when the transaction that builds it closes, and the loop is defined by then. As\nin 4.0.0, the first read returns that value immediately: building a bindable posts nothing to the scheduler and raises\nno notification, and a command with no enablement cell is available from the start.\n\nOne visible difference: a bindable built in a transaction that then changes its cell starts with the changed value. It\nused to start with the earlier value and announce the change with PropertyChanged or CanExecuteChanged once the\nscheduler ran. Now there is no change to announce.\n\nAs before, hand a bindable to the binding thread only after the transaction that builds it has closed. A read inside the\nloop block itself, before the block returns, throws, just as Sample on the looped cell does there. Reads after the loop\ncloses work.\n\nRequires SodaFlow.Core 5.x, as 4.0.0 did. The members of SodaFlow.Core that this release calls are all in 5.0.0.\n\n4.0.0\n\nBREAKING: BindingScheduler.Default is gone, and no bindable selects a scheduler for itself any more. Each one used to\ntake, in order, the scheduler it was given, then Default, then the SynchronizationContext of the thread that built it,\nand last of all ran its handlers inline. That last step was silent:\na view model built on a background thread raised PropertyChanged off the UI thread, and the binding engine failed later\nand far from the cause.\n\nEach construction now takes a scheduler and throws ArgumentNullException without one. The factories in\nSodaFlow.Bindable.ObjectModel and SodaFlow.FSharp.Bindable.ObjectModel are the only way to build a bindable, and each\ntakes the scheduler once. Build one factory at startup, on the UI thread, with\nSynchronizationContextBindingScheduler.Capture (), and give it to each view model; a test gives\nBindingScheduler.Immediate.\n\nBREAKING for the two language surfaces: the internal construction methods take the scheduler as a required argument, and\nToBindableActionImpl takes it before the enablement cell. A package built against 3.x does not run against this; take\nthe 4.x of each with it.\n\nRequires SodaFlow.Core 5.x. It could not stay on 3.x: its dependency on SodaFlow.Core is a range that ends before the\nnext major, thus 3.0.2 cannot install beside SodaFlow.Core 5.0.0. Nothing here calls the internals that SodaFlow.Core\n5.0.0 changed.\n\n3.0.2\n\nAdds the package icon that nuget.org shows beside this package.\n\nTwo exception messages are built with a target-typed new and with their concatenation laid out differently. The messages\nthemselves, and everything else, are unchanged.\n\nEvery package here ships this release together, so the dependency versions move with it.\n\n3.0.1\n\nFixed: a two-way bindable now raises PropertyChanged for a write made through it, so more than one control can bind to\nthe same value.\n\nThe reconciliation pass compared the cell against the cached value to decide whether anything had changed. The setter\nhas already moved that cached value optimistically, so a write the graph accepted unchanged looked like nothing having\nhappened and was never announced. Only the control that wrote it knew: a checkbox and a slider bound to the same\nproperty left the slider unable to follow the checkbox, permanently.\n\nNotifications now go out whenever the settled value differs from either the cached value - the writer's correction, as\nbefore - or the value last announced, which is what every other binding is showing. A write that changes nothing is\nstill silent, and what is announced is still what the graph settled on rather than what was optimistically written, so a\nvalue the graph rejected or normalized never reaches a binding.\n\nExpect one notification where there was none, per write that changes the value. Code that treated PropertyChanged as\nmeaning \"the graph changed this, not the view\" no longer can, and never reliably could: an update arriving from the\ngraph in the same turn was indistinguishable already.\n\n3.0.0\n\nBREAKING: requires SodaFlow.Core 4.x, where it required 3.x. That package removed internal members, and this one is\nrebuilt against what replaced them.\n\nBREAKING: IBindableAction.Execute rejects null whatever the action's type argument, where it previously accepted null\nfor a type which could represent one.\n\nPassing null to an action over a reference type used to fire its stream with null; it now throws\nInvalidOperationException, which is what it always did for a value type. One rule instead of two, and the rule the\nnullable annotations already stated. Code relying on a null firing has to send it another way - the sink is still\nthere - or stop.\n\nThis one is quiet. The signature is unchanged, so nothing stops compiling; the exception arrives at runtime, from a call\nwhich used to work.\n\nFixed: a two-way bindable no longer puts a value back on screen that the caller has already replaced, and no longer\ndiscards a write.\n\nThe update handler wrote back the value the update carried. Running later, on the binding thread, after a setter had\nmoved the cached value on, that put the older value up and then raised a second notification to take it away again -\nvisible in a text box as a flicker back to what was just typed over. It samples the cell instead, so an update arriving\nlate says what is true rather than what was true when it fired.\n\nThe setter skips a write whose value matches the cached one. That reads the cache as a statement about the graph, when\nit is only a statement about the last time the two were compared: between an update and the refresh it queues, they\ndisagree, and a write matching the stale cache was dropped even though the graph never held that value. The check now\nstands down while a refresh is outstanding and lets the write through.\n\nDocumented, rather than changed: a bindable's Value belongs to the binding engine. The instance can be constructed on\nany thread, but the property is read and written on the binding thread and nowhere else. Reaching for it from\napplication code is a procedural way around the graph anyway - the value it reports is one the graph already holds, and\na value pushed into it is one a sink can be sent directly - so this costs nothing that was worth having. A binding\nengine already calls from the right thread; it is worth a look at application code which reads or sets these from a\nbackground task.\n\nAlso documented: an IBindingScheduler must not wait for the action it is given. Post is called from inside a\ntransaction, which holds a process-wide lock, and the binding thread reaches this library through setters that open\ntransactions of their own - so a scheduler which hands work over and blocks until it finishes can deadlock against a\nbinding thread already waiting for that lock. Anything built on a dispatcher is fine; a hand-written scheduler needs the\ncare.\n\nBREAKING: IBindingScheduler gains CheckAccess, so a scheduler written outside this package has to implement it. It\nanswers whether the calling thread is the one the scheduler posts to - the name is DispatcherObject's, because the\nquestion is the same one and the answer is used the same way - and it is deliberately biased: an implementation which\ncannot tell MUST return true. A wrong true gives up a diagnostic that was never promised; a wrong false throws on\ncorrect code.\n\nWhat it buys: a bindable's Value now throws InvalidOperationException when it is read or written from anywhere but the\nbinding thread, instead of quietly returning a stale value - or, for a large struct, a torn one. Only raised where the\nscheduler is certain, so nothing is accused that cannot be proven. ImmediateBindingScheduler answers true\nunconditionally, having no thread of its own, so tests and headless hosts are unaffected.\n\nThis will turn code that has been working by luck into code that throws. That is the point, but it is worth knowing\nbefore upgrading rather than after.\n\nToOneWayToSource takes an optional scheduler now. It had none - nothing flows back out to the view, so there was nothing\nto marshal - which also left it the one bindable whose Value could not be checked. It still schedules nothing; the\nscheduler is there to say which thread is the right one.\n\nThe check adds about 2ns to reading Value on .NET 8, and about 2.3ns on .NET Framework, allocating nothing. It cost far\nmore before the two halves were reordered: reading SynchronizationContext.Current is not the cheap thread-local fetch it\nlooks like, and on .NET Framework asking it first made the check 13.0ns rather than 3.1ns, and the whole read 18.3ns\nrather than 6.4ns. The thread id is compared first, and the context only if that fails. See SodaFlow.Benchmarks, which\nfound it and which runs on both runtimes because this is the kind of thing that differs between them.\n\nRequires System.ValueTuple 4.6.2, where it required 4.4.0. Nothing here uses it differently: this repository named two\nversions of it, one in the shipping projects and one in the test projects, and now names a single version in both. A\nconsumer does nothing about this; NuGet resolves the higher floor.\n\n2.0.0\n\nNo code change. This release exists to move a dependency, and is a major version because of what moving it does to a\nconsumer.\n\nDependencies between these packages are now declared as ranges bounded at the next major, so NuGet refuses a pairing\nwhich would fail rather than resolving it and leaving the failure until the code runs. This package now requires\nSodaFlow.Core 3.x, where it required 2.x before.\n\nThat ceiling is why this is not a minor version. Taking this release obliges a consumer to take SodaFlow.Core 3.x as\nwell, and one who names SodaFlow.Core directly, or who uses anything removed there, cannot adopt it without changing\ntheir own code. A version they cannot adopt is not a minor one.\n\n1.0.0\n\nFirst release.\n\nThe engine behind the SodaFlow bindable object model. Declares the interfaces a XAML binding engine needs -\nIOneWayBindableValue, ITwoWayBindableValue, IOneWayToSourceBindableValue and IBindableAction - along with the\nimplementations behind them and the IBindingScheduler that marshals notifications onto the binding thread.\n\nYou do not install this directly. Take SodaFlow.Bindable.ObjectModel for C# or SodaFlow.FSharp.Bindable.ObjectModel for\nF#; both bring this with them, and both are what expose its operations.\n\nDepends on SodaFlow.Core.\n\nFull notes: https://github.com/MorseCode-Software/SodaFlow/releases",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#repository",
+    "commit": "c77d9db378f7d6dbdf6840120a4868059f02484b",
+    "type": "git"
+  },
+  "title": "SodaFlow Bindable Object Model Core for .NET",
+  "verbatimVersion": "4.0.1",
+  "version": "4.0.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/.netframework4.7.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/.netframework4.7.2/sodaflow.core",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Core",
+          "range": "[5.0.0, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/.netframework4.7.2/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/net6.0/sodaflow.core",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Core",
+          "range": "[5.0.0, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/net6.0/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/.netstandard2.0/sodaflow.core",
+          "@type": "PackageDependency",
+          "id": "SodaFlow.Core",
+          "range": "[5.0.0, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#dependencygroup/.netstandard2.0/system.valuetuple",
+          "@type": "PackageDependency",
+          "id": "System.ValueTuple",
+          "range": "[4.6.2, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#SodaFlow.Bindable.ObjectModel.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4850,
+      "fullName": "SodaFlow.Bindable.ObjectModel.Core.nuspec",
+      "length": 12451,
+      "name": "SodaFlow.Bindable.ObjectModel.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#SodaFlow.png",
+      "@type": "PackageEntry",
+      "compressedLength": 13741,
+      "fullName": "SodaFlow.png",
+      "length": 14813,
+      "name": "SodaFlow.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#lib/net472/SodaFlow.Core.Bindable.ObjectModel.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8901,
+      "fullName": "lib/net472/SodaFlow.Core.Bindable.ObjectModel.dll",
+      "length": 19968,
+      "name": "SodaFlow.Core.Bindable.ObjectModel.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#lib/net472/SodaFlow.Core.Bindable.ObjectModel.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10600,
+      "fullName": "lib/net472/SodaFlow.Core.Bindable.ObjectModel.xml",
+      "length": 59210,
+      "name": "SodaFlow.Core.Bindable.ObjectModel.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#lib/net6.0/SodaFlow.Core.Bindable.ObjectModel.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8917,
+      "fullName": "lib/net6.0/SodaFlow.Core.Bindable.ObjectModel.dll",
+      "length": 19968,
+      "name": "SodaFlow.Core.Bindable.ObjectModel.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#lib/net6.0/SodaFlow.Core.Bindable.ObjectModel.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10600,
+      "fullName": "lib/net6.0/SodaFlow.Core.Bindable.ObjectModel.xml",
+      "length": 59210,
+      "name": "SodaFlow.Core.Bindable.ObjectModel.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#lib/netstandard2.0/SodaFlow.Core.Bindable.ObjectModel.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8903,
+      "fullName": "lib/netstandard2.0/SodaFlow.Core.Bindable.ObjectModel.dll",
+      "length": 19968,
+      "name": "SodaFlow.Core.Bindable.ObjectModel.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#lib/netstandard2.0/SodaFlow.Core.Bindable.ObjectModel.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10600,
+      "fullName": "lib/netstandard2.0/SodaFlow.Core.Bindable.ObjectModel.xml",
+      "length": 59210,
+      "name": "SodaFlow.Core.Bindable.ObjectModel.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.23.50.16/sodaflow.bindable.objectmodel.core.4.0.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12991,
+      "fullName": ".signature.p7s",
+      "length": 12991,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

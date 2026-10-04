@@ -1,0 +1,154 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Pixnop",
+  "catalog:commitId": "bfb717ef-b4ba-4b47-a7ee-d54eadbc6bba",
+  "catalog:commitTimeStamp": "2026-10-03T21:39:58.9397323Z",
+  "copyright": "Copyright (c) Pixnop",
+  "created": "2026-10-03T21:35:19.383Z",
+  "description": "In-process integration-test harness engine for Vintage Story mods: boots a headless embedded server, drives it tick by tick, and exposes a world session API to scenario code.",
+  "iconFile": "nuget-icon.png",
+  "id": "Pixnop.Atlas",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-03T21:39:44.123Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "JV26S75ZX+5aw73aIi/yyGME6kikmRYJVRaa70dBrIB+wwv2PAvPdq2NHmEa5EiryR4JJl3p4l1UMJ9Gu10ywA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 256245,
+  "projectUrl": "https://github.com/Pixnop/Atlas",
+  "published": "2026-10-03T21:35:19.383Z",
+  "readmeFile": "nuget-readme.md",
+  "releaseNotes": "### Added\n\n- `IClientObservations.EntityArrivals()` and `HasReceivedEntity(entityId)` (#172): every entity\n  the server sent a test player, over packet 33 (an entity entering the tracked range), 34 (a\n  spawn) and 40 (the join list), as `ReceivedEntity` records with the entity id, its type, the\n  `EntityArrivalPath`, and the `Tick` and `Sequence` of arrival. Assert with `HasReceivedEntity`,\n  the union of the paths: a vanilla bug in the spawn queue makes packet 34 reach only the first\n  third of the clients and packet 33 delivers the entity to the others, packet 40 differs between\n  1.21.x and 1.22.x, and an entity can arrive twice. An arrival usually comes within about ten\n  passes (1 to 6 after a spawn, 0 to 9 after a return into range), but slower rounds happen (29\n  to 38 passes in 3 rounds out of 20 on one run), so an absence assertion needs a generous window\n  and a positive control. A fork can use other paths. One that batches the entities entering a\n  range into packet 40, as Stratum does, never sends packet 33, sends a player's own entity twice\n  through 40 and puts every connected player's entity in one packet 40;\n  `EntityArrivalPath.JoinList` is the path of those entities. The wiki's Client-Side Testing page\n  has the path map and a recipe for asserting an absence.\n- `IClientObservations.PlayerData()`, `HasReceivedPlayerData(playerUid)`, `GroupListings()` and\n  `GroupUpdates()`: the player world-data packets as `ReceivedPlayerData` (with `IsDeparture` and\n  `IsSelf`), the full player-groups listings (packet 49) as `ReceivedGroupListing` and the\n  single-group updates (packet 50) as `ReceivedGroupUpdate`, each with `Tick` and `Sequence`; the\n  two group records carry `ReceivedPlayerGroup` entries.\n- `IClientObservations.EntityDepartures()` and `KnowsEntity(entityId)` (#193): the entities the\n  server told a test player are gone (packet 36), as `ReceivedEntityDeparture` records with the\n  entity id, the engine's reason (`EnumDespawnReason?`, null when the packet carries none), and\n  the `Tick` and `Sequence` of the packet; and whether the client currently holds an entity (it\n  arrived and has not departed since). **`KnowsEntity` is not reset by `Clear()`, unlike the\n  other stores.** It belongs to no capture window: `Clear()` and a rollback restore apply the\n  entity packets they drop to it and leave it otherwise alone, so a `Clear()` before the event\n  under test cannot make an entity the client still holds look absent, which would let a hide\n  assertion pass for the wrong reason. It is not what `HasReceivedEntity` answers, which stays\n  true after a departure.\n- What a departure looks like depends on who sends packet 36. On the engine's despawn path, the\n  engine flushes its despawn queue in its 100 ms update (1.22.7 holds the flush back for up to 15\n  updates while spawns are queued, so wait for the packet rather than a fixed number of ticks),\n  and every client then gets one packet listing the queued entities it tracks: empty (6 bytes,\n  no record) for a client that tracked none of them, 6 bytes of header plus about 6 per id\n  otherwise (12 bytes for one entity, 30 for four; an id is a varint, so a large one costs more).\n  The tracking pass usually sends a client that tracked the entity a second packet with its id\n  and the reason `OutOfRange` a few passes later (four to six on 1.22.3), but not always: one\n  1.21.7 run saw none within 40 passes, and 3 despawn rounds out of 8 on 1.22.7 gave a single\n  packet with ids. Do not count on two. The first packet's reason is the entity's own despawn\n  reason, `Death` when it has none, so a despawn asked for with another reason can read as\n  `Death`: assert on the entity and on `KnowsEntity`, not on the reason or the number of records.\n  On Stratum, which hides entities itself, the departure is its own packet 36 and nothing else:\n  `/vanish` sends one packet listing the entities hidden in that pass, with the reason `Unload`,\n  stamped at the tick the command returns (so `KnowsEntity` is already false at the first poll of\n  a `World.Until`), and no second packet followed in 60 passes. The \"then `OutOfRange`\" second\n  packet describes the engine's despawn path only.\n- Other things the engine does with departures. An entity that moves out of a client's range is\n  reported as `OutOfRange` in the same pass. A client that moves about 150 blocks or more away\n  from entities is not told they are gone (reported at 140 blocks, not at 170 and beyond): move\n  the entity, not the observer. A dimension change alone is not a departure, because the engine\n  tracks entities by coordinates; a transit that also moves the entity far away gives the\n  witness a departure with the reason `OutOfRange` and a new arrival on return.\n- `IClientObservations.UnreadPackets` and `UnreadBytes` (#186): how many packets of the decoded\n  kinds a test player holds that no read has decoded, and their serialized size in bytes, so a\n  scenario that never reads can assert a bound. Reading them drains nothing, decodes nothing and\n  allocates nothing. A read, `Clear()` and a rollback restore bring them to zero.\n- **`UnreadBytes` is the serialized size of the unread packets only.** A parked packet also holds\n  the engine's message object and a list slot, about 75 bytes over its serialized size, so the\n  memory a player holds is larger: `Clear()` freed 96 bytes per 19 byte chat line and 383 per 311\n  byte one on 1.22.3 (4,000 parked packets each), and 121 bytes per 47 byte packet in the Pulse\n  suite's scene. `UnreadPackets` follows the heap more closely when packets are small; with large\n  packets `UnreadBytes` is the closer of the two. There is no fixed per-packet or per-minute\n  figure, since it depends on the entities near the player and the mods sending on channels (100\n  hens near the spawn parked 1,643 packets in 1,800 passes on 1.22.3, 44 bytes each, 72 KB a\n  minute).\n- **Both counters read 0 right after `JoinPlayer`** and hold the join's packets a pass or two\n  later (21 to 22 packets and 264 to 277 KB at the second tick in a world without mods; 22 to 28\n  packets and about 279 KB in the Pulse suite's scene, one of them a single 247 KB mod-channel\n  packet), so \"0 unread after the join\" passes for the wrong reason, and a player that never\n  reads holds about 0.28 MB from its first ticks.\n- `IWorldSession.CurrentTick`: the harness tick count, the unit of `Tick`. It restarts at 0 when\n  a new host boots, as after `RestartWorld`.\n- `IWorldSession.SaveNow()` (#171): runs the engine's world save and completes once it is written\n  out. It waits until the engine is ready to autosave, runs `/autosavenow`, requires its\n  completion message and waits again. Unlike the `RollbackWorld` capture, it leaves the timed\n  autosave on and the chunk unloader running, and it marks no extra chunk for saving.\n  `GameWorldSave` handlers run once, on the game thread, and that pass blocks the game thread for\n  21 to 49 ms. The engine announces the save in every player's chat (\"Saving game world....\"), so\n  call `Client.Clear()` before the save when asserting on chat.\n- `IWorldSession.PositionOf(entity)` and `WaitForPosition(entity, arrived, timeoutTicks = 600)`\n  (#171): a copy of an entity's server-side position that reads right on every supported game\n  version, and a wait over it that returns the position of the first tick where the predicate\n  held. The predicate can test the dimension.\n- `CommandResult.Status` (#173) exposes the engine's `EnumCommandStatus`; legacy commands report\n  `UnknownLegacy` after they ran, which is why `Ok` stays false for them.\n  `CommandResult.ErrorCode` (#193) is the engine's error code (`\"nosuchcommand\"`,\n  `\"noprivilege\"`, ...), the same value as `Raw.ErrorCode` but never null (a success reads\n  empty). Both are body properties: the constructor and `Deconstruct` are unchanged.\n- `PassTimingStats.MeanMs` and `TotalMs` (#173): the mean and total of the per-pass busy times\n  of a `MeasureTicks` window, the same figure as the engine's own `tickTimeTotal / ticksTotal`\n  over the same passes, without the engine's two-second bucket reset.\n- `AtlasMod` on a folder mod (#171, #170): a tagged `ProjectReference` whose project has a\n  `modinfo.json` in its build output or next to its project file is staged as\n  `atlas-mods/<assembly name>`, assembled from the project's build output with the project\n  folder's `assets/` and `modinfo.json` copied over it (the project's copy wins on a file both\n  hold). Two mod projects no longer collide on their shared `net10.0` output folder name, and\n  `assets/` can stay at the project root. The dll, pdb and xml files of other tagged mods are left\n  out of a folder mod's copy, so a mod built on another mod still loads. Two tagged folder mods\n  with the same assembly name fail the build with `ATLAS002`, naming the projects. A mod without a\n  `modinfo.json` stays a bare dll, as before.\n- A failing scenario's output names `server-main.log` and lists the Error and Fatal entries the\n  engine logged since the boot (#186). The lines start with `[Atlas] server log:` and `[Atlas] N\n  error(s) logged by the engine since the boot:`; an entry is one line cut at 200 characters, and\n  entries past the fifth are counted (`and N more, see the log`). The block covers the class\n  host's boot to now, so a later failing scenario of the same class lists the engine errors of an\n  earlier one too.\n\n### Changed\n\n- **`IWorldSession` gains `CurrentTick`, `SaveNow`, `PositionOf` and `WaitForPosition`, and\n  `IClientObservations` gains `EntityArrivals`, `HasReceivedEntity`, `EntityDepartures`,\n  `KnowsEntity`, `PlayerData`, `HasReceivedPlayerData`, `GroupListings`, `GroupUpdates`,\n  `UnreadPackets` and `UnreadBytes`.** They are additions to public interfaces, so a class of\n  your own implementing either has to add them. `PassTimingStats` gains `MeanMs` and `TotalMs`,\n  and `CommandResult` gains `Status` and `ErrorCode`: they show in `ToString` (and, for\n  `PassTimingStats`, take part in record equality), and the constructors and `Deconstruct` are\n  unchanged.\n- **A test player's connection is now emptied on every server pass.** A tick listener takes the\n  packets out of the dummy client's receive buffer as they arrive and stamps the ones Atlas\n  decodes with the pass. Decoding still happens when the scenario reads `player.Client`. This\n  is what makes `Tick` an arrival tick, exact to one pass. **A side reader that inspects that\n  buffer by reflection no longer sees anything**: its absence assertions pass for the wrong\n  reason, and its positive control fails at once. Move such readers to `IClientObservations`.\n- Packets Atlas does not decode (chunks, entity positions, attribute bulks and the rest) are\n  dropped as they arrive, so a scenario that never reads holds only the decoded kinds until a\n  read or `Clear()` (#185). Mod-channel packets are kept, the game's own channels included,\n  since `Packets<T>` can read any of them: a long scenario that never reads should still call\n  `Clear()` from time to time. Packet 36 is one of the decoded kinds, so the despawn packets\n  wait for a read too, the empty ones included. `Clear()` applies the entity packets it drops to\n  `KnowsEntity` without resetting it, and a message still queued at a `Clear()` takes a sequence\n  number.\n- The listener runs inside the server pass, so inside a `MeasureTicks` window. It was measured\n  at about 1 microsecond per pass for three players on 1.21.7 and 1.22.3, with no change in\n  `BusyTime` or `AllocatedBytes` beyond noise.\n- A packet that fails to decode no longer hides the packets behind it: the read throws once,\n  naming the packet, its `Tick` and `Sequence`, and the next read succeeds.\n- **`ITestPlayer.TeleportTo` now completes with the player registered in the target chunk**\n  (#192): `Entity.InChunkIndex3d` matches the position and the chunk's entity list holds the\n  player. The engine alone leaves it on the old chunk for 20 to 30 ticks, and random-tick\n  candidates read it. Atlas registers the entity through the engine's `UpdateEntityChunk`, which\n  costs no tick and no wait. A teleport to a position where no chunk exists (above or below the\n  world, or a mini-dimension chunk nothing created) leaves the index as it was and still\n  completes; a destination whose chunk is only not loaded yet is waited for, as before. On\n  Stratum, a returning player's entity took 14 to 39 passes to reach an observer in 8 returns out\n  of 20 with the first release candidate, and 8 to 13 passes in all 40 returns with the last one.\n  This change is the likely cause, the comparison does not isolate it, and the advice on waiting\n  stays.\n- `AtlasMod` references to folder mods put `atlas-mods/<assembly name>` in the manifest instead of\n  the build output folder. A tagged project with a `modinfo.json` only next to its project file, a\n  bare dll until now, becomes a folder mod. A hand-written target that stages each mod under that\n  name can be deleted; kept, it copies over the folder Atlas has already assembled. A folder mod\n  listed both in `AtlasMods` by its build output and as a tagged reference is no longer\n  deduplicated as one path: it is two copies of one mod id, and the engine loads only one. List a\n  mod one way.\n- **Two different mod paths with the same file or folder name now fail the boot** with an\n  `AtlasSetupException` naming the name and both paths, before anything is copied. Until now two\n  folders of the same name (two build outputs both called `net10.0`, say) were merged, and the\n  engine refused the result with an error that said nothing about staging; two dll or zip files\n  were staged as one, the later path winning, with a green boot. A dll mod listed in `AtlasMods`\n  by the copy next to the test assembly and also tagged `<AtlasMod>true</AtlasMod>` is such a\n  pair: list it one way. The same path given twice is still staged once.\n- **The `[Atlas] staged mod` line changed form.** It names the scenario class whose boot it is,\n  by its full name, on verified and skipped lines alike, and a verified line gives the path of\n  the assembly the engine bound (#186). 0.15.1 wrote\n  `[Atlas] staged mod '<id>': verified (MVID ...)`, and 0.16.0 writes\n  `[Atlas] staged mod '<id>' for <Namespace.Class>: verified (MVID ..., loaded from '...')`. The\n  skipped line gained the same words: `[Atlas] staged mod '<id>' for <Namespace.Class>: skipped,\n  <reason>` where it was `[Atlas] staged mod '<id>': skipped, <reason>`. A script that filtered\n  the old form has to change. The line is still on stderr: pass\n  `--logger \"console;verbosity=detailed\"` or read the TRX output to see it.\n- Known limitation, now documented and with a setting: **under `dotnet test`, the last class's\n  scratch directory can survive a green run (#182).** vstest kills the test host 100 ms after the\n  session ends and releasing the server takes about 0.9 s. Set\n  `VSTEST_TESTHOST_SHUTDOWN_TIMEOUT=30000` (milliseconds) to give it time, at about 0.5 to 0.9 s\n  per test project at the end of the run: on a sample suite, four runs out of four left one\n  directory each without it and three out of three left none with it, and on Stratum's suite 24\n  consecutive runs left none. It has to be an environment variable: vstest reads it in its own\n  process, and a `.runsettings` `EnvironmentVariables` entry only reaches the test host. The\n  README recommends it in the Quickstart and no longer says a green class's directory is always\n  deleted at teardown.\n- The four packages' `PackageReleaseNotes` carry the version's `CHANGELOG.md` section (cut under\n  nuget.org's 35,000 character limit, with a pointer to the release page) instead of only a link\n  to the releases page.\n- XML docs: `AtlasDataFiles` says to keep frozen fixture ports below 32768 and why (#186);\n  `ITestPlayer.TeleportTo` says it never fires `Block.OnEntityCollide` while\n  `Block.OnEntityInside` fires every tick the player overlaps the block (#169);\n  `AtlasScenario.TimeoutMs` states the 60 s default, that it starts once the class host is ready,\n  and that `World.Until` has its own tick bound; `JoinPlayer` says why it takes no role and points\n  to the `PlayerJoin` recipe (#193).\n\n### Fixed\n\n- A joined test player retained memory for the whole scenario (#185). The UDP queue that all\n  test players of a host share was never read and grew by a packet per pass, about 13 to 18 MB\n  over 3000 passes with 100 moving entities nearby. It is now emptied on every pass, and in the\n  same run the unread TCP messages went from 3.6 MB to 0.5 MB.\n- Reading `player.Client` no longer throws `NullReferenceException` when a block cube particle\n  packet is queued, after `SpawnCubeParticles` for example.\n- On 1.22 and later, a test player's restored-world hook is removed when the player is kicked,\n  leaves or is removed by a rollback, instead of staying registered until the host is disposed.\n- A second build the engine refused no longer leaves a green boot with the mod silently absent\n  (#170): when the engine refuses a staged build because an assembly of the same name is already\n  loaded, the boot fails with an `AtlasSetupException` naming the staged file, the loaded\n  assembly's path and MVID, and the wiki recipe for running two builds.\n- `RollbackWorld` leaves the restored test players registered in the chunks they stand in, instead\n  of in no chunk's entity list with a stale index for about 24 passes (#192).\n- `atlas fixture` and the workers of `atlas run --parallel` no longer leave the scratch directory\n  of the host they harvest behind (#182). The registry sweeps those hosts when the process exits,\n  with the usual keep rules: a failed class or a crashed host keeps its directory. The fix is on\n  the harness side, so it works with any CLI version.\n- `atlas run --parallel --trx` no longer crashes after the summary (exit 134, truncated report)\n  when a scenario's text holds a character XML 1.0 forbids. Characters below U+0020 other than\n  tab, line feed and carriage return, and U+FFFE and U+FFFF, appear in the report as a visible\n  `\\uXXXX` escape (U+007F to U+009F are legal in XML 1.0 and stay as they are); a lone surrogate\n  arrives as U+FFFD, the worker protocol having replaced it; in message and output text a carriage\n  return comes out as a line break (a line feed on Linux), and in an attribute such as a test name\n  it is kept as `&#xD;`. Every text node and attribute of the report goes through the same\n  escape, test names and data rows included. The report is written to a temporary file and moved\n  into place, and the exit code is the run's own (a report that cannot be written is reported and\n  makes the exit code at least 1). The escape cannot be undone: a message that already holds the six\n  characters `\\u0012` reads the same.\n- `PassTimingStats`, `TickMeasurement` and `SpawnedParticles` print their numbers with the\n  invariant culture (`MeanMs = 0.005` under fr-FR, not `0,005`), as do the two `[Atlas]` teardown\n  messages that print a timeout in seconds. Equality, hash codes and the public shape are\n  unchanged.\n- A watchdog failure names `TimeoutMs` on `[AtlasScenario]` or `[AtlasTheory]` and the value in\n  force, says that `World.Until` keeps its own `timeoutTicks` bound whatever `TimeoutMs` says, and\n  is reported with the time the scenario ran (about `TimeoutMs`) instead of 1 ms.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#repository",
+    "commit": "938bebe41f2df543d504db0253cd2f33408fb86f",
+    "type": "git",
+    "url": "https://github.com/Pixnop/Atlas"
+  },
+  "verbatimVersion": "0.16.0",
+  "version": "0.16.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#dependencygroup/net10.0/pixnop.atlas.bridge",
+          "@type": "PackageDependency",
+          "id": "Pixnop.Atlas.Bridge",
+          "range": "[0.16.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#Pixnop.Atlas.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 8468,
+      "fullName": "Pixnop.Atlas.nuspec",
+      "length": 20544,
+      "name": "Pixnop.Atlas.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#nuget-icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 12035,
+      "fullName": "nuget-icon.png",
+      "length": 12030,
+      "name": "nuget-icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#nuget-readme.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2402,
+      "fullName": "nuget-readme.md",
+      "length": 5153,
+      "name": "nuget-readme.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#lib/net10.0/Atlas.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 99339,
+      "fullName": "lib/net10.0/Atlas.dll",
+      "length": 237056,
+      "name": "Atlas.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#lib/net10.0/Atlas.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 118977,
+      "fullName": "lib/net10.0/Atlas.xml",
+      "length": 565850,
+      "name": "Atlas.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.03.21.39.58/pixnop.atlas.0.16.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "vintagestory",
+    "vsmod",
+    "testing",
+    "xunit"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

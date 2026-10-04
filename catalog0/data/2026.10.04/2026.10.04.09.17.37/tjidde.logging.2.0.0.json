@@ -1,0 +1,308 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Tjidde Nieuwenhuizen",
+  "catalog:commitId": "7e7db53c-a55b-461f-8561-e9a1a36fba52",
+  "catalog:commitTimeStamp": "2026-10-04T09:17:37.1426354Z",
+  "copyright": "Copyright © 2026 Tjidde Nieuwenhuizen",
+  "created": "2026-10-04T09:14:34.437Z",
+  "description": "Standardized, structured logging for .NET applications. Integrates with Microsoft.Extensions.Logging and provides consistent output, customer context, sensitive data masking, and improved exception formatting.",
+  "iconFile": "icon.png",
+  "id": "Tjidde.Logging",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-04T09:17:18.107Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "s/NiBJNAmiE3Me0EwG+1MK29wvu10TJX1SBiiqBCCtMh26LWkJdMdMllywSvHa1dxPV4+yy8qOW5jBH2t4SLOQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 160759,
+  "projectUrl": "https://github.com/tjidde-nl/TjiddeLogger",
+  "published": "2026-10-04T09:14:34.437Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## [2.0.0] - 2026-10-04\n\n### Added\n- `MetricsLoggerExtensions.MetricsEventId` (`Id = 10000`, `Name = \"Metrics\"`), plus the constants `MetricsEventName` and `MetricsEventIdValue`. Tjidde.Logging shows every entry with event name `Metrics` as `[METRICS]` in magenta.\n- `TjiddeLoggerOptions.UseUtcTimestamp` (default `false`): write timestamps in UTC instead of local time. JSON `@timestamp` is ISO-8601 with the offset (`+00:00` in UTC).\n- Timestamps come from `System.TimeProvider`: the one registered in DI, or `TimeProvider.System` when none is registered, so tests can use a `FakeTimeProvider`. New constructor overload `TjiddeLoggerProvider(IOptionsMonitor<TjiddeLoggerOptions>, ICustomerContextAccessor, IMaskedKeysAccessor, TimeProvider)`; the existing constructor still works and uses `TimeProvider.System`.\n\n- `MaskedKeysStore`: a non-static, thread-safe `IMaskedKeysAccessor` with `Add`, `Remove`, `Clear` and `GetKeys` that returns immutable snapshots, and the builder extension `UseIsolatedMaskedKeys()`, which registers one store per host as the `IMaskedKeysAccessor` (replacing an earlier registration, in any order relative to `AddTjiddeLogger`). Inject `MaskedKeysStore` to add keys that apply immediately to that host's loggers only, so hosts and tests in one process no longer share runtime keys. The static `MaskedKeysContext` stays the default and now uses a `MaskedKeysStore` internally. The README, wikis and AI integration guide now recommend the accessors and DI for testable code and describe the static classes as the convenience variant.\n\n- Sinks: the public `ILogSink` interface (namespace `Tjidde.Logging.Sinks`) receives every entry as an immutable `TjiddeLogEntry` with `Timestamp`, `Level`, `EventId`, `Category`, `ClassName`, `MethodName`, `Customer`, `Message`, `FormattedException`, `RenderedLine` (text or JSON), `OutputFormat` and `IsMetrics`; all text in it is masked. Register sinks with `AddTjiddeSink<TSink>()`, `AddTjiddeSink(instance)` or `services.AddSingleton<ILogSink, ...>()`. Sinks are called synchronously on the logging thread; an exception in a sink is ignored and never affects logging, the console or other sinks, and entries logged from inside a sink are not dispatched again. New constructor overload `TjiddeLoggerProvider(..., TimeProvider, IEnumerable<ILogSink>?)`.\n- `InMemoryLogSink`: a built-in, thread-safe sink that keeps the newest `Capacity` entries (default 1000), with `GetSnapshot()`, `Count`, `Clear()` and the events `EntryAdded` and `Cleared`. Register it with `AddTjiddeInMemorySink(capacity)`.\n- `TjiddeLoggerOptions.WriteToConsole` (default `true`): set to `false` to write only to the sinks. Applies immediately when the options reload.\n- XML documentation for `TjiddeLogOutputFormat.Text` and `Json`.\n- Samples: the Blazor, Avalonia and terminal samples use the built-in `InMemoryLogSink` instead of their own in-memory logger providers, recognize metrics entries by their event ID instead of the obsolete `Metrics` level, and log metrics with `LogMetrics`. The terminal sample turns the console off, so console output no longer draws over its UI.\n\n### Changed\n- Dropped support for .NET 7. The package now targets `net8.0`, `net9.0` and `net10.0`.\n- Options changes now apply to existing loggers immediately, without a restart: the provider listens to `IOptionsMonitor<TjiddeLoggerOptions>.OnChange`, and `AddTjiddeLogger(IConfiguration)` / `AddTjiddeLogger(IConfigurationSection)` rebind the options when the configuration reloads (for example `appsettings.json` with `reloadOnChange`). Options, masker, exception formatter and OpenTelemetry fallback `ActivitySource` are replaced together, so a log call never mixes old and new settings; the previous `ActivitySource` is disposed.\n- `LogMetrics` now logs at `LogLevel.Information` with `MetricsEventId` instead of the custom level `(LogLevel)10`. Tjidde.Logging still shows these entries as `[METRICS]` and its own minimum level never drops them; other providers see a normal information entry. `LogMetrics(EventId, ...)` keeps the caller's event ID and only adds the name `Metrics` when it has none.\n- JSON output: object cycles in logged values are written as `null` instead of failing, and object graphs deeper than 32 levels fall back to `ToString()`.\n- All loggers of a provider share one `SensitiveDataMasker` (and its regular expressions) per configuration instead of building one per category; it is replaced when the options change.\n- `AddTjiddeLogger` registers `TjiddeLoggerProvider` through a factory, so the container never has to choose between its constructors.\n- `IsEnabled` caches the resolved minimum level per logger until the options change, instead of matching `CategoryMinimumLevels` on every call.\n\n### Performance\nOutput is unchanged; see `benchmarks/README.md` for the measurements (new BenchmarkDotNet project `benchmarks/Tjidde.Logging.Benchmarks`).\n- `SensitiveDataMasker.MaskMessage` skips the regular expressions of a key that does not occur in the text (case-insensitive ordinal check, on .NET 9+ one `SearchValues<string>` scan for all keys). Text with non-ASCII characters and non-ASCII keys still always run the expressions, because those can match case-insensitively in ways an ordinal comparison does not.\n- Fewer allocations per entry: the list of masked property names is only created when a property is masked, the property list is sized up front, the scopes are read in one pass (method name and scope texts together, without closures or LINQ), and the text line is written into one reused `StringBuilder` per thread instead of via intermediate strings.\n- JSON output is written with a `Utf8JsonWriter` (one reused buffer per thread) instead of serializing two dictionaries, and string, `int`, `long` and `bool` property values are written directly instead of through a `JsonElement`. The JSON is byte for byte the same; when the writer fails, the previous serializer path is used.\n\n### Fixed\n- `LogMetrics` threw an `ArgumentOutOfRangeException` when another provider, such as the Microsoft console logger (`AddConsole()`), was also registered.\n- Logging no longer throws. A property value that cannot be serialized (unsupported type, throwing getter) falls back to its `ToString()`, or to `[unserializable: TypeName]` when that throws too; a value whose `ToString()` or enumeration throws no longer breaks the message (the template is used instead); a failing custom `IExceptionFormatter` falls back to exception type and message; scopes that throw are skipped; OpenTelemetry export failures are ignored. Any other failure while building the entry writes a minimal line with level, category, message and a note that rendering failed.\n- A custom `IMaskedKeysAccessor` that returns the same mutable collection on every call: added or removed keys were not picked up after the first log call. The masker now compares the keys by content (only the immutable snapshots of `MaskedKeysContext` and `MaskedKeysStore` are compared by reference), builds from a copy, and no longer lets a concurrent rebuild overwrite a newer key set.\n\n### Deprecated\n- `TjiddeLoggerOptions.MinimumLevel` and `TjiddeLoggerOptions.CategoryMinimumLevels` (`TjiddeLogger:MinimumLevel`, `TjiddeLogger:CategoryMinimumLevels`) are marked `[Obsolete]` and will be removed in a future major version. Use the standard filter `Logging:Tjidde:LogLevel` in `appsettings.json` (or `AddFilter<TjiddeLoggerProvider>(...)`) instead. They still work and are still bound from configuration: the `Logging` filters run first, then these, so the stricter level wins.\n- `MetricsLoggerExtensions.Metrics` (`(LogLevel)10`): not a valid `LogLevel`, and other providers throw on it. Use `LogMetrics(...)`, or `System.Diagnostics.Metrics` for real application metrics. Tjidde.Logging still recognizes the value.\n\nFull changelog: https://github.com/tjidde-nl/TjiddeLogger/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#repository",
+    "commit": "543f2de7b6dbbc4df0b94e8ad317b5fe8b90d145",
+    "type": "git",
+    "url": "https://github.com/tjidde-nl/TjiddeLogger"
+  },
+  "verbatimVersion": "2.0.0",
+  "version": "2.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net10.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.12, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.12, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net9.0/microsoft.extensions.configuration.binder",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Binder",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net9.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net9.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net9.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#dependencygroup/net9.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.12, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#Tjidde.Logging.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4006,
+      "fullName": "Tjidde.Logging.nuspec",
+      "length": 10949,
+      "name": "Tjidde.Logging.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#AI-INTEGRATION.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6833,
+      "fullName": "AI-INTEGRATION.md",
+      "length": 18884,
+      "name": "AI-INTEGRATION.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3642,
+      "fullName": "CHANGELOG.md",
+      "length": 8654,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#NOTICE",
+      "@type": "PackageEntry",
+      "compressedLength": 124,
+      "fullName": "NOTICE",
+      "length": 162,
+      "name": "NOTICE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5616,
+      "fullName": "README.md",
+      "length": 14993,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 2336,
+      "fullName": "icon.png",
+      "length": 2401,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#lib/net10.0/Tjidde.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30331,
+      "fullName": "lib/net10.0/Tjidde.Logging.dll",
+      "length": 64512,
+      "name": "Tjidde.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#lib/net10.0/Tjidde.Logging.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10528,
+      "fullName": "lib/net10.0/Tjidde.Logging.xml",
+      "length": 61483,
+      "name": "Tjidde.Logging.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#lib/net8.0/Tjidde.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30004,
+      "fullName": "lib/net8.0/Tjidde.Logging.dll",
+      "length": 64000,
+      "name": "Tjidde.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#lib/net8.0/Tjidde.Logging.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10528,
+      "fullName": "lib/net8.0/Tjidde.Logging.xml",
+      "length": 61483,
+      "name": "Tjidde.Logging.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#lib/net9.0/Tjidde.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30345,
+      "fullName": "lib/net9.0/Tjidde.Logging.dll",
+      "length": 64512,
+      "name": "Tjidde.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#lib/net9.0/Tjidde.Logging.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10528,
+      "fullName": "lib/net9.0/Tjidde.Logging.xml",
+      "length": 61483,
+      "name": "Tjidde.Logging.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.04.09.17.37/tjidde.logging.2.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "logging",
+    "tjidde",
+    "structured-logging",
+    "microsoft-extensions-logging"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

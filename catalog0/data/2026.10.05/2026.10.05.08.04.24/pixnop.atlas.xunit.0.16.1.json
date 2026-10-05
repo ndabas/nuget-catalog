@@ -1,0 +1,182 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Pixnop",
+  "catalog:commitId": "651802a6-0d16-4a39-9eb8-c2bc7994cabf",
+  "catalog:commitTimeStamp": "2026-10-05T08:04:24.5076989Z",
+  "copyright": "Copyright (c) Pixnop",
+  "created": "2026-10-05T08:00:02.933Z",
+  "description": "xUnit adapter for the Atlas integration-test harness: scenario attributes, world fixtures, and the buildTransitive MSBuild fix E2E consumers need.",
+  "iconFile": "nuget-icon.png",
+  "id": "Pixnop.Atlas.XUnit",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-05T08:03:50.14Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "NMzzTSxamt4zolwabqDbzo9FXcOAjrn8qApL4dsXlVMXXyQKElcr28rpoLACgTLF0oS/76yzkp/QU2356R+9LQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 98909,
+  "projectUrl": "https://github.com/Pixnop/Atlas",
+  "published": "2026-10-05T08:00:02.933Z",
+  "readmeFile": "nuget-readme.md",
+  "releaseNotes": "Fixes on 0.16.0 from the reports of the suites that tested its release candidates. No new public\ntype or member. Two changes can fail a run that 0.16.0 let through, and two change the form of the\n`[Atlas] staged mod` lines; all four are under Changed.\n\n### Changed\n\n- **A scenario class whose first boot fails is not booted again,** whatever the cause: strict\n  boot diagnostics, a mod path that does not exist, a staged mod the engine did not bind, an\n  engine that dies while booting. The scenario that ran the boot sees the boot's own exception.\n  Every later scenario of the class fails at once with a `ServerCrashedException` that carries\n  the boot's exception as its inner exception, where each used to boot the server again and fail\n  again with the original exception type. Its message reads `'<class>' did not boot. Its host\n  failed to boot for an earlier scenario, and a class whose boot failed is not booted again, so\n  this scenario fails at once with the same failure:` followed by the boot's exception type and\n  message. A transient first-boot failure therefore fails the whole class instead of one\n  scenario. A boot that fails after the class booted once (a `FreshWorld` recycle, a\n  `RestartWorld` replacement) still fails its own scenario only, and the next scenario boots as\n  before.\n- **The staged-build check compares every managed dll at the root of a folder or zip mod,** not\n  only the mod's own: the engine loads all of them when it loads the mod, whether the mod uses\n  them or not. The libraries are compared once the mod's own dll verified, each by module version\n  id with the assembly of its name the test process holds, and each gets its own line,\n  `[Atlas] staged mod '<modid>': dependency '<name>' verified (MVID ..., loaded from '...')`\n  (with ` for <class>` after the modid, as on the mod's own line). A different build fails the\n  boot with an `AtlasSetupException` naming the staged file, the loaded copy and both ids. This\n  can fail a boot 0.16.0 accepted, for example a test project that references a library at\n  another build than the copy the mod ships. The check tells which build runs, not whether it is\n  current: when the test project does not reference a library, the process holds only the staged\n  copy, so a stale build in the staged folder is compared with itself and reads `verified` with\n  its own module version id. Keeping the staged folder current is the staging step's job (an\n  `AtlasMod` `ProjectReference` stages the project's build output). A library the game ships itself (the install's root or `Lib` folder, or\n  the .NET runtime's folder) is left alone and gets no line; the game's own mods under the\n  install's `Mods` folder are not exempt. A library whose name the process holds no assembly of\n  when the world is ready gets `dependency '<name>' skipped, not loaded when the world was ready`\n  instead, a fallback that should be rare. A mod whose own line is `skipped` gets no library\n  lines. A folder mod that ships many libraries prints one more line each per boot.\n- **The `[Atlas] staged mod` lines of every boot after the first in a process** (a later class,\n  but also a `FreshWorld` recycle or a `RestartWorld` replacement in the same class) named the\n  first boot's scratch folder as the copy they were loaded from, a folder that may be gone by\n  then (an assembly is bound once per process). Such a line, the mod's own or a library's, now\n  ends `, bound by an earlier boot of this process, so that path may be gone` inside its closing\n  parenthesis. The prefix and `verified (MVID ..., loaded from` are unchanged; a script anchored\n  on the closing `')` no longer matches when the note is there.\n- **`CommandResult.Message` documents whose text it holds.** It is the engine's text, for\n  success and failure alike. Atlas writes its own sentence only for a non-success the engine gave\n  no message for (an unknown command, a legacy command, an error without a message);\n  `Raw.StatusMessage`, `Status` and `ErrorCode` tell the two apart. The value is unchanged; the\n  0.16.0 doc said it was empty in that case.\n\n### Fixed\n\n- **Strict boot diagnostics:** one unallowed entry in a class of N scenarios booted N identical\n  servers and kept N scratch folders (about 100 folders and 2.3 GB in a tmpfs `/tmp` for the\n  Nimbus suite). One boot runs and one folder is kept.\n- **A failed boot points at its log.** `AtlasBootDiagnosticsException`'s message ends with two\n  lines, `The scratch folder is kept: <path>` and `The engine's log: <path>/Logs/server-main.log`.\n  Every scenario of a class whose first boot failed once the engine was running, whatever the\n  exception, prints the `[Atlas] server log:` block: the log's path and the engine's Error and\n  Fatal entries, if any. A boot that fails after the class booted once prints no such block; its\n  message names the folder and the log only when it is a strict boot diagnostics failure.\n- **Count agreement in messages:** \"1 entry ... was logged\" in the strict boot failure; the tick\n  wait timeout and the rollback chunk check no longer say \"1 ticks\" or \"1 chunks\", and the `Say`\n  timeout says `Say(1 char)`, not `Say(1 chars)`.\n- **`World.Until` and `World.WaitForPosition` timeouts name their bound:** the message ends with\n  \"(timeoutTicks is N; pass a larger value to wait longer)\". The text before it is unchanged\n  apart from the count agreement above. Atlas's own waits keep the plain message.\n- **`atlas run --parallel --trx`** (also the sequential case, `--parallel 1`) wrote the run's\n  start and finish as every result's `startTime` and `endTime`. Each result has its own now: the\n  end time is when the run read the test's result from its worker, and the start time is that\n  minus the test's duration, so both include a little transport latency. A carriage return in\n  message, stack trace and output text is kept, written as `&#xD;`, instead of being read back\n  as a line feed (0.16.0 wrote it as a line break), so a CRLF in a message reads back as CRLF.\n  The escaping of characters XML forbids is unchanged.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#repository",
+    "commit": "55c3722a8bddf2ec4c674cb1360328f99836f6e6",
+    "type": "git",
+    "url": "https://github.com/Pixnop/Atlas"
+  },
+  "verbatimVersion": "0.16.1",
+  "version": "0.16.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#dependencygroup/net10.0/pixnop.atlas",
+          "@type": "PackageDependency",
+          "id": "Pixnop.Atlas",
+          "range": "[0.16.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#dependencygroup/net10.0/xunit.assert",
+          "@type": "PackageDependency",
+          "id": "xunit.assert",
+          "range": "[2.9.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#dependencygroup/net10.0/xunit.extensibility.execution",
+          "@type": "PackageDependency",
+          "id": "xunit.extensibility.execution",
+          "range": "[2.9.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#Pixnop.Atlas.XUnit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3209,
+      "fullName": "Pixnop.Atlas.XUnit.nuspec",
+      "length": 7377,
+      "name": "Pixnop.Atlas.XUnit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#nuget-icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 12035,
+      "fullName": "nuget-icon.png",
+      "length": 12030,
+      "name": "nuget-icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#nuget-readme.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2402,
+      "fullName": "nuget-readme.md",
+      "length": 5153,
+      "name": "nuget-readme.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#build/net10.0/Pixnop.Atlas.XUnit.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 5911,
+      "fullName": "build/net10.0/Pixnop.Atlas.XUnit.targets",
+      "length": 17783,
+      "name": "Pixnop.Atlas.XUnit.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#buildTransitive/net10.0/Pixnop.Atlas.XUnit.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 5911,
+      "fullName": "buildTransitive/net10.0/Pixnop.Atlas.XUnit.targets",
+      "length": 17783,
+      "name": "Pixnop.Atlas.XUnit.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#lib/net10.0/Atlas.XUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 28673,
+      "fullName": "lib/net10.0/Atlas.XUnit.dll",
+      "length": 68096,
+      "name": "Atlas.XUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#lib/net10.0/Atlas.XUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25372,
+      "fullName": "lib/net10.0/Atlas.XUnit.xml",
+      "length": 126267,
+      "name": "Atlas.XUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.05.08.04.24/pixnop.atlas.xunit.0.16.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "vintagestory",
+    "vsmod",
+    "testing",
+    "xunit"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

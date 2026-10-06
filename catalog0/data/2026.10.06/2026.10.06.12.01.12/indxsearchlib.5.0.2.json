@@ -1,0 +1,181 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Indx Search / Bionic AS",
+  "catalog:commitId": "079d5cfe-e996-4d3e-88e1-bdd5e6485649",
+  "catalog:commitTimeStamp": "2026-10-06T12:01:12.2433138Z",
+  "copyright": "Copyright © 2026 Indx Search (Bionic AS)",
+  "created": "2026-10-06T11:55:05.5Z",
+  "description": "A new type of search system with pattern recognition. Enterprise-grade search in a class library.",
+  "iconFile": "indx.png",
+  "id": "IndxSearchLib",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-06T12:00:54.46Z",
+  "licenseFile": "LICENSE.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "eTbZwe5Eaq4BH+l7HiT7u/8q/3DoEBOCSgav2Fkvx51A2O6Q88hbEK1c0Vbp/2sb+ENEUSG76/M7lOxG3UHpUA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 656736,
+  "projectUrl": "https://indx.co/",
+  "published": "2026-10-06T11:55:05.5Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Vector search rebuilt, and the last places where a wrong argument was answered with an\n      exception or with nothing. Scores and order of vector and hybrid results change, the `HNSW`\n      package is no longer a dependency, and `TrySetFieldConfiguration` returns a refusal where it\n      threw: see the entries marked Changed before upgrading.\n      \n      - Changed: **vector search finds what it should.** The graph behind a vector field is now the\n        library's own, a port of FAISS's HNSW with hnswlib's deletion, and the `HNSW` package (and the\n        `MessagePack` pin it needed) is no longer a dependency. Measured on real embeddings against\n        the exact nearest: the ten returned held 94.5 % of the true ten where the old graph held about\n        half, by a default of the package that linked each vector only to its nearest. The same\n        figures as FAISS on three datasets, a build two and a half to five times faster than before,\n        and 140 bytes of graph a vector. Scores and order of vector and hybrid results change.\n      - Changed: **a vector is brought to unit length**, when stored and when searched for, so\n        `IEmbeddingIndex.Search` returns the cosine whatever length the vectors have. They were taken\n        to be unit length already and the dot product returned as it was.\n      - Added: **`ConfigurationParameters.EmbeddingSetup`**, with `GraphVectors`: how the search graph\n        holds its vectors, `VectorStorage.Int16` (the default) or `Float32`. 16-bit integers halve the\n        graph's vectors in memory and make a search and a build about a third faster; recall was\n        unchanged to the third decimal and a score differs in the fifth. It decides nothing a client is\n        handed. A new constructor overload and a new `With` argument; the existing constructors take\n        the default, and a configuration file written before it is read as the default.\n      - Changed: **a document with a vector takes a third of the memory, and its vector's numbers\n        may come back spelled differently.** `EmbeddingSetup.DocumentVectors` says how a document's\n        own copy of a vector is held: `DocumentVectorStorage.Float32` (the default), `Int16` or\n        `Text`. As `Float32` the vector is taken out of the document's JSON when it is stored and\n        written back when the document is read: the same numbers, in the shortest text that reads\n        back as the same float, so `0.10` comes back `0.1` and a number with more digits than a float\n        holds comes back with as many as it holds. A client that compares documents as text sets\n        `Text`, which gives every document back character for character. `Int16` halves the vector\n        once more and changes its numbers in the fifth or sixth decimal. Measured on 15 000 products\n        with embeddings of 1 536 numbers: 47 KB a document as `Text`, 16 KB as `Float32`, 13 KB as\n        `Int16` (before this release, with one stored position per number, about 110 KB). Reading a\n        document back costs some 0.2 ms as numbers, for writing the vector out, against a microsecond\n        as text. What is written to a database is the record as it arrived, whichever is set.\n        A fourth value, `NotKept`, sends the vector to the search graph and keeps no copy in the\n        document: a document read back has no vector field. With it, a record sent to\n        `UpdateJsonRecords` without the vector field leaves the vector as it is, and `null` removes\n        it. `CreateInMemoryClone` takes the vectors from the graph, and with a `Persistence` a record\n        written back without its vector is stored with the graph's: the graph's copy, which on 16-bit\n        integers is the original to about four digits, at the original's length.\n      - Fixed: **`Status` no longer reports `Ready` before `Index()` has finished.** While the engine\n        was indexing, `Status.SystemState` passed on the state of the text index underneath, which is\n        ready before `Index()` is: the vector graphs that need it are rebuilt after, and the search\n        buffers swapped. A caller watching the state saw `Ready` through that, with searches still\n        answering `DidTimeOut`, for minutes on a large vector field. A caller waiting on the\n        `ProcessMonitor` never saw it. `Ready` now means `Index()` is done.\n      - Fixed: **a role or weight set straight on a `Field` is saved with its new value.**\n        `Searchable`, `Sortable` and `Weight` told the configuration of the change before they made\n        it, so an engine with a `Persistence` saved the value from before; `Facetable`, `Filterable`,\n        `WordIndexing` and `Embeddable` told nothing, so a role set that way was gone after a\n        restart. Every setter now tells after the change, and only when the value changed.\n        `TrySetFieldConfiguration` saves once for the whole call, where it saved once per flag.\n      - Changed: **`TrySetFieldConfiguration` returns every refusal; it no longer throws for some.**\n        A negative `Weight` or `BM25k1`, a `BM25b` outside 0 to 1, `Filterable` or `Sortable` on a\n        field with no type, and a vector field given another role were thrown as\n        `ArgumentException` or `ArgumentOutOfRangeException`, where an unknown field name came back\n        as `false`. All of them are now `false` with the reason in `error`, and nothing is applied.\n        Code that caught the exception must test the return value instead. The obsolete\n        `SetFieldConfiguration` and the setters on `Field` throw as before.\n      - Changed: **a `Load` refuses a vector that is not numbers.** An empty array, an array with a\n        string in it, or a value that is no array in a vector field fails the load with the\n        document's key and the reason, as a vector of the wrong length already did and as Insert and\n        Update do. Such a document used to be loaded with no vector and nothing said. A field that\n        is absent or `null` is still a document with no vector.\n      - Added: **a reason for the last `false`s without one.** `DeleteJsonRecord`,\n        `DeleteJsonRecords` and `DeleteFilter` gain an overload with `out string error`, and so does\n        `LoadDocumentFieldsFromDb` on `IServerSearchEngine`. A `false` from `DeleteJsonRecord` could\n        be no such key, an engine that is not Ready, or an index build under way.\n        `LoadDocumentFieldsFromDb` without a `Persistence` returns `false` with that reason, where it\n        threw `NullReferenceException`. The existing signatures are unchanged and delegate.\n      - Added: **`TryValidateFieldConfiguration(fields, out string error)`**: whether\n        `TrySetFieldConfiguration` would accept the same argument, with nothing changed. For a caller\n        that applies the change later or elsewhere, as a server that builds it into a clone.\n      - Fixed: **two vector fields at the end of a record, with `NotKept`, threw on load**\n        (`ArgumentOutOfRangeException` from the document store). Each was cut out with the comma\n        beside it, and for the last two properties of a record that was the same comma.\n      - Fixed: **`IEmbeddingIndex.TryGetVector` returns the vector at the length it had.** With the\n        graph on 16-bit integers it came back a few millionths longer or shorter, and a vector read\n        out and stored again moved by that much each time.\n      - Fixed: **documents with one and the same vector no longer hide the others.** The same text\n        embedded for many products gave many identical vectors, which closed into a group the search\n        did not get out of: with a hundred identical vectors beside six distinct ones, none of the\n        six was found. The graph now holds each distinct vector once, shared by the documents that\n        have it, and a search returns all of them at the same score.\n      - Added: **a vector graph is rebuilt by itself when removed vectors have gathered in it**, in\n        the background beside searches and updates. `EmbeddingSetup.AutomaticRebuild` (on by default),\n        `RebuildOwnerlessShare` (0.5: half as many removed as are left) and `RebuildOwnerlessMinimum`\n        (1 000). With `AutomaticRebuild` off the same thresholds decide when\n        `IEmbeddingIndex.RebuildDue` turns true, and the client calls `Index()` when it suits.\n      - Added: **`SearchEngine.SaveEmbeddings` and `LoadEmbeddings`**: the search graphs of the\n        vector fields written to a file, and taken from it at the next `Load` in place of being\n        built. Call `LoadEmbeddings` after the field configuration is set and before `Load`. The file\n        need not match the documents: the graph is brought in line with the vectors that are loaded,\n        and is passed over and built as usual when it differs too much or was saved with another\n        `GraphVectors`. `IEmbeddingIndex.RestoredFromSaved` says which happened. On 43 000 products\n        with vectors of 1 536 numbers the `Load` took 25 s restored against 41 s built.\n      - Added: **`IEmbeddingIndex.TryGetVector(documentKey, out vector)`**: the vector the search\n        graph holds for a document, by a direct lookup, at the length it arrived with. It is the\n        graph's copy, so near the numbers that arrived and not always the same: with the graph on\n        16-bit integers each number is within 0.000015 of the vector's length of what arrived.\n      - Changed: **an update keeps a vector's place, and a filter gets a full list.** A document whose\n        vector is unchanged costs the graph nothing; a changed vector replaces the old one in one step\n        (a search beside an update used to miss the document), and a deleted one's place is taken by\n        the next vector added. A filtered vector search returned documents outside the filter, and\n        dropped ones inside it, once any document lacked a vector or had been updated; it now returns\n        as many as were asked for among the documents the filter admits, and measures them one by one\n        when the filter admits few. `IEmbeddingIndex.OwnerlessCount` says how many removed vectors\n        the graph still holds; `Index()` takes them out.\n      - Fixed: **the library reports its own version.** The `Indx.dll` in 5.0.1 said 5.0.0 in its file\n        and product version, so anything showing the version, such as the Indx server's Admin page,\n        read 5.0.0.",
+  "requireLicenseAcceptance": true,
+  "title": "IndxSearchLib",
+  "verbatimVersion": "5.0.2",
+  "version": "5.0.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#dependencygroup/net10.0/communitytoolkit.highperformance",
+          "@type": "PackageDependency",
+          "id": "CommunityToolkit.HighPerformance",
+          "range": "[8.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#dependencygroup/net10.0/microsoft.data.sqlite",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.Sqlite",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#dependencygroup/net10.0/sqlitepclraw.bundle_e_sqlite3",
+          "@type": "PackageDependency",
+          "id": "SQLitePCLRaw.bundle_e_sqlite3",
+          "range": "[3.0.3, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#IndxSearchLib.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4574,
+      "fullName": "IndxSearchLib.nuspec",
+      "length": 11733,
+      "name": "IndxSearchLib.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#lib/net10.0/Indx.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 325691,
+      "fullName": "lib/net10.0/Indx.dll",
+      "length": 783872,
+      "name": "Indx.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#lib/net10.0/Indx.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 124703,
+      "fullName": "lib/net10.0/Indx.xml",
+      "length": 553708,
+      "name": "Indx.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1255,
+      "fullName": "README.md",
+      "length": 2483,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1940,
+      "fullName": "LICENSE.md",
+      "length": 4556,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#indx.png",
+      "@type": "PackageEntry",
+      "compressedLength": 183431,
+      "fullName": "indx.png",
+      "length": 183371,
+      "name": "indx.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.12.01.12/indxsearchlib.5.0.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Indx",
+    "Search",
+    "Searching",
+    "Fuzzy",
+    "String",
+    "matching",
+    "Indexing",
+    "Index",
+    "library"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

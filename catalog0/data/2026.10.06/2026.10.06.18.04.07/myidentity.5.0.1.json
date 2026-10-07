@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kerberos SA",
+  "catalog:commitId": "07853282-0e39-4bfa-b3cf-b3dbed4981bc",
+  "catalog:commitTimeStamp": "2026-10-06T18:04:07.0825322Z",
+  "copyright": "Kerberos SA © 2025–2026",
+  "created": "2026-10-06T17:59:04.287Z",
+  "description": "Reusable .NET 10 package that wraps ASP.NET Core Identity with cookie and JWT auth, Google OAuth, a pluggable e-mail provider, a multi-tenant model with dynamic RBAC (roles + module permissions), and secure defaults — wired up with a single AddMyIdentity call. JWT and Google OAuth secrets are supplied by the consumer (never shipped in the package).",
+  "id": "MyIdentity",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-06T18:03:37.457Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "VtqPdJ9I3DzmudFA0QOUkRvrS84HXZz9OI9RZgLUr7s+2L0Tw4Vlqms3EWLq7uIVklqkS9jSbuHGmeJ8R1gzgQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 548482,
+  "published": "2026-10-06T17:59:04.287Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v5.0.1: 5.0 as it ships. 5.0.0 was unlisted before anyone used it: upgrade from 4.6.0 straight to 5.0.1, through MyIdentity/UPGRADE.md §42 and then §43. Over 5.0.0, IMyIdentityPermissionService gains GetAccessibleScopeIdsByModuleAsync, GetAccessibleScopeIdsAsync for several modules in one read, one statement per 250 codes (each entry is an answer the single-module call could have given during the call, not one snapshot; check Unrestricted per entry; if the codes come from a request, bound how many you pass): a core or a decorator of that interface written by hand implements it, and so does a type that derives from a shipped implementation and re-implements the interface to hide GetAccessibleScopeIdsAsync with new, which still compiles without it; a decorator that restricts GetAccessibleScopeIdsAsync restricts it the same way. A nested IMyIdentityUnitOfWork.ExecuteAsync that joins a unit no longer counts as an operation of it, so a library operation verified by the state it leaves is not run again after a lost commit acknowledgement because a hook of yours ran one. SaveRolePermissionsAsync and UpsertRolePermissionAsync retry only the DbUpdateException of the library's own save: one that code of yours throws inside the attempt, such as the removal hook's own write, propagates from the first attempt. The notes of 5.0.0 follow, and hold for 5.0.1. v5.0.0: a major release. It breaks compatibility with 4.6.0: rebuild against it, and rebuild and republish any package of yours compiled against 4.x that implements a library interface that changed, or the app fails at startup with TypeLoadException. Every change, behaviour changes behind an unchanged signature included, is described with its action in MyIdentity/UPGRADE.md §42, which opens with the six settings to check first. ATOMIC WRITES: every write of the library runs in one unit of work of its own, or in the IMyIdentityUnitOfWork block you open to compose several, and the library never joins a transaction it did not open. The credential paths (the password check and its failed-access counter, sign-in codes, and registering and signing in with a passkey), the first-administrator bootstrap and the external sign-in callback never join your block: they commit on their own. IMyIdentityContextProvider and MyIdentityDefaultContextProvider are removed: drop a provider registration. The constructors of the seven services that reach the database take MyIdentityDataAccess instead of the context factory, the scope factory or the context, and MyIdentityAuthenticationService no longer takes a RoleManager or the tenant service: registration through AddMyIdentity needs no change; a subclass or a service built by hand passes the new arguments. The server-side RegisterAsync takes a configureUser delegate before the cancellation token: pass ct by name. On SQL Server with MARS, expect the harmless SavepointsDisabledBecauseOfMARS warning in the log. CREATEASYNC: IMyIdentityUserService.CreateAsync returns the created user instead of an IdentityResult that was always Succeeded, writes its id back into the instance you pass, and persists its profile, your own columns included, in the only insert: drop a check of Succeeded, or use the returned user. GATES AND SEAMS: the gates of the user, authentication and role services are out of reach of an override -- the members that held a gate stop being virtual, and MyIdentityRoleManager and MyIdentityRequirePermissionHandler are sealed -- and the hooks that remain run after them: move an override to the matching hook, or decorate the interface. The current-user accessor and the permission decision point are composed in layers by the library: register yours with the Decorate and Use methods after AddMyIdentity; startup checks the composition: it stops the host on most shapes that lose a layer, and warns on the rest. An implementation of a library interface written by hand adds the new members: IMyIdentityConfigurationService.PublicBaseUrl, the new RegisterAsync and CreateAsync shapes, IsScopeOwnedByTenantAsync with the DbContext it reads through, EnterTenantAsync and LeaveTenantAsync, IMyIdentityTenantService.SetActiveAsync, and IMyIdentityPermissionService.GetScopesWithAnyPermissionAsync, which lost its default body. LINKS: MyIdentity:General:PublicBaseUrl is the origin every link that carries a token is built from or checked against; set it in production, and for any reset or confirmation sent without a request or from a Blazor circuit: without it, a reset with no request fails closed. With it, a confirmation baseUrl or a password-reset callback of another origin throws CallbackUrlHostNotAllowed before any token is minted, and no mail is sent: pass IMyIdentityConfigurationService.PublicBaseUrl(). Without it, inside a request, a reset callback must point to the request's own host (a loopback callback passes only on a loopback request), and http is accepted only for a literal loopback host. SCOPE ROUTE KEYS: the default list holds only ScopeId and scopeId; declare your own keys, which ScopelessRouteBehavior.AnyScope now requires. TENANT ENTRY: a SystemAdmin can make their own session work in another tenant and leave it (EnterTenantAsync and LeaveTenantAsync on IMyIdentityAuthenticationService; IMyIdentityTenantEntryAccessor describes the entry, and a token never carries it). IMPERSONATION re-validates the impersonator against the store, security stamp included, when it starts and when it stops, so a revoked SystemAdmin cookie can no longer impersonate or come back unrevoked; an impersonation in progress at the upgrade ends in a sign-out, and, on a store with security stamps and the default stamp claim type, a SystemAdmin authenticated only by a bearer token can no longer impersonate. OTHER BEHAVIOUR CHANGES, among them: an admin's change of UserName or Email goes through UserManager and leaves a changed e-mail unconfirmed; an expired or used confirmation or reset link throws LinkInvalidOrExpired; an AssignToTenantAsync to the tenant the user already has changes nothing; a role step of the tenant membership writes that the store refuses returns the failed IdentityResult instead of throwing, so check Succeeded, and the seven describer messages of those steps are removed with ConfirmationTokenInvalid; the token, Google and post-registration entry points honour SignInManager.CanSignInAsync, as LoginAsync did; an account with two-factor enabled whose client is not remembered gets no session from the Google callback or from a registration that signs in, with no step to continue to; a password guess against an account without a password (a Google sign-up, or any other) is answered as for an unknown e-mail and never counts toward lockout; the Google callback writes the login link from the principal's NameIdentifier, and an account linked to a Google identity refuses any other; AddMyIdentity no longer registers HttpClient, so add AddHttpClient yourself if you inject it; RevalidationIntervalMinutes must be between 1 and 1440; a missing or blank MyIdentity:General:AppName makes AddMyIdentity throw the whole configuration report instead of that one error; and MyIdentitySeedOptions is removed. SIGN-IN CODES (opt-in, off by default): IMyIdentitySignInCodeService signs an existing account in with a one-time code sent by e-mail, by cookie or JWT, with its own attempt limit that does not depend on lockout; nothing changes unless you enable MyIdentity:Authentication:SignInCode:Enabled, and a class that subclasses MyIdentityAuthenticationService must be recompiled and must pass the three new optional constructor parameters to use the features. PASSKEYS (opt-in, off by default): IMyIdentityPasskeyService registers and signs in with WebAuthn passkeys; enabling MyIdentity:Authentication:Passkeys:Enabled moves the schema to IdentitySchemaVersions.Version3, whose generated migration needs DropPrimaryKey/AddPrimaryKey edits on SQL Server (or, for a database that comes from Version1, IdentityOptions.Stores.MaxLengthForKeys = 450 set before generating it) and a design-time factory that reads Version3; once your migrations include Version3, keep the option on wherever they run, or stop offering passkeys with Enabled = false and SchemaVersion = Version3 kept through configureIdentity (see UPGRADE.md §42). API KEYS (opt-in, off by default): a machine client authenticates as one dedicated account with an Authorization header of the form \"ApiKey\" plus the key, on the endpoints that name the MyIdentityApiKey scheme (never the default); MyIdentityApiKey.Generate() makes a key, and configuration holds only its SHA-256. DECLARING A KEY BINDS ITS ACCOUNT: it never gets an interactive session again (password reset, sign-in code, password, Google, passkey and impersonation with the account as the target each answer as that path answers an account that does not exist or cannot sign in; Google answers as for a disabled account, and IssueJwtForUserAsync with UserNotFound; the account cannot impersonate either, ImpersonateAsync answering NotSystemAdmin, and stopping an impersonation whose impersonator it is restores no session of its own; the e-mail confirmation is not re-sent to it either, since confirming the address would turn the key off; and each refusal logs that the account is bound to a key, only with the debug log where an anonymous caller reaches it by naming an e-mail address), whether the feature is on or off, and an account that already existed keeps its earlier sessions until its security stamp rotates, so call ForceSignOutAsync after the host has started with the key declared; this is a behaviour change behind an unchanged signature, which package validation does not list. MyIdentity.ApiKeyId is a reserved claim type. IMyIdentityTenantService gains SetActiveAsync, a tenant's state as an absolute value that a retry cannot flip back: an implementation of that interface written by hand adds it.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#repository",
+    "commit": "4e793597edde1a2322b0b475a67b39da67329307",
+    "type": "git"
+  },
+  "title": "Kerberos.MyIdentity",
+  "verbatimVersion": "5.0.1",
+  "version": "5.0.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.google",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.Google",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#dependencygroup/net10.0/microsoft.aspnetcore.identity.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Identity.EntityFrameworkCore",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#dependencygroup/net10.0/microsoft.entityframeworkcore.sqlserver",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.SqlServer",
+          "range": "[10.0.12, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#MyIdentity.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4869,
+      "fullName": "MyIdentity.nuspec",
+      "length": 11763,
+      "name": "MyIdentity.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 19046,
+      "fullName": "README.md",
+      "length": 51971,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#lib/net10.0/MyIdentity.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 336070,
+      "fullName": "lib/net10.0/MyIdentity.dll",
+      "length": 1030144,
+      "name": "MyIdentity.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#lib/net10.0/MyIdentity.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 173411,
+      "fullName": "lib/net10.0/MyIdentity.xml",
+      "length": 872419,
+      "name": "MyIdentity.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.06.18.04.07/myidentity.5.0.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "identity",
+    "authentication",
+    "authorization",
+    "blazor",
+    "aspnetcore",
+    "jwt",
+    "google-oauth",
+    "multitenant",
+    "rbac",
+    "saas"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

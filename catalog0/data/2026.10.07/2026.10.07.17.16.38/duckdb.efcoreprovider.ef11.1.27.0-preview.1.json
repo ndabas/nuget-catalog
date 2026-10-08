@@ -1,0 +1,202 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "skuirrels",
+  "catalog:commitId": "d999b1fb-a3a1-4c47-abf5-6f10b7cd04d1",
+  "catalog:commitTimeStamp": "2026-10-07T17:16:38.4510461Z",
+  "created": "2026-10-07T17:12:15.067Z",
+  "description": "DuckDB and DuckLake provider for Entity Framework Core.",
+  "iconFile": "DuckDB_icon-lightmode.png",
+  "id": "DuckDB.EFCoreProvider.EF11",
+  "isPrerelease": true,
+  "lastEdited": "2026-10-07T17:16:28.243Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "q0AYuUtb/08ciJsN39P+yDxMgkEmQ9JZk7i4IUnj0ca/DLPHWc4VJ4FKl2A4lm7WGxoZbajMnUkG2HDlVrLTPg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 583178,
+  "published": "2026-10-07T17:12:15.067Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.27.0 (EF10) / 1.27.0-preview.1 (EF11)\n- Upgrade Skuirrels.DuckDB.NET.Data.Full from 1.5.5.4 to 1.5.6, resolving the matching Skuirrels.DuckDB.NET.Bindings.Full 1.5.6 package and moving the bundled native DuckDB runtime from 1.5.5 to 1.5.6. Provider APIs are unchanged.\n\n1.26.0 (EF10) / 1.26.0-preview.1 (EF11)\n- Fix precompiled FromSqlRaw and interpolated FromSql argument binding while retaining SQL pregeneration for ordinary queries.\n- Ship separate EF10 and EF11 release lines from shared source. The EF10 package can also be used by net11.0 applications without upgrading EF. EF11 support is preview support.\n- Preserve native DuckDB array materialization under EF11 and validate matching migration and compiled-model tooling for each target.\n\n1.25.0\n- Support registered ADO.NET provider factories for ordinary DuckDB connections and database scaffolding while preserving existing public constructors.\n- Create provider parameters through their owning commands, retain type-mapping metadata for substituted parameters, preserve decorator parameter names and types, and use provider-neutral DbDataReader materialization for temporal values.\n- Keep DuckLake, encrypted databases, Quack hosting, Appender operations, and tiered-storage archive operations explicitly native; unsupported substituted connections now fail before opening or partial configuration.\n\n1.24.0\n- Support optional STRUCT-mapped complex roots and nullable nested complex properties while preserving the difference between a SQL NULL struct and a present struct whose members are all NULL across queries, inserts, partial updates, and bulk updates.\n- Materialize whole STRUCT complex properties from the complete DuckDB value, including sparse Parquet schemas, mixed leaf types, and configured value converters, while retaining direct field SQL for scalar member projections.\n- Translate whole-complex null comparisons to struct-level IS NULL and IS NOT NULL checks, preserve unchanged siblings during partial updates, and support whole-STRUCT materialization in single and split queries.\n\n1.23.0\n- Inline supported EF Core ValueConverter expressions into the shared BulkInsert/Upsert Appender writer, eliminating the measured 144 B/row allocation for three value-type converters (0 B/row after) while honoring configured backing-field access and retaining safe fallbacks.\n- Add DuckDBUpsertInputMode.DistinctConflictTargets. With caller-guaranteed unique keys, the direct conflict source measured 2.266 ms versus 3.160 ms for the staging window at 10,000 rows, and 6.859 ms versus 9.811 ms at 50,000 rows. Deterministic last-input-wins remains the default.\n- Replace the correlated logical-key cardinality check with one atomic semi-join guard inside MERGE. It measured 4.027 ms versus 6.897 ms on a 100,000-row target and 3.302 ms versus 20.247 ms on a 500,000-row target while preserving fail-before-mutation behavior.\n- Bind driver-proven read-only list shapes without a defensive copy: 40.54 KB versus 42.54 KB for a 500-element parameter. Unknown custom IReadOnlyList implementations retain the safe List conversion; the measured latency difference was not conclusive.\n\n1.22.0\n- Add UseEncryptedDuckDB(path, keyProvider) and UseDuckDB(o => o.UseEncryptedDatabase(path, keyProvider)): store a context's data in a DuckDB file encrypted with AES-256-GCM. The provider hosts the encrypted file on a shared in-memory database, attaches it with the application-supplied key, and selects it as the default catalog, so entities, migrations, and the migrations history and lock tables live inside the encrypted file. The key provider is invoked once per attachment and the ATTACH statement runs outside EF Core's command pipeline, so keys reach neither the options nor EF logs, diagnostics, or interceptors. Configurable catalog alias, read-only attachment, and DuckDB's temp_file_encryption, which is enabled by default so spilling queries do not write row data to the temporary directory in the clear.\n- Encrypted attachment is idempotent, so contexts opening concurrently share one attachment; a joining context's key is verified against a fingerprint of the attaching key, symbolic links are resolved in every path segment including the database file, EnsureDeleted invalidates the connection's attachment state so later use re-attaches, tiered-storage operations attach the catalog even on caller-opened connections, and a non-shared in-memory data source applied after configuration is rejected. CreateReadOnlyConnection() is refused for an encrypted database because the access mode belongs to the shared attachment — configure a read-only context with ReadOnly() instead.\n- Add DuckDBEventId.EncryptedDatabaseAttachmentStarting, Completed, and Failed for attachment diagnostics.\n- Scope the migrations-history existence probe to the current catalog, and resolve symbolic links when comparing an attached database's path with the configured one.\n\n1.21.0\n- Add an opt-in DuckDBUpsertMatchMode.LogicalKeyMerge for the conflict-target UpsertAsync overload: a set-based MERGE INTO on the selected properties as a logical key, without requiring or maintaining a physical unique constraint. Avoids the ART-index write cost and memory footprint that grow with target table size under sustained ingest; a staged batch fails before mutation when one staged key matches multiple existing rows.\n- Add UseDuckDB(o => o.CheckpointThreshold(\"1GB\")): configures DuckDB's checkpoint_threshold when a connection opens. Raising the default 16 MB WAL threshold defers automatic checkpoints that re-serialize in-memory ART indexes and dominate sustained indexed ingest; pair with explicit CHECKPOINT statements at ingest boundaries.\n\n1.20.1\n- Resolve duplicate conflict-target values within one Upsert input to the last occurrence in input order. The v1.19.1 width-aware chunks silently applied the first staged duplicate instead of the last one that v1.19.0's 500-row chunks applied across chunk boundaries; staged chunks now deduplicate per conflict key before merging, so the outcome is deterministic for any duplicate spacing. Key-only DO NOTHING shapes still keep the first inserted row.\n- No measurable latency change: the one-million-row mixed update/insert benchmark measured 600.5 +/- 13.8 ms / 565.08 KB versus 627.7 +/- 10.1 ms / 503.08 KB for v1.20.0 (overlapping confidence intervals; ~62 KB more allocation per one-million-row operation from the larger per-batch SQL text).\n\n1.20.0\n- Add an explicitly opt-in experimental Quack profile for remote LINQ, SaveChanges, transactions, generated values, command replay, BulkInsert, Upsert, server lifecycle, and diagnostics.\n- Add remote EnsureCreated schema provisioning while keeping deletion and EF migrations server-owned.\n- Preserve the v1.19.1 width-aware Upsert batching and reusable Appender-row fast path across native DuckDB and DuckLake while adding Quack command rendering.\n- Reject a DuckLake upsert batch before mutation when one staged conflict key matches multiple existing rows.\n\n1.19.1\n- Improve alternate-key Upsert throughput with width-aware batches bounded by the existing 100,000-cell staging limit, while preserving explicit smaller batch sizes and generated-key behavior. In the deterministic one-million-row mixed update/insert benchmark, v1.19.1 completed in 636.266 ms versus 11.221 s for v1.19.0: 17.64x faster with 94.33% lower latency.\n- Reuse DuckDB.NET's managed Appender row during staging. The same benchmark allocated 463.83 KB versus 65.87 MB for v1.19.0, a 99.31% reduction, with no observed Gen0 collections.\n\n1.19.0\n- Add an UpsertAsync overload with a typed primary-key, alternate-key, or unique-index conflict selector. For alternate targets, sequence/default-backed ValueGenerated.OnAdd columns are omitted so DuckDB generates inserted values while conflict updates preserve existing primary keys.\n\n1.18.0\n- Reduce SaveChanges planning allocations by reusing immutable insert shapes and dual-role update plans, avoiding scalar-path candidate arrays and detached per-cell snapshots, and bounding wide batches with a 10,000-cell guard. The corrected benchmark measured insert allocation at 7,771.36 KB versus the 12,040.59 KB baseline and update allocation at 4,976.05 KB versus 7,390.00 KB.\n- Reuse one temporary staging table per Upsert operation, share a compiled typed Appender writer with BulkInsert, increase the default batch size from 100 to 500, and cap staged work at 100,000 cells. The default Upsert benchmark measured 9.461 ms / 134.73 KB versus the 23.037 ms / 312.79 KB baseline.\n- Coalesce configured connection settings and spatial extension setup into one command per initialization path.\n- Replace the tiered-view crash/late-row guard's second Parquet scan with a persisted active-generation root-key index. The scoped tier benchmark opened 2 files versus 194 at baseline.\n- Add focused diagnostics, width-aware, staging-cleanup, connection, and exact Parquet-scan regression coverage. No existing public API is removed or changed.\n\n1.17.3\n- Add context-wide opt-in case-insensitive translation for string and character StartsWith, Contains, and EndsWith searches. Existing case-sensitive behavior and exact equality remain unchanged by default.\n- Translate opted-in searches through null-safe ilike_escape expressions with explicit VARCHAR mappings and literal escaping for $, %, and _, including native DuckDB and DuckLake execution coverage.\n\n1.17.2\n- Fix tracked updates for dual-role rows whose stable key is referenced by dependants and which also carry an outbound foreign key. Unchanged outbound-FK writes are classified using provider values and omitted when another write remains, avoiding DuckDB's referenced-row constraint without hiding genuine physical changes.\n- Preserve disconnected sole-FK updates with an atomic IS DISTINCT FROM update and keyed concurrency probe. Genuine outbound-FK reassignments succeed when no inbound dependant exists and otherwise produce an actionable DbUpdateException; DuckLake retains its logical-relationship behavior because it does not create physical FKs.\n\n1.17.1\n- Upgrade Skuirrels.DuckDB.NET.Data.Full from 1.5.5.3 to 1.5.5.4, resolving the matching Skuirrels.DuckDB.NET.Bindings.Full 1.5.5.4 package. Controlled same-machine A/B runs of all 49 provider benchmark cases, plus higher-confidence and counterbalanced reruns, found no reproducible performance or material allocation regressions. Provider APIs and the bundled native DuckDB 1.5.5 runtime are unchanged.\n\n1.17.0\n- Extend non-executing command extraction to terminal LongCount, Min, Max, Sum, and Average operations. Numeric aggregates accept projected int, long, float, double, decimal, and nullable equivalents; unsupported projections fail before EF query compilation.\n- Preserve direct generic extraction for fixed-result terminal operations and use cached result-type dispatch only where Average promotes the CLR result type.\n- Document that replayed aggregate command plans expose database values without EF's client-side empty-sequence result shaping, with focused replay and extraction benchmark coverage.\n\nEarlier releases: https://github.com/skuirrels/DuckDB.EFCoreProvider/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "f49a8c3e25f28055ad139383d25e09cede39c6f8",
+    "type": "git",
+    "url": "https://github.com/skuirrels/DuckDB.EFCoreProvider"
+  },
+  "verbatimVersion": "1.27.0-preview.1",
+  "version": "1.27.0-preview.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#dependencygroup/net11.0/microsoft.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore",
+          "range": "[11.0.0-preview.7.26381.103, 11.0.0-preview.7.26381.103]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#dependencygroup/net11.0/microsoft.entityframeworkcore.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.Abstractions",
+          "range": "[11.0.0-preview.7.26381.103, 11.0.0-preview.7.26381.103]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#dependencygroup/net11.0/microsoft.entityframeworkcore.relational",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore.Relational",
+          "range": "[11.0.0-preview.7.26381.103, 11.0.0-preview.7.26381.103]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#dependencygroup/net11.0/skuirrels.duckdb.net.data.full",
+          "@type": "PackageDependency",
+          "id": "Skuirrels.DuckDB.NET.Data.Full",
+          "range": "[1.5.6, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#DuckDB.EFCoreProvider.EF11.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5349,
+      "fullName": "DuckDB.EFCoreProvider.EF11.nuspec",
+      "length": 12720,
+      "name": "DuckDB.EFCoreProvider.EF11.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#DuckDB_icon-lightmode.png",
+      "@type": "PackageEntry",
+      "compressedLength": 9902,
+      "fullName": "DuckDB_icon-lightmode.png",
+      "length": 9971,
+      "name": "DuckDB_icon-lightmode.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 713,
+      "fullName": "LICENSE",
+      "length": 1180,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 24786,
+      "fullName": "README.md",
+      "length": 71200,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#lib/net11.0/DuckDB.EFCoreProvider.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 458208,
+      "fullName": "lib/net11.0/DuckDB.EFCoreProvider.dll",
+      "length": 1326592,
+      "name": "DuckDB.EFCoreProvider.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#lib/net11.0/DuckDB.EFCoreProvider.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 250,
+      "fullName": "lib/net11.0/DuckDB.EFCoreProvider.runtimeconfig.json",
+      "length": 418,
+      "name": "DuckDB.EFCoreProvider.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#lib/net11.0/DuckDB.EFCoreProvider.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 68505,
+      "fullName": "lib/net11.0/DuckDB.EFCoreProvider.xml",
+      "length": 569651,
+      "name": "DuckDB.EFCoreProvider.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.16.38/duckdb.efcoreprovider.ef11.1.27.0-preview.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "duckdb",
+    "ducklake",
+    "quack",
+    "efcore",
+    "ef-core",
+    "entity-framework-core",
+    "orm",
+    "provider",
+    "database",
+    "analytics",
+    "olap",
+    "parquet",
+    "lakehouse",
+    "tiered-storage",
+    "data-lake",
+    "object-storage",
+    "bulk-insert",
+    "upsert",
+    "dotnet"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

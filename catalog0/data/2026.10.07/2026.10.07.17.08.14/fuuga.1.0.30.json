@@ -1,0 +1,649 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Tuomas Hietanen",
+  "catalog:commitId": "63a43390-558c-4194-8aae-2939c9fee7e3",
+  "catalog:commitTimeStamp": "2026-10-07T17:08:14.6421497Z",
+  "copyright": "Unlicense - Public Domain",
+  "created": "2026-10-07T16:59:44.43Z",
+  "description": "Large Language Model (LLM) generator. And Small as well, SML. Give data and generate your model. Fuuga implements a complete language model pipeline: tokenization, data ingestion, model training, fine-tuning, and text generation. Code in .NET (F#).",
+  "iconFile": "logo.png",
+  "id": "Fuuga",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-07T17:07:57.74Z",
+  "licenseExpression": "Unlicense",
+  "licenseUrl": "https://licenses.nuget.org/Unlicense",
+  "listed": true,
+  "packageHash": "RBagkj0FFoFHf4omhvVDA4RL3huoJVRnOCNgLPKSEX+CS7vH0g0fLZwQ/+Gs5fLjm0rTKtSmKz6pD8qh66tMjg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 15267007,
+  "published": "2026-10-07T16:59:44.43Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "QWEN3 DONORS TRANSFER FAITHFULLY: ModelConfig gains HeadDim (per-head dim decoupled from EmbDim / NumHeads, needed by Qwen3-0.6B / 4B / 32B), QkNormEps (per-head RMSNorm on Q and K before RoPE, Qwen3's q_norm / k_norm, as new block{i}.attn.qNorm / kNorm parameters that exist only when set) and NormEps (every norm's epsilon, 1e-5 as before when unset); all three are optional and configs / checkpoints written without them load unchanged. --mapping qwen maps q_norm / k_norm; ConfigWizard.modelConfigFromHuggingFace reads head_dim, attention_bias, rms_norm_eps and model_type; GQA, NSA, H-Transformer and KDA honour HeadDim, MLA rejects it; ONNX export, Llama export and the generated distributed / model-parallel scripts refuse QK-norm (and a decoupled HeadDim) instead of silently dropping it. GGUF IS A FIRST-CLASS DONOR: fuuga transfer --donor model.gguf derives the ModelConfig from the file when --model-config is absent (WeightTransfer.modelConfigFromGguf: {arch}.* metadata incl. key_length, QK-norm and bias tensors probed, shapes as fallback; written to <checkpoint>/model_config.json) and writes the embedded tokenizer as a byte-level tokenizer.json + tokenizer_config.json into <checkpoint>/tokenizer when --tokenizer is absent (GgufImport.extractTokenizerJson: control tokens become special tokens, the qwen2 / llama-bpe split regex is kept); fuuga config advise --donor accepts a .gguf. GGUF import / export carry attn_q_norm / attn_k_norm, attn_q/k/v biases (kept F32), attention.key_length / value_length and the model's norm epsilon; export defaults general.architecture to qwen3 for QK-norm models and qwen2 for biased ones. LLAMA / MISTRAL GGUF ROPE ORDER: attn_q / attn_k rows (and biases) are un-permuted from llama.cpp's interleaved RoPE order on import and permuted into it on export, so llama-architecture donors import correctly and Fuuga's llama exports rotate correctly in llama.cpp; qwen2 / qwen3 are untouched. Exports record the order in fuuga.rope_row_order, which import follows over the architecture. BREAKING: a llama / mistral GGUF exported by Fuuga 1.0.29 or earlier lacks the key and now imports with scrambled Q/K rows; re-export it. EXAMPLES ARE NOW A PATH: docs/your-first-model.md walks a software team from a folder of documents to a served, verified model (which approach, settings, donor choice with an hours table from the advice engine, verify, ground, ship); a new RAG journey in Workflows.fs / docs/workflows.md; examples/init-settings.fsx reads examples/fuuga.local.json (git-ignored, recipe-compatible, every key also a flag: --donor --tokenizer --data --model --base --output --models-dir --data-limit-mb --max-hours --mirror --cpu --settings) so no script needs editing and git pull never conflicts; examples/init-sample-data.fsx replaces the per-script inline sample text with one generated demo corpus or the user's own data dir; examples/init-model.fsx loads a produced checkpoint (--model) or builds the toy model, so the RAG, evaluation, inference, fine-tuning, DPO, graph, agents and model-ops scripts run on the model the donor script produced; donor-transfer-and-refine.fsx writes checkpoint.json beside its weights so its transferred/ and refined/ folders are real checkpoints for fuuga serve / decide eval / rag index, takes a .gguf donor, and retrain-verification.fsx compares two given checkpoints (--base, --model) instead of only its own toy pair. RL ON CUDA FIXED: trainRlEpoch builds its rewards and advantages on the policy's device; `fuuga rl` on a GPU failed with a device mismatch. PREVIOUS (1.0.29) - LINUX GPU PACKAGE: new Fuuga.cuda-linux (and Fuuga.Image.cuda-linux) carry the CUDA 12.8 Linux x64 libtorch; the existing Fuuga package is the Windows x64 CUDA build and Fuuga.cpu runs anywhere - the package choice selects the backend, as before. Built with -p:TorchBackend=cuda-linux; examples take --define:FUUGA_CUDA_LINUX. Intended for GPU rentals and servers (RunPod, Vast.ai, Lambda, cloud VMs), where the whole run - transfer, refinement, serving - executes on that machine with the data copied there; Fuuga drives no remote GPU over an API. LORA ON CUDA FIXED: applyLora created its adapters on the CPU, and a model that was already on the GPU (how the CLI loads a checkpoint) never moved them, so the first forward died in a native device-mismatch error; adapters now take the device and dtype of the weight they wrap (QLoRA already did). WHICH DONOR, WHICH METHOD, WHICH MACHINE: new `fuuga config advise` (ConfigWizard.adviseDonorAdoption / renderDonorAdvice) answers it from the donor's config.json (or a parameter count), the data size and the detected or overridden hardware: the donor fixes the architecture, the data-to-parameter ratio picks full-parameter versus adapters (under 0.01 tokens per parameter there is too little data to move every weight), and memory decides whether full-parameter, LoRA or QLoRA fit the GPU, fit with CPU offload, need NVMe paging or do not fit, with the fp32 build size the target needs in system RAM, a rough hours-per-epoch estimate, epochs, learning rate and the format to download; when nothing finishes within a month the fastest feasible method is recommended, and data far beyond what the donor can absorb (20+ tokens per parameter) is called out with the donor size that would use it. The command also prints the training config the derivation would pick, and with --max-hours the tokens each method gets through in that time and the share of the corpus that is. fuuga config wizard --max-hours now sizes a from-scratch model to the compute budget (hours x effective TFLOP/s at 6 FLOPs per parameter per token) when one pass of the data would not fit, and its TimeBudget explanation names the token subsample that does, instead of only capping epochs. fuuga transfer warns before building a target that exceeds system RAM in fp32 (that is a crash, not a slow run), and the donor example stops on it unless --force. ConfigWizard.modelConfigFromHuggingFace derives a Fuuga ModelConfig from a Hugging Face config.json (dense donors as they are, text_config of multimodal checkpoints, MLA geometry and a layer / expert budget for DeepSeek-style MoE donors). DONOR TOKENIZERS LOAD AS-IS. Tokenizer.loadTokenizer reads three layouts: vocab.json + merges.txt as before; a byte-level Hugging Face tokenizer.json (Llama 3, Mistral Nemo, GPT-style - added tokens become special tokens, the file's own split regex is used); and a SentencePiece tokenizer.model with added_tokens.json (Phi-3, Gemma, Mistral 7B - verified against Phi-3-mini's: chat markers encode to their published ids). The phi3 default mapping therefore no longer needs a hand-converted vocabulary. A donor vocab.json (contiguous ids, no Fuuga markers) no longer gets Fuuga's reserved ids 512-599 registered on top of it, which aliased real tokens. decode renders special tokens as text on every tokenizer type, so stop sequences on marker text keep working. Checkpoint packaging, package validation and the tokenizer identity hash accept and carry all three layouts. API: the Tokenizer functions take, and loadTokenizer returns, Microsoft.ML.Tokenizers.Tokenizer instead of BpeTokenizer - callers passing a BpeTokenizer still compile; use Tokenizer.vocabulary / specialTokens instead of .Vocabulary on the result; new tokenizerFilesIn / hasTokenizerFiles / copyTokenizerFiles. DONOR END-OF-SEQUENCE: generation stops on the loaded tokenizer's own end markers (Tokenizer.endOfSequenceIds - Qwen's <|im_end|> and <|endoftext|>, Phi-3's <|end|>, Llama 3's <|eot_id|>, a SentencePiece </s>, Gemma's <end_of_turn>, ...) instead of Fuuga's id 512, which is an ordinary token in a donor vocabulary; grammar-constrained decoding and GGUF metadata take the family's primary end / begin / pad ids (primaryEndOfSequenceId, beginOfSequenceId, padId). GGUF EXPORT reads a byte-level tokenizer.json as well as the vocab.json + merges.txt pair and writes a donor's added tokens as control tokens (Tokenizer.gpt2Tables); SentencePiece tokenizers are refused with the reason (llama.cpp needs per-token scores). TIME ESTIMATES use a per-card sustained-throughput table (H100, A100, L40S, RTX 30/40/50 series, ...) when nvidia-smi names the card, the VRAM proxy otherwise. The donor example applies the derived layer-offload plan (setupOffloading, forwardWithOffloadingForTraining, restoreOffloading) with the library's CPU AdamW state keyed by parameter name - a torch optimizer cannot follow parameters that move between devices (TorchSharp's .to replaces them) - validates through the offloaded forward, and finishes on the CPU when even the fp32 weights do not fit the GPU alone. KNOWN GAPS: the continuous-batching engine (fuuga-serve --continuous-batching) still stops on Fuuga's EndOfText id, so donor models served through it need stop sequences; SentencePiece tokenizers cannot be exported to GGUF. EXAMPLES: donor-transfer-and-refine.fsx gains --practical: fetches Qwen2.5-1.5B-Instruct on demand, derives the target config from the donor's config.json (dense, or MLA + MoE for DeepSeek / Kimi K2 with a layer and expert budget), sizes the refinement from the detected hardware (ConfigWizard.deriveTrainingDefaults), keeps a model on the CPU or converts it to bf16 when fp32 would not fit the GPU, and switches to LoRA when full-parameter training does not fit the memory; image-demo and scratch-sd-demo fetch their models through a shared resumable downloader (examples/_common/Download.fsx: .part + rename, Range/If-Range resume, stall guard). PREVIOUS (1.0.28) - MINION MULTI-FILE REFACTORING. New apply_edits tool: several exact-text replacements across files as one change; nothing is written if any edit fails. New lsp_rename tool: semantic rename across files through the language server (needs --allow-write). fuuga delegate --verify-command (with --verify-timeout, --verify-retries) runs a build or test command after file changes, hands failures back to the minion and escalates with verification_failed if they persist; the result JSON gains \"verification\". --max-context-chars elides the oldest tool results from a long transcript (default 48000). --fail-on-escalate exits with code 4. LIBRARY API: MinionAgent.runDelegateWithOptions and DelegateOptions; LspClient.Rename, applyTextEdits, parseWorkspaceEdit. BREAKING for code that constructs these records: DelegateResult gains Verification, EscalationInputs gains VerificationFailed and VerificationPassed; EscalationReason gains the case VerificationFailed. DEPENDENCY UPDATES: Microsoft.Extensions.AI 10.10.0 (and the three Evaluation packages), Microsoft.ML.OnnxRuntime 1.30.0, OpenTelemetry 1.19.1 (with the OTLP exporter and Extensions.Hosting), ModelContextProtocol 2.2.0, Google.Protobuf 3.36.2, Markdig 1.4.0, Parquet.Net 6.1.0, System.Numerics.Tensors 10.0.12, TorchSharp.PyBridge 1.4.4. TESTS: four shared-state races between parallel test collections fixed. PREVIOUS (1.0.27) - DONOR IMPORTS: LATENT ATTENTION AND ENCODER DONORS. MLA ATTENTION NOW TRANSFERS (DeepSeek-V3, Kimi K2). --mapping deepseek / deepseek-moe previously skipped attention entirely, documented as \"MLA, incompatible with Fuuga's GQA\" - true only of a GQA TARGET. Against a target whose AttentionType is MLA the donor maps almost one-to-one: q_a_proj to wDQ, kv_a_proj_with_mqa split to wDKV + wKR, q_b_proj split to wUQ + wQR, kv_b_proj split to wUK + wUV, o_proj to wO, and q_a_layernorm / kv_a_layernorm into new latent RMSNorms. The two _b_proj tensors INTERLEAVE their halves within each head, so the split point is read from the target's MlaConfig rather than from the tensor: a contiguous split would hand each part the wrong heads' rows at identical shapes, and a row count the geometry cannot explain is reported as a shape error naming the tensor rather than reshaped into something plausible. Kimi K2 ships as model_type deepseek_v3, so one mapping covers both. MlaConfig gains NopeHeadDim, VHeadDim and LatentNormEps, all optional - omitted they reproduce the previous behaviour exactly, and configs written before they existed keep loading unchanged. They exist because the per-head dims cannot stay tied to EmbDim / NumHeads: DeepSeek-V3 runs 128 heads over a 7168-wide residual, so that ratio is 56 while its content and value head dims are both 128, which is precisely what made those donors' attention unrepresentable. MultiHeadLatentAttention decouples the content and value head dims across its projections, its absorption math and all three forward paths, and gains RMSNorm on the compressed latents; the KV cache layout is unchanged. The target must carry the donor's per-head geometry - layer count and FFN/expert widths may still be smaller. Kimi K3 is NOT covered: its KDA and gated-MLA layers have no key map. DeepSeek's YaRN RoPE scaling has no equivalent (Linear / NTKAware only) - no weights are involved, but long-context behaviour will differ. The layout is verified by construction and by tests that would catch a mis-split by value; it has not been run against a real DeepSeek or Kimi checkpoint. MODERNBERT ENCODER DONOR (--mapping modernbert): the one encoder in the list, producing a BIDIRECTIONAL model for the typed-decision path rather than a generative one - which is how an open judge model such as Laya 1 comes in, its encoder subfolder being a stock ModernBertForMaskedLM. Fused Wqkv and Wi reuse the Phi-3 splitters; layer 0's attn_norm is nn.Identity and is never saved, so block0.norm1 is filled from embeddings.norm, the norm that actually runs before layer 0's attention. The masked-LM head is not transferred, and the decision heads are Fuuga's own, trained by fuuga decide train. TRANSFER NOW WRITES checkpoint.json beside model_weights.dat, so its output is a checkpoint directory rather than loose weights and fuuga decide train, which has no --model-config, can consume a transfer result directly. It is written on every transfer including over an existing file, because model_weights.dat has just been replaced and metadata left from whatever used to live there would now describe a different model; an explicit --model-config still wins downstream. DISTILL REFUSES A TEACHER WHOSE ATTENTION WAS NEVER POPULATED: --attention and --hidden match the student against the teacher's own modules, so a mapping that fills no attention leaves the teacher at initialisation and trains the student against noise while the loss still falls convincingly. A .gguf teacher is exempt - it arrives keyed by Fuuga parameter names and bypasses the key map entirely. SMALLER: checkpoint metadata records the real assembly version instead of a hardcoded \"0.1.0\"; a cross-collection Console race in the CLI drift guard is fixed. EXAMPLE: examples/kimi-donor-laya-judge.fsx runs the whole scenario offline on CPU - a Kimi/DeepSeek-shaped MLA donor and a Laya/ModernBERT encoder donor imported, decision heads trained on the result, and the A/B arena run twice to show what the report says when a judge is unusable versus usable. PREVIOUS (1.0.26) - ROBUSTNESS FIXES FROM A STATIC-ANALYSIS PASS (fsharp-refactor notes, each finding verified in the source before it was changed). GUARDRAILS: one invalid regex in CustomPatterns threw out of the input check on every checked request, and every custom pattern was recompiled per input; the input check now shares the output side's compiled cache, which logs an invalid pattern once and skips it while the valid ones still apply. RESUME NO LONGER DESTROYS STATE: `fuuga agent --resume` reported an unreadable agent-session.json as \"no previous session\" and then overwrote it, and `fuuga orchestrate --resume` silently replaced a checkpoint it could not read while re-running every subtask; both files are now moved aside as <name>.unreadable-<UTC timestamp> with a message saying so (new AgentSession.setAsideUnreadable). SERVER (fuuga-serve): a literal JSON null request body bound to a null record and the handler answered 500; it is now a 400, and all six JSON endpoints report the serializer's own message (\"Could not parse request body: ...\") where five said only \"Invalid JSON\" even for valid JSON that did not bind. Tool-call arguments the model produced that are not a JSON object now travel as the call's error (FunctionCallContent.Exception) instead of running the tool with no arguments. The guardrail-filtered streaming path awaits the output enumerator's disposal instead of blocking a request thread on it. SMALLER: the LSP client disposes its cancellation source; the weight-streaming autograd warning no longer names {Blocks} twice in one template; the repetition penalty enumerates the token history once; single-character StartsWith/EndsWith checks (comment markers, JSON braces, trailing newlines, the BPE space marker) compare ordinally, so an invisible character such as a soft hyphen no longer changes the answer. No public API removed. PREVIOUS (1.0.25) - DRIFT MONITORING AND TRAINING SAFETY FIXES. SUSTAINED DRIFT NOW KEEPS ALERTING. The adaptive threshold (mean + 2 sigma over the last 30 windows) is a rolling one, so it absorbs any level that lasts - which is exactly what stops it alerting on a signal's own noise, and equally stopped it alerting on drift nobody had fixed. A sustained shift fired one alert in 52 windows and then went quiet; a shift that began soon after a reference capture, or in the very first analysed window, never alerted at all; and a critical plateau sitting just over the threshold never alerted under any previous version. Operators saw Critical in GET /v1/drift with no pending retraining trigger. The adaptive gate may now delay an alert but never suppress one: a new SustainedCriticalWindowsRequired (default 10) fires on consecutive critical windows whatever the baseline makes of them, because a signal's own noise crosses back below critical long before ten windows and a real shift does not. The gate also now needs AdaptiveMinimumSamples (default 5) windows before it has an opinion at all - a threshold built from two scores sits barely above the pair and the next ordinary window clears it. Measured on the same series, before and after, at the shipped defaults: sustained shift after a healthy run 1 alert then silence, now alerting every 10 windows indefinitely; shift two windows after a reference capture 0, now 4 in 42 windows; shift from the first window 0, now 4 in 40; critical plateau just over the line 1, now 4. Nothing new fires on quiet signals: isolated spikes 0 before and after, a noisy stationary signal wandering across the warning line 0 before and after, a stationary signal sitting on the critical line 0 before and 0.15 per 300 windows after - that residual is inherent, since ten critical windows in a row out of a signal that is critical half the time by chance cannot be told from a genuine plateau except by waiting longer; raise SustainedCriticalWindowsRequired to trade it away. A trigger the backstop raises says so in its brief - it reports that the adaptive threshold has absorbed the level rather than quoting it as exceeded - so an operator approving from the brief sees why it fired. An earlier attempt that kept critical scores out of the baseline was measured and rejected: it truncates the baseline to the quiet tail, so a signal that normally sits near the threshold is compared against a picture of its calmest windows and crosses constantly. TRAINING NO LONGER OVERWRITES ITS OWN SOURCE. fuuga decide train and fuuga merge both write model_weights.dat and checkpoint.json flat into --output, under the same names they read from their input, so pointing both at one directory replaced the source in place: decide train left the donor re-tagged Bidirectional, which fuuga serve then refuses as a generative model, and merge dropped BaseCheckpointPath, so a second run would load the already-merged weights and apply the adapters on top of them again. Both now exit 1 with an explanation before any work happens (Checkpoint.resolvesToSameDirectory). TESTS: every alerting test shrank the configuration to 1-2 consecutive windows, a 3-5 window baseline and 1 sigma, so the shipped numbers were never exercised; a new section runs the defaults from both directions - drift that does not resolve must keep alerting, and a stationary signal must not alert however close to the threshold it sits - with the stationary cases swept over seeds rather than resting on one.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#repository",
+    "branch": "refs/heads/master",
+    "commit": "3f56eb890e2c83b94fa09ec78e85b42bf0541ff6",
+    "type": "git",
+    "url": "https://bitbucket.org/Thorium/fuuga"
+  },
+  "title": "Fuuga",
+  "verbatimVersion": "1.0.30",
+  "version": "1.0.30",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/a2a",
+          "@type": "PackageDependency",
+          "id": "A2A",
+          "range": "[1.0.0-preview2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/fsharp.core",
+          "@type": "PackageDependency",
+          "id": "FSharp.Core",
+          "range": "[10.1.302, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/fsharp.systemtextjson",
+          "@type": "PackageDependency",
+          "id": "FSharp.SystemTextJson",
+          "range": "[1.4.36, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/google.protobuf",
+          "@type": "PackageDependency",
+          "id": "Google.Protobuf",
+          "range": "[3.36.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/llamasharp",
+          "@type": "PackageDependency",
+          "id": "LLamaSharp",
+          "range": "[0.27.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/llamasharp.backend.cpu",
+          "@type": "PackageDependency",
+          "id": "LLamaSharp.Backend.Cpu",
+          "range": "[0.27.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/markdig",
+          "@type": "PackageDependency",
+          "id": "Markdig",
+          "range": "[1.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/mathnet.numerics.fsharp",
+          "@type": "PackageDependency",
+          "id": "MathNet.Numerics.FSharp",
+          "range": "[5.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/microsoft.extensions.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI",
+          "range": "[10.10.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/microsoft.extensions.ai.evaluation",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.Evaluation",
+          "range": "[10.10.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/microsoft.extensions.ai.evaluation.quality",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.Evaluation.Quality",
+          "range": "[10.10.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/microsoft.extensions.ai.evaluation.reporting",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.Evaluation.Reporting",
+          "range": "[10.10.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/microsoft.ml.onnxruntime",
+          "@type": "PackageDependency",
+          "id": "Microsoft.ML.OnnxRuntime",
+          "range": "[1.30.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/microsoft.ml.tokenizers",
+          "@type": "PackageDependency",
+          "id": "Microsoft.ML.Tokenizers",
+          "range": "[2.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/modelcontextprotocol",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol",
+          "range": "[2.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/onnxsharp",
+          "@type": "PackageDependency",
+          "id": "OnnxSharp",
+          "range": "[0.3.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/opentelemetry",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry",
+          "range": "[1.19.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.19.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.19.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/parquet.net",
+          "@type": "PackageDependency",
+          "id": "Parquet.Net",
+          "range": "[6.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/serilog",
+          "@type": "PackageDependency",
+          "id": "Serilog",
+          "range": "[4.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/serilog.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Serilog.Extensions.Logging",
+          "range": "[10.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/serilog.sinks.console",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Console",
+          "range": "[6.1.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/serilog.sinks.file",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.File",
+          "range": "[7.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/serilog.sinks.opentelemetry",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.OpenTelemetry",
+          "range": "[4.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/skiasharp",
+          "@type": "PackageDependency",
+          "id": "SkiaSharp",
+          "range": "[2.88.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/skiasharp.nativeassets.linux",
+          "@type": "PackageDependency",
+          "id": "SkiaSharp.NativeAssets.Linux",
+          "range": "[2.88.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/spectre.console",
+          "@type": "PackageDependency",
+          "id": "Spectre.Console",
+          "range": "[0.57.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/system.numerics.tensors",
+          "@type": "PackageDependency",
+          "id": "System.Numerics.Tensors",
+          "range": "[10.0.12, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/torchsharp",
+          "@type": "PackageDependency",
+          "id": "TorchSharp",
+          "range": "[0.107.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/torchsharp.pybridge",
+          "@type": "PackageDependency",
+          "id": "TorchSharp.PyBridge",
+          "range": "[1.4.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/treesitter.dotnet",
+          "@type": "PackageDependency",
+          "id": "TreeSitter.DotNet",
+          "range": "[1.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/versone.epub",
+          "@type": "PackageDependency",
+          "id": "VersOne.Epub",
+          "range": "[3.3.6, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/zstdsharp.port",
+          "@type": "PackageDependency",
+          "id": "ZstdSharp.Port",
+          "range": "[0.8.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#dependencygroup/net10.0/libtorch-cuda-12.8-win-x64",
+          "@type": "PackageDependency",
+          "id": "libtorch-cuda-12.8-win-x64",
+          "range": "[2.10.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#Fuuga.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 10239,
+      "fullName": "Fuuga.nuspec",
+      "length": 26195,
+      "name": "Fuuga.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 25421,
+      "fullName": "README.md",
+      "length": 66719,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 128876,
+      "fullName": "logo.png",
+      "length": 133516,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/ggml-base.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 342690,
+      "fullName": "content/ggml-base.dll",
+      "length": 768512,
+      "name": "ggml-base.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/ggml-cpu.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 279273,
+      "fullName": "content/ggml-cpu.dll",
+      "length": 664576,
+      "name": "ggml-cpu.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/ggml.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29997,
+      "fullName": "content/ggml.dll",
+      "length": 67072,
+      "name": "ggml.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libggml-base.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 301954,
+      "fullName": "content/libggml-base.dylib",
+      "length": 748616,
+      "name": "libggml-base.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libggml-base.so",
+      "@type": "PackageEntry",
+      "compressedLength": 333499,
+      "fullName": "content/libggml-base.so",
+      "length": 804384,
+      "name": "libggml-base.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libggml-blas.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 8132,
+      "fullName": "content/libggml-blas.dylib",
+      "length": 58536,
+      "name": "libggml-blas.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libggml-cpu.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 363720,
+      "fullName": "content/libggml-cpu.dylib",
+      "length": 882184,
+      "name": "libggml-cpu.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libggml-cpu.so",
+      "@type": "PackageEntry",
+      "compressedLength": 373002,
+      "fullName": "content/libggml-cpu.so",
+      "length": 928224,
+      "name": "libggml-cpu.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libggml-metal.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 166292,
+      "fullName": "content/libggml-metal.dylib",
+      "length": 814616,
+      "name": "libggml-metal.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libggml.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 14649,
+      "fullName": "content/libggml.dylib",
+      "length": 59944,
+      "name": "libggml.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libggml.so",
+      "@type": "PackageEntry",
+      "compressedLength": 20076,
+      "fullName": "content/libggml.so",
+      "length": 78336,
+      "name": "libggml.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libllama.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 910852,
+      "fullName": "content/libllama.dylib",
+      "length": 2497528,
+      "name": "libllama.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libllama.so",
+      "@type": "PackageEntry",
+      "compressedLength": 1098441,
+      "fullName": "content/libllama.so",
+      "length": 3170456,
+      "name": "libllama.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libmtmd.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 387991,
+      "fullName": "content/libmtmd.dylib",
+      "length": 943416,
+      "name": "libmtmd.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/libmtmd.so",
+      "@type": "PackageEntry",
+      "compressedLength": 480857,
+      "fullName": "content/libmtmd.so",
+      "length": 1169544,
+      "name": "libmtmd.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/llama.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 812272,
+      "fullName": "content/llama.dll",
+      "length": 2071040,
+      "name": "llama.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#content/mtmd.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 336872,
+      "fullName": "content/mtmd.dll",
+      "length": 785920,
+      "name": "mtmd.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/ggml-base.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 342690,
+      "fullName": "contentFiles/any/net10.0/ggml-base.dll",
+      "length": 768512,
+      "name": "ggml-base.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/ggml-cpu.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 279273,
+      "fullName": "contentFiles/any/net10.0/ggml-cpu.dll",
+      "length": 664576,
+      "name": "ggml-cpu.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/ggml.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29997,
+      "fullName": "contentFiles/any/net10.0/ggml.dll",
+      "length": 67072,
+      "name": "ggml.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libggml-base.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 301954,
+      "fullName": "contentFiles/any/net10.0/libggml-base.dylib",
+      "length": 748616,
+      "name": "libggml-base.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libggml-base.so",
+      "@type": "PackageEntry",
+      "compressedLength": 333499,
+      "fullName": "contentFiles/any/net10.0/libggml-base.so",
+      "length": 804384,
+      "name": "libggml-base.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libggml-blas.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 8132,
+      "fullName": "contentFiles/any/net10.0/libggml-blas.dylib",
+      "length": 58536,
+      "name": "libggml-blas.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libggml-cpu.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 363720,
+      "fullName": "contentFiles/any/net10.0/libggml-cpu.dylib",
+      "length": 882184,
+      "name": "libggml-cpu.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libggml-cpu.so",
+      "@type": "PackageEntry",
+      "compressedLength": 373002,
+      "fullName": "contentFiles/any/net10.0/libggml-cpu.so",
+      "length": 928224,
+      "name": "libggml-cpu.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libggml-metal.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 166292,
+      "fullName": "contentFiles/any/net10.0/libggml-metal.dylib",
+      "length": 814616,
+      "name": "libggml-metal.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libggml.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 14649,
+      "fullName": "contentFiles/any/net10.0/libggml.dylib",
+      "length": 59944,
+      "name": "libggml.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libggml.so",
+      "@type": "PackageEntry",
+      "compressedLength": 20076,
+      "fullName": "contentFiles/any/net10.0/libggml.so",
+      "length": 78336,
+      "name": "libggml.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libllama.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 910852,
+      "fullName": "contentFiles/any/net10.0/libllama.dylib",
+      "length": 2497528,
+      "name": "libllama.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libllama.so",
+      "@type": "PackageEntry",
+      "compressedLength": 1098441,
+      "fullName": "contentFiles/any/net10.0/libllama.so",
+      "length": 3170456,
+      "name": "libllama.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libmtmd.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 387991,
+      "fullName": "contentFiles/any/net10.0/libmtmd.dylib",
+      "length": 943416,
+      "name": "libmtmd.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/libmtmd.so",
+      "@type": "PackageEntry",
+      "compressedLength": 480857,
+      "fullName": "contentFiles/any/net10.0/libmtmd.so",
+      "length": 1169544,
+      "name": "libmtmd.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/llama.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 812272,
+      "fullName": "contentFiles/any/net10.0/llama.dll",
+      "length": 2071040,
+      "name": "llama.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#contentFiles/any/net10.0/mtmd.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 336872,
+      "fullName": "contentFiles/any/net10.0/mtmd.dll",
+      "length": 785920,
+      "name": "mtmd.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#lib/net10.0/Fuuga.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2220203,
+      "fullName": "lib/net10.0/Fuuga.dll",
+      "length": 5644800,
+      "name": "Fuuga.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#lib/net10.0/Fuuga.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 212,
+      "fullName": "lib/net10.0/Fuuga.runtimeconfig.json",
+      "length": 342,
+      "name": "Fuuga.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#lib/net10.0/Fuuga.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 341044,
+      "fullName": "lib/net10.0/Fuuga.xml",
+      "length": 1358656,
+      "name": "Fuuga.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.07.17.08.14/fuuga.1.0.30.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "F#",
+    "FSharp",
+    "LLM",
+    "large",
+    "language",
+    "model",
+    "generator",
+    "SML",
+    "small",
+    "Fuuga",
+    "tokenization",
+    "data",
+    "ingestion",
+    "training"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

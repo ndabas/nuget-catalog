@@ -1,0 +1,173 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Endpoint Systems",
+  "catalog:commitId": "e900cadb-3929-423d-abad-de138785e3df",
+  "catalog:commitTimeStamp": "2026-10-08T19:47:23.3325569Z",
+  "copyright": "Copyright © Endpoint Systems 2026. All rights reserved.",
+  "created": "2026-10-08T19:27:31.283Z",
+  "description": "Core types, XDM data model, and interfaces for PhoenixmlDb document database",
+  "iconFile": "icon.png",
+  "id": "PhoenixmlDb.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-08T19:46:52.993Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "MFGSjkY4ihvZYLaycbgUFf94En/bLfTR02//uFPg+EsCzgSRFwtdXR4SnjtX3IpbrZXwnT0xf4mhru4jCrj6hw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 485096,
+  "projectUrl": "https://phoenixml.dev/",
+  "published": "2026-10-08T19:27:31.283Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "Minor because it adds API. Nothing changes for existing callers.\n\n- **New: the shared schema layer, `PhoenixmlDb.Core.Schema`.** One place to load, compile, cache\n  and validate against XSD schemas, so that every consumer resolves, caches, restricts and reports\n  the same way. This release adds the layer. PhoenixmlDb.XQuery reads all its schema documents\n  through it from its next release.\n\n  - **`SchemaSource`**: a schema document the host supplies. `FromText(text, uri)`,\n    `FromResource(assembly, name, uri)`, `FromStore(uri, open, version)`. Always named by an\n    absolute URI; text with a relative URI is an `ArgumentException` rather than a resolve against\n    the current directory. Each carries a version token (a content hash, or the store's version\n    id).\n  - **`ISchemaAccessGate`**: the one route by which any other schema document is read: a root\n    named by URI and every `xs:include`, `xs:import` and `xs:redefine`. `OpenAsync` and\n    `GetVersionAsync` both receive the absolute URI, the location as it was written, and the\n    referring document. Nothing in the layer opens a file or a connection itself.\n    `SchemaAccessGate.SuppliedOnly` admits nothing; `SchemaAccessGate.LocalFiles(roots…)` admits\n    files under the given directories, decided on the path of the opened file on Linux and\n    Windows; on other platforms it refuses any path with a symbolic link below a root. **The roots\n    must be writable only by the operator.** There is no gate that fetches from the network; a\n    host that wants one supplies it.\n  - **`SchemaCompiler.CompileAsync`** (and a blocking `Compile`) reads the whole closure first,\n    each document once, then compiles from memory and fetches nothing while compiling. It returns\n    a `CompiledSchema`: the compiled `XmlSchemaSet`, and every document of the closure with the\n    version compiled.\n  - **`SchemaCache`**: keeps compiled schemas until **any** document of their closure changes,\n    not only a root. `CheckInterval` (30 s by default; zero asks on every use; infinite never\n    asks), `Invalidate(uri)`, `Clear()`, at most 256 schemas, least recently used out first.\n    Requests that arrive together compile once; a failed compilation is not kept.\n    `SchemaCache.Default` is shared; a host can make its own.\n  - **`SchemaValidator.Validate`**: one call, one result: `IsValid`, the diagnostics in document\n    order, and `Truncated` when validation stopped early.\n  - **`SchemaDiagnostic`**: severity, message, source URI, line, column, for compilation and\n    validation alike. `SchemaCompilationException` carries them. A validation error also has\n    `Code`, the XSD validation rule it reports (`cvc-complex-type.2.4.a`, `cvc-pattern-valid`),\n    and `MessageId`, the schema processor's own name for the message, which is the same for every\n    diagnostic of one kind whatever its text says. Both come from which message System.Xml raised,\n    never from the wording of a message. A message that covers two rules (a duplicate key and a\n    duplicate unique value; an abstract element and an abstract type) has an id and no code. Both\n    are `null` on a runtime where System.Xml's private state cannot be read, and the ids are\n    System.Xml's names, not a contract of this library.\n  - **`XmlCatalog`**: OASIS XML Catalogs 1.1, every entry of it (`uri`, `system`, `public`,\n    `rewriteURI`, `rewriteSystem`, `uriSuffix`, `systemSuffix`, `delegateURI`, `delegateSystem`,\n    `delegatePublic`, `group`, `nextCatalog`, with `xml:base` and `prefer`), set through\n    `SchemaCompileOptions.Catalog`. Names compare after the specification's URI normalization,\n    and a `urn:publicid:` name is read as the public identifier it stands for. A catalog only\n    renames: what it maps a name to is still read from a source or through the gate. A catalog\n    that an entry delegates to is read when the catalog is loaded, not at the first lookup.\n\n  **Defaults that are stricter than a bare `XmlSchemaSet` or validating reader:**\n\n  - A referenced schema document that cannot be read **fails the compilation**. System.Xml\n    reports it as a warning and compiles what is left, so an `xs:import` nothing else used\n    compiled silently without it.\n  - A schema document may not have a document type declaration, and may not nest deeper than 512\n    levels.\n  - Validation: the document element **must be declared by the schema** (`RequireDeclaredRoot`).\n    System.Xml says nothing about an element it has no declaration for, so a document validated\n    against a schema for another vocabulary was reported valid. `xsi:schemaLocation` and inline\n    schemas in the instance are never followed, and the instance may not have a document type\n    declaration.\n  - A cached schema is given to a request only after that request's own gate has admitted every\n    document of it. A gate object that the cache has not seen is always asked first; after that\n    its answer holds for one `CheckInterval`. A host that uses one gate object for many requests\n    and needs a withdrawn permission to take effect at once sets `CheckInterval` to\n    `TimeSpan.Zero`.\n\n  **Limits** (`SchemaCompileOptions`, all settable): 16 MiB for one schema document, 64 MiB for\n  one compilation, 1,024 documents. No more than the limit is taken from any stream. Validation:\n  1,000 diagnostics; no depth limit unless the host sets `MaxDepth`. A catalog: 64 files.\n\n  **Pattern facets.** `SchemaCompileOptions.PatternMatchTimeout` bounds one match of an\n  `xs:pattern` facet, in compilation and in every validation against the compiled schema. It is\n  off by default (`null`). With it, a schema whose own enumeration, default or fixed values run\n  past the limit does not compile, and a validation that runs past it stops with\n  `PatternTimedOut` (and `Truncated`) set. A host that compiles schemas or validates documents it\n  does not trust should set it. It reaches System.Xml's compiled expressions through private\n  state; on a runtime where that is not possible, a schema that declares a pattern does not\n  compile with a limit set, instead of being left unbounded.\n\n  **XSD 1.1.** The processor is System.Xml's, which implements XSD 1.0. With\n  `Xsd11Compatibility` (on by default) the parts a schema marks as 1.1-only with `vc:` attributes\n  are left out, as XSD 1.1 §4.2.2 says a 1.0 processor is to, and `xs:dayTimeDuration`,\n  `xs:yearMonthDuration` and `xs:dateTimeStamp` are read as the 1.0 types they restrict. The 1.1\n  type's own constraint is not applied: an `xs:dayTimeDuration` of `P1Y` is accepted.\n\n  **Known gaps:**\n\n  - A `CompiledSchema` is not opaque: its `XmlSchemaSet` exposes every declaration, and\n    `Documents` lists each document's URI. A host that must keep those from the code it runs\n    keeps the object to itself.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#repository",
+    "commit": "b0783a74f630c6719f02bca4a6aebfff89a20c87",
+    "type": "git",
+    "url": "https://github.com/phoenixmldb/phoenixmldb-core"
+  },
+  "verbatimVersion": "2.3.0",
+  "version": "2.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#PhoenixmlDb.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3537,
+      "fullName": "PhoenixmlDb.Core.nuspec",
+      "length": 7839,
+      "name": "PhoenixmlDb.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 944,
+      "fullName": "PACKAGE.md",
+      "length": 1946,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 13931,
+      "fullName": "icon.png",
+      "length": 13926,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#lib/net10.0/PhoenixmlDb.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 153013,
+      "fullName": "lib/net10.0/PhoenixmlDb.Core.dll",
+      "length": 303104,
+      "name": "PhoenixmlDb.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#lib/net10.0/PhoenixmlDb.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 72735,
+      "fullName": "lib/net10.0/PhoenixmlDb.Core.xml",
+      "length": 405345,
+      "name": "PhoenixmlDb.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#lib/net8.0/PhoenixmlDb.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 152883,
+      "fullName": "lib/net8.0/PhoenixmlDb.Core.dll",
+      "length": 303104,
+      "name": "PhoenixmlDb.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#lib/net8.0/PhoenixmlDb.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 72735,
+      "fullName": "lib/net8.0/PhoenixmlDb.Core.xml",
+      "length": 405345,
+      "name": "PhoenixmlDb.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.08.19.47.23/phoenixmldb.core.2.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13001,
+      "fullName": ".signature.p7s",
+      "length": 13001,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "xml",
+    "json",
+    "database",
+    "xquery",
+    "xdm",
+    "embedded",
+    "ios",
+    "android",
+    "mobile",
+    "maui"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

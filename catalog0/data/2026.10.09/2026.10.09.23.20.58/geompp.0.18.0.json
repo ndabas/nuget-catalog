@@ -1,0 +1,179 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Angelo Mastro",
+  "catalog:commitId": "abda03c6-a67f-429f-8abb-6ce9e961fa4f",
+  "catalog:commitTimeStamp": "2026-10-09T23:20:58.4373746Z",
+  "created": "2026-10-09T23:17:30.527Z",
+  "description": "C# bindings for geompp, a C++20 2D/3D computational geometry library.\n      Provides Point2D/3D, Vector2D/3D, Line2D/3D, Ray2D/3D, LineSegment2D/3D,\n      Polyline2D/3D, Triangle2D/3D, Polygon2D/3D, BBox2D/3D, BBall2D/3D,\n      BRect2D, BPrism3D, Plane — with full operator support, intersection\n      queries, convex hull, bounding containers, WKT serialization, and file I/O.\n      Built with C++/CLI for Windows x64. Targets .NET 8, 9, 10 and .NET Framework 4.8.",
+  "id": "GeomPP",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-09T23:20:43.603Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "QMaBzudoNiLHzRD3GjDBJKfCOySrk/MHwVr6leOYLRWPG1sSfhIkDpR1nlhikCpP1vNwcarvakOc+aDog3yHow==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2793414,
+  "projectUrl": "https://github.com/amastrobera/geompp",
+  "published": "2026-10-09T23:17:30.527Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "> New polygonization feature family: `polygonize(vector<Triangle2D/3D>, PolygonizationParams)` (triangles → polygons, the reverse of triangulation, 3 strategies: `PlanarBoundaryExtraction`, `PlanarQuads`, `HertelMehlhorn`) and `merge(vector<Polygon2D/3D>)` (coalesce touching/adjacent polygons, including their holes, into fewer polygons), plus `Mesh2D/3D::Polygonize()` and `ConnectedMesh2D/3D::Polygonize()` convenience methods, bound in Python and C#. Also: `AdjacencyConformity` is now a standalone enum shared by `PolygonizationParams` (new `conformity` field) and `TriangulationParams` (unchanged behavior), with `Mesh2D/3D::FromTriangles()`/`PolyMesh2D/3D::FromPolygons()` each gaining their own `conformity` parameter — `Enforce` auto-repairs a T-junction via `fix_adjacency()` instead of throwing, `Guaranteed` skips the check — and `TransformBuilder2D`/`TransformBuilder3D` gain `Apply(shape)`, a one-step shorthand for `transform(shape, builder.Get())`.\n\n> Two new triangulation strategies — `MonotonePolygon` (de Berg §3.3 y-monotone sweep) and `ConstrainedDelaunay` (ear clipping + Lawson flips: the polygon's constrained Delaunay triangulation, always inside the boundary) — replacing the two intentional stubs that have thrown `\"not yet implemented\"` since 0.16.0, a new point-cloud `delaunay(points)` free function (unconstrained, covers the convex hull), plus `TriangulationParams::Monotonicity` (`Guaranteed`/`Assert`/`Enforce`) controlling `MonotonePolygon`'s y-monotone precondition — `Enforce` partitions non-monotone input into y-monotone pieces (de Berg §3.2 plane sweep) and triangulates each. Two new free functions: `is_axis_monotone` (monotonicity guard for `MonotonePolygon`) and `in_circumcircle` (Delaunay-condition predicate). All bound in Python and C#.\n\n### Added\n\n**C++ core**\n- `polygonize(vector<Triangle2D/3D> const&, PolygonizationParams const& = {})` (`calc_utils/polygonization2d.hpp`/`3d.hpp`) — groups input triangles into coplanar clusters (union-find over shared-edge adjacency, gated by `Plane::AlmostEquals()` in 3D) and merges each cluster into one or more output polygons per the chosen strategy: `PlanarBoundaryExtraction` (cancel shared reverse-direction edges, trace the remaining directed edges into boundary loops — the fast O(n) path), `HertelMehlhorn` (iteratively merge adjacent triangle pairs across an edge whenever the merge stays convex), or `PlanarQuads` (greedily pair adjacent coplanar triangles into quads, leaving an unpaired odd triangle out as its own 3-point polygon).\n- `merge(vector<Polygon2D/3D> const&)` (same files) — the batch counterpart: groups input polygons by supporting plane (3D: two-phase hash-bucket-by-normal then `Plane::AlmostEquals()` verify, so near-identical normals on different-offset planes don't collide; 2D: single implicit group), cancels each group's shared outer-ring edges and traces the merged outer boundary, and separately detects touching holes (point-on-edge test) and folds each touching cluster into one merged hole via reverse-winding → `Polygon2D::Union` → reverse-winding back — a merged polygon inherits every hole from its inputs.\n- `Mesh2D/3D::Polygonize(PolygonizationParams const& = {})` / `ConnectedMesh2D/3D::Polygonize(PolygonizationParams const& = {})` — mesh-level convenience wrappers returning a `PolyMesh2D/3D`; both build adjacency directly off the mesh's own already-welded vertex/index buffers rather than rewelding (`Mesh2D/3D::Polygonize()` deliberately does not route through `Connect()`, avoiding a redundant grid-cell re-weld and O(n²) adjacency re-validation).\n- `detail::build_neighbor_refs(size_t const*, size_t)` (`utils.hpp`/`.cpp`) — extracted the edge-hashmap adjacency-building logic previously inlined in `GridCellMapForConnectedMesh2D/3D::Make`, generalized to take a raw welded-index pointer + count so it works over both `Mesh2D/3D`'s `array<size_t,3>`-per-face layout and `ConnectedMesh2D/3D`'s flat stride-3 layout.\n- `MeshTriangleFaceView2D`/`MeshTriangleFaceView3D` (`calc_utils/polygonization2d.hpp`/`3d.hpp`) — non-owning views over a shared vertex buffer plus per-face index/neighbor arrays, satisfying the new `MeshFaceView` concept (`generic_concepts.hpp`); the common type the 3 strategies and both mesh-class entry points are templated over.\n- `AdjacencyConformity` (`constants.hpp`) — standalone `enum class` (`Guaranteed`/`Assert`/`Enforce`),\n  promoted out of `TriangulationParams` so it can be shared by `PolygonizationParams::conformity` (new\n  field, default `Assert`) without a cross-struct nested-type reference.\n- `Mesh2D/3D::Polygonize()` / `ConnectedMesh2D/3D::Polygonize()` now thread `params.conformity` into\n  their final `PolyMesh2D/3D::FromPolygons()` call, instead of always hard-`Assert`ing.\n- `Mesh2D/3D::FromTriangles(triangles, conformity = AdjacencyConformity::Assert)` /\n  `PolyMesh2D/3D::FromPolygons(polygons, conformity = AdjacencyConformity::Assert)` — new trailing\n  parameter, independent of either settings struct. `Enforce` calls `fix_adjacency()` first, then\n  rebuilds via the collinear-preserving `FromUniquePoints()` (not the public `Make()`, which would\n  strip a load-bearing collinear vertex needed by an untouched neighboring facet); `PolyMesh2D/3D`'s\n  `Enforce` additionally throws on any holed input polygon, since `fix_adjacency()` only round-trips\n  through each facet's outer `Perimeter()`.\n- `TransformBuilder2D::Apply<T>(T const&)` / `TransformBuilder3D::Apply<T>(T const&)`\n  (`transformations/transform_builder2d.hpp`/`3d.hpp`) — template method, shorthand for\n  `transform(shape, builder.Get())`; works for any 2D/3D primitive `transform()` has an overload for.\n  Doesn't consume `shape` or the builder — chaining continues normally afterward, so the same builder\n  can `Apply()` to several different shapes.\n- `TriangulationParams::Strategy::MonotonePolygon` — O(n log n) sweep-line triangulation (de Berg\n  §3.3). Splits the polygon boundary into a left chain and a right chain by the y-extreme vertices,\n  then processes vertices in y-order with a stack, emitting CCW triangles when the stack can be\n  flushed. All output triangles are strictly interior to the input polygon. Requires y-monotone\n  input; how non-monotone input is handled is controlled by `TriangulationParams::Monotonicity`\n  (below). Works on `Polygon2D` and `Polygon3D`.\n- `TriangulationParams::Strategy::ConstrainedDelaunay` — the polygon's constrained Delaunay\n  triangulation (CDT), O(n²) worst case. Triangulates with `EarClippingBestFit`, then Lawson-flips\n  every internal edge whose opposite vertex lies strictly inside the neighboring circumcircle, until\n  none remains. Ring edges belong to a single triangle and are never flipped, so they act as the\n  constraints: output is always n − 2 strictly interior triangles, every boundary edge kept, and the\n  minimum angle maximized among all such triangulations. Works on `Polygon2D` and `Polygon3D`.\n- `delaunay(vector<Point2D>)` (`calc_utils/triangulation2d.hpp`) and `delaunay(vector<Point3D>, Vector3D\n  normal)` / `delaunay(vector<Point3D>)` (`calc_utils/triangulation3d.hpp`, 2.5D: projected along the\n  normal's dominant axis, PCA-fitted when omitted) — unconstrained Delaunay triangulation of a point\n  cloud, covering its convex hull (2n − h − 2 triangles). Scan triangulation (lexicographic insertion,\n  each point joined to the hull edges it sees — orientation tests only, no super-triangle) followed by\n  Lawson flips on every non-hull edge. O(n²) worst case. Duplicates (within `DECIMAL_PRECISION`) are\n  ignored; all-collinear input returns no triangles; fewer than 3 points throws\n  `std::invalid_argument`. Takes no `TriangulationParams`: none of the ring checks apply to a cloud.\n- `is_axis_monotone(span<Point2D>, Vector2D)` / `is_axis_monotone(span<Point3D>, Vector3D)` /\n  `is_axis_monotone(Polygon2D const&, Vector2D)` / `is_axis_monotone(Polygon3D const&, Vector3D)`\n  (`calc_utils/self_intersections2d.hpp` / `self_intersections3d.hpp`, namespace `geompp::geometry`)\n  — returns `true` if the ring has at most one local maximum and one local minimum when projected\n  onto `direction`. Use to guard `triangulate` calls with `Strategy::MonotonePolygon`. A zero-length\n  `direction` throws `std::invalid_argument`. A ring with fewer than 3 points returns `false`.\n- `in_circumcircle(Point2D a, b, c, Point2D p)` / `in_circumcircle(Point3D a, b, c, Point3D p)`\n  (`calc_utils/triangulation2d.hpp`, namespace `geompp::geometry`) — returns `true` if `p` lies\n  strictly inside the circumcircle of the CCW triangle `(a, b, c)`, using a 3×3 determinant\n  predicate. Returns `false` for a point exactly on the circumcircle boundary or for a degenerate\n  (zero-area) triangle. Input must be CCW; CW input flips the sign.\n- `TriangulationParams::Monotonicity` (`constants.hpp`) — `Guaranteed` (default; no check, the\n  caller vouches the input is y-monotone), `Assert` (checks y-monotonicity first, throws\n  `std::invalid_argument` if it fails), `Enforce` (partitions a non-monotone ring into y-monotone\n  pieces and triangulates each piece, concatenating the results).\n- `detail::view::partition_monotone_polygon(vector<PointT>, View2D)` (`calc_utils/triangulation2d.hpp/.cpp`)\n  — the classical plane-sweep polygon decomposition (de Berg, \"Computational Geometry\" §3.2): sweeps\n  top-to-bottom (a total order on vertices — y descending, x ascending on ties — makes the sweep\n  well-defined even when two vertices share a y), classifies each vertex as\n  start/end/split/merge/regular, maintains a status structure of the currently active \"descending\"\n  edges plus one helper vertex per edge, and inserts a diagonal at every split/merge vertex. Returns\n  1+ pieces, each a list of indices into the input ring forming a simple, y-monotone sub-polygon.\n  Only ever sweeps along Y (a ring monotone along some other axis but not Y still gets decomposed\n  rather than triangulated directly — a known, documented limitation). O(n²) worst case: the status\n  structure is a linear-scanned `vector`, not a balanced BST keyed by a dynamic comparator — the same\n  trade-off `ear_clipping_triangulation` makes over a theoretically faster data structure. A\n  genuinely horizontal polygon edge queried by a third vertex exactly on its scanline, nested inside\n  its x-span, is a documented-unhandled degenerate case (collapsed to the edge's own top-endpoint x).\n  Applying the collected diagonals to build the final pieces is order-independent (every diagonal is\n  a non-crossing chord, so incrementally splitting whichever current piece holds both endpoints\n  always yields a correct result) and needs no DCEL/half-edge face-tracing.\n- `TriangulationParams::Strategy::MonotonePolygon` under `Monotonicity::Enforce` maps each\n  partitioned piece's local triangle indices back to the caller's own point array before\n  concatenating — every other `Strategy` branch already expects indices in that same space.\n\n**Python bindings**\n- `geompp.polygonize()` / `geompp.merge()` (both dimensions), `geompp.PolygonizationParams` / `geompp.PolygonizationStrategy`, and `Mesh2D/3D.polygonize()` / `ConnectedMesh2D/3D.polygonize()`.\n- `PolygonizationParams(strategy, conformity)` constructor arg + read-write `.conformity` property.\n- `conformity` parameter on `Mesh2D/3D.from_triangles()` / `PolyMesh2D/3D.from_polygons()`.\n- `TransformBuilder2D.apply()` / `TransformBuilder3D.apply()`, one overload per bound primitive\n  (`Point`/`Vector`/`LineSegment`/`Polyline`/`Triangle`/`Polygon`/`Mesh`/`PolyMesh`, 2D+3D).\n- `geompp.is_axis_monotone(ring, direction)` — 4 overloads: `list[Point2D]`/`Polygon2D` +\n  `Vector2D` and `list[Point3D]`/`Polygon3D` + `Vector3D` (`bind_free_functions.cpp`).\n- `geompp.in_circumcircle(a, b, c, p)` — 2 overloads: `Point2D` and `Point3D`\n  (`bind_free_functions.cpp`).\n- `TriangulationStrategy.MonotonePolygon` and `TriangulationStrategy.ConstrainedDelaunay` (ordinal 3,\n  formerly the `Delaunay` stub) — previously registered but backed by `\"not yet implemented\"`\n  throws. Now fully implemented; the `_Throws` stub tests replaced by real correctness tests.\n- `geompp.delaunay(points)` (`list[Point2D]` or `list[Point3D]`) and `geompp.delaunay(points, normal)`\n  (`list[Point3D]` + `Vector3D`) — point-cloud Delaunay.\n- `geompp.TriangulationMonotonicity` (`Guaranteed`/`Assert`/`Enforce`) and\n  `TriangulationParams.monotonicity` (constructor keyword + read-write property, default\n  `Guaranteed`), in `bind_triangulation_params.cpp`. Re-exported from `geompp/__init__.py`.\n\n**C# bindings**\n- `GeomUtil.Polygonize()` / `GeomUtil.Merge()` (both dimensions), `PolygonizationParams` / `PolygonizationStrategy`, and `Mesh2D/3D.Polygonize()` / `ConnectedMesh2D/3D.Polygonize()`.\n- `PolygonizationParams(strategy, conformity)` constructor overload + read-write `.Conformity` property.\n- `conformity` overload on `Mesh2D/3D.FromTriangles()` / `PolyMesh2D/3D.FromPolygons()`.\n- `TransformBuilder2D.Apply()` / `TransformBuilder3D.Apply()`, one overload per bound primitive\n  (`Point`/`Vector`/`LineSegment`/`Polyline`/`Triangle`/`Polygon`/`Mesh`/`PolyMesh`, 2D+3D).\n- `GeomUtil.IsAxisMonotone(Point2D[], Vector2D)` / `GeomUtil.IsAxisMonotone(Polygon2D^, Vector2D^)`\n  / `GeomUtil.IsAxisMonotone(Point3D[], Vector3D)` / `GeomUtil.IsAxisMonotone(Polygon3D^, Vector3D^)`\n  — 4 overloads in `GeomUtil.hpp/.cpp`.\n- `GeomUtil.InCircumcircle(Point2D^, Point2D^, Point2D^, Point2D^)` /\n  `GeomUtil.InCircumcircle(Point3D^, Point3D^, Point3D^, Point3D^)` — 2 overloads in\n  `GeomUtil.hpp/.cpp`.\n- `TriangulationStrategy.MonotonePolygon` and `TriangulationStrategy.ConstrainedDelaunay` — now fully\n  implemented at their existing ordinals (2 and 3; ordinal 3 was the `Delaunay` stub).\n- `GeomUtil.Delaunay(Point2D[])` / `GeomUtil.Delaunay(Point3D[], Vector3D)` / `GeomUtil.Delaunay(Point3D[])`\n  — point-cloud Delaunay.\n- `GeomPP.TriangulationMonotonicity` (`Guaranteed = 0`/`Assert = 1`/`Enforce = 2`, same ordinals as\n  the native enum) and `TriangulationParams.Monotonicity` property, in `GeomUtil.hpp/.cpp`. Two new\n  `TriangulationParams` constructor overloads add `monotonicity` (and, separately, `monotonicity` +\n  `conformity`) without changing any existing overload's signature — no existing call site needs to\n  change.\n\n### Changed\n\n**C++ core**\n- `AdjacencyViolation<PointT>::facet_indices` for a T-junction now always has exactly 1 entry\n  (`facet_indices[0]`, the facet whose edge gets fixed) instead of 2 — the second entry (an arbitrary\n  facet sharing the foreign `on_vertex`, picked from `validate_adjacency_impl`'s grid-cell vertex dedup\n  whenever 3+ facets share that exact vertex) was never more than incidental diagnostic noise and is no\n  longer reported. A non-manifold edge's `facet_indices` is unaffected (still every facet sharing that\n  exact edge, exhaustively, 3+).\n- `fix_adjacency()` (both the raw-splice and facet-splitting flavors) and\n  `triangulate(..., AdjacencyConformity::Assert)` no longer refuse a non-manifold-edge input up front —\n  see Removed below. Callers that need to reject non-manifold input before attempting a fix should check\n  `facet_indices.size() > 1` themselves first.\n- `split_facets_at_junctions_impl`'s diagonal selection now throws rather than silently picking an\n  arbitrary winner when two candidate diagonals from a spliced T-junction vertex are exactly\n  equidistant, instead of relying on `std::sort`'s unspecified tie order for such cases.\n- `TriangulationParams::Strategy::MonotonePolygon` and `::ConstrainedDelaunay` no longer throw\n  `\"not yet implemented\"`. The two dedicated `_Throws` stub tests (C++, Python, C#) replaced by\n  correctness tests for both strategies.\n- `TriangulationParams::Strategy::Delaunay` renamed to `::ConstrainedDelaunay` (same ordinal, in all\n  three languages): a polygon triangulation now never produces triangles outside the polygon.\n  Unconstrained, convex-hull Delaunay of a point set moved to the dedicated `delaunay()` free\n  function. The interim Bowyer-Watson implementation (finite super-triangle) is gone: it could drop\n  near-collinear hull triangles, leaving a non-convex result on random clouds.\n\n### Removed\n\n**C++ core**\n- `AdjacencyViolation<PointT>::is_non_manifold()` — a T-junction violation always has exactly 1\n  `facet_indices` entry and a non-manifold-edge violation always has 3+, so the two remain\n  distinguishable by `facet_indices.size()` directly, without a dedicated accessor.\n\n**Python bindings**\n- `AdjacencyViolation2D`/`AdjacencyViolation3D.is_non_manifold` property.\n\n**C# bindings**\n- `AdjacencyViolation2D`/`AdjacencyViolation3D.IsNonManifold` property (and its backing internal\n  constructor parameter).\n\n### Fixed\n\n- **`detail::assert_adjacency()`'s T-junction message read `facet_indices[1]`, out of bounds** — left\n  over from the `facet_indices` simplification above; removed along with the rest of the\n  non-manifold/T-junction message branching it was part of.\n- **`Mesh2D/3D::Polygonize()`/`ConnectedMesh2D/3D::Polygonize()` could throw a T-junction error on a\n  perfectly valid mesh** — every `polygonize()`/`merge()` output piece was packaged via\n  `Polygon2D/3D::Make()`, which runs its usual `remove_collinear()` cleanup on each piece\n  *independently*. A vertex collinear (hence redundant) on one piece's own boundary can still be a\n  genuine, load-bearing corner of a *neighboring* piece — e.g. `HertelMehlhorn` polygonizing an\n  L-shaped 6-triangle region into a 2x1 rectangle plus a 1x1 square, where the square's corner sits\n  exactly at the rectangle's top-edge midpoint. `remove_collinear()` silently dropped that midpoint\n  from the rectangle's ring alone, leaving the square's corner touching the middle of the rectangle's\n  edge once both pieces were welded into the same `PolyMesh2D/3D` — a T-junction\n  `PolyMesh2D/3D::FromPolygons()`'s own adjacency validation then correctly rejected, on input that\n  was never actually invalid. Fixed by having `polygonize()`, `merge()`, and both `Polygonize()`\n  entry points (all 4, both dimensions) package their output through a new shared\n  `detail::polygons_from_pieces()` helper that preserves every traced vertex, collinear or not,\n  instead of collinear-simplifying — winding (already a proven invariant of the trace/classification\n  step) and, for 3D, coplanarity are also trusted rather than re-derived, via the existing private\n  `Polygon2D::FromUniqueCCWPoints()`/`Polygon3D::FromUniqueCoplanarCCWPoints()` fast constructors\n  (previously friended only to `transform()`).\n\n### Tests\n\n**C++ (`geompp_tests`)**\n- 39 new cases across `test_calc_utils2d.cpp`/`test_calc_utils3d.cpp` (face-view adjacency, coplanar clustering, all 3 strategies, `polygonize()`/`merge()` incl. plane-bucket grouping and touching-hole merges), `test_mesh2d.cpp`/`test_mesh3d.cpp`, and `test_connected_mesh2d.cpp`/`test_connected_mesh3d.cpp`, plus 6 further T-junction regression cases (2 in `test_calc_utils2d.cpp`, 4 across `test_mesh2d/3d.cpp`/`test_connected_mesh2d/3d.cpp`) added with the fix above.\n- `test_calc_utils2d.cpp`: `MonotonePolygon` pentagon (triangle count, WKT output, total area),\n  comb polygon (multiple chain transitions), `ConstrainedDelaunay` square/pentagon/octagon,\n  `is_axis_monotone`\n  (pentagon along y, square along x, W-shape, `Polygon2D` overload), `in_circumcircle` (strictly\n  inside, outside, on boundary, degenerate triangle).\n- `test_calc_utils3d.cpp`: `MonotonePolygon` and `ConstrainedDelaunay` on a coplanar 3D pentagon,\n  `is_axis_monotone` with `Vector3D`, `in_circumcircle` with `Point3D`.\n- `test_calc_utils2d.cpp`: `TriangulationParams::Monotonicity` region — default value, `Assert`\n  throwing on the 5-pointed star, `Enforce` on the star (area cross-checked against\n  `EarClippingBestFit`), `Enforce` on the already-y-monotone comb (byte-identical to `Guaranteed`\n  via `ToWkt()`), a \"W\" shape with 2 split vertices decomposing into 3 pieces, an x-monotone-not-\n  y-monotone regression case, and a two-vertices-at-the-same-y tiebreak case. Plus direct\n  `partition_monotone_polygon()` calls: already-monotone input returns 1 piece, the star's every\n  piece verified individually `is_y_monotone`, the \"W\" shape's exact 3-piece split, and a\n  fewer-than-3-points throw.\n- `test_calc_utils2d.cpp`: `ConstrainedDelaunay` / `delaunay()` region — CDT on the comb and the\n  star (n − 2 triangles, area == polygon area, every centroid inside, locally Delaunay), CDT of a\n  convex hexagon equal to its unconstrained Delaunay, a shallow arc, CW input, a 50-vertex star\n  stress case, every ring edge kept (direct call); `delaunay()` on the star points (13 triangles,\n  area == hull area, globally Delaunay), square + center, input-order invariance, duplicates,\n  all-collinear, collinear hull edge, a 5×5 grid (collinear hull + cocircular cells), a 200-point\n  random cloud (2n − h − 2 triangles, hull area), fewer than 3 points.\n- `test_calc_utils3d.cpp`: `ConstrainedDelaunay` on a comb in the XZ plane; `delaunay()` on a\n  terrain cloud (heights preserved), the PCA overload on a tilted plane, fewer than 3 points.\n\n**Python (`geompp_python/tests`)**\n- 19 new cases: `test_polygonize.py` (new file) plus additions to `test_mesh.py`/`test_connected_mesh.py`. +6 T-junction regression cases added with the fix above.\n- New cases in `test_triangulate.py` mirroring the `MonotonePolygon`/`ConstrainedDelaunay` C++ suite,\n  plus `TestConstrainedDelaunayAndDelaunay` (14 cases): enum ordinal, CDT on comb/star/3D comb,\n  `delaunay()` on square/star/square + center/duplicates/collinear/5×5 grid/empty-circumcircle check,\n  3D terrain and PCA overloads, fewer than 3 points → `ValueError`.\n- New cases in `test_free_functions.py` (or equivalent) for `is_axis_monotone` and\n  `in_circumcircle`.\n- New cases in `test_triangulate.py`: default value, `Assert` raising `ValueError` on the star,\n  `Enforce` matching `EarClippingBestFit` area on the star, `Enforce` matching `Guaranteed` exactly\n  on the comb.\n\n**C# (`geompp_csharp/tests`)**\n- 19 new cases: `PolygonizeTests.cs` (new file) plus additions to `MeshTests.cs`/`ConnectedMeshTests.cs`. +6 T-junction regression cases added with the fix above.\n- New cases in `TriangulateTests.cs` for both new strategies, plus 14 `ConstrainedDelaunay` /\n  `GeomUtil.Delaunay` cases mirroring the Python ones (fewer than 3 points → `ArgumentException`).\n- New cases in `FreeFunctionTests.cs` (or equivalent) for `IsAxisMonotone` and `InCircumcircle`.\n- New cases in `TriangulateTests.cs`: default value, `Assert` throwing on the star, `Enforce`\n  matching `EarClippingBestFit` area on the star, `Enforce` matching `Guaranteed` exactly on the\n  comb.\n\n### Docs\n\n- `visual_doc_and_sample_code.md` §12.2 — documents all three `Monotonicity` values; C++/Python/C#\n  samples now demonstrate `Guaranteed` (manual guard, comb), `Enforce` (star, now triangulates\n  successfully instead of being rejected), and `Assert` (star, throws). Regenerated\n  `images/triangulation_monotone.png` (star: violet partition diagonal distinct from gold\n  monotone-triangulation edges, replacing the old red-dashed-X \"out of contract\" rejection) and\n  `images/comb_triangulation_monotone.png` (unchanged triangulation, caption now notes\n  `Enforce == Guaranteed`).\n- `visual_doc_and_sample_code.md` §12.3 rewritten for `ConstrainedDelaunay` (algorithm, CDT\n  guarantees, samples with real output); new §12.4 for the point-cloud `delaunay()` (input/output\n  table, edge cases, samples). Regenerated `images/triangulation_delaunay.png` (star, 8 interior\n  triangles) and `images/comb_triangulation_delaunay.png` (comb, 10 triangles, notches empty); new\n  `images/delaunay_point_cloud.png` (11-point cloud, 15 triangles over the convex hull).\n- `README.md`, `geompp_python/README.md`, `geompp_csharp/README.md`: strategy list and free-function\n  tables updated for `ConstrainedDelaunay` / `delaunay`.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#repository",
+    "type": "git",
+    "url": "https://github.com/amastrobera/geompp"
+  },
+  "requireLicenseAcceptance": false,
+  "verbatimVersion": "0.18.0",
+  "version": "0.18.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#dependencygroup/net8.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#dependencygroup/net9.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#dependencygroup/net10.0-windows7.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0-windows7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETFramework4.8"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#GeomPP.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9138,
+      "fullName": "GeomPP.nuspec",
+      "length": 25956,
+      "name": "GeomPP.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6519,
+      "fullName": "README.md",
+      "length": 16996,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#lib/net10.0-windows7.0/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 689294,
+      "fullName": "lib/net10.0-windows7.0/GeomPP.dll",
+      "length": 1909760,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#lib/net48/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 694572,
+      "fullName": "lib/net48/GeomPP.dll",
+      "length": 1840640,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#lib/net8.0-windows7.0/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 689229,
+      "fullName": "lib/net8.0-windows7.0/GeomPP.dll",
+      "length": 1909760,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#lib/net9.0-windows7.0/GeomPP.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 689256,
+      "fullName": "lib/net9.0-windows7.0/GeomPP.dll",
+      "length": 1909760,
+      "name": "GeomPP.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.09.23.20.58/geompp.0.18.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "geometry",
+    "2d",
+    "3d",
+    "spatial",
+    "computational-geometry",
+    "gis",
+    "math",
+    "polygon",
+    "polyline",
+    "convex-hull",
+    "bounding-box",
+    "point-cloud",
+    "cpp",
+    "interop",
+    "csharp",
+    "dotnet"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

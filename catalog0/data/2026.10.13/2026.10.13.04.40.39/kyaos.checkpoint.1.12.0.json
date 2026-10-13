@@ -1,0 +1,154 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "KYA-OS",
+  "catalog:commitId": "3a11511c-f264-480f-8cf8-ea819d0527d0",
+  "catalog:commitTimeStamp": "2026-10-13T04:40:39.0476028Z",
+  "created": "2026-10-13T04:37:12.997Z",
+  "description": "AI agent detection and policy enforcement for any .NET HTTP server. Install this metapackage and NuGet automatically pulls in the right adapter for your runtime: Checkpoint.AspNetCore on modern .NET (ASP.NET Core 8+), or Checkpoint.AspNet on classic .NET Framework 4.6.2+ (System.Web / IIS). Same WASM-backed Rust detection engine on both stacks — same patterns, same scoring, same updates.",
+  "id": "KyaOs.Checkpoint",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-13T04:40:22.897Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "Q3Oi5ihUzxiyiA7HFMzRQ+vu5fDS/+8PRzbnOaY31yFJgTXWTQNvDqfNFZHy/y5EGUYVDBLaYUjL86UIAKNogw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 19245,
+  "published": "2026-10-13T04:37:12.997Z",
+  "releaseNotes": "1.12.0: BREAKING zero-evidence classification and protected-resource metadata issuer, ASP.NET Core result accessors, consent re-challenges, startup settings check and an MCP-I proof replay window fix\n\nSecurity fix (#5949): the embedded engine skipped the 300-second MCP-I proof\nreplay window, and the 60-second future-skew bound, whenever the embedded\ndelegation credential carried exp, so a captured proof verified again for the\ncredential's whole lifetime. The window now applies to every MCP-I proof, and an\nexpired credential is still refused as before. A proof outside the window blocks\nas Expired and is never re-challenged.\n\nBREAKING (#5886): a request with no evidence either way is now IncompleteData,\nnot Human. No setting restores Human, including\nScannerMisclassificationHint=Off. Built-in enforcement does not change for these\nrequests: IsAgent stays false and composed rules still read them as human. What\nchanges is what is reported: DetectionClass, KYA-Class, KYA-Verification,\nVerificationMethod and the class sent to the dashboard. Requalify any code or\nreport that reads those.\n\nDetectionResult.NoEvidence is true for exactly that verdict. Suspicious-header\nrequests stay IncompleteData but carry no verification method, so\nVerificationMethod is null and KYA-Verification is not sent. The Reasons text\nchanges. CheckpointApiClient reports these requests to the dashboard as\nincomplete_data, where it sent human, with detectionBasis no_evidence, so the\ndashboard's human counts for this traffic drop; DetectionEvent adds NoEvidence.\nAs in 1.11.9, composed rules aimed at all agents match every incomplete_data\nvisitor; a zero-evidence (no_evidence) visitor stays exempt, like human.\nComposedPolicyCache rewrites policy text at compile, so a deployed rule that\ndoes not compare the category to no_evidence reads that visitor as human; if\nthe rewritten text fails to compile, the authored text is used with the same\nreading and one warning per policy text. A policy nested deeper than 32 levels\nis refused. A forged mcp_i_handshake or kyaos_handshake envelope is now\ncategory unknown, not incomplete_data, so a rule that names incomplete_data no\nlonger matches it. The embedded engine reports 0.2.1. Human still comes from\nSDK-built results that do not run the engine (path_skipped, wasm_error,\nblocking placeholders) and from PatternAgentDetector. #5886 re-lands #5060,\nwhich was reverted in #5881; neither was published.\n\nBREAKING (#5926): the authorization_servers entry both adapters serve at\n/.well-known/oauth-protected-resource is now the org's issuer exactly as the\nplatform sends it in the project's policy response (authorizationServerIssuer,\nread as ComposedPolicyFlags.AuthorizationServerIssuer): the org's own issuer\ndomain when it has one, else https://kya.vouched.id, then /oauth/{slug}.\nBefore, the SDK built {BaseUrl origin}/oauth/gateway/{slug} from\nResourceOrgDid, or the bare BaseUrl origin, and the platform serves neither.\nWithout an issuer in the policy response, or without a policy (no ProjectId\nand ApiKey, or EnableComposedPolicy false), the path answers 404\n{\"error\":\"not_found\"}, as the gateway worker does. OAuth clients register\nagain on first use.\n\n#5983, behavior change: protected-resource metadata is served only for an\nauthorizationServerIssuer that is an absolute https URI (https:// followed by\na host, no whitespace, control character or backslash). Any other value is\ntreated as no issuer, so the path answers 404 {\"error\":\"not_found\"}.\nProtectedResourceMetadataBuilder.IsHttpsIssuer holds the rule, and\nBuildDocument throws ArgumentException for an issuer that fails it.\n\n#5968, behavior change: an engine block whose metadata carries\nconsent_remediable true now renders the same challenge a first-contact\nchallenge renders, instead of a plain block. The engine sets it only for a\nscope shortfall against the scopes this host requires, a delegation whose own\nexp passed, or one its status list marks revoked. The challenge follows\nEnableDelegationChallengeWire and asks for the scopes the verify demanded\n(DetectionResult.DemandedScopes), falling back to the route's scopes only when\nthat set is empty, and the dashboard report is a challenge. Every other\ncredential failure still blocks, and a policy action of instruct, redirect,\nchallenge or block is kept. Adds DetectionResult.DemandedScopes,\nDetectionResult.ConsentRemediable, ConsentRechallenge.IsRechallenge and a\nMcpInstructBuilder.BuildBody overload that takes the required scopes.\nCheckpoint.AspNet mirrors Checkpoint.AspNetCore.\n\n#5911: in Checkpoint.AspNetCore, an exception from your endpoint or a later\nmiddleware now reaches the host's error handling after running once. Before,\nfail-open handling could run the request twice, answer a human with the agent\naction under OnDetectionUnavailable=Baseline, or return its own 503 with\nFailOpen=false. KYA-Failopen no longer appears on application errors. Classic\nASP.NET was not affected.\n\n#5907: Checkpoint.AspNetCore adds HttpContext.GetCheckpointResult(),\nGetCheckpointSessionId() and WasCheckpointSkipped(), matching Checkpoint.AspNet.\nThe HttpContext.Items keys keep their values, but their names are internal.\n\n#5906: a missing ProjectId or ApiKey is reported once at startup: a warning\nthat names the missing setting, or an error for an ApiKey without a ProjectId.\nThe app still starts in local detection-only mode and nothing throws. ASP.NET\nCore logs through ILogger category Checkpoint.Configuration; classic ASP.NET\nwrites one Trace record.\n\n#5817 and #5941 rebuild the embedded engine. #5817 fixes the vendor-key feed\nbackoff, which the .NET SDK does not use. #5941 adds a deny list of non-browser\nTLS cipher-list hashes read from tlsClientCiphersSha1, which the .NET SDK does\nnot send. Neither changes .NET verdicts.\n\n#5942: detection telemetry carries the trusted edge JA4 as transport.ja4 on\nthe /api/v1/log-detection body. It is the kya-edge-ja4 header the SDK already\nreads, trusted only when EdgeTrustPolicy is Cloudflare, or TrustedProxy with\nTrustedHops above 0, and omitted otherwise, so a client-sent header never\nreaches telemetry without an edge policy. DetectionEvent gains an init-only\nTransportJa4 and DetectionResult a TransportJa4 with an internal setter; no\ninterface gains a member.\n\n#5713 rebuilds the embedded engine: it rejects a compact JWS that declares an\nunsupported crit or b64 protected member before accepting its signature, on\nevery proof path.\n\n#5974 re-stamps the OpenAI RFC 9421 signing key compiled into the embedded\nengine: same key, expiry moved from 2026-10-12 15:47 UTC to 2026-10-19 20:58\nUTC. The .NET SDK does not apply the signed key bundle, so this is the only key\nthe engine's own OpenAI signature check has. That check failed as expired from\n2026-10-12, as it does in 1.11.9, and fell back to the user-agent pattern. In\nthis release it verifies again until 2026-10-19 20:58 UTC. ChatGptSignatureVerifier\n(EnableSignatureVerification, on by default) fetches OpenAI's live key\ndirectory and is unchanged. The engine's ruleset hash changes with the key.\n\nThe public API changes are additions plus a nullable annotation on\nGetCheckpointPostureOutcome, and one deliberate source break (#5926):\nProtectedResourceMetadataBuilder's BuildDocument, BuildNativeDocument and\nBuildAccessGuide take the platform's issuer as a parameter. Their 1.11.9\nsignatures and ResolveIssuer remain as [Obsolete] error stubs (#5987) that\nthrow ArgumentException, so source calling them no longer compiles, while a 1.11.9\nadapter running on this Core still binds, catches the exception and answers\nkyaos/authorization-host-unavailable instead of failing with\nMissingMethodException. No other Core member a 1.11.9 adapter calls changed\nits signature.\n\nThis is a minor version on purpose: the 1.11.9 adapters accept any Core 1.11.9\nor later with no upper bound, so NuGet would resolve a 2.0.0 Core for them the\nsame way, and a major version would only slow uptake of a fix sites need\n(1.11.9 advertises an issuer the platform no longer serves). Update all four\npackages together; the 1.12.0 adapters require Checkpoint.Core 1.12.0 or later.\nTarget frameworks and third-party dependency versions are unchanged from 1.11.9.\nQualify the real Framework/IIS installation and the matching Authorization Host\nbefore broader enablement.\n\nRelease history: https://github.com/Know-That-Ai/checkpoint/blob/main/packages/checkpoint-dotnet/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#repository",
+    "commit": "b6705aba77b9aca015f42b9f68ba11cb19923edf",
+    "type": "git",
+    "url": "https://github.com/Know-That-Ai/checkpoint"
+  },
+  "title": "Checkpoint by KYA-OS",
+  "verbatimVersion": "1.12.0",
+  "version": "1.12.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#dependencygroup/net10.0/checkpoint.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Checkpoint.AspNetCore",
+          "range": "[1.12.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#dependencygroup/.netframework4.6.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#dependencygroup/.netframework4.6.2/checkpoint.aspnet",
+          "@type": "PackageDependency",
+          "id": "Checkpoint.AspNet",
+          "range": "[1.12.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#dependencygroup/net8.0/checkpoint.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Checkpoint.AspNetCore",
+          "range": "[1.12.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#KyaOs.Checkpoint.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4501,
+      "fullName": "KyaOs.Checkpoint.nuspec",
+      "length": 10178,
+      "name": "KyaOs.Checkpoint.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.13.04.40.39/kyaos.checkpoint.1.12.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "ai",
+    "agent",
+    "detection",
+    "security",
+    "bot",
+    "middleware",
+    "httpmodule",
+    "aspnetcore",
+    "aspnet",
+    "iis",
+    "system.web",
+    "checkpoint",
+    "kya-os"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

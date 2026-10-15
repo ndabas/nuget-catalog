@@ -1,0 +1,222 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Brainograph",
+  "catalog:commitId": "d28a660b-e41e-49da-a91c-d2047d4e9c9c",
+  "catalog:commitTimeStamp": "2026-10-14T14:54:30.5604048Z",
+  "copyright": "Copyright © Brainograph 2026",
+  "created": "2026-10-14T14:50:19.497Z",
+  "description": "WolverineFx (multi-transport: PostgreSQL, RabbitMQ, or Azure Service Bus) provider for the Brainograph.Messaging seam. References only Brainograph.Messaging.Abstractions + WolverineFx (+ WolverineFx.Postgresql/WolverineFx.RabbitMQ/WolverineFx.AzureServiceBus for the transport-specific strategies).",
+  "id": "Brainograph.Messaging.Wolverine",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-14T14:54:27.39Z",
+  "listed": false,
+  "packageHash": "F6mp8ICCAmV4wpY3+KYtMBnNWim/5k2bAfYNXA0FRbelzSIlrpV5M+Cn8QM+jd7X6Kn0mn0QaO3lS6LWgTO9vA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 76059,
+  "published": "1900-01-01T00:00:00Z",
+  "releaseNotes": "2.2.3 — a consumer's Wolverine host now logs (BG-1057). Up to 2.2.2 WolverineMessageConsumer kept the application's ILoggerFactory to lend to its own host (the 2.2.0 note says so) and built that host's factory without it, while the factory clears the default logging stack: every line a consumer's host wrote through ILogger (Wolverine's, JasperFx's, the generic host's) went nowhere, and a start that never finished looked exactly like a healthy idle consumer. Found on a stage switch to Azure Service Bus where six of seven consumers never got a subscription and nothing said why. Now: the factory is passed to each consumer's host; after a successful start one Information line, 'Message consumer subscribed to {Topics} as {Group}.'; a start still running after WolverineMessagingOptions.ConsumerStartWarningAfter (new, default 30 s; zero, Timeout.InfiniteTimeSpan or anything a timer cannot hold turns it off) logs one Warning naming the topics and the group and keeps waiting - never cancelled. LOG VOLUME: inside a consumer's host the categories Wolverine.*, Azure.*, JasperFx.* and Microsoft.Hosting.Lifetime pass only from WolverineMessagingOptions.ConsumerHostLogFloor up (new, default Warning, Messaging:Wolverine:ConsumerHostLogFloor), because a service starts one such host per consumer and their Information lines are a visible rise in the log bill. The floor sits IN FRONT of the application's own logging filters: a service that wants the detail lowers this option, it cannot get it from its Logging section. Every other category of the host, including Warnings and Errors of the held ones, reaches the application's sinks unchanged. The producer host is not filtered. NOTE: the Azure SDK itself logs through EventSource, not ILogger, so its diagnostics need an AzureEventSourceLogForwarder, which this package does not install; the 'Azure' family only covers ILogger categories that happen to start with it. Behaviour change to note: every service that consumes now writes the two lines above and the Warnings and Errors of its consumer hosts, which were silent before. API: two new option properties (ConsumerStartWarningAfter, ConsumerHostLogFloor); no breaking change. The Abstractions dependency is unchanged. 2.2.2 WolverineMessageConsumer kept the application's ILoggerFactory to lend to its own host (the 2.2.0 note says so) and built that host's factory without it, while the factory clears the default logging stack: every line a consumer's host wrote, Wolverine's and the Azure SDK's, went nowhere, and a start that never finished looked exactly like a healthy idle consumer. Found on a stage switch to Azure Service Bus where six of seven consumers never got a subscription and nothing said why. Now: the factory is passed to each consumer's host; after a successful start one Information line, 'Message consumer subscribed to {Topics} as {Group}.'; a start still running after WolverineMessagingOptions.ConsumerStartWarningAfter (new, default 30 s, TimeSpan.Zero or Timeout.InfiniteTimeSpan turns it off) logs one Warning naming the topics and the group and keeps waiting - never cancelled. Log volume: inside a consumer's host the Wolverine.* and Azure.* categories pass only from Warning up (Information from seven hosts per service is a visible rise in the log bill); a service that wants the detail raises those categories in its own logging configuration. The producer host is unchanged. Behaviour change to note: every service that consumes now writes the two lines above and the Wolverine/Azure Warnings and Errors of its consumer hosts, which were silent before. API: one new option property; no breaking change. The Abstractions dependency is unchanged. 2.2.2 — WolverineHostFactory.DisposeAsync no longer waits without bound for a start it cancelled (bg-shared#23). A Wolverine start can ignore its cancellation: measured 2026-09-18 in bg-gis's test host (container-free, a closed-port database), a host that had lived 5 s took 172 s to dispose, 172,068 ms of it inside DisposeAsync awaiting the cancelled start. The wait is now bounded at 5 s. Past the bound nothing leaks (bg-shared#21 stays fixed): once DisposeAsync has begun, a start never publishes the host it finishes - it stops and disposes it itself when it ends, and throws ObjectDisposedException - so a dispose that stopped waiting cannot leave a host without an owner. A start that outlives the bound is logged once at Warning. Behaviour change to note: a start overtaken by DisposeAsync now always ends in ObjectDisposedException (or its own cancellation/failure), never in success. The producer's soft-boot loop treats that ObjectDisposedException (the factory's own) as shutdown: it ends quietly instead of logging \"Wolverine producer host could not start\" - and, when the host disposed it without an orderly StopAsync, instead of retrying every 5 s against a factory that can never start again (that loop existed in 2.2.1 too, for any boot after the factory's disposal). CONSUMERS, named and left to each service: a WolverineMessageConsumer whose Dispose() overtakes a start that ignores its cancellation now gets the factory's ObjectDisposedException from that start; a service consumer host loop that treats every exception as a deferred boot logs ONE misleading \"boot deferred\" Warning after shutdown - no crash and no retry. That is the consumer-side twin of the producer fix above, and each service's own loop decides how to read it. A start whose discard fails (its host's stop throws, and the Warning about it throws from a logging pipeline already torn down) still ends, so a later DisposeAsync neither waits for it nor logs. No public API change. The Abstractions dependency is unchanged (2.2.0, as in 2.2.1). 2.2.1 — a Wolverine host that is still starting now has an owner (bg-shared#21). WolverineHostFactory.DisposeAsync did nothing until StartAsync had published its host, so a dispose that landed mid-start (a consumer stopped while its host was still provisioning) left the host that start went on to finish running with no owner, and a start that threw or was cancelled never stopped or disposed the host it had built. Against Postgres every such host keeps its own connection pool; the defect was found while diagnosing bg-media#28, whose integration suite exhausted Postgres connections (SQLSTATE 53300). Now DisposeAsync cancels and awaits an in-flight start; a host that was built but not published is stopped and disposed before StartAsync returns (a teardown failure there is logged as a warning, never thrown over the start's own exception); and WolverineMessageConsumer.Consume disposes the host it started when it returns or throws, instead of leaving it to the consumer's Dispose. StartAsync on a factory whose DisposeAsync has begun throws ObjectDisposedException instead of building a host nobody would dispose. Timing: in a hosted service that cancels Consume before closing the consumer, the Wolverine host now stops and drains inside Consume's finally, which the host's shutdown token bounds, and a later Close or Dispose finds nothing to do; before, Close stopped the host synchronously with no bound. No public API change. Not in this release: PostgresTransportStrategy.ProvisionAsync still ignores its cancellation token, so a cancelled Postgres start waits out the schema migration before its host is discarded. 2.2.0 — the Wolverine host no longer builds a logging stack of its own. Host.CreateDefaultBuilder() installed console plus, on Windows, the EventLog provider, giving every service a SECOND logging pipeline that the application never configured: it read Logging:LogLevel independently of the outer Serilog host (so the two disagreed about what was worth logging, and the log budget was set by the one nobody tuned), it bypassed Serilog entirely (so those lines carried no service name and no trace id), and Wolverine's EndpointCollection.DrainAsync logged at shutdown into an already-disposed EventLog provider — an ObjectDisposedException that presented as a flaky Windows test rather than a bug. The inner builder now clears its providers, and where the application has an ILoggerFactory it is lent to the host so Wolverine logs through the same pipeline as everything else. The factory is wrapped so the inner container cannot dispose it: a container disposes the singletons it holds, and disposing the application's factory would silence the WHOLE application after a messaging restart. API: WolverineHostFactory takes an optional trailing ILoggerFactory (existing positional callers are unaffected), and WolverineMessageConsumer takes one via DI. Omitting it means the host logs nowhere — deliberately preferred over reinstating console/EventLog. 2.1.1 — fixes a benign teardown race in the soft-boot producer hosted service (introduced with the soft-boot change in 2.0.1): under WebApplicationFactory disposal the host could Dispose() the hosted service — disposing its stopping CancellationTokenSource — before/without an orderly StopAsync, so StopAsync's `_stopping.CancelAsync()` threw ObjectDisposedException. StopAsync now guards only that CTS interaction so the stop path is idempotent and dispose-safe in any interleaving; real process shutdown was never affected, but downstream test factories no longer need a scoped catch. No API change. 2.1.0 — adds an OPT-IN durable outbox for the brokered transports (RabbitMq/ASB), the fix for the 2.0.x sender-side at-least-once gap: set `Messaging:Wolverine:DurableOutbox:Enabled=true` (+ `:ConnectionString`, typically the service's own app DB, and optional `:Schema`, default `messaging`). It adds a Postgres message store, and the producer's durable send path enlists a fresh MessageContext in a store transaction and publishes via BroadcastToTopicAsync (a ROUTED send — a bare EndpointFor(uri).SendAsync bypasses the outbox), so the outgoing envelope is PERSISTED to wolverine_outgoing_envelopes on commit and forwarded by the durability agent — a broker OUTAGE no longer loses the produce (proven by DurableOutboxBrokerOutageTests: produce during a stop_app outage lands in the store and is delivered exactly-once after start_app). Off by default → 2.0.x behaviour (broker-native durability, documented gap) is unchanged for anyone who does not set it. 2.0.0 — transport config-selectable via `Messaging:Wolverine:Transport`; RabbitMQ + ASB transports (native fan-out); same consume-side contract on all three. See MESSAGING-TRANSPORTS.md §4.4.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#repository",
+    "commit": "d8a762b4f5e151bff58d74285cfa07f46493c115",
+    "type": "git"
+  },
+  "verbatimVersion": "2.2.3",
+  "version": "2.2.3",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/brainograph.messaging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Brainograph.Messaging.Abstractions",
+          "range": "[2.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/wolverinefx",
+          "@type": "PackageDependency",
+          "id": "WolverineFx",
+          "range": "[6.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/wolverinefx.azureservicebus",
+          "@type": "PackageDependency",
+          "id": "WolverineFx.AzureServiceBus",
+          "range": "[6.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/wolverinefx.postgresql",
+          "@type": "PackageDependency",
+          "id": "WolverineFx.Postgresql",
+          "range": "[6.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/wolverinefx.rdbms",
+          "@type": "PackageDependency",
+          "id": "WolverineFx.RDBMS",
+          "range": "[6.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/wolverinefx.rabbitmq",
+          "@type": "PackageDependency",
+          "id": "WolverineFx.RabbitMQ",
+          "range": "[6.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/wolverinefx.runtimecompilation",
+          "@type": "PackageDependency",
+          "id": "WolverineFx.RuntimeCompilation",
+          "range": "[6.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/azure.messaging.servicebus",
+          "@type": "PackageDependency",
+          "id": "Azure.Messaging.ServiceBus",
+          "range": "[7.20.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/microsoft.extensions.configuration",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/newtonsoft.json",
+          "@type": "PackageDependency",
+          "id": "Newtonsoft.Json",
+          "range": "[13.0.4, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#dependencygroup/net10.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[7.1.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#Brainograph.Messaging.Wolverine.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4494,
+      "fullName": "Brainograph.Messaging.Wolverine.nuspec",
+      "length": 13101,
+      "name": "Brainograph.Messaging.Wolverine.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#lib/net10.0/Brainograph.Messaging.Wolverine.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31398,
+      "fullName": "lib/net10.0/Brainograph.Messaging.Wolverine.dll",
+      "length": 74752,
+      "name": "Brainograph.Messaging.Wolverine.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#lib/net10.0/Brainograph.Messaging.Wolverine.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25169,
+      "fullName": "lib/net10.0/Brainograph.Messaging.Wolverine.xml",
+      "length": 124202,
+      "name": "Brainograph.Messaging.Wolverine.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.14.54.30/brainograph.messaging.wolverine.2.2.3.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

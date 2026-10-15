@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "bb81ff04-02e4-4025-aca5-1ff6ad888dcb",
+  "catalog:commitTimeStamp": "2026-10-14T12:51:14.9468459Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-10-14T12:42:45.72Z",
+  "description": "Azure Service Bus IMessageBus implementation for the Stratara framework — publishes JSON-serialized messages to topics, exposes a subscription helper, classifies handler exceptions explicitly (ConcurrencyException → abandon, other → dead-letter).",
+  "iconFile": "icon.png",
+  "id": "Stratara.Outbox.AzureServiceBus",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-14T12:50:50.917Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "RTCDExITqtesJWuklupa8ckmWZ0cSPOfmFiXE9BPiyn4b/5Qxkal45azhMmyb+iOHFSdJGMLjkKEpbeDBsgAvg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 97750,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-10-14T12:42:45.72Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "A command can now say whose data its protected fields are. Until now a command's `[EncryptData]` fields were\nencrypted for the session that dispatched it, so a session with no tenant could not protect anything and a session\nwith another tenant protected under the wrong one. Additive and opt-in; no schema change and no migration. One\nordering rule applies once a host starts using it (see *Changed*).\n\n### Added\n\n- **A command can name the owner of its protected fields.** A command that implements the new `INamesDataOwner`\n  (`Stratara.Abstractions.Security`: `Guid DataOwnerTenantId`, optional `Guid? DataOwnerUserId`) has its\n  `[EncryptData]` fields encrypted for that owner wherever the framework serializes it — the copy the outbox, the\n  bus and the Orleans record carry to its handler, and the copy the command audit records — whatever session\n  dispatched it. It is to a command what `IAggregateCreationEvent` is to a stream's first event. Three cases it\n  answers: a session with no tenant (an anonymous endpoint, or a saga reacting to a fact one recorded) could not\n  encrypt a `TenantScoped` field at all outside development; a session with another tenant than the data's owner\n  encrypted it under that tenant's key, silently, so the real owner's erasure left the audit record readable; and\n  the two copies of one command were written for different users. For a command that names its owner, both copies\n  are written for the same tenant and the same user.\n- **The audit record of such a command is attributed to the named owner.** Its data-owner tenant and user are the\n  owner the command names; its actor is the session's, as before. A tenant's view of the command log then holds the\n  commands that carried its data, whoever issued them, and each record can be read back from its own columns.\n- **`CommandEnvelope.DataOwnerTenantId` and `.DataOwnerUserId`** carry the owner beside the session context. They\n  are set only for a command that names an owner and are omitted from the JSON otherwise; the constructor and\n  `Deconstruct` are unchanged. The handling host reads the command's protected fields for the owner the envelope\n  carries and runs the handler under the session it carries.\n- **`CommandDataOwner`** (`Stratara.Shared.Security`) is the one resolution every writer and reader of a command\n  uses, for a host that serializes commands itself.\n\n### Changed\n\n- **The bus-envelope signature covers a named owner.** A signed command does not verify when it is presented with\n  another data owner, or with its owner removed. A command that names no owner has the canonical form it had before,\n  so publishers and consumers on either side of this release verify each other's signatures for it and a fleet in\n  `Strict` mode upgrades without a pass through `Permissive`.\n- **Upgrade the hosts that handle commands before a host dispatches a command that names an owner.** A command\n  worker or silo on an earlier release cannot read the owner. It does not run the handler with the fields emptied:\n  in `Strict` mode the signature does not verify, otherwise the read fails authentication, and the message is\n  retried and then kept. Two deployments are the simple order — this release first, the declarations after.\n- **Nothing changes for a command that names no owner.** It is serialized, stored, published and signed as before.\n  That includes a divergence this release states rather than removes: its travelling copy is written for the\n  session's tenant and the *acting* user, its audit record for the session's tenant and the session's *data-owner*\n  user — for an ordinary signed-in request, a user and nobody. Aligning that default would re-key every protected\n  command field in transit and is left to a major version; a command that names its owner is not affected.\n\n### Security\n\n- **An erasure now reaches a command's protected fields where the command names its owner.** `ISubjectEraser`'s\n  documentation said the command audit log and the outbox are left alone. Their rows still are; what it now also\n  says is what happens to protected fields in them. A command that names its owner has them under that owner's key\n  in both places, so the owner's erasure leaves the record of the command with those fields unreadable, and a\n  command still waiting reaches its handler with them absent.\n- **A command that names an empty tenant, or an empty user, as its owner is refused.** It fails with\n  `ArgumentException` naming the command type where it is recorded and where it is dispatched, and nothing is\n  recorded or sent. It does not fall back to the session, which would hide a caller's mistake in valid ciphertext\n  under the wrong tenant's key.\n- **Naming an owner authorizes nothing, and the owner is taken as stated.** Nothing compares the named owner\n  against the session; the handler runs under the dispatching session, and authorization and tenant isolation decide\n  as they do for any other command. Nothing checks that the named tenant exists either, and key material is created\n  for it on first use — name an owner the code resolved from something it trusts, never one copied from a request.\n- **A command encrypted as a whole does not outlive its owner.** With `[EncryptData]` on individual fields, a\n  command still waiting when its owner is erased reaches its handler with those fields absent. With `[EncryptData]`\n  on the class there is nothing left to rebuild: the command is retried and then kept, and its handler does not run.\n  That is how a command whose session tenant was erased already behaved; it is now stated.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#repository",
+    "commit": "67dc562b2673aed8be7ddb7365c9cfdd03d114e1",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "4.4.5",
+  "version": "4.4.5",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/stratara.abstractions",
+          "@type": "PackageDependency",
+          "id": "Stratara.Abstractions",
+          "range": "[4.4.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/stratara.shared",
+          "@type": "PackageDependency",
+          "id": "Stratara.Shared",
+          "range": "[4.4.5, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/azure.identity",
+          "@type": "PackageDependency",
+          "id": "Azure.Identity",
+          "range": "[1.21.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/azure.messaging.servicebus",
+          "@type": "PackageDependency",
+          "id": "Azure.Messaging.ServiceBus",
+          "range": "[7.20.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#dependencygroup/net10.0/microsoft.extensions.options.configurationextensions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.ConfigurationExtensions",
+          "range": "[10.0.11, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#Stratara.Outbox.AzureServiceBus.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3038,
+      "fullName": "Stratara.Outbox.AzureServiceBus.nuspec",
+      "length": 7736,
+      "name": "Stratara.Outbox.AzureServiceBus.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1559,
+      "fullName": "README.md",
+      "length": 3317,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#lib/net10.0/Stratara.Outbox.AzureServiceBus.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15631,
+      "fullName": "lib/net10.0/Stratara.Outbox.AzureServiceBus.dll",
+      "length": 37888,
+      "name": "Stratara.Outbox.AzureServiceBus.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#lib/net10.0/Stratara.Outbox.AzureServiceBus.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5088,
+      "fullName": "lib/net10.0/Stratara.Outbox.AzureServiceBus.xml",
+      "length": 26208,
+      "name": "Stratara.Outbox.AzureServiceBus.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.14.12.51.14/stratara.outbox.azureservicebus.4.4.5.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "azure-service-bus",
+    "messaging",
+    "message-bus",
+    "outbox",
+    "event-sourcing",
+    "cqrs",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

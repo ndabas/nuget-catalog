@@ -1,0 +1,419 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Alastair Lundy",
+  "catalog:commitId": "c5fc8df1-76be-4746-8f23-143a515dfb43",
+  "catalog:commitTimeStamp": "2026-10-15T13:37:33.7949656Z",
+  "copyright": "Copyright (c) Alastair Lundy 2026",
+  "created": "2026-10-15T13:32:47.507Z",
+  "description": "De-list NuGet package versions programatically with ease.",
+  "id": "PreReleaseDelist",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-15T13:37:20.203Z",
+  "licenseExpression": "GPL-3.0-or-later",
+  "licenseUrl": "https://licenses.nuget.org/GPL-3.0-or-later",
+  "listed": true,
+  "packageHash": "I2Mr6xnXR/gaPOqNXqdv5JkVQNuXg08IQzhbfYDdZKNS5qXR5XGj2tGydaGrH6HPkEu5IltDv3TW0IB2gKGwBg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2320071,
+  "published": "2026-10-15T13:32:47.507Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## Changes since 0.1.0\n\n### Added\n- `--dry-run` prints the delist plan (would delist / already delisted / not on server) without sending any delete request. No API key required. Exit is bucket-aware: `0` only when every version exists, `1` when any is missing, `2` when the package does not exist.\n- `--output json`: newline-delimited JSON on stdout, one object per version with exactly `package`, `version`, `status` in that order. Stderr stays human-readable.\n- A documented exit-code contract, pinned by tests: `0` success, `1` per-version failure or a command line the parser rejects, `2` a validation failure the CLI detects itself, `3` rate-limited, `4` cancelled, `130` Ctrl-C. The four `return -1` paths are gone.\n- Six-RID release binaries alongside the `dotnet tool` package: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64`, `osx-arm64`. Self-contained single-file, each with a SHA-256 file plus a combined `sha256.txt`. The RID binaries run the HTTP backend with no .NET installed.\n- `DelistOptions`, which resolves option precedence (`--option` then `PRERELEASEDELIST_*` then `NUGET_*` then default) and validates per mode, so dry-run skips the API-key check.\n\n### Changed\n- Updated CliInvoke to 3.0.3 (3.0.0 is affected by [GHSA-h4rx-7jm8-fr3g](https://github.com/alastairlundy/CliInvoke/security/advisories/GHSA-h4rx-7jm8-fr3g)), but PreReleaseDelist never invokes a runner, so the vulnerable code path is unreachable\n- Rate limiting fails fast: dispatching stops, results are reported with the rest marked `not-attempted`, and the process exits `3`. No retry.\n- Results, summaries and dry-run plans go to stdout; errors and diagnostics go to stderr. The API key never reaches either stream.\n- Both backends share one per-version delete path behind a single seam, with `DelistPlanning.Partition` composed in front of it and cross-cutting behaviour installed as decorators.\n- `--non-interactive` lines render `Version=<normalized> Status=<kebab-case>` from a closed vocabulary (`delisted`, `already-delisted`, `not-on-server`, `rate-limited`, `failed`, `not-attempted`). The old `Success`/`Failure` text and its free-text `Info=`/`Error=` fields are gone.\n- The command is a presentation and failure boundary now: option resolution lives in `DelistOptions`, known exceptions become one-line stderr messages, unknown ones still crash with stacks.\n- Shared build policy in `Directory.Build.props` and `.editorconfig`: C# 14, nullable, warnings as errors, style checks at build, NuGet audit. `GeneratePackageOnBuild` is replaced by an explicit `dotnet pack`, so a local `dotnet build` no longer drops a `.nupkg`.\n- Packaging tags corrected, README packed once from the repo root, and README/CHANGELOG rewritten for the new flags, exit codes and both distribution channels.\n- Publish gates pack and push on the test suite, and builds the RID assets only from a green tree.\n- Dependabot now points at `/src` where it actually finds the projects, covers `github-actions` too, groups NuGet minor/patch bumps, and runs weekly with a 14-day version cooldown. Security updates stay immediate.\n- Dropped `EnhancedLinq`, which existed for one `Exclude` call; both services use `DelistPlanning.Partition` now.\n\n### Removed\n- The `IsTrimmable` and `IsAoTCompatible` claims. Trimmed and Native AOT publishes both build and then die at runtime, because `NuGet.Protocol` reads signature resources through Newtonsoft.Json reflection the trimmer deletes. The properties stay out until a publish-and-run against a real feed passes.\n\n### Fixed\n- `--delist-all` works without `versions`. The argument was marked required, so every documented invocation died with `Required argument missing for command`.\n- Versions the server does not know about are failures, not successes. A missing metadata entry was indistinguishable from \"present but unlisted\", so a typo exited 0 with `Status=Success Info='Package already de-listed.'`. Both backends had this.\n- Unknown options are rejected instead of swallowed. The tokenizer turned an unrecognized `--flag` into an argument token, the greedy `versions` position took it, and the digit filter dropped it, so `--dry-runn` fell through to the run it was meant to prevent. The CLI now writes `Error: Unrecognized option: '--flag'.` to stderr and exits `2`. README examples that passed versions as `--versions`, which only worked because that token was ignored, use positional arguments now.\n- Ctrl-C reports `130` again. Neither backend converts a cancellation of the caller token into a `Failed` outcome. A `TaskCanceledException` from something else, like the HttpClient timeout, still maps to `Failed`.\n- The SDK backend matches `429` as a standalone token, so a version number like `2.429.0` in failure output no longer reads as a rate limit.\n- On the `http` backend, a `404` counts as already-delisted only when the service index declared the `PackagePublish/2.0.0` endpoint the delete actually hit. On the fallback route a `404` stays a failure.\n- `--include-zero-major` reaches `CheckPackageVersionsListedAsync`, which used to ignore it.\n- `global.json` says `10.0.100`, not `10.0.0`. Feature band 0 never ships, and setup-dotnet rejects it when `rollForward` is set, which broke the dependency-submission workflow.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#repository",
+    "commit": "340ae650cff349c66d28b28b6d5eb8e2193100c6",
+    "type": "git",
+    "url": "https://github.com/alastairlundy/PreReleaseDelist"
+  },
+  "requireLicenseAcceptance": true,
+  "title": "PreReleaseDelist",
+  "verbatimVersion": "0.2.0",
+  "version": "0.2.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#PreReleaseDelist.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3114,
+      "fullName": "PreReleaseDelist.nuspec",
+      "length": 6242,
+      "name": "PreReleaseDelist.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5236,
+      "fullName": "README.md",
+      "length": 17346,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/CliInvoke.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 64053,
+      "fullName": "tools/net10.0/any/CliInvoke.Core.dll",
+      "length": 147456,
+      "name": "CliInvoke.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/CliInvoke.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 56418,
+      "fullName": "tools/net10.0/any/CliInvoke.dll",
+      "length": 132608,
+      "name": "CliInvoke.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/DotMake.CommandLine.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 123269,
+      "fullName": "tools/net10.0/any/DotMake.CommandLine.dll",
+      "length": 251392,
+      "name": "DotMake.CommandLine.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 144,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 205,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Caching.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19348,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Caching.Abstractions.dll",
+      "length": 37672,
+      "name": "Microsoft.Extensions.Caching.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Caching.Memory.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24520,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Caching.Memory.dll",
+      "length": 47912,
+      "name": "Microsoft.Extensions.Caching.Memory.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15599,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "length": 28496,
+      "name": "Microsoft.Extensions.Configuration.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.Binder.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21786,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.Binder.dll",
+      "length": 43304,
+      "name": "Microsoft.Extensions.Configuration.Binder.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.EnvironmentVariables.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12264,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.EnvironmentVariables.dll",
+      "length": 21840,
+      "name": "Microsoft.Extensions.Configuration.EnvironmentVariables.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23027,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.dll",
+      "length": 44880,
+      "name": "Microsoft.Extensions.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29306,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "length": 65872,
+      "name": "Microsoft.Extensions.DependencyInjection.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 44585,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.DependencyInjection.dll",
+      "length": 95528,
+      "name": "Microsoft.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Diagnostics.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16119,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Diagnostics.Abstractions.dll",
+      "length": 31056,
+      "name": "Microsoft.Extensions.Diagnostics.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Diagnostics.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19812,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Diagnostics.dll",
+      "length": 36136,
+      "name": "Microsoft.Extensions.Diagnostics.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Http.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 42295,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Http.dll",
+      "length": 92968,
+      "name": "Microsoft.Extensions.Http.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32339,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "length": 66856,
+      "name": "Microsoft.Extensions.Logging.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26186,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.dll",
+      "length": 51536,
+      "name": "Microsoft.Extensions.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12412,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+      "length": 21800,
+      "name": "Microsoft.Extensions.Options.ConfigurationExtensions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Options.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31204,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Options.dll",
+      "length": 65320,
+      "name": "Microsoft.Extensions.Options.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Microsoft.Extensions.Primitives.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22837,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Primitives.dll",
+      "length": 44840,
+      "name": "Microsoft.Extensions.Primitives.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/Newtonsoft.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 274538,
+      "fullName": "tools/net10.0/any/Newtonsoft.Json.dll",
+      "length": 712464,
+      "name": "Newtonsoft.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/NuGet.Common.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 53249,
+      "fullName": "tools/net10.0/any/NuGet.Common.dll",
+      "length": 107832,
+      "name": "NuGet.Common.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/NuGet.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 73719,
+      "fullName": "tools/net10.0/any/NuGet.Configuration.dll",
+      "length": 171832,
+      "name": "NuGet.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/NuGet.Frameworks.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55078,
+      "fullName": "tools/net10.0/any/NuGet.Frameworks.dll",
+      "length": 123192,
+      "name": "NuGet.Frameworks.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/NuGet.Packaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 279354,
+      "fullName": "tools/net10.0/any/NuGet.Packaging.dll",
+      "length": 735032,
+      "name": "NuGet.Packaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/NuGet.Protocol.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 398586,
+      "fullName": "tools/net10.0/any/NuGet.Protocol.dll",
+      "length": 1148216,
+      "name": "NuGet.Protocol.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/NuGet.Versioning.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32032,
+      "fullName": "tools/net10.0/any/NuGet.Versioning.dll",
+      "length": 62264,
+      "name": "NuGet.Versioning.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/PreReleaseDelistLib.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 58219,
+      "fullName": "tools/net10.0/any/PreReleaseDelistLib.dll",
+      "length": 137216,
+      "name": "PreReleaseDelistLib.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/PreReleaseDelistLib.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 66634,
+      "fullName": "tools/net10.0/any/PreReleaseDelistLib.pdb",
+      "length": 92352,
+      "name": "PreReleaseDelistLib.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/System.CommandLine.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 69526,
+      "fullName": "tools/net10.0/any/System.CommandLine.dll",
+      "length": 151352,
+      "name": "System.CommandLine.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/System.Security.Cryptography.Pkcs.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 103375,
+      "fullName": "tools/net10.0/any/System.Security.Cryptography.Pkcs.dll",
+      "length": 266024,
+      "name": "System.Security.Cryptography.Pkcs.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20129,
+      "fullName": "tools/net10.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "length": 36616,
+      "name": "System.Security.Cryptography.ProtectedData.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/prerelease-delist.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3887,
+      "fullName": "tools/net10.0/any/prerelease-delist.deps.json",
+      "length": 22868,
+      "name": "prerelease-delist.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/prerelease-delist.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20930,
+      "fullName": "tools/net10.0/any/prerelease-delist.dll",
+      "length": 47616,
+      "name": "prerelease-delist.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/prerelease-delist.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 16631,
+      "fullName": "tools/net10.0/any/prerelease-delist.pdb",
+      "length": 26592,
+      "name": "prerelease-delist.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/prerelease-delist.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 222,
+      "fullName": "tools/net10.0/any/prerelease-delist.runtimeconfig.json",
+      "length": 358,
+      "name": "prerelease-delist.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#tools/net10.0/any/runtimes/win/lib/net8.0/System.Security.Cryptography.Pkcs.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 126878,
+      "fullName": "tools/net10.0/any/runtimes/win/lib/net8.0/System.Security.Cryptography.Pkcs.dll",
+      "length": 320336,
+      "name": "System.Security.Cryptography.Pkcs.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.15.13.37.33/prereleasedelist.0.2.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "delist",
+    "nuget",
+    "dotnet-tool",
+    "cli",
+    "unlist"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

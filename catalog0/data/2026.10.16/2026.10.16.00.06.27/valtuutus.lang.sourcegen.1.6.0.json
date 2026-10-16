@@ -1,0 +1,248 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Valtuutus",
+  "catalog:commitId": "7b5afe7c-620d-4a4e-9acd-34677bd0742c",
+  "catalog:commitTimeStamp": "2026-10-16T00:06:27.6084209Z",
+  "copyright": "© Copyright Valtuutus 2026",
+  "created": "2026-10-16T00:01:17.683Z",
+  "description": "Valtuutus is a high-performance Relationship-Based Access Control (ReBAC) authorization library for .NET inspired by Google Zanzibar, for fine-grained permissions in ASP.NET Core and .NET applications.",
+  "id": "Valtuutus.Lang.SourceGen",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-16T00:06:01.877Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "8Rr1SWw/otHaiuINohoSjn+0NaUaHQhOlBOtjzof8aWgjFKjYh56cjYDJPLUNADwhPwTG14YjbDdi4UG8EoX5Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 5922763,
+  "projectUrl": "https://github.com/valtuutus/valtuutus",
+  "published": "2026-10-16T00:01:17.683Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "This release adds opt-in V2 engines for both lookups, makes SQL Server's lookups and checks much cheaper by replacing table-valued parameters with JSON id lists, and fixes lookups that could grant what Check denies.\n\n## Breaking changes\n\n* **SQL Server 2016+ required** (#309). Id and name lists are passed as JSON read with , which needs database compatibility level 130+ (SQL Server 2016 or later, Azure SQL Database, Azure SQL Managed Instance). No migration: the  type stays in the database but is no longer used.\n* ** lookup reads take a subject relation** (#315). , , , ,  and  take a non-null  ( = direct subject); a null no longer means anyrelation. Custom provider implementations must filter on it. The InMemory, Postgres and SQL Server providers are updated.\n* **Lookup results can change** where they were wrong:\n  * Lookups no longer return entities or subjects reached through a tuple whose subject relation the schema path doesn't name (#315). Example: with , a  tuple on  no longer grants 's members.\n  * A terminal userset read through the joined fast path now spends a level of depth, as the tuple-to-userset path already did (#313 for LookupSubject, #314 for LookupEntity). Results change only at the exact depth limit; depth keeps counting schema hops, as documented.\n\n## New: opt-in LookupSubject and LookupEntity V2 engines\n\nEnable them with  and  (after , before ). The default engines are unchanged; V2 becomes the default in a later release.\n\n* **Graph/step engines** (#304, #317). Each permission compiles once into a plan per (entity type, permission, subject type) (#310 for LookupSubject); a request binds its subject, depth, scope and context to the cached plans and runs every query a step waits on together. Results match the default engines: the shared suites compare V1 and V2 on InMemory, Postgres and SQL Server.\n* **One round trip per step** on Postgres and SQL Server (#307, #320). A step's queries run as one , and a tokenless request resolves its snap token inside the first batch and pins it for the rest of the request.\n* **Pooled per-request state** (#310, #318), so V2 allocates less than V1.\n* **Fewer steps on recursive relations:**\n  * LookupSubject reads several userset levels per query (#313).\n  * LookupEntity walks a self-recursive relation such as  from the subject outward and stops at the first hop that finds nothing new, instead of unrolling to the request's depth (#322). It reads several hops per query (#323), the first one together with the direct grants (#324).\n  * The number of levels per query is  on  /  (default ;  reads one level per step).\n* **Extension points** for providers: , , ,  (Core), and ,  (Data.Db).  is a default-implemented member (), so existing option types keep compiling.\n\nV1 → V2 on this release (dev cedf814), net10.0 BenchmarkDotNet, median of 3 interleaved rounds:\n\n| Scenario | Postgres | SQL Server |\n|---|---|---|\n| LookupSubject | 69 → 53 µs (−23%) | 175 → 138 µs (−21%) |\n| LookupSubject_Diamond | 69 → 52 µs (−24%) | 180 → 137 µs (−24%) |\n| LookupSubject_SiblingBatch | 123 → 70 µs (−43%) | 203 → 179 µs (−12%) |\n| LookupSubject_NestedGroup | 346 → 258 µs (−26%) | 605 → 377 µs (−38%) |\n| LookupEntity | 389 → 373 µs (−4%) | 736 → 663 µs (−10%) |\n| LookupEntity_SiblingBatch | 152 → 66 µs (−57%) | 199 → 167 µs (−16%) |\n| LookupEntity_ConstrainedSiblingBatch | 131 → 70 µs (−47%) | 275 → 198 µs (−28%) |\n| LookupEntity_NegateSiblingBatch | 129 → 48 µs (−63%) | 225 → 129 µs (−43%) |\n| LookupEntity_Diamond | 66 → 61 µs (−7%) | 205 → 153 µs (−25%) |\n| LookupEntity_NestedGroup | 1128 → 94 µs (−92%) | 1198 → 343 µs (−71%) |\n| LookupEntity_Scoped | 502 → 532 µs (+6%) | 1017 → 1002 µs (tie) |\n\nAllocations drop in every scenario (e.g. LookupEntity_NestedGroup 90 → 11 KB on Postgres) except LookupEntity and LookupEntity_Scoped on SQL Server (+5%). LookupEntity_Scoped on Postgres is the one scenario where V2 is slower: its first step's two scoped reads run one after the other in a batch, where V1 overlaps them on two connections.\n\n## Performance (default engines too)\n\n* **SQL Server id lists as JSON** (#309). Each  parameter cost ~0.5–1 ms per use;  costs ~50–80 µs. Check −7% to −39%, SubjectPermission −12% to −25%, LookupEntity −6% to −81%, LookupSubject −45% to −96%.\n* **SQL Server cached plans that hold for every caller:**\n  * The entity-ids relation reads no longer recompile on every execution (#308): LookupSubject_SiblingBatch −70%.\n  * The joined lookup's inner rows seek by the listed ids (#309): LookupSubject_SiblingBatch another −88%.\n  * Single-subject relation reads seek by subject (#325). A plan compiled for a sparse relation could read every tuple of a dense one later (up to ~14 ms per read); every compile order now costs under 40 µs.\n* **Scoped lookups seek the scope per candidate** (#321), on both providers and both engines: LookupEntity_Scoped SQL Server 1680 → 951 µs (V1), 2331 → 981 µs (V2); Postgres V2 765 → 547 µs.\n* **Postgres lookup relation reads seek under generic plans** (#312): a nested lookup on V2 went from ~14 ms to ~0.55 ms.\n\n## Benchmarks\n\n* New nested-userset scenarios for both lookups (#311, #316).\n\n## Pull requests\n\n* #304 feat: add LookupSubjectEngineV2 graph/step engine (opt-in)\n* #307 perf(lookup): run LookupSubject V2 steps as one DbBatch on Postgres/SqlServer\n* #308 perf(sqlserver): drop OPTION (RECOMPILE) from the entity-ids relation queries\n* #309 perf(sqlserver): pass id lists as JSON read with OPENJSON\n* #310 perf(lookup): compile LookupSubject V2 plans and pool its per-request state\n* #311 bench(lookup): add nested userset LookupSubject scenario\n* #312 perf(postgres): let lookup relation reads seek under generic plans\n* #313 perf(lookup): read several userset levels per LookupSubject V2 query\n* #314 fix(lookup): spend a level of depth on LookupEntity's joined userset path\n* #315 fix(lookup): read only tuples whose subject relation the schema path names\n* #316 bench(lookup): add nested userset LookupEntity scenario\n* #317 feat(lookup): add LookupEntityEngineV2 graph/step engine (opt-in)\n* #318 perf(lookup): pool LookupEntity V2 per-request state\n* #320 perf(lookup): run LookupEntity V2 steps as one DbBatch on Postgres/SqlServer\n* #321 perf(data): seek the scope probe per candidate in scoped relation reads\n* #322 perf(lookup): stop LookupEntity V2's self-recursive walks when a hop finds nothing new\n* #323 perf(lookup): walk LookupEntity V2's self-recursive relations several hops per query\n* #324 perf(lookup): read LookupEntity V2's direct grants in the first levels query\n* #325 perf(data): seek single-subject relation reads by subject on SqlServer",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#repository",
+    "commit": "d45ab5c2f18dbdd6f1869660e8a46623e4edcea6",
+    "type": "git",
+    "url": "https://github.com/valtuutus/valtuutus"
+  },
+  "verbatimVersion": "1.6.0",
+  "version": "1.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#Valtuutus.Lang.SourceGen.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3272,
+      "fullName": "Valtuutus.Lang.SourceGen.nuspec",
+      "length": 7919,
+      "name": "Valtuutus.Lang.SourceGen.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4313,
+      "fullName": "README.md",
+      "length": 11707,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/Antlr4.Runtime.Standard.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 86688,
+      "fullName": "analyzers/dotnet/cs/Antlr4.Runtime.Standard.dll",
+      "length": 192000,
+      "name": "Antlr4.Runtime.Standard.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/Microsoft.CodeAnalysis.CSharp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3047016,
+      "fullName": "analyzers/dotnet/cs/Microsoft.CodeAnalysis.CSharp.dll",
+      "length": 8005280,
+      "name": "Microsoft.CodeAnalysis.CSharp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/Microsoft.CodeAnalysis.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1758779,
+      "fullName": "analyzers/dotnet/cs/Microsoft.CodeAnalysis.dll",
+      "length": 4706480,
+      "name": "Microsoft.CodeAnalysis.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.Buffers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13754,
+      "fullName": "analyzers/dotnet/cs/System.Buffers.dll",
+      "length": 23832,
+      "name": "System.Buffers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.Collections.Immutable.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 84523,
+      "fullName": "analyzers/dotnet/cs/System.Collections.Immutable.dll",
+      "length": 198776,
+      "name": "System.Collections.Immutable.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.IO.Hashing.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 28069,
+      "fullName": "analyzers/dotnet/cs/System.IO.Hashing.dll",
+      "length": 52048,
+      "name": "System.IO.Hashing.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.Memory.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 62042,
+      "fullName": "analyzers/dotnet/cs/System.Memory.dll",
+      "length": 145176,
+      "name": "System.Memory.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.Numerics.Vectors.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 45516,
+      "fullName": "analyzers/dotnet/cs/System.Numerics.Vectors.dll",
+      "length": 159496,
+      "name": "System.Numerics.Vectors.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.Reflection.Metadata.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 189212,
+      "fullName": "analyzers/dotnet/cs/System.Reflection.Metadata.dll",
+      "length": 466560,
+      "name": "System.Reflection.Metadata.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.Runtime.CompilerServices.Unsafe.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10866,
+      "fullName": "analyzers/dotnet/cs/System.Runtime.CompilerServices.Unsafe.dll",
+      "length": 19256,
+      "name": "System.Runtime.CompilerServices.Unsafe.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.Text.Encoding.CodePages.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 528882,
+      "fullName": "analyzers/dotnet/cs/System.Text.Encoding.CodePages.dll",
+      "length": 760976,
+      "name": "System.Text.Encoding.CodePages.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/System.Threading.Tasks.Extensions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13699,
+      "fullName": "analyzers/dotnet/cs/System.Threading.Tasks.Extensions.dll",
+      "length": 25984,
+      "name": "System.Threading.Tasks.Extensions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/Valtuutus.Lang.SourceGen.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10456,
+      "fullName": "analyzers/dotnet/cs/Valtuutus.Lang.SourceGen.dll",
+      "length": 23552,
+      "name": "Valtuutus.Lang.SourceGen.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#analyzers/dotnet/cs/Valtuutus.Lang.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18208,
+      "fullName": "analyzers/dotnet/cs/Valtuutus.Lang.dll",
+      "length": 56832,
+      "name": "Valtuutus.Lang.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#build/Valtuutus.Lang.SourceGen.props",
+      "@type": "PackageEntry",
+      "compressedLength": 160,
+      "fullName": "build/Valtuutus.Lang.SourceGen.props",
+      "length": 264,
+      "name": "Valtuutus.Lang.SourceGen.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.00.06.27/valtuutus.lang.sourcegen.1.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Valtuutus",
+    "rebac",
+    "zanzibar",
+    "authorization",
+    "access-control",
+    "permissions",
+    "dotnet",
+    "aspnetcore",
+    "fine-grained-authorization",
+    "sourcegen",
+    "lang"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

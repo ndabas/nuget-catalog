@@ -1,0 +1,244 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Sendspin Contributors",
+  "catalog:commitId": "b7c7e7dc-fd5b-43da-912b-c36594590012",
+  "catalog:commitTimeStamp": "2026-10-16T02:27:05.2095298Z",
+  "copyright": "Copyright © 2024-2026 Sendspin Contributors",
+  "created": "2026-10-16T02:18:21.097Z",
+  "description": "Cross-platform SDK for the Sendspin synchronized multi-room audio protocol. Connect to Music Assistant servers and play synchronized audio across multiple devices.",
+  "id": "Sendspin.SDK",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-16T02:26:28.453Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "mRIIPHJpzZ2Q2kTFsTN7Y2djifShEN57SCpyu2YXqYN7SgDatby89Qa2H+q4sv1b7KW6jh7LfVD8pj7KCSRo2Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1038483,
+  "projectUrl": "https://github.com/Sendspin/sendspin-dotnet",
+  "published": "2026-10-16T02:18:21.097Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v10.1.0 - Source role reporting through SendspinHostService\n\nAdditive; no breaking changes from 10.0.0.\n- SendspinHostService.SetSourceSignalAsync(bool) reports the source line-sense signal for a\n  server-initiated app. The value is applied to every open connection and remembered, so\n  each new connection carries it in its initial client/state.\n- SendspinHostService.SourceRoleStateChanged (SourceRoleState: ServerId, IsActive,\n  TrustLevel) is raised when a connection is admitted and on every later server/activate,\n  so the app can see whether its source role is active and at what trust.\n\nv10.0.0 - Encrypted transport, Sendspin spec 1.0.0-rc1 (BREAKING)\n\nImplements Sendspin/spec at tag 1.0.0-rc1 (671a34d). Requires aiosendspin 10.0.0 or later,\nthe first release of that spec; Music Assistant ships the 10.x line. There is no downgrade\nnegotiation: use the 9.x line for an older server.\n\nTransport and identity\n- Every connection is encrypted end to end (Noise KKpsk2). Plaintext is gone.\n- Clients have a persistent Curve25519 identity. SendspinClientOptions.Identity is required;\n  build it with SendspinIdentity.FromStore(store), NOT Generate(), or the client gets a new\n  client_id every launch and silently loses every pairing on restart.\n- Construction moved to SendspinClientService.CreateForDial(loggerFactory, options) with a\n  SendspinClientOptions object.\n- Neither connection teardown path waits for the peer's Close frame any longer, so an app\n  exit can no longer hang against a peer that never answers.\n\nPairing\n- Pairing PSK plus at most one optional pairing-code method, dynamic or static (CPace):\n  dynamic_pairing_code / static_pairing_code, fixed 6- and 8-digit codes. Pairing\n  configuration is local and set through ClientCapabilities; no server can change it.\n- Gesture-gated attempts (every static code attempt, and a dynamic one once held back)\n  need a PairingWindow opened by a deliberate operator gesture. Without one pairing never\n  completes, and nothing throws.\n- A mistyped dynamic pairing code is retried in place (client/pair-retry), so\n  PresentPairingCodeAsync can run more than once for one attempt.\n- IPairingRecordStore.Upsert returns void and stores declare a Capacity; the SDK evicts the\n  least recently used record itself. Records carry ServerId and LastUsedUtc; 9.x record\n  files still load. server/unpair removes that server's record.\n\nProtocol\n- client/state reports 'available' as a boolean, carries the full state of every role\n  object it includes, and includes an object only for an active role.\n- stream/request-format is removed. RequestPlayerFormatAsync, RequestArtworkFormatAsync and\n  RequestVisualizerFormatAsync become SetPlayerFormatPreferenceAsync, SetArtworkChannelAsync\n  and SetVisualizerConfigurationAsync. ArtworkChannelSpec is ArtworkChannelState;\n  ClientCapabilities.VisualizerSupport is VisualizerRoleSupport.\n- \"Static delay\" is \"output delay\" on the C# surface and the wire (output_delay_ms,\n  set_output_delay), clamped to 0-5000 with no alias for the old names.\n- client/hello no longer carries trust_level, player supported_commands or\n  artwork@v1_support.\n- Artwork arrives as an announce/part/cancel transfer. ArtworkReceived and ArtworkCleared are\n  unchanged; BinaryMessageParser.ParseArtworkChunk is replaced by TryParseArtwork.\n- Controller commands are sent only while controller@v1 is active and the group lists the\n  command in supported_commands; otherwise they are dropped with a warning.\n- server/activate follows the rc1 activity table: playback keeps running during a pairing\n  attempt, active roles persist across a re-handshake, and a removed stream role is stopped\n  without a stream/end.\n- ClientCapabilities values the spec does not allow now throw ArgumentException at\n  construction: a player with no flac or pcm format, a visualizer BufferCapacity or RateMax\n  that is not positive, an invalid artwork channel, a MacAddress that is not lowercase\n  colon-separated.\n- New source@v1 role for line-in and microphone capture, on paired connections, or on unpaired\n  ones when UnpairedAccessEnabled is on and the server's operator has approved the role.\n- ConnectionMode.Auto is removed. A persisted \"Auto\" no longer parses and the remaining\n  ordinals shift.\n\nAudio\n- Sync correction follows the spec: a 100 us dead band, continuous correction capped at\n  0.5%, and a one-shot snap above 5 ms. TimedAudioBuffer.Read applies all of it and is the\n  default path again; SyncCorrectedSampleSource does the same through a built-in resampler.\n- buffer_capacity is derived from ClientCapabilities.AudioBufferCapacityMs instead of a flat\n  32 MB. Give TimedAudioBuffer the same number.\n- Clock synchronization matches the reference implementation, and a player announces\n  itself about two seconds after connecting.\n- An in-place stream/start that changes sample rate or channel count keeps the buffered\n  audio: AudioPipeline plays it out before re-opening the output for the new format.\n- IAudioPipeline.StartAsync returns an AudioPipelineStartOutcome; IClockSynchronizer and\n  ISendspinConnection each gain one member. Only custom implementations are affected.\n\nMigration guide (every breaking change, with before/after code):\nhttps://github.com/Sendspin/sendspin-dotnet/blob/main/src/Sendspin.SDK/MIGRATION-10.0.0.md\n\nSpec pin, compatibility floor and known deviations:\nhttps://github.com/Sendspin/sendspin-dotnet/blob/main/docs/SPEC-VERSION.md\n\nEarlier release notes: https://github.com/Sendspin/sendspin-dotnet/releases",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#repository",
+    "commit": "26f6dddc8b8c1e560d575308a7eb6eb392cb2148",
+    "type": "git",
+    "url": "https://github.com/Sendspin/sendspin-dotnet"
+  },
+  "verbatimVersion": "10.1.0",
+  "version": "10.1.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net10.0/concentus",
+          "@type": "PackageDependency",
+          "id": "Concentus",
+          "range": "[2.2.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net10.0/makaretu.dns.multicast",
+          "@type": "PackageDependency",
+          "id": "Makaretu.Dns.Multicast",
+          "range": "[0.27.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net10.0/noise.net",
+          "@type": "PackageDependency",
+          "id": "Noise.NET",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net10.0/zeroconf",
+          "@type": "PackageDependency",
+          "id": "Zeroconf",
+          "range": "[3.7.16, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net10.0/libsodium",
+          "@type": "PackageDependency",
+          "id": "libsodium",
+          "range": "[1.0.22, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net8.0/concentus",
+          "@type": "PackageDependency",
+          "id": "Concentus",
+          "range": "[2.2.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net8.0/makaretu.dns.multicast",
+          "@type": "PackageDependency",
+          "id": "Makaretu.Dns.Multicast",
+          "range": "[0.27.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net8.0/noise.net",
+          "@type": "PackageDependency",
+          "id": "Noise.NET",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net8.0/zeroconf",
+          "@type": "PackageDependency",
+          "id": "Zeroconf",
+          "range": "[3.7.16, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#dependencygroup/net8.0/libsodium",
+          "@type": "PackageDependency",
+          "id": "libsodium",
+          "range": "[1.0.22, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#Sendspin.SDK.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3237,
+      "fullName": "Sendspin.SDK.nuspec",
+      "length": 7689,
+      "name": "Sendspin.SDK.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 20660,
+      "fullName": "README.md",
+      "length": 57991,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#THIRD-PARTY-NOTICES.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2074,
+      "fullName": "THIRD-PARTY-NOTICES.md",
+      "length": 5196,
+      "name": "THIRD-PARTY-NOTICES.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#lib/net10.0/Sendspin.SDK.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 330033,
+      "fullName": "lib/net10.0/Sendspin.SDK.dll",
+      "length": 991744,
+      "name": "Sendspin.SDK.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#lib/net10.0/Sendspin.SDK.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 176347,
+      "fullName": "lib/net10.0/Sendspin.SDK.xml",
+      "length": 884661,
+      "name": "Sendspin.SDK.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#lib/net8.0/Sendspin.SDK.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 314576,
+      "fullName": "lib/net8.0/Sendspin.SDK.dll",
+      "length": 926720,
+      "name": "Sendspin.SDK.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#lib/net8.0/Sendspin.SDK.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 176241,
+      "fullName": "lib/net8.0/Sendspin.SDK.xml",
+      "length": 884402,
+      "name": "Sendspin.SDK.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.16.02.27.05/sendspin.sdk.10.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "sendspin",
+    "audio",
+    "multiroom",
+    "sync",
+    "music-assistant",
+    "streaming"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

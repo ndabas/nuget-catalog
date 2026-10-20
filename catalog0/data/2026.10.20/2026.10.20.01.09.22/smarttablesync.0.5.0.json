@@ -1,0 +1,175 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Ruslan Sidoriako",
+  "catalog:commitId": "84943633-ccd6-4b9f-ad73-8bf9857004ed",
+  "catalog:commitTimeStamp": "2026-10-20T01:09:22.2908829Z",
+  "created": "2026-10-20T01:05:15.883Z",
+  "description": "A self-configuring sync engine for SQL tables Azure SQL Data Sync can't handle - nvarchar(max)/varbinary(max) indexed keys, rows over Data Sync's 24 MB batch limit. Give it a table name; it introspects the schema, derives a sync plan, and generates reviewable SQL.",
+  "id": "SmartTableSync",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-20T01:09:12.627Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "+v4Cu4QfTx0wUk50a9ZEzlsnu0iRtfWcOj3WHYDKry0z7cFjYs2vsOs0HcUtE9wMaYlt7VzbNpgj/+PvSsV2Gg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 117993,
+  "projectUrl": "https://github.com/Sidorus/SmartTableSync",
+  "published": "2026-10-20T01:05:15.883Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "The first release on NuGet, as [SmartTableSync](https://www.nuget.org/packages/SmartTableSync)\nand [SmartTableSync.Scaffold](https://www.nuget.org/packages/SmartTableSync.Scaffold). It syncs\ntables in any schema and tables without a primary key, copies `decimal` values exactly, runs in a\nLinux container as well as in Azure Functions, and connects to Azure SQL with a managed identity\nusing the one package. A quick start sets up the sync between two existing Azure SQL databases with\none script.\n\n### Added\n\n- **Publishing to NuGet** (`.github/workflows/publish.yml`). Pushing a tag such as `v0.5.0`\n  builds, tests and publishes `SmartTableSync` and `SmartTableSync.Scaffold` with that version,\n  through nuget.org trusted publishing (no API key), after a maintainer approves the run. The\n  version comes from the tag only; the project files hold a local default, `0.0.0-dev`. See\n  [releasing](docs/releasing.md).\n\n- **Container host for Linux** (`SmartTableSync.Worker` and its `Dockerfile`). It keeps running\n  and syncs every `SmartTableSync:Worker:IntervalMinutes` (default 5), or syncs once and exits\n  with `--once`, for a Kubernetes CronJob or an Azure Container Apps job. Settings come from\n  environment variables, logs go to standard output, and metrics go over OTLP when\n  `OTEL_EXPORTER_OTLP_ENDPOINT` is set. CI builds the image. See\n  [run it in a container](docs/guides/containers.md).\n\n- **Tables in schemas other than `dbo`.** Name them `schema.Table` in `SmartTableSync:TableList`,\n  the per-table settings and the scaffold tool (a plain `Table` still means `dbo.Table`). The\n  child keeps the parent's schema; the table's procedures and table type are created in that\n  schema, so tables with the same name in two schemas don't collide. The tracking tables stay in\n  `dbo`. See [ADR-0020](docs/adr/0020-tables-in-schemas-other-than-dbo.md).\n- **Tables without a primary key.** Such a table is keyed by its best unique index (all key\n  columns `NOT NULL`, not filtered, not disabled; fewest columns, then lowest `index_id`), or by\n  the columns in the new `SmartTableSync:KeyColumns:<Table>` setting (`\"ColA,ColB\"`), which are\n  checked for duplicate values whenever the table is set up. The child table gets that key as its\n  primary key. Change Tracking still requires a real primary key. Tables with a primary key are\n  unaffected (same key, same schema fingerprint). See\n  [ADR-0021](docs/adr/0021-key-fallback-for-tables-without-a-primary-key.md).\n\n- **Quick start for existing databases** (`quickstart/`). One script takes a parent and a child\n  Azure SQL database you already have and a table list. It shows which strategy each table will\n  get, creates the Function App with its managed identities (Terraform, nothing on the databases),\n  creates the database users by SID with only the rights each needs, in Auto or Manual mode, and\n  runs and checks the first sync. It also has `-DryRun`, `-SyncNow` and `-Destroy`. See\n  [quickstart/README.md](quickstart/README.md).\n\n### Changed\n\n- **The `SmartTableSync` package includes Microsoft Entra sign-in.** It now depends on\n  `Microsoft.Data.SqlClient.Extensions.Azure`, so managed identities and every other\n  `Authentication=Active Directory ...` connection string work with this one package; a host no\n  longer adds that package itself (one that already did can remove it). Hosts that only use SQL\n  logins or Windows authentication get the Azure sign-in libraries too, unused.\n- The scaffold tool prefixes the files of a non-dbo table with the schema\n  (`sales.sp_SyncOrderBatch.sql`); file names for dbo tables are unchanged.\n- A table name with more than one dot, or longer than 100 characters, is rejected at startup with\n  a clear message. Names that contain a dot were never meant to work and are now read as\n  `schema.Table`.\n- A table with no usable key at all now stops when it is set up, with a message naming\n  `SmartTableSync:KeyColumns:<Table>`, instead of failing later in its first page query.\n- **Documentation by task.** The README starts with a guide for each way to run SmartTableSync:\n  the demo, the quick start, [Manual mode](docs/guides/manual-mode.md) and\n  [Auto mode](docs/guides/auto-mode.md) step by step (every scaffold command and SQL statement),\n  and [your own app](docs/guides/hosting.md) (background service, Hangfire, Quartz.NET, with\n  complete `Program.cs` files). Known limitations moved to [their own page](docs/limitations.md);\n  the README keeps a summary and links to it and to the roadmap.\n\n### Fixed\n\n- **`decimal` and `numeric` values were rounded in the child.** Precision and scale weren't read\n  from the parent, so the scaffold tool and Auto mode created `decimal(10,2)` as `decimal`,\n  which SQL Server makes `decimal(18,0)`: 99.95 arrived as 100, with no error. Tables, table types\n  and procedures now get the parent's exact type, for `datetime2(n)`, `time(n)` and\n  `datetimeoffset(n)` too. A `decimal` or `numeric` column whose precision or scale differs from\n  the parent is now detected, and the scaffold tool writes `<Table>_AlterColumns.sql` for it\n  (see *Upgrading* below). This also closes the former limitation that such a change in the\n  parent wasn't detected.\n- Measuring the largest value of `(max)` columns while profiling a table queried it without a\n  schema, so it depended on the identity's default schema.\n- Running the demo a second time failed with *\"There is already an object named 'Product'\"*:\n  the script applied a `CREATE TABLE` script left from the first run. It now empties its\n  generated-scripts folders first, applies `*_AddColumns.sql` and `*_AlterColumns.sql`, and has a\n  table fixed by `*_AlterColumns.sql` copied again on the next sync.\n- The example Function sent only warnings and errors to Application Insights, and no\n  `smarttablesync.*` metrics at all: the Application Insights SDK keeps only warnings from the\n  worker by default, and no exporter was registered for the `SmartTableSync` meter. Its logs now\n  go through the Functions host, so they arrive with their level and appear in the portal's Log\n  stream like any Function's, and the metrics go through OpenTelemetry with the Azure Monitor\n  exporter. See [logs and metrics](docs/setup.md#logs-and-metrics).\n\n### Upgrading\n\n- **Tables with `decimal` or `numeric` columns** are planned again on the first run after the\n  upgrade (their schema fingerprint now includes precision and scale; other tables keep theirs).\n  A child created by an earlier version has those columns as `decimal(18,0)` and rounded values:\n  - The table stops with *\"column ... is decimal(18,0) in the child but decimal(10,2) in the\n    parent\"*. Run the scaffold tool for it and apply `<Table>_AlterColumns.sql` to the child.\n  - **Auto mode** then copies the table again by itself on the next run, so every value is exact.\n  - **Manual mode:** also run the two `DELETE` statements at the end of that script, so the next\n    run copies the table again; then apply the regenerated table type and procedure scripts.\n- **Hosts that added `Microsoft.Data.SqlClient.Extensions.Azure` themselves** can remove it; the\n  package now brings it.\n\n### Tested\n\n- **Automated, on every change:** 298 unit tests and 72 integration tests against a real SQL\n  Server 2022 (Testcontainers), including syncs that run as the three identities with exactly the\n  documented grants, Auto mode creating and evolving the child's tables, tables in other schemas\n  and without a primary key, and exact `decimal` values. CI also builds the container image and\n  checks the Terraform, the NuGet packages for known vulnerabilities, and the code with Semgrep\n  and CodeQL.\n- **On Azure, with the demo** (Azure SQL Database, Azure Functions Flex Consumption, managed\n  identity): about 20,000 inserted, updated and deleted rows per table on Change Tracking,\n  RowVersion and Timestamp tables, plus key changes, deleted and re-inserted rows, rows inserted\n  and deleted between two runs, the same row updated 50 times, NULL and empty values, Unicode,\n  `decimal` limits and rows over 1 MB. Parent and child matched row by row.\n- **On Azure, with the quick start** in Auto mode on two new databases: four tables on four\n  strategies, then inserts, updates, deletes and a column added in the parent, which Auto mode\n  added to the child. Parent and child matched row by row.\n- **The container host**, run once and running continuously, against SQL Server in Docker.\n- **The NuGet packages:** the release workflow published them, they install from nuget.org, the\n  [NuGet guide](docs/guides/nuget.md) was followed step by step, and an app that references only\n  `SmartTableSync` signs in to Azure SQL with Microsoft Entra.\n\n\nFull changelog: https://github.com/Sidorus/SmartTableSync/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#repository",
+    "commit": "4f497ed4376c4e97a9632a7ec45a505820551cae",
+    "type": "git",
+    "url": "https://github.com/Sidorus/SmartTableSync"
+  },
+  "verbatimVersion": "0.5.0",
+  "version": "0.5.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#dependencygroup/net10.0/microsoft.data.sqlclient",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.SqlClient",
+          "range": "[7.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#dependencygroup/net10.0/microsoft.data.sqlclient.extensions.azure",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Data.SqlClient.Extensions.Azure",
+          "range": "[7.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#dependencygroup/net10.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#dependencygroup/net10.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[10.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#dependencygroup/net10.0/system.security.cryptography.pkcs",
+          "@type": "PackageDependency",
+          "id": "System.Security.Cryptography.Pkcs",
+          "range": "[10.0.13, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#SmartTableSync.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4434,
+      "fullName": "SmartTableSync.nuspec",
+      "length": 10535,
+      "name": "SmartTableSync.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#NOTICE",
+      "@type": "PackageEntry",
+      "compressedLength": 149,
+      "fullName": "NOTICE",
+      "length": 185,
+      "name": "NOTICE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1908,
+      "fullName": "README.md",
+      "length": 4701,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#lib/net10.0/SmartTableSync.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 96498,
+      "fullName": "lib/net10.0/SmartTableSync.Core.dll",
+      "length": 268288,
+      "name": "SmartTableSync.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.20.01.09.22/smarttablesync.0.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12989,
+      "fullName": ".signature.p7s",
+      "length": 12989,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "sql",
+    "azure",
+    "azure-sql",
+    "data-sync",
+    "sync"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

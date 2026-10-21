@@ -1,0 +1,182 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Wolfgang Mitterbucher",
+  "catalog:commitId": "f4454ed2-aac0-40aa-8707-f7555375b73d",
+  "catalog:commitTimeStamp": "2026-10-21T06:24:16.4068228Z",
+  "copyright": "Copyright © Wolfgang Mitterbucher",
+  "created": "2026-10-21T06:18:51.313Z",
+  "description": "Reusable .NET 8 library to read EUDI Wallet PID identity data via the EUDI Verifier Backend REST API (OpenID4VP). Builds the DCQL request (mso_mdoc and SD-JWT VC), polls for the wallet response and extracts the identity data, including SD-JWT disclosure parsing.",
+  "id": "miEUDIverifier.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-21T06:23:55.55Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "6MejWEoFJ0TuqakEY4OEvUuGWVG0cNeyWhn9tBXBDKKJwsAnC7Clh2s1RVil1uAETy4u7SSRbZBIa1/vpHtc0Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 47753,
+  "projectUrl": "https://github.com/Mibuw/miEUDIverifier",
+  "published": "2026-10-21T06:18:51.313Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "1.4.2 — Make the outcome of the type check visible to callers.\n1.4.0 rejects a presentation whose credential type was not requested, but said so only in the log:\nthe result looked like any other incomplete one. IdentityData.CredentialType is now carried through\nthe app's JSON responses, and a response from which nothing was accepted is reported as \"rejected\"\nrather than \"partial\" — the difference between \"verified, some attributes missing\" and \"nothing\nverified at all\". The data endpoint answers 409 for that state instead of 200.\nLibrary behaviour is unchanged; CredentialType already existed in 1.4.0. Callers that branch on\nthe status string should handle the new value.\nWith thanks to Vítor Fonte, who noted the endpoint still answered 200 for rejected presentations\nand contributed the regression test for the German PID extension namespace.\n\n1.4.0 — Security: check the credential type of a presentation before trusting it.\nReported by Vitor Fonte, University of Minho.\nThe library relied on the verifier backend to bind the returned credential to the requested type\nand did not re-check that binding. It took any claim named family_name, given_name or birth_date\nfrom any namespace of the response, so a credential whose docType or vct was not the requested PID\ntype could be reported as a complete, verified identity.\nThree changes. Every presentation is now checked against the types the transaction requested —\ndocType for mso_mdoc, vct for SD-JWT VC — before any attribute is read; this covers all three\nresponse shapes, including documents decoded through the backend utility endpoint. Typed identity\nfields are taken only from the PID namespace, so other namespaces — including the German extension\nnamespace, which shares the docType — contribute to AdditionalClaims alone. Identity data comes\nfrom a single credential and is no longer combined across the credentials of one response.\nNew overload ExtractIdentityDataAsync(envelope, options, ct): pass the TransactionOptions the\ntransaction was started with, so the expected types match what was asked for. The existing\ntwo-argument overload still works and falls back to the configured defaults.\nIdentityData gained CredentialType, carrying the docType or vct the data actually came from.\nBehaviour change worth noting: a response whose credential type cannot be established is now\nrejected where earlier versions would have returned an identity. Every rejection is logged with\nthe type found and the types expected.\n\n1.3.0 — Request a wider PID attribute set, and scope a request to what a Registration\nCertificate covers.\nNew VerifierSettings.PidClaims / PidClaimsByBackend select the PID attributes to request, given in\nmso_mdoc spelling; the SD-JWT VC options translate the two names that differ there (birth_date →\nbirthdate, nationality → nationalities). The default stays at family name, given name and birth\ndate, so existing configuration is unaffected.\nNew SdJwtOnlyBackends and TransactionOptions.SdJwtOnly mirror MdocOnly / MdocOnlyBackends for a\nbackend scoped to an SD-JWT VC certificate; setting both at once throws. New\nSdJwtVctValuesByBackend and GermanPidVctValuesByBackend give per-backend vct lists, mirroring how\nIntendedUseIds backs IntendedUseId. A blank entry drops that credential option, since .NET\nconfiguration cannot express an empty collection through environment variables.\nGermanPidVctValues now also lists urn:eudi:pid:de:1, the identifier the German developer guide\ndocuments for the German PID; the Bundesdruckerei prototype value is kept alongside it.\nIdentityData gained PlaceOfBirth, Nationality, IssuingAuthority and IssuingCountry.\nSD-JWT VC disclosures are now resolved properly: an object hiding properties behind its own _sd\nand an array hiding elements as {\"...\": digest} are both resolved recursively, matched by the\ndisclosure digest and honouring _sd_alg. Earlier versions only applied flat [salt, name, value]\ndisclosures, so a nested place of birth and the nationalities array came through as raw\nplaceholders. A disclosure the payload never references is still applied by name, as before.\nBehaviour change worth noting: claim values that are arrays or objects are no longer dropped\nsilently — arrays are joined with \", \" and objects kept as raw JSON, so AdditionalClaims can now\ncontain entries that earlier versions discarded.\n\n1.2.0 — Fixes two defaults that made the library unusable out of the box.\nBackendUrl now points at https://verifier-backend.eudiw.dev (the REST API). It previously\ndefaulted to https://verifier.eudiw.dev, which serves the Angular demo UI and answers the API\npaths with 405.\nNew VerifierSettings.IntendedUseId (scalar, default \"TEST-01\") is sent as intended_use_id when a\ntransaction carries none of its own — mirroring how ResponseMode backs ResponseModes. Since August\n2026 eudiw.dev rejects any request without one (MissingRegistrationCertificate); TEST-01 is the\npublic test intended use it publishes at GET /ui/intended-uses. A per-backend IntendedUseIds entry\nstill wins; set IntendedUseId to \"\" when pointing at a backend of your own.\nBoth defaults only apply where nothing is configured, so existing configuration is unaffected.\n\n1.1.0 — Multi-backend support: serve several trust ecosystems from one app.\nAdded VerifierSettings.Backends / DefaultBackend / MdocOnlyBackends / IntendedUseIds /\nResponseModes, the TransactionOptions type, intended_use_id on the init request, and the\nGerman EUDI Wallet (Bundesdruckerei prototype) PID as a further SD-JWT VC option.\nNote: InitializeTransactionAsync gained an optional TransactionOptions parameter ahead of\nthe CancellationToken. Calls passing the token by name or omitting it are unaffected;\npositional InitializeTransactionAsync(ct) calls must be updated to (null, ct).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#repository",
+    "commit": "ec4ab885db0da97f7df916ac82f9bb328afec649",
+    "type": "git",
+    "url": "https://github.com/Mibuw/miEUDIverifier"
+  },
+  "verbatimVersion": "1.4.2",
+  "version": "1.4.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#dependencygroup/net8.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#dependencygroup/net8.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#dependencygroup/net8.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#dependencygroup/net8.0/qrcoder",
+          "@type": "PackageDependency",
+          "id": "QRCoder",
+          "range": "[1.6.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#miEUDIverifier.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3260,
+      "fullName": "miEUDIverifier.Core.nuspec",
+      "length": 7653,
+      "name": "miEUDIverifier.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1920,
+      "fullName": "PACKAGE.md",
+      "length": 3978,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#lib/net8.0/miEUDIverifier.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21287,
+      "fullName": "lib/net8.0/miEUDIverifier.Core.dll",
+      "length": 47104,
+      "name": "miEUDIverifier.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#lib/net8.0/miEUDIverifier.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 6192,
+      "fullName": "lib/net8.0/miEUDIverifier.Core.xml",
+      "length": 27310,
+      "name": "miEUDIverifier.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.21.06.24.16/mieudiverifier.core.1.4.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "eudi",
+    "eudi-wallet",
+    "eudi-verifier",
+    "openid4vp",
+    "eidas2",
+    "digital-identity",
+    "verifiable-credentials",
+    "pid",
+    "mdoc",
+    "sd-jwt",
+    "iso18013-5"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

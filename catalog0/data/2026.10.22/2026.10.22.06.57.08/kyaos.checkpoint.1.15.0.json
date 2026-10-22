@@ -1,0 +1,163 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "KYA-OS",
+  "catalog:commitId": "3a45844f-c5b4-4947-aa37-20d81d18c203",
+  "catalog:commitTimeStamp": "2026-10-22T06:57:08.9441143Z",
+  "created": "2026-10-22T06:52:51.087Z",
+  "description": "AI agent detection and policy enforcement for any .NET HTTP server. Install this metapackage and NuGet automatically pulls in the right adapter for your runtime: Checkpoint.AspNetCore on modern .NET (ASP.NET Core 8+), or Checkpoint.AspNet on classic .NET Framework 4.6.2+ (System.Web / IIS). Same WASM-backed Rust detection engine on both stacks — same patterns, same scoring, same updates.",
+  "id": "KyaOs.Checkpoint",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-22T06:56:36.683Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "Ab2Oq3I6vb3ieeJ9HppW05tDiiUl26jNPfw3yoejaZmyfJI5NN76kc7J0J4wwNXFXgxLjYNX3AoNXtNsLndhJQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 19468,
+  "published": "2026-10-22T06:52:51.087Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.15.0\n\nBreaking changes:\n- Removed: The public resolution types `DidWebResolver`, `DidWebLocation`, `EngineDidDocument`, `EngineVerificationMethod`, `IssuerAllowlist`, `JsonWebKey2020Validator`, `SsrfSafeDidFetcher`, `DidFetchResponse`, `StatusIssuerDocuments`, `StatusListRegistry`, `StatusListResolver`, `StatusListResult`, `TtlCache<T>` and `DelegationDidDocs`, the `IResolutionWarmer` members `TryGetDidDoc`, `TryGetStatus` and `RegisterStatus`, and the public `ResolutionWarmer` constructor.\n  The engine decodes documents itself now; use `ResolutionWarmer.CreateDefault`.\n  The published adapters (1.11.9 and 1.14.0) call only `CreateDefault`, `PrimeAsync` and `RefreshTickAsync`, which stay. (#6607)\n- Removed: `AuthorizeInputProjection.IsUnverifiedOptimisticProtocolBlock` and `VerificationMethod.McpIHandshake`.\n  The engine refuses MCP-I and never reports a handshake, so neither was ever reached; `mcp_i_handshake` and `kyaos_handshake` are no longer treated as a verified identity by a composed policy or the dashboard allow list. (#6642)\n\nAdded:\n- Engine-directed resolution: the SDK fetches the DID documents and status lists the engine names for a presented credential, in the background, from public HTTPS hosts only, and answers each request from its cache.\n  A resource not fetched yet is answered 503 `kyaos/identity-pending` or `kyaos/status-pending`; a resource whose fetch failed is decided by the engine (for example `kyaos/did-unresolvable` for a signer's 404), where it used to stay pending.\n  Servers need outbound HTTPS to the trusted roots and to the `did:web` hosts of the agents and issuers they accept. (#6607)\n- `DelegationHolder.CustomerId`: the id after `:users:` in `Subject`, set only when the credential's issuer\n  (the root that signed it) is one of the configured `TrustedDelegationRoots` and `Subject` is exactly\n  `<issuer>:users:<id>`, with one non-empty segment after it. It is null for anything else: a `did:key`, another\n  host's or organization's DID (including a user under a different trusted root than the signer), extra segments, or\n  no trusted roots. A merchant acting as the shopper on a delegated request reads it instead of parsing `Subject`. It\n  is the merchant's own customer id when the shopper signed in on Checkpoint's consent page with the merchant's\n  sign-in (merchant OAuth, credential or token); with Checkpoint's sign-in methods it is an id Checkpoint assigned. (#6367)\n\nChanged:\n- An engine Block is answered as the engine renders it: the kya-os/http registry status for a `kyaos/*` code (for example 401 for `kyaos/missing-signature` and `kyaos/did-unresolvable`, 429 with `Retry-After: 1` for `kyaos/replay-capacity`), the reason-keyed status otherwise, and the engine's JSON body and `X-Checkpoint-*` headers, in either response format and in both adapters.\n  Engine policy blocks now return the engine's status and body, not the configured notice.\n  `BlockedResponse` and the PlainText notice apply only to blocks the SDK decides: the configured `OnAgentDetected` action, the structured dashboard policy, browser posture, and `kyaos/policy-unavailable`, `kyaos/verification-pending` and `kyaos/application-authorization-unavailable`. (#6590)\n- `kyaos/identity-pending` and `kyaos/status-pending` answer with `Retry-After: 1` (was 3). (#6607)\n- A status list must be hosted on its issuer's `did:web` host; a list on another trusted root's host no longer counts. (#6607)\n- A delegation signed by an issuer key listed without assertion authority is refused as 401 `kyaos/did-unresolvable` (it was 403 `kyaos/chain-broken`), like an unlisted key. (#6607)\n- DID documents are refreshed on the engine's maximum age (every 150 seconds for 300) instead of every 55 minutes, and a source that keeps failing is retried at most once per 30 seconds. (#6607)\n- The embedded engines carry a refreshed OpenAI signing-key record (the same key, valid for longer). (#6652)\n\nDeprecated:\n- `CheckpointOptions.StatusListWarmTargets` is no longer used; a set value is logged once at startup. (#6607)\n\nFixed:\n- The embedded engine, in engine-directed resolution, uses only the keys a DID document authorises for each purpose. Not used by the host yet. (#6576)\n- A delegation credential whose status-list index is outside the list is refused (`kyaos/chain-broken`). (#6609)\n- A kya-http/2 request signed by a `did:web` key that is not a trusted root now verifies; it was always `kyaos/did-unresolvable`. (#6607)\n- ASP.NET Core: if adding the discovery `Link` header throws, the middleware logs a warning and sends the\n  response without that header. The header is added when the response starts, so the exception used to fail the\n  application's whole response. (#6386)\n- One 5-second deadline bounds each DID document and status list fetch from the connect to the last body byte, TLS handshake included, so a slow peer cannot hold a fetch past it. (#6674)\n- a Web Bot Auth request verified against OpenAI's key directory is named `ChatGPT`, as Tier 3 names the same agent, instead of `openai`, so a policy that names ChatGPT matches it verified or not. `openai` stays in `metadata.verified_vendor` and `detected_agent.vendor`. (#6652)\n\nOther merged changes:\n- chore(rules): refresh AI vendor IPs 2026-10-21 (#6506)\n\nAlready shipped in an earlier release: #6483.\n\nRelease history: https://github.com/Know-That-Ai/checkpoint/blob/main/packages/checkpoint-dotnet/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#repository",
+    "commit": "42545f7e97e3af2683de955f44c329abf960de82",
+    "type": "git",
+    "url": "https://github.com/Know-That-Ai/checkpoint"
+  },
+  "title": "Checkpoint by KYA-OS",
+  "verbatimVersion": "1.15.0",
+  "version": "1.15.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#dependencygroup/net10.0/checkpoint.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Checkpoint.AspNetCore",
+          "range": "[1.15.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#dependencygroup/.netframework4.6.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#dependencygroup/.netframework4.6.2/checkpoint.aspnet",
+          "@type": "PackageDependency",
+          "id": "Checkpoint.AspNet",
+          "range": "[1.15.0, )"
+        }
+      ],
+      "targetFramework": ".NETFramework4.6.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#dependencygroup/net8.0/checkpoint.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Checkpoint.AspNetCore",
+          "range": "[1.15.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#KyaOs.Checkpoint.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3164,
+      "fullName": "KyaOs.Checkpoint.nuspec",
+      "length": 7134,
+      "name": "KyaOs.Checkpoint.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1461,
+      "fullName": "README.md",
+      "length": 3504,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.22.06.57.08/kyaos.checkpoint.1.15.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "ai",
+    "agent",
+    "detection",
+    "security",
+    "bot",
+    "middleware",
+    "httpmodule",
+    "aspnetcore",
+    "aspnet",
+    "iis",
+    "system.web",
+    "checkpoint",
+    "kya-os"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,224 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jonas Flodén",
+  "catalog:commitId": "69fa0470-b16e-4311-8c5c-af84d33a2352",
+  "catalog:commitTimeStamp": "2026-10-23T20:15:30.3102482Z",
+  "created": "2026-10-23T20:07:36.163Z",
+  "description": "Aspire hosting integration for configurable, per-developer service sources — e.g. a git checkout or a Kubernetes cluster.",
+  "id": "KoalaSoft.Aspire.Hosting.ServiceSources",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-23T20:15:18.757Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "mjMJDB8qy6IL73WuegzN4b/dCN4S53LD7ho/kD4Md3tDGJo3lyTGzInBu/4cZXs+7cg705QIvr9Ut9EUo/wxSQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 687662,
+  "projectUrl": "https://github.com/flojon/aspire-servicesources",
+  "published": "2026-10-23T20:07:36.163Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Breaking\n\n- Deferred checkout is now the default for a cold `\"repository\"` service; `UseDeferredCheckout()` is\n  obsolete (#216). A service whose managed clone does not exist yet used to block\n  `AddService()` until the checkout landed; it now registers stopped and starts once the clone\n  finishes, so the dashboard comes up immediately and one failed clone costs one service rather\n  than the whole AppHost. This is the behaviour `UseDeferredCheckout()` used to opt into — nothing\n  changes for a warm checkout, a `path` override, or `aspire publish`.\n\n  `UseDeferredCheckout()` is now redundant — deferred is what it always asked for, and that is\n  already the default — so it is `[Obsolete]`; delete the call. The new\n  `builder.SetCheckoutTiming(CheckoutTiming.Eager)` is the opt-out for an AppHost that needs every\n  service running by the time `Build()` returns, kept permanently rather than as a migration\n  window, since the package cannot detect an AppHost relying on the old ordering. A deferred\n  `dotnet` service should still declare its own endpoints — `Configure<IResourceWithEndpoints>` in\n  C#, or `withServiceHttpsEndpoint()`/`withServiceHttpEndpoint()` in a guest language (#208) —\n  since a deferred checkout has no launch profile for Aspire to read endpoints from while\n  composing.\n\n  `java` and `javascript` are affected too, not only `dotnet`: both built-in kinds already\n  supported deferral, so a cold checkout of either now defers by default as well, with no endpoint\n  caveat (`java.port` and `javascript`'s allocated `http` endpoint are already fully known from the\n  catalog, not synthesised from a launch profile). One consequence worth calling out: a `prepare`\n  step's post-clone validation — and any `ServiceSourcesConfigurationException` the kind would have\n  thrown at composition on the eager path (a missing wrapper, a bad `workingDirectory`) — now\n  surfaces later, as that service's own resource state, rather than failing the AppHost synchronously\n  at `AddService()`.\n\n- The Aspire floor is now 13.6.1 (was 13.5.2). `Aspire.Hosting` and `Aspire.Hosting.JavaScript`\n  are floored at 13.6.1, so an AppHost still on Aspire 13.5.x gets a mixed Aspire family at restore\n  (`NU1605` against its own `Aspire.AppHost.Sdk` and `Aspire.Hosting.AppHost`). Move the AppHost's\n  `Aspire.AppHost.Sdk`, and any `Aspire.Hosting.JavaScript` reference, to 13.6.1 or later. The\n  generated-code sample now needs Aspire CLI 13.6.1 or later.\n\nAdded\n\n- An AppHost run from a linked git worktree starts from the main worktree's state. Its first run\n  copies `servicesources.local.json` and the saved source picks from the main worktree's AppHost, and\n  a cold `\"repository\"` checkout borrows objects from the main worktree's checkout of the same\n  repository instead of downloading everything. Seeding happens once; afterwards the worktree's\n  files and checkouts are independent. A copied `path` override that resolves differently from the\n  worktree is reported at startup.\n\n- `kind: java` also runs on Aspire's official `Aspire.Hosting.Java` integration (preview).\n  Reference it instead of `CommunityToolkit.Aspire.Hosting.Java` and `java` services run\n  through it, with no catalog or AppHost change. When both are referenced the Community Toolkit's\n  is used, so a package that arrives transitively changes nothing. An official preview older than\n  `13.6.1-preview.1.26506.6` is reported at build time (`SERVICESOURCES003`), or else when the\n  first `java` service resolves. The preview pins package versions that NuGet\n  audit flags; see Installation (docs/getting-started/installation.md#non-net-services). `Unwrap<T>` takes the installed integration's resource type: `Aspire.Hosting.Java.JavaAppResource` for the\n  official package, `JavaAppExecutableResource` for the Community Toolkit's.\n\n- A `dotnet` service can select its launch profile (#415). A new `dotnet:` block in the yaml\n  catalog takes `launchProfileName` (run under that `launchSettings.json` profile) and\n  `excludeLaunchProfile` (run with none), and `WithLaunchProfile(...)` /\n  `ExcludeLaunchProfile()` (`withLaunchProfile` / `excludeLaunchProfile` from TypeScript) are\n  the code-catalog equivalents. It works on the `repository` source (including a deferred first\n  checkout) and the `path` source. Three configuration errors come with it: naming a profile\n  while excluding launch profiles, naming a profile the project's `launchSettings.json` does\n  not contain (or a project with no `launchSettings.json` at all), and a `dotnet:` block, or\n  the code-catalog calls, on a service whose kind is not `dotnet`.\n\n- A `repositories.<name>` entry can use the `\"path\"` source to point a whole `repositoryRef` group\n  at an existing checkout (#416). `{ \"source\": \"path\", \"path\": { \"path\": \"../eShop\" } }` (or\n  `ServiceSources__Repositories__<name>__Source` and `__Path__Path`) redirects every grouped member\n  whose source is `repository` or `path`, so a monorepo AppHost keeps its grouping without repeating\n  a `path.path` per service. A member's own `path.path` still wins, and so does a `path:` its catalog\n  entry declares for a `path` member (the author's layout, not a developer override); members on\n  `url`, `container` or `kubernetes` are left alone, a member that sets its own `repository.ref` is\n  refused at `AddService` whatever the checkout timing (a group's ref is shared, so no member's own\n  applies), a group `ref` is ignored while the group is on `path`, and the builds of the members are\n  serialized like any other `\"path\"` services in one repository. A\n  `repositories` entry naming no declared repository is now reported at startup, as is a\n  `repositories.<name>.path.path` set without `source`, which would otherwise be silently unread.\n  A `prepare` on a `repositories.<name>` entry is never run, so it is ignored with a startup warning\n  (#448); set `path.prepare` on each member service instead. An entry with `source: path` and no\n  `path.path` is refused when the configuration is read.\n\nChanged\n\n- Docs: build serialization needs `ServiceSources:RepositoryRoot` or `buildGroup` when there is no\n  `.git` (#449). Without either, a `repositories.<name>` group directory and a sibling with its own\n  `path.path` inside it are separate build groups and can build concurrently. A test now pins the\n  layout; no behavior changed.\n- A cold `\"repository\"` checkout is no longer cloned at `AddService()`; the dashboard asks which\n  ones to clone and start (#271). In run mode, once the AppHost starts, one dialog lists the\n  services whose managed clone does not exist yet, all checked. Checked services are cloned and\n  started as before; unchecked ones are not cloned (unless a service sharing the repository is\n  picked) and show a `Skipped` state. The answer is\n  remembered in `.servicesources/selection.json` (git-ignored), so the next run asks only about\n  services it has no entry for; delete the file, or one service's entry, to be asked again. Nothing\n  here fails to build, but a service that used to start unattended now waits for the answer.\n\n  An unanswered dialog does not hang the AppHost: closing it, or no answer within 5 minutes, starts\n  every service that was waiting on it, as before, and saves nothing. A run with no dashboard to ask\n  through never prompts and starts every service that has no saved choice, and so does a run where\n  any of the `CI`, `TF_BUILD` (Azure Pipelines) or `JENKINS_URL` (Jenkins) environment variables is\n  set (set `SERVICESOURCES_INTERACTIVE=true` to be asked anyway, or `false` to never be asked). A saved choice made for a different repository than the service now\n  points at is asked about again. A warm checkout, a `path`\n  override, `aspire publish` and `SetCheckoutTiming(CheckoutTiming.Eager)` are unchanged and never\n  prompt. A service that `WaitFor`s a skipped service keeps waiting; the dialog lists what waits on\n  each one. To get the previous behaviour back, call `builder.SetCheckoutTiming(CheckoutTiming.Eager)`\n  before the first `AddService()`.\n\n  Until a deferred service is ready, `aspire resource <name> start`, `stop`, `restart` and `rebuild` are refused\n  with a message saying why (#473, #480); the dashboard disables Start while the clone or a dialog is pending, and keeps it\n  enabled on a `Skipped` service to show that message. A Start or Rebuild refused while the service is still\n  on its way leaves it as it was: it still starts by itself once ready, and anything that\n  `WaitFor`s or `WaitForCompletion`s it keeps waiting instead of failing.\n\n- A changed `prepare` command is confirmed in the dashboard before it re-runs (#298). When\n  the catalog's `prepare` command for a warm managed checkout is not the one that last succeeded\n  there, the dashboard now shows the command and asks before running it; a first use, a moved\n  commit and `always` mode still run unprompted. Only an explicit \"Run\"\n  runs the step: closing the dialog, no answer within 5 minutes or a dialog that cannot be shown\n  declines, and the service shows `Skipped` (restart the AppHost to be asked again). That\n  deliberately differs from the cold-checkout source pick, which starts on timeout, because this is\n  a consent gate on changed catalog code. With no dashboard the step runs unprompted and the log says\n  why. Cost: the one run that needs asking is deferred even though the checkout is warm, so it loses\n  composition-time launch-profile fidelity; `SetCheckoutTiming(CheckoutTiming.Eager)`, `aspire\n  publish` and kinds that cannot defer are unchanged.\n\n  While the dialog is open, and after Skip, Start is refused rather than running the service\n  without the step you were asked to approve (#473).\n\nFixed\n\n- Start no longer runs a deferred service that is still checking out or preparing, and the dashboard\n  no longer offers a Stop that fails with a raw DCP 404 (#473, #480). A Start sent while the\n  service showed `Checking out` or `Preparing` reported success and ran against a checkout that was\n  not ready; it is now refused with a message saying so, and the dashboard hides Stop and disables\n  Restart for those states, and for the other pre-start states, where Stop used to fail because nothing was\n  running.\n\n- Checkout progress lines show paths as written (#481). `Resolving checkout of … into …` and\n  `Checkout ready at …` showed `C:\\\\Users\\\\…` for `C:\\Users\\…`, doubling every backslash in a Windows\n  path; they now read as the path on disk.\n\n- Configuration errors show file paths as written (#486). The \"no source configured\" error and the\n  other messages that name a file or directory on this machine (a misspelled root key, a missing\n  launch settings file, a `path` service that does not exist, a worktree path override, and the like)\n  showed `C:\\\\Users\\\\…` for `C:\\Users\\…`, doubling every backslash in a Windows path; they now read as\n  the path on disk. Values you typed into the configuration are still echoed escaped.\n\n- `asJava`/`asJavaScript` inside an `addServiceCatalog` callback no longer hang a TypeScript\n  AppHost (#463). The first call made inside the nested callback never returned, and after 60s\n  both callbacks timed out with `Callback 'callback_2_…' timed out after 60s` and the AppHost\n  failed. `AsJava()` and `AsJavaScript()` now run off the RPC thread, as `AddServiceCatalog()`\n  already did. C# AppHosts were not affected.\n\n- A `\"repository\"` clone no longer fails on Windows for repositories with long paths, and its\n  leftovers no longer linger (#462). git is now run with `core.longpaths=true` on Windows, the\n  staging directory is named `.incoming-<8 hex>` instead of embedding the service name and a\n  32-character GUID, and a staging directory whose clone died is removed by the next clone in that\n  `checkouts` folder instead of after 24 hours. A clone still running in another AppHost is never\n  touched, and read-only files git leaves in `.git` no longer block the cleanup. See\n  Troubleshooting (docs/troubleshooting.md#long-paths-on-windows). A clone whose pack files —\n  including the temporary ones git writes when it repacks to borrow objects or during a later\n  fetch — would pass `MAX_PATH`, which `core.longpaths` cannot fix, is now refused up front with the\n  length it needs and the fix, each clone keeps `core.longpaths=true` in its own config, and the sweep logs\n  each leftover it removes (#474).\n- Two `\"path\"` services in one repository no longer race on a shared project's `bin/` and\n  `obj/` (#397). Aspire starts independent resources at once, so two services whose projects\n  share a `ProjectReference` ran two builds over the same output directory and one failed\n  intermittently with `MSB4018` or `CS2012`\n  (microsoft/aspire#15190 (https://github.com/microsoft/aspire/issues/15190)). Their builds now run\n  one at a time, before the processes start; the processes still run concurrently. The group is the\n  git repository the service directory sits in, and a new optional `buildGroup` catalog field\n  (`WithBuildGroup` in code) names one explicitly for projects shared across repositories.\n  `buildGroup` is now a reserved key, so a yaml service cannot use a custom `kind` of that name. Managed\n  checkouts are unchanged, and the gate does not apply when an IDE or `dotnet watch` builds the\n  project.\n\n- A failed clone's git output is shown as git wrote it (#465 (https://github.com/flojon/aspire-servicesources/issues/465)). The failure message and the resource log escaped backslashes and apostrophes, so a Windows path read as `D:\\\\Source\\\\…` and an apostrophe as `\\u0027`; they now appear as written, with git's lines joined by ` | `.\n- The error for a `disabled` service's endpoint reads as a sentence and no longer assumes a yaml catalog (#465 (https://github.com/flojon/aspire-servicesources/issues/465)). The advice now starts with a capital and says \"catalog entry\" rather than `servicesources.yaml` entry, which is wrong for a catalog defined in code, and names the code-catalog helpers (`WithRepository`, `WithSharedRepository`, `WithContainer`; `WithProject` for a missing `project`).\n\nFull changelog: https://github.com/flojon/aspire-servicesources/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#repository",
+    "commit": "546dc74458d8f948e7d875bc8a6278402166557a",
+    "type": "git",
+    "url": "https://github.com/flojon/aspire-servicesources"
+  },
+  "verbatimVersion": "0.8.0",
+  "version": "0.8.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net10.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net10.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net8.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net8.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net9.0/aspire.hosting",
+          "@type": "PackageDependency",
+          "id": "Aspire.Hosting",
+          "range": "[13.6.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#dependencygroup/net9.0/yamldotnet",
+          "@type": "PackageDependency",
+          "id": "YamlDotNet",
+          "range": "[18.1.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6293,
+      "fullName": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec",
+      "length": 15939,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 645,
+      "fullName": "LICENSE",
+      "length": 1070,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2603,
+      "fullName": "README.md",
+      "length": 7005,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#buildTransitive/KoalaSoft.Aspire.Hosting.ServiceSources.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 2455,
+      "fullName": "buildTransitive/KoalaSoft.Aspire.Hosting.ServiceSources.targets",
+      "length": 9670,
+      "name": "KoalaSoft.Aspire.Hosting.ServiceSources.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 220111,
+      "fullName": "lib/net10.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 594944,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 219783,
+      "fullName": "lib/net8.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 594432,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 220147,
+      "fullName": "lib/net9.0/Aspire.Hosting.ServiceSources.dll",
+      "length": 594944,
+      "name": "Aspire.Hosting.ServiceSources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.23.20.15.30/koalasoft.aspire.hosting.servicesources.0.8.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "aspire",
+    "dotnet-aspire",
+    "service-discovery",
+    "apphost",
+    "kubernetes",
+    "git",
+    "microservices",
+    "local-development",
+    "port-forward",
+    "external",
+    "container",
+    "url",
+    "multi-repo",
+    "java",
+    "javascript",
+    "polyglot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

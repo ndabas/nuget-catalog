@@ -1,0 +1,189 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Mark Heath & Contributors",
+  "catalog:commitId": "b5cab301-6718-42b3-aad4-35aab438468e",
+  "catalog:commitTimeStamp": "2026-10-24T17:54:21.2744699Z",
+  "copyright": "© Mark Heath 2026",
+  "created": "2026-10-24T17:49:58.957Z",
+  "description": "NAudio is an open source .NET audio library — playback and recording, file readers and writers, MIDI, DSP and effects, plus the core Windows audio backends (WASAPI, Media Foundation and WinMM). ASIO, DMO/DirectSound and WinForms support are separate packages.",
+  "iconFile": "naudio-icon.png",
+  "id": "NAudio",
+  "isPrerelease": true,
+  "lastEdited": "2026-10-24T17:53:54.05Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "kEujZqUxXozTGUEC9chp9rCoXiWrsV2YLDhvR2ioX+v9zBJFuhvdPU1ap6iJ00LFotUzy754nn2YtV3lthjVTA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 35479,
+  "projectUrl": "https://naudio.github.io/NAudio/",
+  "published": "2026-10-24T17:49:58.957Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "* Hardened file parsers against malformed input: SoundFont files with chunk sizes past the end of the file, or out-of-range/out-of-order preset, instrument, bag, generator or sample indices now throw `InvalidDataException` instead of attempting multi-GB allocations or throwing `IndexOutOfRangeException`/`OverflowException`/`ArgumentException`; WAV cue chunks with a corrupt cue-point count no longer over-allocate or throw; an MP3 whose first frame is too small for the Xing/Info fields it flags is treated as having no Xing header instead of throwing from the `Mp3FileReader` constructor (#1502)\n * `SoundFontSampler` skips SoundFont regions with a zero (or out-of-range) sample rate instead of throwing on every note-on (#1502)\n * `MidiFile` now pairs note offs with note ons in constant time, so files with many held notes no longer load in quadratic time (#1502)\n * `WaveInBuffer`, `WaveOutBuffer` and `MidiIn` no longer free buffers the driver still owns when unprepare reports they are still in use, and `MidiIn` bounds sysex reads by the buffer length; `Vst3Module` loads plug-in binaries by full path (#1502)\n * **Breaking:** SFZ `#include` and `sample=` paths that are absolute or UNC/network paths (e.g. `\\\\server\\share\\x.wav`, which on Windows can leak credentials) are now refused; relative paths, including `..\\Samples\\...`, still work. `FileSfzIncludeResolver` and `FileSfzSampleLoader` gain a `rootDirectory` constructor argument to sandbox untrusted SFZ files to a directory, and the shared rules are exposed as `SfzFilePath.Resolve`. `SfzParser` now limits `#include` count and `#define`/`#include` expansion size, and include files are capped at 16 MB (#1501)\n * Fixed native buffer overruns and use-after-free bugs: `WasapiOut` could copy past the WASAPI render buffer if an `IWaveProvider` over-reported its read count; DMO `MediaBuffer.Length` accepted values larger than the buffer; `MediaObject.GetInputType`/`GetOutputType`/`GetOutputCurrentType` returned media types pointing at freed memory (`GetWaveFormat()` on them now throws `InvalidOperationException`); `Vst3Plugin` overflowed its native buffers for a huge `maxBlockSize`; macOS `CoreAudioPlayer` could write past the HAL buffer list when the device's stream count shrank; `MediaFoundationReader` could `PropVariantClear` uninitialised memory for media without a duration (#1501)\n * **macOS wrappers (preview)**: Fixed Extended Audio File Services reader/writer settings contract to be more accurate after the nullable change landed in #1486. New APIs in the `AudioFileLibraryInformation` class were also added. (#1500)\n * **Breaking:** `WaveFormat.FromFormatChunk` (and so `WaveFileReader.WaveFormat`, `AudioFileReader` and anything else reading a WAV fmt chunk) now returns the most specific format type instead of always returning a `WaveFormatExtraData` — a `WaveFormatExtensible`, `AdpcmWaveFormat`, `Gsm610WaveFormat` or `Mp3WaveFormat` where the encoding and extra data allow, a plain `WaveFormat` where there is no extra data, and a `WaveFormatExtraData` only for an encoding with no dedicated subclass. This is the same choice `WaveFormat.MarshalFromPtr` makes, so a format read from a file and the same format read from a native pointer now come back as the same type. Code casting a reader's `WaveFormat` to `WaveFormatExtraData`, or unpacking a `SubFormat` GUID out of its `ExtraData`, should pattern-match on `WaveFormatExtensible` (or call `AsStandardWaveFormat()`) instead (#1497)\n * `WaveFormat.MarshalFromPtr` now decodes a WAVE_FORMAT_MPEGLAYER3 block into an `Mp3WaveFormat` rather than a `WaveFormatExtraData` when its cbSize accounts for the 12 MPEGLAYER3WAVEFORMAT bytes (#1497)\n * A `WaveFormat` subclass decoded from a format block now reports the `ExtraSize` its `Serialize` actually writes, so a block whose cbSize over-reported the extension (drivers pad it, and a fmt chunk can be padded too) no longer round-trips into a fmt chunk shorter than the cbSize it advertises (#1497)\n * Added `BufferedWaveProvider.CompleteAdding()` and `IsAddingCompleted`, so a producer can end the stream: `Read` drains the buffer, returns one unpadded short read even with `ReadFully`, then 0. Added `UnderrunSilenceBytes`, `DiscardedBytes` and `ResetCounters()` to show silence inserted on underrun and audio dropped on overflow (#1492)\n * Added `MixingSampleProvider.CompleteAdding()` and `IsAddingCompleted`, so a `ReadFully` mixer ends once its current inputs have ended; `AddMixerInput` after it throws `InvalidOperationException` (#1492)\n * **`WdlResamplingSampleProvider` now defaults to sinc resampling** - a new `WdlResamplerQuality` constructor argument selects the algorithm, and the default is now `Sinc64` (64-tap windowed sinc) instead of linear interpolation with IIR filtering, which lost about 2 dB at 10 kHz and 20 dB at 18 kHz and let aliasing through. This is a behaviour change: output samples differ, CPU use is a little higher and about 0.8 ms of latency is added. Pass `WdlResamplerQuality.Linear` to keep the old output exactly. See [Resampling](Docs/Resampling.md) (#1491)\n * Added `WdlResamplingSampleProvider.HoldBackOnShortReads` for sources that return short reads mid-stream (e.g. `BufferedWaveProvider` with `ReadFully` off): in sinc mode it holds back the last few output samples of a short read until their input arrives, instead of computing them from silence. `WdlResampler.ResampleOut` gains a matching overload with a `flush` argument (#1491)\n * `NAudio.Asio` is now Native AOT compatible. The driver binding no longer uses reflection or runtime marshalling: the IASIO vtable is bound with typed function pointers, and channel info, clock sources and callbacks go through blittable structs. The public API is unchanged. A new test drives the binding against an in-process fake driver, and CI runs it as a Native AOT executable. Also fixed `AsioDriver.DisposeBuffers` freeing its callback table twice when called again, e.g. by `ReleaseDriver` after a failed `AsioDevice.Reinitialize` (#1487)\n * **New package: NAudio.Nam** - native C# inference for [Neural Amp Modeler](https://www.neuralampmodeler.com/) captures. Loads A2 (A2-Lite and A2-Full), A1 WaveNet and LSTM `.nam` models and runs them as an allocation-free `NamEffect` (zero latency at the model's sample rate, with built-in sinc resampling at other rates), or through `NamProcessor` for ASIO callbacks. Output matches NeuralAmpModelerCore to within float rounding. See `Docs/NeuralAmpModeler.md` (#1498)\n * Added `CabinetEffect`, a zero-latency guitar/bass cabinet simulator: it loads an impulse response from a WAV file at any sample rate, resamples it to the stream rate, and optionally trims its silent tail and normalises its level (#1498)\n * Added a zero-latency mode to `PartitionedConvolver` (new constructor overload) and `ConvolutionReverbEffect` (`ZeroLatency`), which applies the first partition of the impulse response directly so there is no partition delay (#1498)\n * `PartitionedConvolver` (and so `ConvolutionReverbEffect`) is about 2-3x faster: the frequency-domain multiply-accumulate is now vectorised (#1498)\n * Fixed `WdlResampler` (and so `WdlResamplingSampleProvider`) allocating a new input buffer on most calls when the block size varied; the buffer now only grows, so steady-state resampling is allocation-free in both output-driven and input-driven mode (#1498)",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "1190984f5eaf2c862a50c3e70e20be0c68ffec2b",
+    "type": "git",
+    "url": "https://github.com/naudio/NAudio"
+  },
+  "verbatimVersion": "3.4.0-preview.1",
+  "version": "3.4.0-preview.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#dependencygroup/net9.0/naudio.core",
+          "@type": "PackageDependency",
+          "id": "NAudio.Core",
+          "range": "[3.4.0-preview.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#dependencygroup/net9.0/naudio.midi",
+          "@type": "PackageDependency",
+          "id": "NAudio.Midi",
+          "range": "[3.4.0-preview.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#dependencygroup/net9.0/naudio.wasapi",
+          "@type": "PackageDependency",
+          "id": "NAudio.Wasapi",
+          "range": "[3.4.0-preview.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#dependencygroup/net9.0/naudio.winmm",
+          "@type": "PackageDependency",
+          "id": "NAudio.WinMM",
+          "range": "[3.4.0-preview.1, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#naudio-icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 4477,
+      "fullName": "naudio-icon.png",
+      "length": 4853,
+      "name": "naudio-icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#NAudio.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4032,
+      "fullName": "NAudio.nuspec",
+      "length": 8942,
+      "name": "NAudio.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1908,
+      "fullName": "README.md",
+      "length": 4374,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#lib/net9.0/NAudio.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 5781,
+      "fullName": "lib/net9.0/NAudio.dll",
+      "length": 11264,
+      "name": "NAudio.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#lib/net9.0/NAudio.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1808,
+      "fullName": "lib/net9.0/NAudio.xml",
+      "length": 7833,
+      "name": "NAudio.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#_manifest/spdx_2.2/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2042,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json",
+      "length": 9736,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.24.17.54.21/naudio.3.4.0-preview.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "C#",
+    ".NET",
+    "audio",
+    "sound"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

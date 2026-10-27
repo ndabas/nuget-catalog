@@ -1,0 +1,168 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Katragadda",
+  "catalog:commitId": "2afde686-af26-4c3a-b642-213002f1c135",
+  "catalog:commitTimeStamp": "2026-10-26T18:39:30.0046241Z",
+  "created": "2026-10-26T18:34:07.083Z",
+  "description": "Build-time object mapping for .NET. Declare partial mapping methods in a [GeneratedMapper] class and ConventionMapper writes plain C# mapping code into your project at compile time: no reflection, Native AOT and trimming safe, as fast as hand-written code and debuggable. Unmapped members are build errors.",
+  "developmentDependency": true,
+  "iconFile": "icon.png",
+  "id": "ConventionMapper.SourceGenerator",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-26T18:38:55.963Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "fASh+33tjQiRe/t1XRdJS5w77EmcoGggcd8KuLPDDl3yGml1eWTL5phsmLvghDwOF14yv9GUUwDGF3Etde1/ig==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 113183,
+  "projectUrl": "https://github.com/katragvb/Conventionmapper",
+  "published": "2026-10-26T18:34:07.083Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## 1.8.0 (2026-10-26)\n\nChanges from migrating a large codebase to the source generator.\n\n**Upgrading:** projects with `TreatWarningsAsErrors` may see new warnings fail the build: mark intended conversion methods `[MapConversion]` (CM0017), allow intended parsing with `[MapAllowParse]` (CM0016), and re-record data-flow report snapshots (new format). New ambiguity errors (CM0015) point at bindings that were guesses before.\n\n### Source generator: silent-wrong-code guards\n- **Ambiguous bindings are errors (CM0015).** A destination member that matches a property and a `Get` method (`Total` / `GetTotal()`), two members differing only in case, two flattenings (`Billing.AddressCity` / `BillingAddress.City`), or a parameter and a flattened path (`customerName` / `Customer.Name`) used to bind silently to one of them. Choose with `[MapMember]`. A parameter still wins over a source member with the destination's own name. Explicit paths now prefer an exact-case match.\n- **Parsing and narrowing conversions are warnings (CM0016).** `int.Parse`, `Enum.Parse` and `checked` narrowing casts (`long` → `int`) can throw or lose data at runtime. Allow them per member with `[MapAllowParse(\"Code\")]` on the method or class. A root conversion method (`int Map(string)`) is not flagged.\n- **Conversion-method trap (CM0017).** A one-argument static method in a `[GeneratedMapper]` class is still used as a conversion wherever its types meet, but now warns until it is marked `[MapConversion]`. `[GeneratedMapper(RequireMapConversion = true)]` uses only marked methods. A `[MapConversion]` method of the wrong shape is error CM0018.\n- **Error CM0014** (from the unreleased 1.7.1): a `[MapMember]` source path that matched both a source member and a method parameter (case-insensitively, e.g. `\"CreateUser\"` and `createUser`) was bound to the parameter, which could generate wrong code such as `int.Parse(createUser)`.\n\n### Source generator: shared configuration\n- **`[MapInherit(nameof(ToImportData))]`** reuses another method's `[MapExplicit]`, `[MapMember]`, `[MapIgnore]`, `[MapNullSubstitute]` and `[MapAllowParse]`, for example on an overload with extra parameters. The method's own attributes are added and win; a parameter overrides an inherited `[MapIgnore]` for its member. Different source or destination types, an unknown name or a cycle is error CM0019. Projections can inherit from create methods.\n\n### Source generator: projections\n- **Warning CM0021** for projection parts EF Core can't translate to SQL or runs on the client: custom conversion methods, and `ToString()` on dates, floating-point numbers, decimals, booleans and enums.\n- **`[GeneratedMapper(Provider = \"SqlServer\")]`** (also `PostgreSql`, `Sqlite`, `Cosmos`, `InMemory`) tunes those warnings to the provider: none for `InMemory`, more for `Cosmos`. The generated expressions are the same for every provider. Unknown names are warning CM0022.\n\n### Data-flow report\n- **Sections per mapping method**, with overloads grouped under one heading and nested type pairs under \"Nested maps\". **This changes the report format**: re-record existing snapshots once.\n- **\"Review first\"** lists key-like members (`Id`, `CustomerId`, `[Key]`) written by convention and unallowed parsing or narrowing conversions; such rows are marked ⚠.\n- **\"Conversion methods\"** lists every conversion method used and the members it was applied to; rows note `via Format()`.\n- **`DataFlowReport.ByMapper`**: the report of each mapper class on its own.\n- **Snapshot helpers** generated into the assembly: `DataFlowReport.AssertMatches(\"data-flow.md\")` (one file) and `DataFlowReport.AssertMatchesDirectory(\"data-flow\")` (one file per mapper class, so PRs touching different maps don't conflict). Paths are relative to the calling test file; a missing file is created; a mismatch fails with a line diff; `CONVENTIONMAPPER_UPDATE_SNAPSHOTS=1` re-records; line endings and trailing spaces are ignored.\n\n### Generated code in pull requests\n- **`<ConventionMapperEmitGeneratedCode>Generated</ConventionMapperEmitGeneratedCode>`** writes the generated mapping code into the project folder on every local build, and fails CI builds (`ContinuousIntegrationBuild`, `CI=true` or `TF_BUILD`) with CM0100 when the committed copy is out of date. Reviewers see code diffs instead of attribute diffs.\n- **`<ConventionMapperGeneratedDocs>true</ConventionMapperGeneratedDocs>`** adds XML docs to generated methods listing each member's source, shown on hover. A declaration's own doc comment is kept and the data flow goes into `<remarks>`.\n\n### Testing\n- **`WriteSets`** on every mapper class: the members each generated method writes, by `\"Name(ParameterTypes)\"` (and `\"Name\"` without overloads).\n- **New package `ConventionMapper.Testing`**: `MapperAssert.WritesExactly` fills a source object and checks exactly which members a map writes (against a list or a generated write set); `MapperAssert.UpdatesExactly` for update methods; `MapperAssert.AllMethodsCovered(typeof(Mappings), testAssembly)` fails when a mapping method has no test; `SampleData.Create<T>()`. No test-framework dependency.\n\n### IDE\n- CM0001 offers \"Ignore 'X'\", \"Ignore all N unmapped members\" and \"Map only the mapped members ([MapExplicit])\"; in explicit mode \"Remove 'X' from [MapExplicit]\".\n- Hidden CM0020 with a fix (also for a whole document, project or solution) that turns member-name strings in mapping attributes into `nameof(Type.Member)`, so renames are refactor-safe.\n- CM0023 (info) on `var x = s.ToY(); x.A = ...; x.B = ...;` after a generated mapping. The fix adds an overload `[MapInherit(nameof(ToY))] ToY(S s, A a, B b)` (or reuses one) and passes the values to it.\n- The source generator package now contains these fixes.\n\n### Packages\n- Every package contains `CHANGELOG.md`, and its release notes are the section for its version, so the NuGet UI shows what changed.\n\nFull history: CHANGELOG.md in this package, or https://github.com/katragvb/Conventionmapper/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#repository",
+    "commit": "c9e4c143db577e129fad8518127c7c9462d166cc",
+    "type": "git",
+    "url": "https://github.com/katragvb/Conventionmapper"
+  },
+  "verbatimVersion": "1.8.0",
+  "version": "1.8.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#ConventionMapper.SourceGenerator.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3309,
+      "fullName": "ConventionMapper.SourceGenerator.nuspec",
+      "length": 7199,
+      "name": "ConventionMapper.SourceGenerator.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6201,
+      "fullName": "CHANGELOG.md",
+      "length": 15057,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 7922,
+      "fullName": "README.md",
+      "length": 21556,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 9340,
+      "fullName": "icon.png",
+      "length": 9423,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#analyzers/dotnet/cs/ConventionMapper.SourceGenerator.CodeFixes.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14443,
+      "fullName": "analyzers/dotnet/cs/ConventionMapper.SourceGenerator.CodeFixes.dll",
+      "length": 31744,
+      "name": "ConventionMapper.SourceGenerator.CodeFixes.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#analyzers/dotnet/cs/ConventionMapper.SourceGenerator.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 54394,
+      "fullName": "analyzers/dotnet/cs/ConventionMapper.SourceGenerator.dll",
+      "length": 172032,
+      "name": "ConventionMapper.SourceGenerator.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#build/ConventionMapper.SourceGenerator.props",
+      "@type": "PackageEntry",
+      "compressedLength": 138,
+      "fullName": "build/ConventionMapper.SourceGenerator.props",
+      "length": 233,
+      "name": "ConventionMapper.SourceGenerator.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#build/ConventionMapper.SourceGenerator.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 1684,
+      "fullName": "build/ConventionMapper.SourceGenerator.targets",
+      "length": 5299,
+      "name": "ConventionMapper.SourceGenerator.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.26.18.39.30/conventionmapper.sourcegenerator.1.8.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "mapper",
+    "object-mapper",
+    "mapping",
+    "dto",
+    "source-generator",
+    "roslyn",
+    "aot",
+    "compile-time",
+    "codegen"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

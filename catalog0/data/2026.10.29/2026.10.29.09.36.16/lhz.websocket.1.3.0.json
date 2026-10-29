@@ -1,0 +1,235 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "LHZ",
+  "catalog:commitId": "2a54ee9a-9bcf-4b41-8841-ca9b59a7a342",
+  "catalog:commitTimeStamp": "2026-10-29T09:36:16.2499624Z",
+  "created": "2026-10-29T09:32:11.79Z",
+  "description": "A lightweight, zero-dependency WebSocket library for .NET, implementing RFC 6455 from the ground up using raw TcpListener/TcpClient. Supports both server-side and client-side WebSocket connections.",
+  "iconFile": "logo.png",
+  "id": "LHZ.WebSocket",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-29T09:35:55.827Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "uUNfPMhObJEJ+3UecH7g14QGip0ZLMj2FrHl994cvMgBc18xdRv+LkkfDMeF+0kA6nKs+mW3pvsvwOGWiOOAFQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 213487,
+  "projectUrl": "https://github.com/lhzcm/LHZ.WebSocket",
+  "published": "2026-10-29T09:32:11.79Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.3.0:\n- BREAKING: IWebSocketClient gained Close(CloseCode, string?), so any third-party implementation of the interface must be updated\n- BREAKING: DataFrame is now backed by a pooled buffer and implements IDisposable. DataFrame.Data and DataFrameHeader return spans, and DataFrameHeaderFull was removed. Callers using Data.Count/Data.Array/Data.Offset must switch to Data.Length and span indexing, and must dispose frames they create\n- Change: Close() now sends a Close frame (1000) and gives the outgoing queue up to 5 s to flush before tearing down. New overload Close(CloseCode, string?), the reason is limited to 123 UTF-8 bytes\n- Change: an exception thrown by a user event handler is reported through OnError and no longer closes the connection, and each subscriber is invoked separately\n- Change: a peer that drops the TCP connection closes the client quietly instead of raising OnError or writing to the console\n- Perf: frame buffers are pooled and text is encoded straight into the pooled frame buffer. On a loopback echo benchmark against 1.2.0, single-message round trip latency is about 33 percent lower with about 45 percent fewer allocations, and pipelined small messages are 42-65 percent faster with 28-57 percent fewer allocations\n- Fix: sending after the connection is closed throws ChannelClosedException instead of queueing silently until the bounded channel fills and the synchronous Send blocks forever\n- Fix: Send() no longer throws InvalidOperationException when the outgoing channel is full\n- Fix: DataFrame.CreateDataFrame(string) produced a non-final (FIN=0) frame\n- Fix: CreateDataFrame(Stream) used the wrong header length for a short final fragment and dropped the terminating FIN frame when the stream ended exactly on a fragment boundary\n- Fix: WebSocketServer.Stop no longer overwrites the state of a server that was restarted in the meantime\n- Add: the declared payload length is validated from the frame header alone, so non-minimal 16/64-bit length encodings, control frames over 125 bytes and data frames over MaxMessageSize (1009) are refused before any buffer is allocated\n- Add: HTTP handshake lines are capped at 8 KB and headers at 100, the server answers 431\n\n1.2.0:\n- BREAKING: long-standing misspellings in the public API were corrected. Rename call sites as follows: ClientStatus.Opend -> ClientStatus.Opened, OnCloseRecived -> OnCloseReceived, OnPingRecived -> OnPingReceived, OnPongRecived -> OnPongReceived, DataFrame.DataDataFrameFlag -> DataFrame.DataFrameFlag. The old names are gone rather than deprecated, so this is a compile error you fix once, not a silent behaviour change\n- BREAKING (named arguments only): two parameters were renamed - CreateWebSocketClient's timeOUt -> timeOut, and CreateDataFrame's dataDataFrameLength -> dataFrameLength. Positional callers are unaffected\n- BREAKING: IWebSocketClient gained members (the async send methods, MaxMessageSize and OnError), so any third-party implementation of the interface must be updated\n- Fix: frames larger than 65535 bytes wrote an uninitialized 64-bit length field, because the send path rents an uncleared buffer from ArrayPool. The peer read a bogus length and the connection desynchronized\n- Fix: ApplyMask masked too few bytes for payload segments with a non-zero offset\n- Fix: the sender could return the same pooled buffer twice, corrupting ArrayPool for the whole process\n- Fix: an all-zero masking key was treated as \"not masked\", dropping the MASK bit\n- Fix: OnClientConnected was declared and documented but never raised\n- Fix: Close() was check-then-act, so concurrent callers could double-dispose the socket and raise OnClientClose more than once\n- Fix: close codes 3000-4999 are accepted per RFC 6455 §7.4 instead of being treated as errors; reserved codes (1004, 1005, 1006, 1015) are now rejected and never echoed back\n- Fix: the handshake timeout could dispose the stream while the 101 response was being written, and its timer outlived every connection\n- Fix: the server could stay stuck in the Closing state, making Start() refuse to run again\n- Fix: header serialization no longer comma-joins multiple values and no longer throws on a header with no values\n- Fix: HTTP response status codes are parsed numerically, so unusual codes no longer throw\n- Fix: CreateWebSocketClient no longer mutates the caller's header collection, disposes the socket when the handshake fails, and rejects wss:// explicitly instead of connecting in plaintext\n- Fix: the client handshake key is drawn from a cryptographic RNG instead of Guid.NewGuid\n- Add: protocol validation the implementation previously lacked - reserved bits must be zero, incoming frames must match the peer's masking role, control frames are capped at 125 bytes, text payloads must be valid UTF-8 (1007)\n- Add: MaxMessageSize (default 4 MiB) caps reassembled messages, closing the unbounded-memory path a peer could open by never setting FIN\n- Add: automatic Pong reply to Ping, as required by RFC 6455 §5.5.2\n- Add: SendMessageAsync, SendByteAsync, PingAsync and PongAsync, so sending no longer has to block when the outgoing queue is full\n- Add: OnError on both client and server, and WebSocketProtocolException, replacing Console.WriteLine as the only way to observe failures\n- Add: WebSocketServer.Status\n- Change: a protocol violation now sends a Close frame stating the reason before the connection is failed\n\n1.1.1:\n- Fix: handshake handling is now concurrent, a slow client no longer blocks the accept loop\n- Fix: client-role connections now mask every outgoing frame (RFC 6455 §5.1), with a cryptographic masking key\n- Fix: the client collection is now per server instance instead of static\n- Fix: OnClientClose event subscription no longer leaks\n- Fix: masking no longer mutates the caller's buffer\n- Fix: client handshake can parse restricted response headers (e.g. Connection)\n- Add: server-side handshake validation (Sec-WebSocket-Key / Sec-WebSocket-Version 13) with HTTP 400 rejection\n- Add: automatic Close frame reply on receiving a Close frame\n- Add: fragmentation validation (reject orphan Continuation frames, control frames are never merged into messages)\n- Add: 10 interop tests (client-server round trip, masking, concurrent handshakes, handshake validation, close reply, fragmentation)",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#repository",
+    "commit": "b67b9a38a92df1488772fdde160d56007a8588f5",
+    "type": "Git",
+    "url": "https://github.com/lhzcm/LHZ.WebSocket"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "1.3.0",
+  "version": "1.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#dependencygroup/net5.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net5.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#LHZ.WebSocket.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3227,
+      "fullName": "LHZ.WebSocket.nuspec",
+      "length": 7586,
+      "name": "LHZ.WebSocket.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4904,
+      "fullName": "README.md",
+      "length": 15568,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#README.zh-CN.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5500,
+      "fullName": "README.zh-CN.md",
+      "length": 15276,
+      "name": "README.zh-CN.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net10.0/LHZ.WebSocket.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25828,
+      "fullName": "lib/net10.0/LHZ.WebSocket.dll",
+      "length": 54784,
+      "name": "LHZ.WebSocket.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net10.0/LHZ.WebSocket.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10174,
+      "fullName": "lib/net10.0/LHZ.WebSocket.xml",
+      "length": 62641,
+      "name": "LHZ.WebSocket.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net5.0/LHZ.WebSocket.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25896,
+      "fullName": "lib/net5.0/LHZ.WebSocket.dll",
+      "length": 55296,
+      "name": "LHZ.WebSocket.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net5.0/LHZ.WebSocket.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10174,
+      "fullName": "lib/net5.0/LHZ.WebSocket.xml",
+      "length": 62641,
+      "name": "LHZ.WebSocket.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net6.0/LHZ.WebSocket.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26050,
+      "fullName": "lib/net6.0/LHZ.WebSocket.dll",
+      "length": 55808,
+      "name": "LHZ.WebSocket.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net6.0/LHZ.WebSocket.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10174,
+      "fullName": "lib/net6.0/LHZ.WebSocket.xml",
+      "length": 62641,
+      "name": "LHZ.WebSocket.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net8.0/LHZ.WebSocket.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25829,
+      "fullName": "lib/net8.0/LHZ.WebSocket.dll",
+      "length": 55296,
+      "name": "LHZ.WebSocket.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net8.0/LHZ.WebSocket.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10174,
+      "fullName": "lib/net8.0/LHZ.WebSocket.xml",
+      "length": 62641,
+      "name": "LHZ.WebSocket.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net9.0/LHZ.WebSocket.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25829,
+      "fullName": "lib/net9.0/LHZ.WebSocket.dll",
+      "length": 54784,
+      "name": "LHZ.WebSocket.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#lib/net9.0/LHZ.WebSocket.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10174,
+      "fullName": "lib/net9.0/LHZ.WebSocket.xml",
+      "length": 62641,
+      "name": "LHZ.WebSocket.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#logo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 3342,
+      "fullName": "logo.png",
+      "length": 3878,
+      "name": "logo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.29.09.36.16/lhz.websocket.1.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "websocket"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

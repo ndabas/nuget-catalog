@@ -1,0 +1,214 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "AvaloniaUI OÜ",
+  "catalog:commitId": "e3eb6c49-2c23-4cf6-aed6-69740dff74dc",
+  "catalog:commitTimeStamp": "2026-10-28T12:56:30.4521682Z",
+  "copyright": "Copyright 2019-2026 © AvaloniaUI OÜ",
+  "created": "2026-10-28T12:53:15.623Z",
+  "description": "Core FlowDocument model, text engine, and rendering primitives for Avalonia rich text support",
+  "iconFile": "icon.png",
+  "id": "Avalonia.Controls.Documents",
+  "isPrerelease": false,
+  "lastEdited": "2026-10-28T12:56:21.353Z",
+  "listed": true,
+  "packageHash": "/p1EfSJm5BnX0qe+RnPL5D1qNG+Q03oAzYyRqYp28J0Jj4VESW1ZstHvhK2ZYiqjuunQC6FNUjCpD4kTcc8UcQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 839177,
+  "projectUrl": "https://avaloniaui.net/",
+  "published": "2026-10-28T12:53:15.623Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## 12.4.0\n\n### Features\n- Bookmarks: a text block can carry names that a link reaches through the fragment `#name`. `TextRange.AddBookmark` and `RemoveBookmark` change them with undo, `Block.Bookmarks` reads them, and `BlockSnapshotNode.Bookmarks` and `DocumentSnapshotBuilder.AddParagraphBookmark` carry them through snapshots. The names live in the text model, so they survive snapshots, undo, copy and paste with no element realized. A name stays with the first half when its block splits, moves to the surviving block on a merge, and goes with a block that is deleted whole; a pasted block whose name the document already carries arrives without it.\n- In-document links navigate. A click on a `RichHyperlink` whose `NavigateUri` is a fragment (`#name`), when nothing handles `RequestNavigate`, scrolls every view (`FlowDocumentScrollViewer`, `FlowDocumentPageViewer`, `RichTextEditor`) to the block the name addresses and moves the caret there. In page layout the target's page shows from the top of its sheet, as `BringPageIntoView` places it, and scrolls further only when the target sits below the first screen of the page. The name is looked up as a bookmark, then as a fragment a block derives from its text (a markdown heading's slug), then as a footnote label; a link inside a footnote or page band also finds names in the main document. A fragment that names nothing is no longer handed to the platform launcher, which opened nothing.\n\n### Behavioural changes\n- A line break (`RichLineBreak`, Shift+Enter, a break read from DOCX, HTML or markdown) is a single line feed in the document text on every platform. It was `Environment.NewLine`, two characters on Windows, so `TextPointer.GetPositionAtOffset`, `CreatePointer(int)`, hit testing and selection could produce an offset between its CR and LF, and every edit had to widen or snap around that. `TextRange.Text`, `TextDocument.GetText` and `TextChangeEventArgs.InsertedText` now return `\\n` for a break, and a break shifts the offsets after it by one instead of two on Windows. Plain-text export already wrote `\\n` and is unchanged.\n- `TextDocument.TextChanged` is raised once per operation, with the operation's net change: `[Offset, Offset + OldLength)` before it is `NewLength` characters after it. An operation is an outermost change scope (`BeginChange`, a keystroke, a paste, one undo or redo step), and `DocumentChangedEventArgs.TextChanges` carries the same single change. It was raised per internal edit, and only on the text paths: typing over a selection, Shift+Enter, `ReplaceText` and `RichRun.Text` raised several events, Enter reported a deletion of text it only moved, a paste of two paragraphs reported -2 characters, an undo reported part of its change and `Blocks.Remove` reported nothing. The region covers every character the operation wrote, without comparing the text to find what stayed the same. A paragraph boundary is not a character: splitting a paragraph (Enter) or joining adjacent ones (Backspace or Delete at the boundary) writes no text and raises no event, and neither does its undo or redo. Shift+Enter, or Enter in a preformatted block, inserts a line feed and reports an `Insert`. `InsertedText` is read from the document on first access instead of being copied for every event, and is no longer cut off at an internal text segment.\n- `TextRange.ReplaceText` and `ReplaceTextAt` behave like typing over the range: blocks and inlines the range covers whole are removed (a footnote anchor takes its note along), and the partially covered blocks at either end join. They left a covered paragraph behind as an empty block and a covered table as a table without rows. The returned pointer is still at the start of the new text, and undo restores the range in one step.\n- Setting `RichRun.Text` keeps the run in the document with its formatting. It emptied the run first, which removed it from the document (its `Text` then read back empty) and put the new text into the next run with that run's formatting. This holds for empty text too: a run set to `\"\"` stays in its paragraph, and text set on it or inserted at its `ContentStart` later goes into it with its formatting. Setting `Text` raises one `Replace` change and undoes in one step, back into the same run.\n- A deletion that removes or joins inlines (across two runs, over a whole run, over a line break or embedded object) undoes from a snapshot of its block, as structural edits do, so the inlines after undo are new element instances; undoing a paragraph merge likewise brings the merged-away paragraph back as a new `Paragraph`. A deletion inside one run keeps the run element across undo. Code that keeps element references across an undo has to look them up again.\n- `TextPointer.InsertText` on a pointer whose position has left the document (its paragraph was replaced or removed) re-resolves the pointer by offset first. It wrote into the detached content, so the text never appeared.\n\n### Fixes\n- Plain-text export writes a markdown heading or code block (any block kind registered for a `Paragraph` subclass) as a paragraph. It recognised only the built-in paragraph kind and dropped these blocks with their text.\n- Copying part of a list item, table cell or section no longer brings its container along. A range snapshot always captured from the top-level block down, so selecting one word of a bullet point copied a one-item list holding that word: pasting it added a new bullet, and the plain text put a bullet marker in front of the word. A selection that stays within one paragraph of a nested block now copies that paragraph alone, with its inline formatting, whether it covers a word or the item's whole text. A selection that covers the whole top-level container (Select-All over a one-item list, a section's content range) or spans several items still copies the container.\n- A line break read from RTF (`\\line`) or XAML (`<RichLineBreak />`) shows the text after it. These readers built a break with no character in the text (`LineBreakInlineDraft` without `PreserveTextContent`), the text source ended the paragraph at it, and the rest of the paragraph was never laid out; `GetText` and plain-text export ran the two lines together. `DocumentSnapshotBuilder` now gives every line break its line feed, and `LineBreakInlineDraft.PreserveTextContent` has no effect.\n- Undoing a property set on a block (`TextAlignment`, `Foreground`, any inherited property) takes one step. Every inline that inherited the value recorded a step of its own, so the first undo seemed to do nothing, and undoing those steps set the old value on each inline locally, which stopped it from inheriting from its block afterwards.\n- Undo restores the formatting of the text it brings back. Deleting across two plain runs came back as one run, and setting `RichRun.Text` on a bold run or replacing text across a formatted run came back as plain text in the neighbouring run.\n- Undo and redo after an intervening structural undo edit the live document. A step that remembered a paragraph or table edited the copy the structural undo had replaced, while its text went to the live document, so the document's structure and its text disagreed. A property change (alignment, color, any element property) likewise undid and redid on the element it was made on, which a structural undo in between had replaced, so the block in the document kept its value. Undoing the removal of a page band brought the band back but bound its header and footer slots on the replaced section, so the section in the document showed none.\n- Applying a hyperlink or inline formatting up to the middle of a run that had not been displayed yet (a run loaded from a file and scrolled out of view) covered the rest of the run too.\n- Replacing all of a paragraph's text left the new text in the paragraph without a run to hold it.\n- Deleting a table column that held a line break or a footnote anchor left those characters behind, so the document length no longer matched its content. The column's footnote anchors now take their notes along.\n- Clearing selected table cells, or replacing text over a footnote anchor, removed the anchor but kept its numbered note.\n- Custom paragraph kinds (a markdown heading, a task item's paragraph) take part in everything a paragraph does: formatting promotion and Clear Formatting, inline containment, footnote anchor repaint and table cell merges. Pasting paragraphs at the end of a heading merges the first one into it, pasting inside one splits it, and pasting at its start keeps the heading; a code block takes pasted paragraphs as lines.\n\n### Performance\n- Typing or streaming text at the end of a document collects small appends into one buffer instead of creating a text segment per character, and reading the text no longer flushes that buffer. 5000 one-character appends went from 550 us and 2.57 MB to 18 us and 11 KB.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#repository",
+    "commit": "e99fc3461b1968f2754a92db9714251aa8048b9e",
+    "type": "git"
+  },
+  "verbatimVersion": "12.4.0",
+  "version": "12.4.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#dependencygroup/net10.0/avalonia",
+          "@type": "PackageDependency",
+          "id": "Avalonia",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#dependencygroup/net10.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#dependencygroup/net10.0/sixlabors.imagesharp",
+          "@type": "PackageDependency",
+          "id": "SixLabors.ImageSharp",
+          "range": "[4.1.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#dependencygroup/net8.0/avalonia",
+          "@type": "PackageDependency",
+          "id": "Avalonia",
+          "range": "[12.0.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#dependencygroup/net8.0/avaloniaui.licensing",
+          "@type": "PackageDependency",
+          "id": "AvaloniaUI.Licensing",
+          "range": "[3.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#dependencygroup/net8.0/sixlabors.imagesharp",
+          "@type": "PackageDependency",
+          "id": "SixLabors.ImageSharp",
+          "range": "[4.1.2, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#Avalonia.Controls.Documents.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4137,
+      "fullName": "Avalonia.Controls.Documents.nuspec",
+      "length": 10284,
+      "name": "Avalonia.Controls.Documents.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 28502,
+      "fullName": "CHANGELOG.md",
+      "length": 81016,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 496,
+      "fullName": "README.md",
+      "length": 960,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 7718,
+      "fullName": "icon.png",
+      "length": 7934,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#lib/net10.0/Avalonia.Controls.Documents.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 293394,
+      "fullName": "lib/net10.0/Avalonia.Controls.Documents.dll",
+      "length": 716800,
+      "name": "Avalonia.Controls.Documents.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#lib/net10.0/Avalonia.Controls.Documents.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 96879,
+      "fullName": "lib/net10.0/Avalonia.Controls.Documents.xml",
+      "length": 657397,
+      "name": "Avalonia.Controls.Documents.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#lib/net8.0/Avalonia.Controls.Documents.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 293393,
+      "fullName": "lib/net8.0/Avalonia.Controls.Documents.dll",
+      "length": 716800,
+      "name": "Avalonia.Controls.Documents.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#lib/net8.0/Avalonia.Controls.Documents.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 96879,
+      "fullName": "lib/net8.0/Avalonia.Controls.Documents.xml",
+      "length": 657397,
+      "name": "Avalonia.Controls.Documents.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#_manifest/cyclonedx/bom.cdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 2125,
+      "fullName": "_manifest/cyclonedx/bom.cdx.json",
+      "length": 9673,
+      "name": "bom.cdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.10.28.12.56.30/avalonia.controls.documents.12.4.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,221 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Caroline Ott",
+  "catalog:commitId": "748eb9d4-dd95-4594-8d3b-e940c2cf2451",
+  "catalog:commitTimeStamp": "2026-11-01T11:46:56.3403864Z",
+  "created": "2026-11-01T11:44:30.36Z",
+  "description": "Node/Fable runtime adapters (filesystem, process, cancellation) for VersionControlService providers.",
+  "id": "VersionControlService.Runtime.Node",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-01T11:46:43.45Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "05FrmVqZaWN+hL4Ctmev5u1zH5FFTy6CDLLdYfkEnvOKLpkYQsgLE2W1lsEnBAbyujxL1Vybnjsj3aB/uLbmXA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 148230,
+  "published": "2026-11-01T11:44:30.36Z",
+  "releaseNotes": "### Added\n\n-   `WorkspaceSession.ObjectBatchMaterialization` is a new optional `ObjectBatchMaterializationService`. Its `Materialize` and `Dematerialize` take an array of paths and download or free their large objects in one operation, for providers that do this faster than one call per path. Paths are exact keys, and a duplicate counts once. An empty array, or paths already in the target state, give `Succeeded` with a `NoOp` effect. When paths fail, the result is `PartiallySucceeded` if others changed and `Failed` if none did. The failure lists the failed paths in `AffectedPaths` and one `<path>: <message>` line per failed path in `Details` (for example a retained backup), and the outcome's `AffectedPaths` lists the changed paths. `ServiceAvailability.ObjectBatchMaterialization` reports whether the provider supplies the service, and `WorkspaceSession.withFallbackServices` fills a missing one with operations that succeed with a `NoOp` effect and a `service_unavailable` warning. The Git provider supplies it, with the failure codes `batch_materialization_incomplete` and `batch_dematerialization_incomplete` and the partial-success recoveries `retry_materialization` and `retry_dematerialization`. lakeFS does not, because it has no large-object representation.\n-   `OperationContext.ReportOutput` is a new opt-in channel for the raw output of an operation's subprocesses, for a host that shows it in a folded Show logs section. `OperationContext.createWithOutput` builds a context with it, and contexts from `create` or `detached` have none. The callback receives batches of `OperationOutput` entries of the kinds `Command`, `StdOut`, `StdErr` and `Notice`. `CommandId` groups the entries of one subprocess. `IsPartial` marks a snapshot of a line that git rewrites with carriage returns, and the next entry with the same `CommandId` and `Kind` replaces it. The Git provider reports a header and the stderr lines of the git and git-lfs processes of its synchronization, clone, publish and large-object operations, and stdout only for the large-object download and upload calls. It redacts every line and replaces the call's known credentials. The channel limits line length, batch size, batch rate and queue size. The rate applies within each subprocess, and a subprocess that ends delivers its pending entries at once. Progress is unchanged and still carries no raw lines. The lakeFS provider reports no output.\n\n### Changed\n\n-   The Git provider's `Materialize` and `Dematerialize`, in both `ObjectMaterialization` and `ObjectBatchMaterialization`, fail with the code `local_changes` when a path has local changes such as an edited file, so a host can decide by the code instead of the message. A single-path failure used to have `lfs_operation_failed`. A batch returns `local_changes` when every failed path has local changes, as `Failed` if no path changed and as `PartiallySucceeded` otherwise. With any other failed path it keeps `batch_materialization_incomplete` or `batch_dematerialization_incomplete`. `AffectedPaths` and `Details` still list the failed paths, and the category and message are unchanged.\n-   `OperationContext` has a new `ReportOutput` field, so code that builds the record as a literal has to set it to `None`. Code that uses `OperationContext.create` or `detached` needs no change. `NodeProcess.ProcessRequest` has a new `ReportStdoutOutput` field, which `ProcessRequest.create` sets to `false`.\n-   `WorkspaceSession` and `ServiceAvailability` have a new `ObjectBatchMaterialization` field that code building these records has to set. `WorkspaceSession.createCoreOnly` sets it to `None`.\n-   The Git provider reports live progress of its long transfers through `OperationContext.ReportProgress`. `git fetch` and `git clone` run with `--progress`, and the Git LFS transfers of an update, a synchronization, a clone and `Materialize` run with `GIT_LFS_FORCE_PROGRESS=1`. Their meters arrive as events with the phase codes `fetch`, `clone`, `clone-lfs-pull`, `lfs-pull`, `lfs-materialize-transfer` and `lfs-materialize-checkout`, with `Completed` and `Total` taken from the meter. `Synchronize` also reports events without numbers before its fetch (`fetch`), its merge (`merge`) and its large-file download (`lfs-pull`). `Clone` reports events with a `DisplayMessage` and no numbers before `git clone` (`clone`) and before its large-file download (`clone-lfs-pull`). A batch `Materialize` or `Dematerialize` of more than one path counts the finished files under `lfs-materialize-files` or `lfs-dematerialize-files`, with `Total` set to the number of paths. A single-path call reports no count events. Failure messages of these calls leave out the meter lines. `NodeProcess.ProcessRequest` has a new `ObserveStdoutProgress` field, which `ProcessRequest.create` sets to `false`.\n-   The Git provider's `Materialize` and `Dematerialize` read the Git LFS listing once per call and check `git status` only for the requested path. A download used to list every Git LFS file of the repository four times and read the status of the whole working tree twice, which made single-file actions slow in large repositories. A file deleted while its download runs now fails with the local-changes message and stays deleted.\n\n### Fixed\n\n-   The Git provider gives a failure the category `Network` when its text says actively refused (a refused connection on Windows), no such host or forcibly closed (a reset connection on Windows), or has a Git LFS batch response: line ending in : EOF (a server that closes the connection). It gives the category `Timeout` for did not properly respond (a Windows connection attempt that gets no answer). These failures used to have the category `ProviderError`, so a caller could not tell an unreachable remote from a rejected request. The texts of other platforms, such as connection refused and i/o timeout, already had these categories.\n-   Canceling a large-object download during `Synchronize`, `Update` or `Clone` no longer leaves `.git/index.lock` behind. The Git provider ran `git lfs pull`, which a cancel could kill while it held the index lock. It now runs `git lfs fetch`, which a cancel stops, and then `git lfs checkout`, which runs to its end. A cancel during the checkout takes effect afterwards, and the call reports the work that finished. Every call that downloads large objects this way reports a step event with the code `lfs-pull-checkout` (`clone-lfs-pull-checkout` after a clone) before the checkout starts, and the checkout reports its progress under that code. The checkout also runs after a failed fetch, for example when the server lost one object, so the objects that arrived reach the working tree, and the result stays the fetch failure. When the checkout fails and an `index.lock` exists, or Git names the lock in its failure text, the partial result has the recovery `remove_index_lock` instead of `retry_materialization`. A failed fetch keeps `retry_materialization`, because the fetch takes no lock. The provider never deletes the lock. A batch `Materialize` or `Dematerialize` that hit an index lock on one path also reports `remove_index_lock`, whether or not other paths finished.\n-   A large-object checkout that git-lfs ends with success although it could not update the index (because of a held `index.lock`) is now a failure with the lock recovery. Before, git-lfs wrote the files, printed Error updating the Git index: and exited with 0, so the download reported success, the lock stayed and the files read as modified. The Git provider now reads that text from `git lfs checkout`. In `Update`, `Synchronize` and `Clone` the result is `PartiallySucceeded` with the code `hydration_failed`, and the recovery is `remove_index_lock` when the lock file exists. A batch `Materialize` looks for the lock file after such a checkout. If it exists, the recovery is `remove_index_lock`. If not, a partial success keeps `retry_materialization`, and a run in which no path changed is `Failed` without a recovery action. The unmark of a path in `StoragePolicy.SetPathPolicy`, the local materialization of a picked conflict object and the checkout of restored large files in `RestorePaths` also count this checkout as failed. The unmark fails with `index_locked` when the lock file exists, and a restore reports `PartiallySucceeded` with the recovery `remove_index_lock`. The failures of `Materialize`, the unmark, the pick and the restore set `StateChanged` to `true`, because git-lfs wrote the files. Every `git lfs checkout` of the provider runs to its end, including those of the unmark, the pick and the restore, so a cancel cannot leave `.git/index.lock` behind.\n-   The Git provider's `Materialize` and batch `Materialize` repair the index entries that a lock-blocked `git lfs checkout` leaves stale. After such a checkout the files hold their content, but the index keeps the stat data of the pointers, so `git status` lists them as modified. A download refused them with has local changes, or found them materialized and left them modified. A path whose only change is that stale entry is now repaired without a transfer if the file is a regular file with the size and SHA-256 of its Git LFS object, the index entry equals the committed pointer, and the current attributes still route the path through the lfs filter (otherwise `git add` would stage the file as a plain blob). The provider runs `git add` on the repaired paths, which stages nothing because the clean filter reproduces the committed pointer for that content. The repair changes the index, so the batch `Materialize` lists a repaired path in `AffectedPaths` with the effect `Performed`, and the path's progress report says the file is materialized. A lock still held at that point is reported with the `remove_index_lock` recovery. A modified file with other content, or a file with a staged change, still fails with the local-changes message.\n-   `Redaction.redact` removes the whole userinfo of a URL whose user name contains an `@`, such as `https://me@mail.com:secret@host/repo.git`. It used to stop at the first `@` and leave the rest of the userinfo in the text.\n-   Git LFS transfers of a workspace whose remote URL has no `.git` suffix no longer fail on GitLab with Unprocessable entity (nfdi4plants/ARCitISA#1471). The provider passed the remote URL plus `/info/lfs` as `lfs.url`, which git-lfs uses literally. It now builds the endpoint the way git-lfs server discovery does: a remote that ends in `.git` gets `/info/lfs`, and any other gets `.git/info/lfs`. The check is case-sensitive like the one in git-lfs, so `proj.GIT` becomes `proj.GIT.git/info/lfs`.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#repository",
+    "branch": "refs/heads/feature/batch-object-materialization",
+    "commit": "7d2baad7d0054d12b3964ebf4cacaefd0ce5a3c0",
+    "type": "git",
+    "url": "https://github.com/nfdi4plants/VersionControlService"
+  },
+  "verbatimVersion": "0.3.0",
+  "version": "0.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#dependencygroup/net10.0/versioncontrolservice.abstractions",
+          "@type": "PackageDependency",
+          "id": "VersionControlService.Abstractions",
+          "range": "[0.3.0, 0.3.0]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#dependencygroup/net10.0/fable.core",
+          "@type": "PackageDependency",
+          "id": "Fable.Core",
+          "range": "[5.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#VersionControlService.Runtime.Node.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4392,
+      "fullName": "VersionControlService.Runtime.Node.nuspec",
+      "length": 11757,
+      "name": "VersionControlService.Runtime.Node.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/BinaryIO.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1452,
+      "fullName": "fable/BinaryIO.fs",
+      "length": 5845,
+      "name": "BinaryIO.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/Cancellation.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 356,
+      "fullName": "fable/Cancellation.fs",
+      "length": 742,
+      "name": "Cancellation.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/FileSystem.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 3814,
+      "fullName": "fable/FileSystem.fs",
+      "length": 17280,
+      "name": "FileSystem.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/Interop.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1022,
+      "fullName": "fable/Interop.fs",
+      "length": 3094,
+      "name": "Interop.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/OutputReporter.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 6442,
+      "fullName": "fable/OutputReporter.fs",
+      "length": 22251,
+      "name": "OutputReporter.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/Path.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 226,
+      "fullName": "fable/Path.fs",
+      "length": 689,
+      "name": "Path.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/PositionalFile.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1887,
+      "fullName": "fable/PositionalFile.fs",
+      "length": 8867,
+      "name": "PositionalFile.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/Process.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 6859,
+      "fullName": "fable/Process.fs",
+      "length": 33144,
+      "name": "Process.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/SimpleGit.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 3693,
+      "fullName": "fable/SimpleGit.fs",
+      "length": 23893,
+      "name": "SimpleGit.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/VersionControlService.Runtime.Node.fsproj",
+      "@type": "PackageEntry",
+      "compressedLength": 387,
+      "fullName": "fable/VersionControlService.Runtime.Node.fsproj",
+      "length": 1088,
+      "name": "VersionControlService.Runtime.Node.fsproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#fable/WorkerThreads.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 479,
+      "fullName": "fable/WorkerThreads.fs",
+      "length": 1314,
+      "name": "WorkerThreads.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#lib/net10.0/VersionControlService.Runtime.Node.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 101059,
+      "fullName": "lib/net10.0/VersionControlService.Runtime.Node.dll",
+      "length": 181248,
+      "name": "VersionControlService.Runtime.Node.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.11.46.56/versioncontrolservice.runtime.node.0.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "fsharp",
+    "fable",
+    "version-control",
+    "provider-spi"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

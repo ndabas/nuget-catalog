@@ -1,0 +1,189 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Zyntal.com",
+  "catalog:commitId": "68412e6a-39ac-45d1-93b6-2289b4ae24ee",
+  "catalog:commitTimeStamp": "2026-11-01T21:56:42.6656942Z",
+  "copyright": "Copyright © 2026 Zyntal.com",
+  "created": "2026-11-01T21:53:52.47Z",
+  "description": "SMTP/IMAP email library with template engine for CodeLogic 5 applications",
+  "id": "CodeLogic.Mail",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-01T21:56:28.357Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "7H4T7TXSteFAUx6XGEzReFBRt64o/HoGH271EMS6LHVOfiBqsDJCzql9LNIMgUXxz215pAucjxP4y2NSiEwp6A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 98133,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-11-01T21:53:52.47Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.Mail — Changelog\n\nAll notable changes to **CodeLogic.Mail** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/).\n\n## 5.0 (unreleased)\n\n### Breaking\n\n- Targets **.NET 11** (`net11.0`) and requires **CodeLogic 5.0** (`[5.0.0, 6.0.0)`). On .NET 10, stay on\n  4.9.x. CodeLogic 5 makes `Result<T>` / `Result` C# 15 unions and `Error` a closed record with\n  kind subtypes (`NotFoundError`, `ValidationError`, ...).\n- **`MailResult`, `MailResult<T>` and the `MailError` enum are removed.** Every operation now returns\n  CodeLogic's `Result` / `Result<T>` and fails with an `Error` whose `Code` is a `MailErrorCodes`\n  constant:\n\n  | Old | New |\n  |---|---|\n  | `Task<MailResult> SmtpService.SendAsync(...)` | `Task<Result<MailSendReceipt>>` |\n  | `Task<MailResult> MailLibrary.SendTemplatedAsync(...)` | `Task<Result<MailSendReceipt>>` |\n  | `MailResult` (IMAP connect/disconnect/folder/message ops, `SaveTemplateAsync`) | `Result` |\n  | `MailResult<T>` (fetch, search, list, load, `RenderAsync`) | `Result<T>` |\n  | `MailResult.MessageId` | `MailSendReceipt.MessageId` (via `result.Value`) |\n  | `MailResult.Timestamp` | `MailSendReceipt.SentAtUtc` on sends; dropped elsewhere |\n  | `result.Error` (`MailError` enum) | `result.Error?.Code` (`MailErrorCodes.*` string) or the `Error` kind |\n  | `result.ErrorMessage` | `result.Error?.Message` |\n  | `MailError.None` | `result.IsSuccess` / `result.Error is null` |\n\n  `IMailTemplateProvider` and `IMailTemplateEngine` implementations must change their return types\n  the same way.\n\n  Codes and kinds (each code always has the same kind):\n\n  | `MailErrorCodes` constant | Code | `Error` kind |\n  |---|---|---|\n  | `InvalidRecipient` | `mail.invalid_recipient` | `ValidationError` |\n  | `InvalidSender` | `mail.invalid_sender` | `ValidationError` |\n  | `InvalidSubject` | `mail.invalid_subject` | `ValidationError` |\n  | `InvalidBody` (new) | `mail.invalid_body` | `ValidationError` |\n  | `InvalidHeader` (new) | `mail.invalid_header` | `ValidationError` |\n  | `TemplateNotFound` | `mail.template_not_found` | `NotFoundError` |\n  | `InvalidTemplateId` (new) | `mail.invalid_template_id` | `ValidationError` |\n  | `TemplateRenderingFailed` | `mail.template_rendering_failed` | `InternalError` |\n  | `SmtpConfigInvalid` | `mail.smtp_config_invalid` | `ValidationError` |\n  | `SmtpAuthenticationFailed` | `mail.smtp_authentication_failed` | `UnauthorizedError` |\n  | `SmtpTimeout` | `mail.smtp_timeout` | `TimeoutError` |\n  | `SmtpConnectionFailed` (new) | `mail.smtp_connection_failed` | `UnavailableError` |\n  | `SmtpRejected` | `mail.smtp_rejected` | `ValidationError` (`Details` has the SMTP status) |\n  | `SmtpError` | `mail.smtp_error` | `InternalError` |\n  | `AttachmentNotFound` | `mail.attachment_not_found` | `NotFoundError` |\n  | `InvalidAttachment` (new) | `mail.invalid_attachment` | `ValidationError` |\n  | `ImapConfigInvalid` | `mail.imap_config_invalid` | `ValidationError` |\n  | `ImapAuthenticationFailed` | `mail.imap_authentication_failed` | `UnauthorizedError` |\n  | `ImapTimeout` | `mail.imap_timeout` | `TimeoutError` |\n  | `ImapConnectionFailed` (new) | `mail.imap_connection_failed` | `UnavailableError` |\n  | `ImapError` | `mail.imap_error` | `InternalError` |\n  | `ImapRejected` (new) | `mail.imap_rejected` | `ValidationError` (`Details` has the IMAP response) |\n  | `FolderNotFound` | `mail.folder_not_found` | `NotFoundError` |\n  | `MessageNotFound` | `mail.message_not_found` | `NotFoundError` |\n  | `Cancelled` (new) | `mail.cancelled` | `UnavailableError` |\n  | `Unknown` | `mail.unknown` | `InternalError` |\n\n  `SmtpRejected` is a `ValidationError` because the server refused something about this message\n  (sender, recipient, size, content), not because the service is broken; `Details` carries the\n  SMTP status code. Cancellation previously reported `MailError.Unknown` (or\n  `TemplateRenderingFailed` while rendering) and is now `mail.cancelled`.\n\n  Checking a send result:\n\n  ```csharp\n  // 4.x\n  MailResult r = await mail.Smtp.SendAsync(message);\n  if (!r.IsSuccess) log.Warn($\"Mail failed ({r.Error}): {r.ErrorMessage}\");\n  else              log.Info($\"Mail sent {r.MessageId}\");\n\n  // 5.0\n  Result<MailSendReceipt> r = await mail.Smtp.SendAsync(message);\n  if (r.IsFailure) log.Warn($\"Mail failed ({r.Error!.Code}): {r.Error.Message}\");\n  else             log.Info($\"Mail sent {r.Value!.MessageId}\");\n\n  // or by kind\n  if (r.Error is TimeoutError or UnavailableError) { /* retry later */ }\n  ```\n\n- **`SendAsync` validates more before connecting.** Malformed sender or recipient (To/Cc/Bcc)\n  addresses fail with `mail.invalid_sender` / `mail.invalid_recipient` instead of an unexpected\n  exception, an empty body is `mail.invalid_body` (was `MailError.InvalidRecipient`), and an\n  attachment path that does not exist fails with `mail.attachment_not_found` (was silently dropped).\n- **Custom headers, the subject and the sender name are validated.** A header name that is empty, not\n  printable US-ASCII, or contains a space or `:` used to make MimeKit throw, which surfaced as\n  `mail.unknown` (`InternalError`); it is now `mail.invalid_header` (`ValidationError`). The same code\n  rejects a header value with CR, LF or NUL, and a custom header the service writes itself (From, To, Cc,\n  Bcc, Subject, MIME-Version, Importance, Content-*). A `Subject` or `FromName` containing CR or LF fails\n  with `mail.invalid_subject` / `mail.invalid_sender` instead of being sent.\n- An unreachable SMTP/IMAP server (`SocketException`) is now `mail.smtp_connection_failed` /\n  `mail.imap_connection_failed` (`UnavailableError`) instead of `Unknown` / `ImapError`.\n- A template file that deserializes to nothing is `mail.template_rendering_failed` (was\n  `TemplateNotFound`).\n- **Attachment paths must be fully qualified.** A relative path fails with the new code\n  `mail.invalid_attachment` (`ValidationError`) instead of being resolved against the working directory.\n- **More headers are reserved.** Custom headers can no longer set `Sender`, `Reply-To`, `Date`, `Message-Id`,\n  `Return-Path`, `Received` or `Resent-*` (in addition to From/To/Cc/Bcc/Subject/MIME-Version/Importance/\n  Content-*); use the new `MailMessage.ReplyTo` / `MailBuilder.ReplyTo(...)` for a reply address.\n- **`Imap.EnableIdle` is enforced.** `StartIdleAsync` fails with `mail.imap_config_invalid` while it is `false`\n  (the default); it was documented as the switch but never read.\n- **IMAP failures keep their kind.** Every IMAP operation reported `mail.imap_error` (`InternalError`) for any\n  exception. Now an unreachable server, dropped connection or TLS failure is `mail.imap_connection_failed`,\n  bad credentials `mail.imap_authentication_failed`, a timeout `mail.imap_timeout`, a missing folder or message\n  `mail.folder_not_found` / `mail.message_not_found`, cancellation `mail.cancelled`, and a `NO`/`BAD` answer the\n  new `mail.imap_rejected` (`ValidationError`). A reconnect inside an operation reports the real cause instead of\n  an `InvalidOperationException` wrapped in `mail.imap_error`.\n\n### Security\n\n- **Template IDs can no longer escape the template directory.** `FileMailTemplateProvider` combined the\n  directory with the raw ID, so `../x`, `sub/x` or a rooted path could load, or overwrite on save, a JSON\n  file outside `TemplateDirectory`. IDs must now be file-name-safe (ASCII letters, digits, `-`, `_`, `.`;\n  starting with a letter or digit; at most 128 characters), and the resolved path is checked to sit\n  directly in the template directory. Anything else fails with the new code\n  `MailErrorCodes.InvalidTemplateId` (`mail.invalid_template_id`, `ValidationError`) for load, save and\n  layout lookup. `FileMailTemplateProvider.IsValidTemplateId` lets callers check an ID up front.\n\n- **Unknown `SecurityMode` values fail closed.** A value outside `None`/`StartTls`/`SslTls` (e.g. a number in\n  the JSON) fell back to MailKit's `Auto` (opportunistic TLS, plaintext if the server offers no STARTTLS). It is\n  now a configuration error: `MailConfig.Validate` refuses it, `SendAsync` fails with `mail.smtp_config_invalid`\n  and IMAP with `mail.imap_config_invalid`.\n- **`Smtp.AttachmentBaseDirectory`** (new, optional): when set, attachments outside it (after resolving `..`\n  and link targets) fail with `mail.invalid_attachment`.\n- **The IMAP connection is serialized.** IDLE and public calls shared one `ImapClient` without a lock, which\n  MailKit does not support. Calls now take the connection one at a time; a call made while IDLE runs ends the\n  IDLE command gracefully, runs, and IDLE resumes.\n\n### Fixed\n\n- **`DefaultFromEmail` / `DefaultFromName` are used.** They were documented as the fallback sender but never\n  read, so `Build()` threw without `From()`. `MailLibrary.CreateMessage()` and `SendTemplatedAsync` now return\n  builders that fall back to them; the new `MailBuilder(defaultFromEmail, defaultFromName)` constructor does the\n  same for builders you create. An invalid `DefaultFromEmail` (or a `DefaultFromName` with a line break) fails\n  configuration validation.\n- **IDLE survives a dropped connection.** After a reconnect the loop kept using the folder of the disposed\n  client, so push notifications died silently after the first server drop. The folder is now resolved again on\n  the new connection, and messages that arrived in between are reported.\n- **`ConnectAsync` no longer leaks the previous connection**: an existing client is disconnected and disposed\n  before the new one is created, and a client whose connect or login fails is disposed.\n- **Live config changes are validated by the library too.** An invalid configuration that reaches\n  `OnConfigChangedAsync` is logged and ignored; later changes are compared with the configuration running.\n\n### Added\n\n- `MailMessage.ReplyTo` and `MailBuilder.ReplyTo(email)`.\n- `MailBuilder(string? defaultFromEmail, string? defaultFromName = null)`.\n- `SmtpConfig.AttachmentBaseDirectory`.\n- `MailErrorCodes.InvalidAttachment` (`mail.invalid_attachment`) and `MailErrorCodes.ImapRejected` (`mail.imap_rejected`).\n\n### Documentation\n\n- Configuration examples in the README and the docs use the camelCase keys the CodeLogic loader reads.\n  The PascalCase keys shown before are matched case-sensitively and were ignored, leaving defaults active.\n\n### Changed\n\n- Package versions are pinned (MailKit and MimeKit 4.18.2) instead of floating (`4.*`), so a build restores the same dependencies every time.\n- `SimpleTemplateEngine` uses source-generated regexes (`[GeneratedRegex]`) for its block, section and\n  placeholder patterns instead of parsing them through the static `Regex` cache on each render. Output is\n  unchanged.\n\n## 2026-10-27\n\n### Security\n\n- **HTML bodies encode substituted values.** `SimpleTemplateEngine` inserted every value into\n  `HtmlBody` as-is, so a user-supplied value (a user name, a browser description) could inject\n  markup or links into an e-mail. In `HtmlBody` and HTML layouts, `{{var}}`, `${var}` and `{var}`\n  are now HTML-encoded. Subjects and text bodies are unchanged.\n- **Values are inserted once.** Substitution ran the three placeholder syntaxes one after another,\n  and loop output was substituted again by the outer pass, so a value containing `${other}` or\n  `{other}` was expanded: user text could pull other variables (links, tokens) into the message.\n  All syntaxes are now replaced in a single pass and nothing inside a value is expanded.\n\n### Added\n\n- **`{{{var}}}`** inserts a value without encoding, for values that are trusted HTML.\n\n### Fixed\n\n- **Text layouts get the text sections.** With a layout, the text layout was rendered with the\n  child's *HTML* sections (including `body`). Text and HTML layouts now each receive their own\n  sections, and a child's section wins over a variable of the same name.\n\n### Upgrade notes\n\n- Templates that pass ready-made HTML in a variable must switch that placeholder to `{{{var}}}`.\n\n## 2026-10-24\n\n### Added\n\n- **Live config changes** (requires CodeLogic 4.9+). `MailLibrary` implements `IConfigReloadable`: a\n  change to `config.mail.json` made through `Libraries.UpdateConfigAsync`, `Libraries.ReloadConfigAsync`\n  or the config file watcher is applied without a restart, rebuilding only what changed. Changed SMTP\n  settings replace `Smtp` (sends in flight finish on the old settings); a changed template directory\n  replaces `TemplateProvider`/`TemplateEngine`; changed IMAP settings replace `Imap` and close the old\n  connection (re-read `Imap` and restart IDLE). `Enabled` can be switched either way.\n\n## 2026-09-12\n\n### Changed\n\n- Unified the version line with the CodeLogic framework on **4.8.x**. Every official\n  library and the framework now share one `major.minor`, so a given `4.8.<patch>`\n  means the same generation across all packages.\n- `version.txt` moved from `4.6` to `4.8`. The patch component remains the CI run\n  number, composed at pack time; `AssemblyVersion` stays pinned at `Major.Minor.0.0`\n  (now `4.8.0.0`) so every patch in the line loads interchangeably.\n\n## 2026-06-20\n\n### Documentation\n\n- Full rewrite of the README and the multi-page docs set to the CodeLogic.Libs\n  house style. The README is now concise, Markdown-only, and NuGet-safe; the\n  guide is split into **Overview & Sending** (`docs/libs/mail/index.md`) and\n  **Receiving & Templates** (`docs/libs/mail/receiving-templates.md`), with the\n  old `docs/libs/mail.md` reduced to a redirect stub and the docs navigation\n  updated accordingly. No API changes.\n\n## [4.5.1] — 2026-06-20\n\n### Documentation\n\n- Rewrote the README and the Mail & Templates guide to match the current public\n  API. The previous docs described members that no longer exist (`EmailMessage`,\n  `EmailAttachment`, `ReplyTo`, `RenderTemplateAsync`, `ReadInboxAsync`,\n  `ImapFilter`, `MarkAsReadAsync`, the `SendAsync(from:, to:, …)` /\n  `SendTemplateAsync` overloads, and the `UseSsl` / `FromAddress` config keys).\n- Documented the real surface: the fluent `MailBuilder` (`CreateMessage()`),\n  `SmtpService.SendAsync(MailMessage)`, `MailLibrary.SendTemplatedAsync`, the\n  `MailResult` / `MailError` result model, and the JSON-backed template system\n  (`MailTemplate`, `IMailTemplateProvider`, `IMailTemplateEngine`).\n- Documented previously undocumented features: template conditionals\n  (`{{#if}}`/`{{#else}}`), loops (`{{#each}}`), sections and layouts; the\n  `${var}` / `{var}` placeholder syntaxes; the full IMAP API (fetch/page, fetch\n  by UID, search via `ImapSearchCriteria`, move/copy/delete, flag operations,\n  folder management); and RFC 2177 IMAP IDLE push (`StartIdleAsync` /\n  `NewMailReceived`) with its `EnableIdle` / `IdleRefreshMinutes` config keys.\n- Corrected the documented config schema and `SecurityMode` values\n  (`None` / `StartTls` / `SslTls`).\n\n## [4.5.0] — 2026-05-24\n\n### Changed\n\n- **Unified versioning.** All CodeLogic.Libs now share a single version line\n  controlled by `version.txt` in the repo root. This is a version alignment\n  release — no functional changes to this library.\n## [4.0.4] — 2026-04-16\n\n### Changed\n\n- README + manifest refresh for the v4 baseline. No functional changes vs 4.0.3.\n- `LibraryManifest.Version` now reads from assembly metadata.\n\n## [4.0.2] — 2026-04-09\n\n### Changed\n\n- Annotated mail configuration with `[ConfigField]` for the admin UI surface.\n- Aligned with the v4 baseline across all libraries.\n\n### Fixed\n\n- Resolved null-reference warnings in `ImapService`.\n\n## [4.0.0] — 2026-04-09\n\nMajor rewrite. Republished as v4.0.0 to reset the version line under the\nunified v4 baseline. SMTP / IMAP services + a CodeLogic-native template\nprovider.\n\n### Notes\n\n- Earlier history is retained in the\n  [git log](https://github.com/zyntal-com/CodeLogic.Libs/commits/main/CL.Mail).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#repository",
+    "commit": "258072a4db78ad2addbd986c7672535d010a0fb9",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "5.0.116-preview+258072a",
+  "version": "5.0.116-preview+258072a",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#dependencygroup/net11.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[5.0.0-preview, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#dependencygroup/net11.0/mailkit",
+          "@type": "PackageDependency",
+          "id": "MailKit",
+          "range": "[4.18.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#dependencygroup/net11.0/mimekit",
+          "@type": "PackageDependency",
+          "id": "MimeKit",
+          "range": "[4.18.2, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#lib/net11.0/CL.Mail.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 54952,
+      "fullName": "lib/net11.0/CL.Mail.dll",
+      "length": 132608,
+      "name": "CL.Mail.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#lib/net11.0/CL.Mail.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 12374,
+      "fullName": "lib/net11.0/CL.Mail.xml",
+      "length": 87452,
+      "name": "CL.Mail.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5975,
+      "fullName": "CHANGELOG.md",
+      "length": 15786,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#CodeLogic.Mail.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6505,
+      "fullName": "CodeLogic.Mail.nuspec",
+      "length": 17066,
+      "name": "CodeLogic.Mail.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2739,
+      "fullName": "README.md",
+      "length": 6377,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.21.56.42/codelogic.mail.5.0.116-preview.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "smtp",
+    "imap",
+    "email",
+    "template"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

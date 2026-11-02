@@ -1,0 +1,167 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "3844ab50-d7c1-40dc-907d-ab10e5131d6b",
+  "catalog:commitTimeStamp": "2026-11-01T15:59:03.2058182Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-11-01T15:56:29.893Z",
+  "description": "Framework-agnostic core for testing time-dependent code. ObservableTimeProvider is a TimeProvider decorator that tracks the timers created against it (leaks, schedules, fires) and lets a test await timer events instead of sleeping; ObservableFakeTimeProvider adds a FakeTimeProvider with advance helpers that wait until the woken loops have armed their next timer. Also ships duration formatting and rendering helpers for failure messages. Test-framework-specific entry points live in adapter packages (TimeAssertions.TUnit ships today; xUnit, NUnit, MSTest adapters are possible if there is demand).",
+  "id": "TimeAssertions",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-01T15:58:46.07Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "7TjDXftnoQLYx21l3VXir8dXNmfFGn/dgyVU4xIbI1OnHOp6kVwt9KdnUZfKmNpnv36sa1BqnyhaP8VmE7ynDg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 54400,
+  "projectUrl": "https://timeassertions.dev/",
+  "published": "2026-11-01T15:56:29.893Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/TimeAssertions.TUnit/releases/tag/v0.10.0\n\nMinor release. The \"eventually\" timer assertions now react to each timer change instead of polling, the core gains awaitable timer events and an `ObservableFakeTimeProvider` that advances without real time, and new assertions find a timer by its due time. The `pollingInterval` overloads are deprecated (see Upgrade).\n\n### Added\n\n- **`ObservableFakeTimeProvider`** is an `ObservableTimeProvider` over its own `FakeTimeProvider`: one object to inject into the code under test, to advance (`Advance`, `SetUtcNow`), and to assert on. `Fake` exposes the owned `FakeTimeProvider` for its other settings.\n- **`ObservableFakeTimeProvider.AdvanceAndSettleAsync(TimeSpan delta, CancellationToken cancellationToken)`** advances the fake clock and then waits until every loop woken by the advance has armed its next wait (as many timers created with a finite due time or re-scheduled with `Change` as one-shot timers fired), so the next assertion sees the loop's step completed without a real-time sleep. The counts are those of the whole provider, so it suits loops that are the only code arming timers on it. A loop that ends after its timer fired makes the wait run until the token is canceled; the `OperationCanceledException` then says how many timers fired and how many were armed.\n- **`ObservableFakeTimeProvider.AdvanceOnEachTimerUntilAsync(Task until, TimeSpan step, CancellationToken cancellationToken)`** advances by `step` each time the code under test has created a timer, until `until` completes: it drives a reconnect backoff with any number of failed attempts. It counts every timer created on the provider, so it suits a provider the loop has to itself, and `step` must cover the loop's longest single wait.\n- **`ObservableFakeTimeProvider.AdvanceUntilAsync(TimeSpan step, Func<bool> until, TimeSpan maxAdvance, CancellationToken cancellationToken)`** advances in settled steps until `until` holds, for loops driven by a periodic timer (for example \"until `TimerFireCount` reaches 6\"). It throws `TimeoutException` after `maxAdvance` of fake time (the last step is shortened so the clock never passes it), so the outcome is deterministic.\n- **`ObservableTimeProvider.TimersCreatedCount`** and **`TimersDisposedCount`** count every timer created and disposed through the provider. Unlike `ActiveTimerCount`, they never go down, so \"has the loop armed its second backoff\" can be answered when the loop is the only code creating timers on the provider.\n- **`ObservableTimeProvider.WaitUntilAsync(Func<ObservableTimeProvider, bool> condition, CancellationToken cancellationToken)`** waits until the condition holds, re-checking it each time a timer is created, re-scheduled, fired, or disposed. No polling and no real-time delay; the token is the bound.\n- **`ObservableTimeProvider.WaitForTimersCreatedAsync(long count, CancellationToken cancellationToken)`** and **`WaitForTimersDisposedAsync(long count, CancellationToken cancellationToken)`** wait for the creation and disposal counts. A creation is signaled only once the inner provider has scheduled the timer, so an advance right after the wait is never too early for it.\n- **`Assert.That(time).HasTimerScheduled(TimeSpan dueTime, int atLeast = 1)`** asserts that at least `atLeast` active timers carry `dueTime`, among any number of loops; `HasNextTimerDueApproximately` only sees the earliest timer.\n- **`Assert.That(time).HasNoTimerScheduled()`** asserts that no active timer has a pending due time. An undisposed but disabled timer passes, unlike with `HasNoActiveTimers()`.\n- **`Assert.That(time).HasTimerScheduledEventually(TimeSpan dueTime, ...)`** waits until a timer, or at least `atLeast` timers, carry `dueTime`, for example until both ping loops have armed their delay. Forms: `(dueTime, cancellationToken)`, `(dueTime, timeout, cancellationToken)`, `(dueTime, atLeast, cancellationToken)`, and `(dueTime, atLeast, timeout, cancellationToken)`.\n- **`HasNoActiveTimersEventually(CancellationToken)`**, **`HasActiveTimersEventually(CancellationToken)`**, **`HasActiveTimerCountEventually(int, CancellationToken)`**, **`HasAtLeastActiveTimerCountEventually(int, CancellationToken)`**, and **`HasAtMostActiveTimerCountEventually(int, CancellationToken)`** wait bounded by the token only, typically the test's own.\n- **`TimeRenderingHelpers.FormatScheduledTimerShortfall`** and **`FormatUnexpectedScheduledTimers`** render the failure messages of the due-time assertions.\n\n### Changed\n\n- **BREAKING:** binary only: assemblies compiled against 0.9.0 must be rebuilt. **`ObservableTimeProvider`** is no longer `sealed`, and its `TimeProvider` overrides are; every timer assertion now applies to a derived provider such as `ObservableFakeTimeProvider`, because the generated assertion extensions are generic over the provider type. Source that calls the assertions compiles unchanged, including the deprecated `pollingInterval` forms, which `EventuallyTimerAssertionExtensions` now declares; code compiled against 0.9.0 still calls the old non-generic extension methods and fails with `MissingMethodException` until it is rebuilt.\n- **`HasNoActiveTimersEventually`**, **`HasActiveTimersEventually`**, **`HasActiveTimerCountEventually`**, **`HasAtLeastActiveTimerCountEventually`**, and **`HasAtMostActiveTimerCountEventually`** no longer poll every 10 ms: they re-check the active count each time a timer changes, so a disposal is seen when it happens. The `timeout` is still a real-time bound, and the outcome of every assertion is unchanged.\n- **`ObservableTimeProvider`** publishes a timer's new schedule (`ActiveTimers`, `NextTimerDueTime`) only once the inner timer has applied the change, so a test that sees the new schedule and then advances the fake clock fires the timer. A change that the inner timer rejects (it throws, or returns `false` as for a disposed timer) now leaves the previous schedule in place, and `AdvanceAndSettleAsync` does not count it as an armed wait. When a callback changes its timer again while a change fires it (run now, then again later), the schedule of that later change is published, as the inner timer carries it. `Change` calls on one timer from several threads are applied one at a time, so the published schedule is always the one the inner timer applied last; a callback that the inner provider fires during a `Change` runs once that change is applied, before `Change` returns. If such callbacks throw, all of them still run and `Change` throws (one exception as it was thrown, several as an `AggregateException`); an exception from the inner timer's `Change` takes precedence.\n- **`TimeAssertions`** (the core package) now depends on `Microsoft.Extensions.TimeProvider.Testing` 10.11.0 for `ObservableFakeTimeProvider`. `TimeAssertions.TUnit` already depended on it, so a TUnit consumer gets no new package.\n- **`TUnit.Assertions`** and **`TUnit.Core`** minimum versions raised from 1.53.0 to 1.77.0, and **`Microsoft.Extensions.TimeProvider.Testing`** from 10.7.0 to 10.11.0.\n\n### Deprecated\n\n- **`HasNoActiveTimersEventually(timeout, pollingInterval, ...)`**, **`HasActiveTimersEventually(timeout, pollingInterval, ...)`**, **`HasActiveTimerCountEventually(count, timeout, pollingInterval, ...)`**, **`HasAtLeastActiveTimerCountEventually(count, timeout, pollingInterval, ...)`**, and **`HasAtMostActiveTimerCountEventually(count, timeout, pollingInterval, ...)`** are `[Obsolete]`: the wait no longer polls, so `pollingInterval` has no effect. They forward to the forms without it and will be removed in 0.11.0. A build that treats warnings as errors fails on them until the argument is removed. A non-positive `pollingInterval` no longer throws `ArgumentOutOfRangeException`. They keep source compatibility only: callers compiled against 0.9.0 need a rebuild (see Changed).\n\n### Removed\n\n- **BREAKING:** the five `*EventuallyAssertion` classes lost their constructors with a `pollingInterval` parameter, replaced by `(context, [count,] timeout, cancellationToken = default)` and `(context, [count,] cancellationToken)`. Only code that constructs these classes directly is affected; calls through `Assert.That(...)` are not.\n- **BREAKING:** `EventuallyTimerAssertionExtensions` no longer declares the `(timeout, cancellationToken)` and `(count, timeout, cancellationToken)` overloads added in 0.8.0; the generated extensions take the same arguments. Only a call through the class name (`EventuallyTimerAssertionExtensions.HasNoActiveTimersEventually(...)`) is affected.\n\n### Fixed\n\n- **`ObservableTimeProvider`** documentation said that an inner provider never fires a timer while creating it. A `FakeTimeProvider` fires a timer that is due at once (a zero due time) during `CreateTimer`; the provider counts that fire correctly, and the documentation now says so.\n\n**Upgrade:** remove the `pollingInterval` argument from the \"eventually\" timer assertions: `HasNoActiveTimersEventually(timeout, pollingInterval, ct)` becomes `HasNoActiveTimersEventually(timeout, ct)`, or `HasNoActiveTimersEventually(ct)` to wait as long as the test's token allows. To stop holding two objects, replace `new ObservableTimeProvider(fakeTime)` plus `fakeTime.Advance(...)` with one `ObservableFakeTimeProvider`.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#repository",
+    "commit": "fa2a0e4d7e9ce82feee533889d418af819713cba",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/TimeAssertions.TUnit"
+  },
+  "verbatimVersion": "0.10.0",
+  "version": "0.10.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#dependencygroup/net10.0/microsoft.extensions.timeprovider.testing",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.TimeProvider.Testing",
+          "range": "[10.11.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1750,
+      "fullName": "README.md",
+      "length": 4001,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#TimeAssertions.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3881,
+      "fullName": "TimeAssertions.nuspec",
+      "length": 10945,
+      "name": "TimeAssertions.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#lib/net10.0/TimeAssertions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14488,
+      "fullName": "lib/net10.0/TimeAssertions.dll",
+      "length": 33280,
+      "name": "TimeAssertions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#lib/net10.0/TimeAssertions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 11686,
+      "fullName": "lib/net10.0/TimeAssertions.xml",
+      "length": 65658,
+      "name": "TimeAssertions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 52,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 7072,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 51882,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.01.15.59.03/timeassertions.0.10.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "assertions",
+    "testing",
+    "timing",
+    "timespan",
+    "timeprovider",
+    "faketimeprovider",
+    "timers",
+    "duration",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

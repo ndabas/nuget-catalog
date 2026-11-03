@@ -1,0 +1,304 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Context64.ai GmbH",
+  "catalog:commitId": "89c20a7f-d449-4ef9-89a9-b91ee43c9123",
+  "catalog:commitTimeStamp": "2026-11-02T12:52:55.822798Z",
+  "copyright": "Context64.ai GmbH",
+  "created": "2026-11-02T12:48:39.867Z",
+  "description": "Core component to implement Intake Agents for Data Context Hub.",
+  "iconFile": "dch.png",
+  "id": "DCH.IntakeAgentCore",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-02T12:52:41.037Z",
+  "licenseExpression": "GPL-3.0-only",
+  "licenseUrl": "https://licenses.nuget.org/GPL-3.0-only",
+  "listed": true,
+  "packageHash": "n2wzT2Pm3RriaygdsZghO54LunyvzXagRabj2bAW2HVZfmxdnsvcQW5lJG9L0VgtIISMFDJbommyMf+2fC7aVQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 203356,
+  "published": "2026-11-02T12:48:39.867Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Changelog (Release Notes)\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (SemVer).\n\n## [Unreleased]\n\n## [4.0.1]\n\n### Fixed\n- `GbsApiClient` percent-encodes the caller-supplied values it puts into URLs. A target entity\n  identifier containing a `/` used to leave the `{idOrSlug}` route unmatched and come back 404, and\n  an `&` in a relationship name silently truncated the search. Affects `GetTargetEntity`,\n  `UpdateTargetEntity`, `DeleteTargetEntity`, `GetRelationship` and `GetQueueJobDetails`.\n\n  Note for callers behind an ingress: nginx normalises `%2F` back to `/` before the request reaches\n  GBS, so encoding alone does not make a slash-bearing *path* segment work there. Address entities\n  by slug or id rather than by title, which is what the agents already do.\n\n## [4.0.0]\n\nRequires GBS 3.2 or newer. The shims that let agents talk to GBS 3.1 as well are gone: 3.2 is the\nrelease that started returning `slug`/`type` and accepting the data source configuration slug, so an\nagent on this version works against 3.2 and 4.x but no longer against 3.1.\n\n### Added\n- `IJobLifecycleListener` — agents can be told when a job of theirs ends and drop state they scoped\n  to it. Opt-in: register with `configurator.AddJobLifecycleListener<T>()`, and agents that need\n  nothing register nothing. Both members default to doing nothing, so a listener overrides only what\n  it needs and a later event can be added without breaking the listeners already written. Two events:\n  - `ImportJobFinishedEvent` — one of this agent's data jobs reached a terminal state (completed,\n    failed or cancelled)\n  - `IntakeJobFinishedEvent` — GBS reported that a whole intake job is over. Only GBS knows this,\n    because it runs an intake job's import jobs one after another; an agent with no running job for\n    an intake job cannot conclude the intake job has ended. GBS versions that predate this call never\n    send it, so anything cleaned up here needs an independent fallback such as a TTL\n- `POST api/v1/core/data-jobs/intake-jobs/{intakeJobId}/complete` — the endpoint GBS calls to raise\n  `IntakeJobFinishedEvent`. `outcome` is carried as a string (`\"Completed\"`, `\"Failed\"`, `\"Cancelled\"`),\n  and the optional `finishedAt` defaults to the time the call arrives\n- `Humanize.Milliseconds(long?)` — formats a duration as `ms`/`s`/`min` (returns `N/A` for `null`)\n- Data Preview page (`/core/data-preview`): per-entity column multi-select dropdown, and a **Force refresh** button per entity that bypasses `SourceEntity.DataPreview` and fetches live data via `IDataProvider.GetData`\n\n### Removed\n- `DataSourceConfiguration.Alias`, `TargetEntityDto.Alias`, `RelationshipDto.Alias` and\n  `RelationshipDto.FromEntity` / `ToEntity` — use `Slug`, `Type` and `FromEntitySlug` / `ToEntitySlug`\n- `StartDataJobRequest.DataSourceConfigurationNameOrAlias` and the `ResolvedConfigNameOrSlug`\n  fallback it fed; `DataSourceConfigurationNameOrSlug` is now required and read directly\n- `DataSourceConfigurationDataPreviewResponse.DataSourceConfigurationAlias`\n- The GBS 3.1 retry in `DataImportConfigurationManager` that resent a rejected data source\n  configuration under its other name, and the name-vs-slug normalisation before verification.\n  `DataImportConfigurationManager` no longer takes an `IDataProvider`\n- `RequiredMigrations.ConvertAliasToSlug`, and with it the whole entry from the registry. Agents\n  should delete their `ConvertAliasToSlugMigration` and any\n  `SkipRequiredMigrations(RequiredMigrations.ConvertAliasToSlug)` call. **Make sure the migration has\n  already run in every environment** — its record lives in the `AppliedMigration` table\n- `SlugUtil.ConvertFromAlias` and `SlugUtil.ConvertFromAliases` — they existed only for the migration\n  that is gone. `ToSlug` is what builds a slug from a name\n\n### Changed\n- `TargetEntityDto.Slug`, `RelationshipDto.Type` and `RelationshipDto.FromEntitySlug` / `ToEntitySlug`\n  are `required` again, now that no GBS version omits them\n- `DataMigrationRunner` takes the required-migration registry as a dependency instead of reading the\n  static list, so the validation stays testable while the registry is empty\n- Data Jobs page and `JobInfoDto` show what a job is actually doing — intake job id, source\n  configuration, and the source entities being imported with their property counts and manual-trigger\n  flags — instead of a column bound to a property that no longer existed. `JobInfoDto` gained\n  `IntakeJobId`, `DataSourceConfigurationNameOrSlug` and `DataToImport` as `required` members, so\n  anything constructing one has to supply them\n- `DataJob.TriggeredBy` and `DataImportConfigurationRequest.DataSourceConfiguration` are `init`-only;\n  assign them in the object initialiser rather than afterwards\n- A job now reaches a terminal state exactly once, so `ImportJobFinishedEvent` is raised once per\n  job however the job ended. Cancelling a job that has already finished — failed included, not just\n  completed — throws instead of overwriting the outcome, and a cancel waits (up to 10 s) for the\n  processing loop to unwind before listeners are told, so they are not releasing state the job is\n  still writing\n\n### Upgrading from 3.1.x\n1. Delete your `ConvertAliasToSlugMigration` and its `AddMigration` registration, and any\n   `SkipRequiredMigrations(RequiredMigrations.ConvertAliasToSlug)` call\n2. Delete the `Alias` property from your `DataSourceConfigurationInfo`\n3. Set `Type` / `FromEntitySlug` / `ToEntitySlug` on `RelationshipDto` and `Slug` on\n   `TargetEntityDto` — they are required now\n4. Optionally implement `IJobLifecycleListener` to clean up per-job state\n\n## [3.1.1]\n\n### Added\n- `ErrorDetails` models RFC 7807 problem details: `Type`, `Instance`, `TraceId`, per-field `Errors`, `AdditionalProperties` (extension members) and `RawBody`, plus a `Summary` (also `ToString()`) that flattens everything onto one line for logs and single-string error messages\n- `ErrorDetails.FromResponseAsync(HttpResponseMessage)` / `ErrorDetails.FromResponseBody(body, statusCode, reasonPhrase)` — parse an error body (problem details, or plain text such as a gateway's HTML page) without throwing; usable by any client that talks to a DCH service\n\n### Changed\n- `ErrorDetails.Title` / `Message` are no longer `required` and default to an empty string, so the parser can build one from any response\n- `GbsApiClient.SendDataBatch` / `ReportJobFailure` no longer use `EnsureSuccessStatusCode()`: a failed POST now throws an `IntakeAgentCoreException` carrying the status code and the problem detail from GBS instead of the bare `Response status code does not indicate success`\n\n### Fixed\n- `GbsApiClient` no longer discards what GBS said when a request fails. Error bodies were deserialized straight into `ErrorDetails`, which only knew `title`/`message`, so a problem-details response (GBS's actual format) left `ErrorDetails.Message` empty and the validation `errors` were lost — callers such as `TargetEntityManager`, `RelationshipManager` and `DataImportConfigurationManager` reported a blank `StatusMessage`. Error responses are now parsed with `ErrorDetails.FromResponseBody`, `Message` falls back through `detail` → flattened `errors` → `title` → the status line, and `ErrorDetails` is populated even for an empty body\n\n## [2.2.0]\n\n### Added\n- Data migration framework: `IDataMigration` interface, `RequiredMigrations` registry, `DataMigrationRunner` hosted service\n- `SlugUtil` with `ToSlug()`, `ConvertFromAlias()`, and `ConvertFromAliases()` methods\n- `SkipRequiredMigrations()` and `AddMigration<T>()` on `IntakeAgentCoreConfigurator`\n\n### Changed\n- `DataSourceConfiguration.Alias` renamed to `Slug`; format tightened to `[a-z0-9-]`\n- `IDataProvider` parameter `nameOrAlias` renamed to `nameOrSlug`\n- `DataFetchParameters.DsConfigNameOrAlias` renamed to `DsConfigNameOrSlug`\n- `StartDataJobRequest.DataSourceConfigurationNameOrAlias` renamed to `DataSourceConfigurationNameOrSlug` (old JSON name still accepted as fallback)\n- `DataSourceConfigurationsController` route parameter `alias` renamed to `slug`\n- `AliasUtil` removed; use `SlugUtil` instead\n\n## [2.1.1]\n\n### Changed\n- ToAlias in AliasUtil now uses Hyphens (\"-\") instead of Underscores (\"_\")\n\n## [2.1.0]\n\n### Added\n- GetQueueJobDetails added to the GBS API contract\n\n## [2.0.0]\n\n### Changed\n- Updated to dotnet10\n\n## [1.2.0]\n\n### Added\n- Logic to suggest a unique Alias value\n\n## [1.1.0]\n\n### Added\n- UpdateTargetEntity added to the GBS API contract\n\n## [1.0.0]\n\n### Added\n- Full implementation of the GBS API contract enabling agent registration and data submission\n- PostgreSQL database integration for secure storage of agent-specific data\n- Policy-based authentication system protecting all API endpoints\n- Intuitive Admin UI with support for custom pages and single sign-on via Keycloak integration\n- Comprehensive development utilities to streamline agent creation and deployment",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#repository",
+    "commit": "32b3e3dfac4fa15017cd932c474c1800dbc7d009",
+    "type": "git"
+  },
+  "verbatimVersion": "4.0.1",
+  "version": "4.0.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/blazormonaco",
+          "@type": "PackageDependency",
+          "id": "BlazorMonaco",
+          "range": "[3.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[10.0.9, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.openidconnect",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.OpenIdConnect",
+          "range": "[10.0.9, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/microsoft.aspnetcore.openapi",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.OpenApi",
+          "range": "[10.0.9, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/microsoft.extensions.http.resilience",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http.Resilience",
+          "range": "[10.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/microsoft.openapi",
+          "@type": "PackageDependency",
+          "id": "Microsoft.OpenApi",
+          "range": "[2.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/npgsql",
+          "@type": "PackageDependency",
+          "id": "Npgsql",
+          "range": "[10.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.15.3, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.14.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/opentelemetry.instrumentation.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.AspNetCore",
+          "range": "[1.14.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/radzen.blazor",
+          "@type": "PackageDependency",
+          "id": "Radzen.Blazor",
+          "range": "[8.5.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/swashbuckle.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Swashbuckle.AspNetCore",
+          "range": "[10.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/swashbuckle.aspnetcore.swagger",
+          "@type": "PackageDependency",
+          "id": "Swashbuckle.AspNetCore.Swagger",
+          "range": "[10.1.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dependencygroup/net10.0/swashbuckle.aspnetcore.swaggerui",
+          "@type": "PackageDependency",
+          "id": "Swashbuckle.AspNetCore.SwaggerUI",
+          "range": "[10.1.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#DCH.IntakeAgentCore.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4503,
+      "fullName": "DCH.IntakeAgentCore.nuspec",
+      "length": 11511,
+      "name": "DCH.IntakeAgentCore.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3803,
+      "fullName": "CHANGELOG.md",
+      "length": 9129,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1104,
+      "fullName": "README.md",
+      "length": 2833,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#dch.png",
+      "@type": "PackageEntry",
+      "compressedLength": 4324,
+      "fullName": "dch.png",
+      "length": 4331,
+      "name": "dch.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#build/DCH.IntakeAgentCore.props",
+      "@type": "PackageEntry",
+      "compressedLength": 91,
+      "fullName": "build/DCH.IntakeAgentCore.props",
+      "length": 163,
+      "name": "DCH.IntakeAgentCore.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "@type": "PackageEntry",
+      "compressedLength": 1025,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "length": 8909,
+      "name": "Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "@type": "PackageEntry",
+      "compressedLength": 845,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "length": 5716,
+      "name": "Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#buildMultiTargeting/DCH.IntakeAgentCore.props",
+      "@type": "PackageEntry",
+      "compressedLength": 72,
+      "fullName": "buildMultiTargeting/DCH.IntakeAgentCore.props",
+      "length": 81,
+      "name": "DCH.IntakeAgentCore.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#buildTransitive/DCH.IntakeAgentCore.props",
+      "@type": "PackageEntry",
+      "compressedLength": 86,
+      "fullName": "buildTransitive/DCH.IntakeAgentCore.props",
+      "length": 95,
+      "name": "DCH.IntakeAgentCore.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#lib/net10.0/DCH.IntakeAgentCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 168408,
+      "fullName": "lib/net10.0/DCH.IntakeAgentCore.dll",
+      "length": 422400,
+      "name": "DCH.IntakeAgentCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#staticwebassets/favicon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 790,
+      "fullName": "staticwebassets/favicon.png",
+      "length": 785,
+      "name": "favicon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#staticwebassets/images/dch.svg",
+      "@type": "PackageEntry",
+      "compressedLength": 885,
+      "fullName": "staticwebassets/images/dch.svg",
+      "length": 1725,
+      "name": "dch.svg"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#staticwebassets/images/dch_collapsed.svg",
+      "@type": "PackageEntry",
+      "compressedLength": 422,
+      "fullName": "staticwebassets/images/dch_collapsed.svg",
+      "length": 718,
+      "name": "dch_collapsed.svg"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#staticwebassets/js/timezone.js",
+      "@type": "PackageEntry",
+      "compressedLength": 133,
+      "fullName": "staticwebassets/js/timezone.js",
+      "length": 169,
+      "name": "timezone.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#staticwebassets/main.css",
+      "@type": "PackageEntry",
+      "compressedLength": 392,
+      "fullName": "staticwebassets/main.css",
+      "length": 764,
+      "name": "main.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.02.12.52.55/dch.intakeagentcore.4.0.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

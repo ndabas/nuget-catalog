@@ -1,0 +1,466 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Healnet Team",
+  "catalog:commitId": "7f4cc0c2-6d80-48aa-9e54-f86686142b32",
+  "catalog:commitTimeStamp": "2026-11-03T05:07:19.5348403Z",
+  "copyright": "2024 Healnet. All rights reserved.",
+  "created": "2026-11-03T05:01:53.173Z",
+  "description": "Healnet.Infrastructure 是 Healnet 框架的基础设施层类库，提供各种基础设施服务的封装和集成，包括 Consul 服务发现、Redis 缓存、RabbitMQ 消息队列、gRPC、Elasticsearch、Milvus 向量数据库、SQLSugar ORM、JWT 认证、YARP 反向代理、OpenTelemetry 可观测性、Serilog 日志框架、ClickHouse 列式数据库等。",
+  "iconUrl": "https://raw.githubusercontent.com/healnet/healnet-framework/main/icon.png",
+  "id": "Healnet.Infrastructure",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-03T05:07:05.6Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "4JoWKqSEVnIQ5MfkKf82fXfsajOLJ2N1Ods/52KvZ+ky3AZqZvvAatd4pZndkoc27DgRARALoqYV7GCPwsOqiA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 267665,
+  "published": "2026-11-03T05:01:53.173Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v4.0.34: 模型校验统一响应（兼容性接管，默认关闭）。此前 [ApiController] 的模型校验失败返回 RFC7807 ProblemDetails（HTTP 400），而框架其余错误统一走 ApiResponse，同一个「字段必填」错误存在两套 body 形状，调用方要写两份解析逻辑。现提供可选统一：新增 AddHealnetUnifiedValidationResponse 扩展与 Healnet:Validation 配置节（UnifyResponse / HttpStatusCode / ErrorCode / Message / IncludeFieldErrors / ForceJsonContentType）。UnifyResponse=false（默认）时不注册任何 MVC 行为，老调用方零影响；置 true 后校验失败返回 ApiResponse（code=400、success=false、字段明细放 data，结构与 ProblemDetails.errors 同构，前端把 body.errors.Name 改成 body.data.Name 即可迁移）。HttpStatusCode 默认仍 400（既有「看到 400 走失败分支」的判断不用改），可配 200 完全对齐 ApiResponse「HTTP 恒 200、错误看 body.code」的惯例；ForceJsonContentType 默认 true，避免项目注册 XML formatter 后同一响应因 Accept 不同而形状漂移。另在模板文档中警示：不支持给 record 主构造参数加 [property: Required]（ASP.NET Core 会抛 InvalidOperationException，导致该接口所有 POST 变 500）。另供 E2E 使用的 ServiceProcess 增加 extraEnv 参数（验证开关两态），withGrpc=false 时显式关闭 GrpcPort 避免撞本机端口。 v4.0.31: 代码审查修复 3 项。① SqlSugarRepository 多库默认连接名不一致（P1）：构造已按「连接配置首个 ConfigId」绑定 Context，但 GetClient 及全部 CRUD 方法默认参数恒为字面量 Default——多库配置首连接名非 Default（如 Master）时所有增删改查走 GetConnectionScope(Default) 抛「未找到 ConfigId」。现统一在 GetClient 入口做别名映射（请求 Default 且真实默认名不同时改用真实名），方法签名保持兼容。② GetSingleAsync/GetFirstAsync 性能缺陷：原实现 ToListAsync() 后 SingleOrDefault/FirstOrDefault 会把整表拉进内存，改为下推 SQL 的 SingleAsync/FirstAsync。③ ExceptionHandlerMiddleware 响应已开始写出时（SSE/大文件下载中途失败）再设 ContentType/StatusCode 会抛 InvalidOperationException 导致中间件自身崩溃，补 response.HasStarted 保护。另修复 ServiceDefaults 的 Swagger 生产门禁缺失（文档声明生产默认不挂载但实现未校验 AllowNonDevelopment，与网关门禁对齐，非 Development 环境需显式开启才挂载）。 v4.0.30: 彻底重写 gRPC 注解路由解析为强类型实现并新增依赖 Google.Protobuf 3.27.2 与 Google.Api.CommonProtos 2.15.0。4.0.29 的基类链 Descriptor 查找修复仍不够：MethodDescriptor 根本没有名为 Options 的属性（旧反射链在此恒断），且 Extensions.ContainsField API 形状也不存在，导致 google.api.http 注解永远读不到。现改为强类型：ServiceDescriptor.Methods → MethodDescriptor.CustomOptions.TryGetMessage(72295728) 读取 Google.Api.HttpRule，按 PatternCase（Get/Post/Put/Delete/Patch/Custom）成对取路径与 HTTP 方法，消除全部脆弱反射。 v4.0.29: 修复 gRPC 转码端点 Swagger 文档路由与真实路由不一致（P1，E2E 实测发现）。GetHttpRouteFromProtoDescriptor 的静态 Descriptor 查找只回溯实现类及其 DeclaringType，而 grpc-dotnet 生成结构中 Descriptor 位于基类链上某一层的 DeclaringType（实现类 UserGrpcService → 基类 UserGrpc.UserGrpcBase → 外层容器类 UserGrpc），导致 google.api.http 注解路由永远解析不到，Swagger 退化为合成回退路由（/grpc/{service}/{method}，Try it out 必 404）。现沿整条基类链及其 DeclaringType 查找。另修复模板 ProductsController 实例字段保存跨请求状态缺陷（Controller 每请求新建，Create 后 Get 必 404），改为 Singleton InMemoryProductStore 注入。 v4.0.28: 修复 gRPC 服务类型识别规则在 grpc-dotnet 生成结构下恒不命中的缺陷（4.0.26 引入的自动探测/自动映射与 Swagger 自动发现均受影响）。此前 IsGrpcService 判定为'基类链上存在名以 Base 结尾且有 BindService 方法'，但 grpc-dotnet 实际生成的结构是：服务实现类继承嵌套抽象类（如 UserGrpc.UserGrpcBase），BindService 定义在外层静态类（UserGrpc）上而非基类链上——导致自动探测 EnableGrpc 恒 false（ServiceDefaults 不启用 gRPC）、Swagger 自动发现也恒为空（此前未暴露是因为业务均显式传入服务类型）。现识别规则改为：基类链上存在名以 Base 结尾的类型，且该类型自身或其 DeclaringType（外层静态类）上存在 BindService 方法。ServiceDefaultsExtensions.IsGrpcServiceType 与 GrpcServiceScanner.IsGrpcService 同步修复。注意 BindService 在外层类上存在两个重载（BindService(base) / BindService(base, builder)），判定按方法名而非 GetMethod 精确签名（原写法触发 AmbiguousMatchException 启动崩溃）。 v4.0.27: 修复 4.0.26 Service Defaults 三处缺陷（发布后经三模板实机启动验证发现）。① MapAllDiscoveredGrpcServices 程序集排除规则误伤业务程序集：原笼统排除 FullName 以 Healnet 开头的程序集，导致 Healnet.Example.* 等业务服务的 gRPC 服务不被自动映射（转码端点 404）；现改为精确排除 Healnet.Common/Healnet.Core/Healnet.Infrastructure 三个框架程序集（并补 mscorlib/netstandard）。② UseHealnetServiceDefaults 与 AddHealnetServiceDefaults 能力开关脱节：原 Use 侧从 Healnet:ServiceDefaults 配置新建 options（默认全 false），Add 侧的自动探测结果丢失，导致 Controller 端点不映射；现 Add 侧将探测后的 options 写入 DI（AddSingleton），Use 侧优先取 DI 实例，配置节点仍可覆盖。③ Kestrel 双端口策略修正并显式告警：明文端口的 Http1AndHttp2 无 TLS 时 HTTP/2 被禁用（Kestrel 事件 Http2DisabledWithHttp1AndNoTls，连接退化为 HTTP/1.1），此前'HTTP 与 gRPC 同端口共存'的原生 gRPC 调用实际不可用；现明确——EnableGrpc 且 GrpcPort 配置为独立端口（异于 ServicePort）时双端口（HTTP: Http1AndHttp2 + gRPC: HTTP/2 Only，原生 gRPC 唯一通路）；GrpcPort 缺失或与 ServicePort 相同则记 Error 提示补配置（JSON 转码 HTTP 面不受影响）。混合宿主模板已改为双端口（5000 HTTP + 5001 gRPC），Consul 注册 grpc-port Meta 指向 5001，发现/通信全链路正确。 v4.0.26: 新增服务托管默认值 Service Defaults（HealnetServiceDefaultsExtensions），框架样板全收编，业务服务 Program.cs 只需两行调用。① AddHealnetServiceDefaults(WebApplicationBuilder)：自动完成 Serilog 日志（UseHealnetSerilog）、Consul 客户端、gRPC JSON 转码 + 统一异常拦截器（按需）、MVC（按需）、JWT、健康检查、Swagger（含 gRPC 文档，服务类型自动发现）、Kestrel 端口策略（读 Healnet:Consul:ServicePort/GrpcPort——GrpcPort 大于 0 且异于 ServicePort 时双端口（HTTP: Http1AndHttp2 + gRPC: HTTP/2 Only），否则单端口 Http1AndHttp2（HTTP 与 gRPC 同端口共存，content-type 协商））；能力开关默认自动探测入口程序集（存在 Controller 则启用 MVC、存在 gRPC 服务类则启用 gRPC），可经 HealnetServiceDefaultsOptions 委托显式覆盖。② UseHealnetServiceDefaults(WebApplication)：按生产顺序挂载请求日志（/health 降噪）、全局异常（ExceptionHandlerMiddleware）、CorrelationId、认证授权、/health、MapControllers（按需）、自动发现并映射 gRPC 服务（MapAllDiscoveredGrpcServices，扫描非系统程序集中基类链含 BindService 的类型，逐个反射调用 MapGrpcService，业务无需手写 MapGrpcService）、Swagger UI、Consul 注册（Enabled 开关跳过）。③ 业务服务最终形态：builder.AddHealnetServiceDefaults() + app.UseHealnetServiceDefaults() + Run，业务代码只写 proto/gRPC 实现/Controller。④ 注意事项：混合宿主（HTTP 与 gRPC 同端口）必须将 Healnet:Consul:GrpcPort 配为与 ServicePort 相同值，Consul 注册才会写入 grpc-port Meta，其他服务的 gRPC 服务发现才能命中（发现侧跳过无 grpc-port 的实例，4.0.13 同样约束）；自动映射 gRPC 服务后不要再手动调用 MapGrpcService&lt;T&gt;（同类型重复映射会抛端点重复异常）。模板案例见 examples/（MixedHost 混合宿主 / GrpcOnly 纯 gRPC 双端口 / ApiOnly 纯 HTTP） v4.0.25: gRPC 统一封装（业务服务开箱即得，无需自行注册）。① 服务端：AddGrpcJsonTranscodingSupport 现已默认注册 HealnetGrpcExceptionInterceptor（此前该拦截器为孤儿封装、全库无注册点，业务代码在 gRPC 服务中抛 HealnetException/BusinessException 会落入 Unknown/500）；现自动转换异常为 gRPC Status（trailers 携带 x-error-code/x-error-retryable），JSON Transcoding 端点的 HTTP 状态码随之正确映射（NotFound→404、InvalidArgument→400、FailedPrecondition→400、PermissionDenied→403、ResourceExhausted→429、DeadlineExceeded→504、Unauthenticated→401），业务服务在 gRPC 方法中直接抛 Core 异常体系即可。② 客户端：GrpcClientBase 新增统一调用入口 ExecuteAsync——自动构建调用 metadata（x-correlation-id 链路透传，取自当前 Activity.TraceId；ForwardAuthorization=true 时透传调用方 Authorization header 到下游 gRPC metadata，供内部接口鉴权）；并把 RpcException 还原为 HealnetException（服务端为 Healnet 框架时按 trailers x-error-code 精确还原原始错误码，否则按 StatusCode 退化映射：InvalidArgument→400、PermissionDenied→403、NotFound→404、ResourceExhausted→429、Internal→500、DeadlineExceeded→504、FailedPrecondition→400、Unauthenticated→401、Unavailable→503 可重试、Unimplemented→501、Aborted→409），消费方用统一 HTTP 语义错误码处理远程失败，不再感知 gRPC StatusCode/trailers 细节。新增 GrpcExceptionMapper（还原映射器）。③ 兼容性：GrpcClientBase 构造函数新增可选参数 IHttpContextAccessor（默认 null），既有子类无需改动；ExecuteAsync 为新增方法，原 GetClientAsync/GetRequiredClientAsync 用法不变；行为变化仅一处——此前 gRPC 服务中抛 Core 异常返回 Unknown 的场景现在返回精确 Status，属缺陷修复。 v4.0.24: 代码审查缺陷批量修复（正确性/安全/资源管理）。① GrpcChannelCache：健康检查失败的坏 Channel 先从缓存移除再重建（原 GetOrCreate 对已存在 key 直接返回旧坏实例，坏 Channel 永不重建）；凭据按 URL scheme 选择（https→SecureSsl，原硬编码 Insecure 导致 https 目标握手失败）。② RabbitMQProducerBase：BasicPublishBatch/BasicPublish 发布操作加锁串行化（共享单例 channel 非线程安全，对照 RabbitMQService._publishLock 模式）。③ RabbitMQConsumerBase：重试耗尽与反序列化失败路径改为 DLQ 发布成功才 Ack，否则 BasicNack(requeue:false) 交给 broker 端 DLX 策略（原 DLQ 未启用或发布失败时无条件 Ack 静默丢消息）。④ DistributedLockService：锁值字典改 TryAdd 语义（原索引器赋值覆盖同键旧 token）；释放时本地无 token 不再 KeyDelete 兜底（防误删其他实例持有的锁），仅告警，键由过期时间或真正持有者释放。⑤ MemoryOrchestrator：L2 持久化失败（保存失败或锁未获取）置 l2Persisted=false 如实返回（原静默吞掉仍返回 true）；TurnNo 改 COUNT 聚合查询（原 GetRecentTurnsAsync(sessionId, 100000) 拉 10 万条仅为计数）；Milvus FilterExpression 的 domain 加白名单校验（字母数字下划线中划线，不合法抛 ArgumentException，防表达式注入）。⑥ ConversationRepository：SaveSessionAsync/SaveTurnAsync 失败返回 false（配合 Core 4.0.11 的 IConversationRepository 契约），新增 CountTurnsAsync。⑦ RAGService 注册改 AddSingleton（其内部知识库字典随实例持久，Scoped 导致每个请求拿到空知识库）。⑧ AgentContextManager 加 TTL 惰性清理（1 小时，Get/Create/Exists/Count 路径触发，原只增不减内存泄漏）；AgentService.ExecuteAsync/ExecuteWithToolsAsync 成功完成后调用 DeleteContextAsync。⑨ HttpClientService 全部方法（POST/PUT/DELETE/PATCH/表单 POST/下载字符串与字节数组/带状态码变体）统一经 BuildRequestUrlAsync 走 Consul 服务发现（原仅 GET 走，Consul 模式下其余方法相对路径请求必然失败）。⑩ AiMemoryEntityMapper：补 ConversationArchive.Id 列 IsPrimarykey/IsIdentity 映射（原空分支，CodeFirst 建表缺主键）。⑪ SqlSugarRepository：默认连接名取连接配置中的首个 ConfigId（原硬编码 \"Default\"，多库首连接名非 Default 时仓储绑错库），取不到回退 \"Default\"。⑫ SqlSugarExtensions.OnLogExecuting 不再拼接 SQL 参数值（防手机号/金额等敏感数据泄漏进日志），仅保留 SQL 文本 Debug。⑬ ResiliencePolicyProvider 重试策略补 TaskCanceledException 覆盖（HttpClient 超时表现为该异常，原不重试），并排除外部取消（CancellationToken 已触发时不重试）。⑭ RabbitMQService 消费者由 EventingBasicConsumer（async void 事件，异常崩进程）改 AsyncEventingBasicConsumer；失败路径由 Nack(requeue:true) 改为 republish 带 x-retry-count=原值+1 header 的新消息并 Ack 原消息（原实现只读不写计数，Nack 重回队列 header 不变，毒消息无限循环），超过 MaxRetryCount（默认 3，新公开属性）转 BasicNack(requeue:false) 交 broker 端 DLX；Subscribe(queue, routingKey, handler) 重载标记 Obsolete（该重载错误地将 routingKey 用作 exchange 名称），5.0 移除。⑮ RedisService.GetAsync 区分 JsonException（Warning 日志，视为未命中）与连接类异常（Error 日志）；仍返回 default，兼容性不变。⑯ ApiKeyAuthenticationHandler：API Key 比对由 string.Equals 改 CryptographicOperations.FixedTimeEquals 恒定时间比较（长度不等直接 false），防时序侧信道。⑰ ConsulService 实现 IDisposable 释放 ConsulClient（单例生命周期下原 HTTP 连接永不释放）。已知限制：全部契约接口补 CancellationToken 归 5.0；RedisShortTermMemoryStore 读改写改 Redis List 需数据迁移；MemoryOrchestrator 的 L3 蒸馏 fire-and-forget 需背景队列架构，另批处理。v4.0.23: 修复 Swagger gRPC 封装 4 处缺陷并增强 proto3 JSON 文档准确性（QA 团队双通道验证后实施）。① GetMethodType 流式识别失效：原实现对 Task`1 泛型定义名做 Contains 判断恒不命中，所有流式方法（ServerStreaming/ClientStreaming/DuplexStreaming）被误判为 Unary、x-grpc-type 恒为 Unary；现先解包 Task<T> 再与 Grpc.Core 的 AsyncServerStreamingCall<>/AsyncClientStreamingCall<,>/AsyncDuplexStreamingCall<,> 精确比较。② 流式假端点：GrpcSwaggerDocumentFilter 现跳过 ClientStreaming/DuplexStreaming（JSON Transcoding 官方不支持、经 HTTP 调用必然 404），并记 Information 日志；ServerStreaming 保留但在描述中标注响应为流式 JSON。③ int64 映射对齐 proto3 JSON：long/ulong 的 Schema 从 integer/int64 改为 string/int64、string/uint64（proto3 JSON 将 64 位整数编码为字符串，Transcoding 实际输出 \"123\"）；顺带补 uint→integer/int32（原落入默认 string 分支）；MapField<long> 值同步修正。④ WellKnownTypes 盲区：Any 从空 object 改为带 @type 键提示与说明的开放对象（Any 打包类型为实例级信息，静态文档原理上无法展开，标注请按 @type 对应消息定义）；Struct→任意 JSON 对象；Value→任意 JSON 值（不设 type）；ListValue→任意值数组；FieldMask→逗号分隔字段路径字符串；NullValue→NULL_VALUE 枚举；Empty→空对象。⑤ 深度截断显式标注：嵌套超过 10 层降级为字符串时，Schema description 注明「[嵌套截断]」与被截断消息名，避免文档读者误读为真实字符串字段。⑥ 悬空 $ref：_currentDoc 为 null 时（如反射调用场景）CreateSchema 此前返回从未注册进 Components 的 Reference.Id，渲染解析失败；现改为返回已展开的内联 schema。⑦ ByteString Schema 补 format:byte，Swagger UI 可生成合法 base64 示例。⑧ 新增 gRPC 文件上传调试端点模板：MapGrpcFileUploadEndpoint（Swagger/GrpcFileUploadExtensions.cs）在 gRPC 服务同进程映射 multipart/form-data 上传端点（默认 /grpc-file-upload，可配置路由/大小上限/扩展名白名单/业务 Handler），返回统一 ApiResponse（code=200），Swagger UI 独立分组展示并支持文件选择框 Try it out——背景：JSON Transcoding 无 multipart，bytes 仅适合 base64 小内容，真实文件上传需传统 REST 端点。已冒烟实测：上传成功回显元信息/扩展名白名单拒绝 400/空请求 400/swagger.json 含 multipart requestBody 与独立分组。以上均已通过引用真实源码的验证 harness（伪 gRPC 服务 + 私有方法反射调用）回归实测。无公开 API 签名变更，行为向后兼容（文档描述更准确）。v4.0.22: 在 4.0.21 基础上补一处混合形状处理：当标量 MinimumLevel 与嵌套子节点同时存在时（例如环境变量 Healnet__Serilog__MinimumLevel=Error 叠加在 JSON 的嵌套对象之上），级别取标量，但嵌套里的 Override 仍然合并——此前只取标量会丢掉嵌套 Override。4.0.21/4.0.20 未公开该方法且无使用方，请直接用 4.0.22。v4.0.21: 修复 Healnet:Serilog 日志级别配置静默失效（4.0.20 为同一修复的中间发布，未公开解析方法且无使用方，请直接用 4.0.21）。LoggingOptions.MinimumLevel 是 string，而 Serilog.Settings.Configuration 的标准写法是嵌套对象 { \"Default\": .., \"Override\": { .. } }；配置绑定遇到对象转 string 时会静默跳过该属性且不抛异常，最终 MinimumLevel 保持默认 \"Information\"、Override 为空字典——等价于\"根本没配日志级别\"。表现为：生产 Apollo 配 Warning 仍全量输出 Microsoft.AspNetCore 的 INF，本地配 Debug 却看不到任何 LogDebug。现新增公开的 LoggingExtensions.LoadLoggingOptions(IConfiguration) 显式兼容两种形状：标量形状直接采用；嵌套形状取 Default 并合并其 Override，同时通过 SelfLog 提示改回平级写法。Override 合并时平级（框架契约）优先于嵌套，同名键以平级为准，比较器改为 OrdinalIgnoreCase 以匹配 Serilog 的前缀匹配语义。公开该方法也便于服务在启动时直接打印\"实际生效的日志配置\"做诊断。无破坏性 API 变更，旧配置无需修改即可生效。v4.0.20: 同 4.0.21，中间发布。v4.0.19: IRedisService 新增 GetSubScriber() 方法，返回 StackExchange.Redis 的 ISubscriber，用于直接操作 Redis 发布/订阅（pub/sub）通道；RedisService 基于 _connection.GetSubscriber() 实现。注意：IRedisService 为公开接口，自行实现该接口的外部代码需补齐此方法。v4.0.16: 修复 YARP 服务发现\"一缺全废\"缺陷：Consul 中任一已配置服务无健康实例时，ConsulServiceDiscoveryConfigProvider.LoadConfigAsync 会在遍历中因 ConsulService.ResolveAllHttpAddressesAsync 抛 InvalidOperationException 而整体中断（异常被循环外层 catch 吞掉），导致此前已生成的路由全部丢弃、且每轮刷新均失败无法自愈——表现为\"必须把所有下游服务全部启动，网关路由/Swagger 聚合才可用\"。现按服务隔离异常：服务无实例（InvalidOperationException）仅记 Warning 并跳过该服务，其余服务路由照常生成（健康实例出现后 30s 内自动补齐）；Consul 不可达等其他异常保留上一份配置，避免瞬时故障清空全部路由。无公开 API 签名变更，行为向后兼容。v4.0.13: gRPC 服务发现（ResolveAllGrpcAddressesAsync）支持遗留回退：实例无 grpc-port Meta 但 Tags 含 GrpcLegacyFallbackTag（默认 server，需 Healnet:Consul:GrpcLegacyTagFallback=true 开启）时，回退使用 Address:Port 作为 gRPC 地址，用于与历史 .NET Core 3.1 MicroCloud 框架注册的 gRPC 服务（不带 Meta、主端口即 h2c）互通；fail-fast 报错文案同步更新。默认关闭，行为完全向后兼容。：实例无 grpc-port Meta 但 Tags 含 GrpcLegacyFallbackTag（默认 server，需 Healnet:Consul:GrpcLegacyTagFallback=true 开启）时，回退使用 Address:Port 作为 gRPC 地址，用于与历史 .NET Core 3.1 MicroCloud 框架注册的 gRPC 服务（不带 Meta、主端口即 h2c）互通；fail-fast 报错文案同步更新。默认关闭，行为完全向后兼容。v4.0.12: 修复 RabbitMQ channel 泄漏导致连接触顶 ChannelAllocationException 的故障。此前 IRabbitMQService 注册为 Scoped，调用方用根 IServiceProvider.GetService 解析时每次新建 RabbitMQService 并在构造中 connection.CreateModel() 分配一个 channel；RabbitMQService 未实现 IDisposable 导致 scope 永不回收 channel，长时间运行后连接上 channel 只增不减，触顶 2047 上限即抛 ChannelAllocationException，进而拖垮依赖 MQ 的服务（如 identity 的 ValidateToken/AccountLogin/RefreshToken 空体 500）。现改为 AddSingleton（全进程复用 1 个 channel），RabbitMQService 实现 IDisposable（关闭时回收 channel），并对共享 channel 的发布/确认路径加锁以保证并发安全。无公开 API 签名变更，行为对既有调用方完全兼容（建议调用方仍用 GetService 懒获取而非构造硬注入）。v4.0.6: 三库版本重新对齐至统一 4.0.6（消除版本分叉，无新增代码变更/公开 API 变更，源码与 4.0.5 一致）。v4.0.2: GrpcChannelCache 创建的 HttpClient.Timeout 改为可配置（配置键 Grpc:HttpClientTimeoutSeconds，默认 100s 与 .NET 默认一致，保持既有行为）。此前 HttpClient 未显式设置 Timeout，恒为 100s 硬上限，且优先级高于 CallOptions.Deadline（grpc-dotnet 中 HttpClient.Timeout 先触发），导致调用方设置的更长 deadline（如编排层 DownstreamTimeoutSeconds=160，覆盖 LLM 生成 + 重试 >100s 的长查询）被 100s 硬截断，表现为客户端收到 \"HttpClient.Timeout of 100 seconds elapsing\" 的 Cancelled 状态。需要长超时的调用方现可在自身配置中调大该值（如 \"gRPC\": {\"HttpClientTimeoutSeconds\": 200}）。无公开 API 签名变更，默认行为与 4.0.1 完全兼容。v4.0.1: 修复 AddMemoryServices 无条件注册 L4 归档服务的缺陷。此前 IArchiveRepository/IArchiveService 恒被注册，而 ArchiveService 硬依赖 IFileService，导致未注册文件存储的使用方即便 EnableArchive=false 也会在 DI 解析 MemoryOrchestrator 时抛 \"Unable to resolve service for type 'IFileService' while attempting to activate 'ArchiveService'\"，只能在使用方 RemoveAll<IArchiveService>() 兜底。现改为仅当 MemoryOptions.EnableArchive 为 true 时才注册这两个服务，并在开启归档却缺失 IFileService 时抛出带注册指引的 InvalidOperationException。无公开 API 签名变更，行为对 EnableArchive=true 的使用方完全兼容。v4.0.0: 破坏性主版本（破坏性变更来自 Healnet.Core）。RedisService 实现 ICacheService.GetAndDeleteAsync<T>（Lua 原子 GET+DEL，防并发重复消费）；OssFileService 剥离 endpoint 中重复的 bucket 子域前缀；LoggingExtensions 将 ES sink 由 Serilog.Sinks.Elasticsearch 切换为 Serilog.Sinks.OpenSearch 并启用 SelfLog 诊断（公开方法签名未变）；AIServiceExtensions 调整 OpenAI HTTP 客户端超时逻辑。v3.1.0: OssFileService 实现 GeneratePresignedUrl(...) 预签名下载 URL（OSS 直连下载，配合 Healnet.Common 3.1.0 的 IFileService 扩展）。v3.0.1: ConsulService gRPC 发现改为 fail-fast 并支持唯一实例 ID 注册与 gRPC 健康检查；SqlSugarExtensions 注册 ITenant 多租户接口、AiMemoryEntityMapper DatabaseName 列标记可空；新增 GrpcClientBase 泛型基类；JwtBearer 跳过非 JWT 格式 Bearer token 避免 IDX14100 噪声、JWT bearer 对 /health 跳过校验；conversation_turn ErrorMessage 列映射标记 IsNullable。v3.0.0: 随 Healnet 统一升版至 3.0.0（破坏性变更来自 Healnet.Common：AESCrypto 移除无参重载、AESDecrypt 改返回元组）。v2.0.7: SqlSugar EntityMapper 可插拔化（IEntityMapper 接口）/ BusinessConfig + BusinessExample 迁出至业务项目 / ConversationArchive 泛化 / EntityService PropertyInfo 类型比较 bug 修复。v2.0.6: 新增 Milvus 向量数据库封装（IMilvusService / MilvusService / MilvusOptions / MilvusExtensions / MilvusHealthCheck），支持集合管理、向量索引、近似检索(ANN)、标量查询、批量写入与健康检查。v2.0.3: 统一三库版本号；升级目标框架至 net10.0；更新所有依赖包至最新稳定版；移除 Infrastructure 项目中多余的 MSBuild 属性。v2.0.1: 依赖包版本升级，修复若干已知问题。v2.0.0: 重大版本更新，目标框架从 net8.0 升级至 net10.0，全面更新依赖包版本，优化 API 设计。",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#repository",
+    "commit": "b94698ba1e580e9f1b2f90897d3c6d8878f483dc",
+    "type": "git",
+    "url": "https://github.com/healnet/healnet-framework"
+  },
+  "verbatimVersion": "4.0.34",
+  "version": "4.0.34",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/healnet.common",
+          "@type": "PackageDependency",
+          "id": "Healnet.Common",
+          "range": "[4.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/healnet.core",
+          "@type": "PackageDependency",
+          "id": "Healnet.Core",
+          "range": "[4.0.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/aliyun.oss.sdk.netcore",
+          "@type": "PackageDependency",
+          "id": "Aliyun.OSS.SDK.NetCore",
+          "range": "[2.14.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/aspectcore.core",
+          "@type": "PackageDependency",
+          "id": "AspectCore.Core",
+          "range": "[2.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/aspectcore.extensions.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "AspectCore.Extensions.DependencyInjection",
+          "range": "[2.4.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/azure.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Azure.AI.OpenAI",
+          "range": "[2.9.0-beta.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/consul",
+          "@type": "PackageDependency",
+          "id": "Consul",
+          "range": "[1.7.14.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/google.api.commonprotos",
+          "@type": "PackageDependency",
+          "id": "Google.Api.CommonProtos",
+          "range": "[2.15.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/google.protobuf",
+          "@type": "PackageDependency",
+          "id": "Google.Protobuf",
+          "range": "[3.27.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/grpc.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Grpc.AspNetCore",
+          "range": "[2.65.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/grpc.net.client",
+          "@type": "PackageDependency",
+          "id": "Grpc.Net.Client",
+          "range": "[2.65.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.aspnetcore.authentication.jwtbearer",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Authentication.JwtBearer",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.aspnetcore.grpc.jsontranscoding",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Grpc.JsonTranscoding",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.ai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI",
+          "range": "[9.10.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.ai.openai",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.AI.OpenAI",
+          "range": "[10.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.caching.memory",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Caching.Memory",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.diagnostics.healthchecks",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.diagnostics.healthchecks.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.http.polly",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http.Polly",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.extensions.logging",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging",
+          "range": "[10.0.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/microsoft.semantickernel",
+          "@type": "PackageDependency",
+          "id": "Microsoft.SemanticKernel",
+          "range": "[1.67.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/milvus.client",
+          "@type": "PackageDependency",
+          "id": "Milvus.Client",
+          "range": "[2.3.0-preview.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/mongodb.driver",
+          "@type": "PackageDependency",
+          "id": "MongoDB.Driver",
+          "range": "[2.29.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/nest",
+          "@type": "PackageDependency",
+          "id": "NEST",
+          "range": "[7.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/opentelemetry.exporter.console",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.Console",
+          "range": "[1.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/opentelemetry.exporter.jaeger",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.Jaeger",
+          "range": "[1.6.0-rc.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/opentelemetry.exporter.opentelemetryprotocol",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+          "range": "[1.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/opentelemetry.exporter.zipkin",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Exporter.Zipkin",
+          "range": "[1.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/opentelemetry.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Extensions.Hosting",
+          "range": "[1.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/opentelemetry.instrumentation.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.AspNetCore",
+          "range": "[1.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/opentelemetry.instrumentation.http",
+          "@type": "PackageDependency",
+          "id": "OpenTelemetry.Instrumentation.Http",
+          "range": "[1.7.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/oracle.manageddataaccess.core",
+          "@type": "PackageDependency",
+          "id": "Oracle.ManagedDataAccess.Core",
+          "range": "[23.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/polly",
+          "@type": "PackageDependency",
+          "id": "Polly",
+          "range": "[8.3.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/polly.ratelimiting",
+          "@type": "PackageDependency",
+          "id": "Polly.RateLimiting",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/rabbitmq.client",
+          "@type": "PackageDependency",
+          "id": "RabbitMQ.Client",
+          "range": "[6.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/serilog.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Serilog.AspNetCore",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/serilog.extensions.hosting",
+          "@type": "PackageDependency",
+          "id": "Serilog.Extensions.Hosting",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/serilog.sinks.console",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.Console",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/serilog.sinks.file",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.File",
+          "range": "[5.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/serilog.sinks.opensearch",
+          "@type": "PackageDependency",
+          "id": "Serilog.Sinks.OpenSearch",
+          "range": "[1.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/sqlsugar.clickhousecore",
+          "@type": "PackageDependency",
+          "id": "SqlSugar.ClickHouseCore",
+          "range": "[5.1.4.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/sqlsugarcore",
+          "@type": "PackageDependency",
+          "id": "SqlSugarCore",
+          "range": "[5.1.4.215, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/stackexchange.redis",
+          "@type": "PackageDependency",
+          "id": "StackExchange.Redis",
+          "range": "[2.9.11, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/swashbuckle.aspnetcore.swaggergen",
+          "@type": "PackageDependency",
+          "id": "Swashbuckle.AspNetCore.SwaggerGen",
+          "range": "[6.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/swashbuckle.aspnetcore.swaggerui",
+          "@type": "PackageDependency",
+          "id": "Swashbuckle.AspNetCore.SwaggerUI",
+          "range": "[6.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/system.directoryservices.protocols",
+          "@type": "PackageDependency",
+          "id": "System.DirectoryServices.Protocols",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/system.drawing.common",
+          "@type": "PackageDependency",
+          "id": "System.Drawing.Common",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/system.identitymodel.tokens.jwt",
+          "@type": "PackageDependency",
+          "id": "System.IdentityModel.Tokens.Jwt",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/system.interactive.async",
+          "@type": "PackageDependency",
+          "id": "System.Interactive.Async",
+          "range": "[6.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#dependencygroup/net10.0/yarp.reverseproxy",
+          "@type": "PackageDependency",
+          "id": "Yarp.ReverseProxy",
+          "range": "[2.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#Healnet.Infrastructure.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 13757,
+      "fullName": "Healnet.Infrastructure.nuspec",
+      "length": 31558,
+      "name": "Healnet.Infrastructure.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 644,
+      "fullName": "LICENSE",
+      "length": 1083,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 9238,
+      "fullName": "README.md",
+      "length": 20535,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#lib/net10.0/Healnet.Infrastructure.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 228717,
+      "fullName": "lib/net10.0/Healnet.Infrastructure.dll",
+      "length": 627712,
+      "name": "Healnet.Infrastructure.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.07.19/healnet.infrastructure.4.0.34.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Healnet",
+    "Infrastructure",
+    "Consul",
+    "Redis",
+    "RabbitMQ",
+    "gRPC",
+    "Elasticsearch",
+    "Milvus",
+    "VectorDB",
+    "SQLSugar",
+    "JWT",
+    "YARP",
+    "Polly",
+    "OpenTelemetry",
+    "Tracing",
+    "Metrics",
+    "Logging",
+    "Serilog",
+    "ClickHouse"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

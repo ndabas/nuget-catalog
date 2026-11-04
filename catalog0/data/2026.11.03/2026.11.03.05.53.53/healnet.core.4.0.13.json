@@ -1,0 +1,173 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Healnet Team",
+  "catalog:commitId": "350fcaa7-0284-4f18-99af-e6f6a7365b60",
+  "catalog:commitTimeStamp": "2026-11-03T05:53:53.6400121Z",
+  "copyright": "2024 Healnet. All rights reserved.",
+  "created": "2026-11-03T05:49:51.33Z",
+  "description": "Healnet.Core 是 Healnet 框架的核心业务层类库，提供领域层的基础接口和通用服务。包含仓储接口、工作单元、消息队列接口和统一异常处理。",
+  "iconUrl": "https://raw.githubusercontent.com/healnet/healnet-framework/main/icon.png",
+  "id": "Healnet.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-03T05:53:50.74Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "7AvTKjkChMlCxFwokAdulOqAS+1sgiime7xTvilCv00d+Q0prITV5XpfvKuIxLfTWI6nozNsC6iDFn4JlwB8rg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 85979,
+  "projectUrl": "https://github.com/healnet/healnet-framework",
+  "published": "2026-11-03T05:49:51.33Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "v4.0.13: 开启 XML 注释文档生成，并重写 ApiResponse 的语义注释（仅文档，无运行时变更）。① 此前 Core 不产出 Healnet.Core.xml，而 SwaggerOptions.IncludeXmlComments 默认 true、只在输出目录里找 *.xml，结果「统一响应 ApiResponse 的契约说明」永远进不了 Swagger schema description（文档里 code 只是一个光秃秃的 integer）。现启用 GenerateDocumentationFile，ApiResponse 等公开契约的 summary 会随 XML 文件流进 Swagger。② ApiResponse 的 code 注释明确为「业务状态码，判定业务结果请用它，不要只看 HTTP 状态码」；success 说明「等价于 Code == 200」；类级注释补两种形态并存的说明与样例——HTTP 200 + body.code=404（Controller 直接返回 ApiResponse.NotFound，如模板 GET /api/products/{id}）与 HTTP 400 + body.code=400（模型校验 / 显式 StatusCode(...) / 异常经 ExceptionHandlerMiddleware 按 code 映射）。属性、方法签名、序列化形状、IsSuccess 判定口径全部不变。④ 本包现已随包携带 lib/net10.0/Healnet.Core.xml（上面开启 GenerateDocumentationFile 的直接结果）；服务端模板改为用 GeneratePathProperty 从包目录只复制该文件到输出目录，供 SwaggerOptions.IncludeXmlComments 读取，不再依赖 CopyDocumentationFilesFromPackages（后者会把 100+ 三方包文档一起复制，实测 109 个 / 46MB）。 ③ 开启文档生成后按需抑制 XML 注释类告警（CS1591 缺失、CS1570/1572/1573/1587 既有注释的格式与 param 失配问题）——这些是历史注释问题，与本次文档修复无关，清理另开任务；抑制后编译仍为 0 警告 0 错误。 v4.0.12: ExceptionHandlerMiddleware 补齐「响应已开始写出」保护（P2）。原实现捕获全局异常后无条件改写 ContentType/StatusCode 并写错误体；当异常发生在响应已开始输出之后（SSE 流式推送、大文件下载中途失败、分块响应），再改响应头会抛 InvalidOperationException，导致中间件自身崩溃、连接异常中断并在日志产生二次异常。现检测 response.HasStarted：已开始写出时仅记 Warning 并直接返回（由客户端感知连接中断），不再尝试改写响应；未开始写出时行为完全不变。注意：4.0.11 的发布包不含此修复（该修复晚于 4.0.11 打包时刻），请升级到 4.0.12。 v4.0.11: 代码审查缺陷批量修复。① Entity.Equals/GetHashCode（正确性）：Id 为 default 时回退引用相等语义（原任意两个未持久化实体两两相等且哈希码相同，放入 HashSet/Dictionary 会互相覆盖）；AuditableEntity/SoftDeleteEntity 继承同一实现自动受益。② ExceptionHandlerMiddleware（HTTP 语义）：补 HealnetException 基类分支（原 SqlInjectionException/PermissionDeniedException/ResourceNotFoundException/ValidationFailedException/DatabaseException/LLMException/TimeoutExceptionEx/RateLimitedException 等子类全部落入兜底 500）；BusinessException.ErrorCode 与响应码统一经映射后写入 HTTP StatusCode——规则为 100-599 原值直通、4031→403、4041→404、4291→429、其余 4xxx→400、5xxx→500、未知区间→500——消除 4031 等非法状态码直通 HTTP 的问题。③ IConversationRepository 契约调整（对自行实现该接口的外部代码为破坏性变更，调用方 await 用法不变）：SaveSessionAsync/SaveTurnAsync 返回 Task<bool>（失败返回 false 并保留日志，让编排层可感知静默丢数据）；新增 CountTurnsAsync（COUNT 聚合，供 TurnNo 计算替代拉取10万条）。已知限制：全部契约接口补 CancellationToken 归 5.0。v4.0.10: ConsulOptions 新增 GrpcLegacyTagFallback（默认 false）与 GrpcLegacyFallbackTag（默认 server）：允许 gRPC 服务发现对\"无 grpc-port Meta 但 Tags 含指定 tag\"的遗留框架实例（如 .NET Core 3.1 MicroCloud，主端口即 h2c gRPC）回退使用 Address:Port，实现新库客户端与老 gRPC 服务互通。默认关闭，行为完全向后兼容。v4.0.6: 三库版本重新对齐至统一 4.0.6（消除版本分叉，无新增代码变更/公开 API 变更，源码与 4.0.3 一致）。v4.0.0: 破坏性主版本（建议消费方锁 4.x）。破坏性变更：① ICacheService 新增 GetAndDeleteAsync<T> 方法（对实现 ICacheService 的外部类破坏性，框架 RedisService 已实现）；② ApiKeyAuthenticationHandler.CustomTokenResolver 委托签名由同步 Func<string,ClaimsPrincipal?> 改为异步 Func<string,Task<ClaimsPrincipal?>>（对消费方破坏性，赋值处须改为 async）；③ AIOptions 新增 HttpClientTimeoutSeconds（非破坏性，新增选项）。v3.1.0: 随 Healnet 统一升版至 3.1.0（无本库代码变更，依赖 Healnet.Common 3.1.0 的 IFileService 预签名 URL 扩展）。v3.0.1: 新增 API Key 认证 Handler（ApiKeyAuthenticationHandler/AuthenticationExtensions，支持自定义 Token 解析器与 client_source=workbuddy claim）；Consul 支持唯一实例 ID 注册与 gRPC 健康检查（ConsulOptions/IConsulService）；新增 GrpcClientBase 泛型基类；移除孤立的细粒度角色授权（AuthorizationInterceptor/AuthorizationService）；AIServiceExtensions 调整。v3.0.0: 随 Healnet 统一升版至 3.0.0（破坏性变更来自 Healnet.Common：AESCrypto 移除无参重载、AESDecrypt 改返回元组）。v2.0.7: 三库版本统一 2.0.7；BusinessConfig 全套迁出至业务项目；BusinessExample 迁出；ConversationArchive 泛化。v2.0.6: 三库版本统一 2.0.6。v2.0.3: 统一三库版本号；升级目标框架至 net10.0；更新所有依赖包至最新稳定版。v2.0.1: 依赖包版本升级，修复若干已知问题。v2.0.0: 重大版本更新，目标框架从 net8.0 升级至 net10.0，全面更新依赖包版本。",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#repository",
+    "commit": "0f6f1583f299d19b9c7bba7890304110cace4e50",
+    "type": "git",
+    "url": "https://github.com/healnet/healnet-framework"
+  },
+  "verbatimVersion": "4.0.13",
+  "version": "4.0.13",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#dependencygroup/net10.0/healnet.common",
+          "@type": "PackageDependency",
+          "id": "Healnet.Common",
+          "range": "[4.0.10, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#dependencygroup/net10.0/microsoft.aspnetcore.http.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Http.Abstractions",
+          "range": "[2.2.0, 3.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#dependencygroup/net10.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[9.0.0, 11.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#dependencygroup/net10.0/microsoft.extensions.primitives",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Primitives",
+          "range": "[9.0.0, 11.0.0)"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#Healnet.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4231,
+      "fullName": "Healnet.Core.nuspec",
+      "length": 7488,
+      "name": "Healnet.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 644,
+      "fullName": "LICENSE",
+      "length": 1083,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 8656,
+      "fullName": "README.md",
+      "length": 21252,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#lib/net10.0/Healnet.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34513,
+      "fullName": "lib/net10.0/Healnet.Core.dll",
+      "length": 80896,
+      "name": "Healnet.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#lib/net10.0/Healnet.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 22710,
+      "fullName": "lib/net10.0/Healnet.Core.xml",
+      "length": 154329,
+      "name": "Healnet.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.05.53.53/healnet.core.4.0.13.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Healnet",
+    "Core",
+    "Repository",
+    "UnitOfWork",
+    "DDD"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

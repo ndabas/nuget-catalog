@@ -1,0 +1,337 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kebechet",
+  "catalog:commitId": "0fee197d-7bdc-42ff-b1cd-729f26d0e9a4",
+  "catalog:commitTimeStamp": "2026-11-03T19:48:49.1265693Z",
+  "created": "2026-11-03T19:45:27.86Z",
+  "description": "Blazor virtualization for variable-height rows, powered by @tanstack/virtual-core. Measures every row exactly instead of assuming a fixed height, and Blazor keeps ownership of rendering. Ships the library and auto-registers it - no npm or manual script tags.",
+  "iconFile": "icon.png",
+  "id": "Kebechet.Blazor.TanStack.VirtualCore",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-03T19:48:48.073Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "soo1qcjtabZykoU7mVSc9c64UWrjR7qhy11/yxt1YBGUFQFcc4hd/8WVeFShO7ML6RyRfdXLwvyL4GcbU5xxFA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 209011,
+  "projectUrl": "https://github.com/Kebechet/Blazor.TanStack.VirtualCore",
+  "published": "2026-11-03T19:45:27.86Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "3.19.11: @tanstack/virtual-core 3.19.8 -> 3.19.11, and the three stopgaps it makes redundant are gone.\n\nvirtual-core now does itself what this package did in its place: it stops a touch fling before a ScrollToIndex, ScrollToOffset or ScrollToEnd issued during it on Android too, negates the scroll write of a horizontal IsRtl list, and computes GetOffsetForIndex - and the first write of ScrollToIndex - from the current measurements. Behaviour that changes with it: with a classic scrollbar that takes layout space (a touchscreen laptop), a command issued mid-fling now waits for the fling to end, about 150 ms after its last frame, instead of being written at once - and is dropped when the fling moves on after the command, a virtual-core issue described in the README; a ScrollBy issued mid-fling is written at once without stopping the fling, because its target is relative to where the fling is; and under IsRtl in window-scroller mode the write is no longer negated, which matches how virtual-core reads the window's offset. Also from virtual-core: rows that a render inside a ResizeObserver callback mounts are observed from the next frame, and a scroll offset left past the end of a list that just shrank keeps a full rendered range instead of only the last row.\n\n3.19.8.4: the rows an Items change moves are no longer painted hidden, and InvalidateItemSize keeps the size a row is rendered at.\n\nsetOptions and setItems now go out from OnParametersSet, in that order, ahead of the render that shows the change, instead of from OnAfterRenderAsync after it. That render draws the rows an Items change moves hidden until the JS side holds the set, and on a WebView bridge the set used to arrive a round trip later: on a Samsung A53 every row below an expanding group was painted hidden for up to 220 ms. It now arrives first, and the rows are placed and shown before the frame is painted. InvalidateItemSize reads a rendered row's size off the row instead of dropping it, so a set arriving before the row's content changes no longer moves the rows below to the estimate; the ResizeObserver takes the new size when the content changes, and a row that is not rendered, or any row under UseCachedMeasurements, still falls back to the estimate. A row of the replaced item set that resizes before the render lands keeps its new size under its own key instead of losing it.\n\n3.19.8.3: rows keep their components across an Items change, and JS places them without waiting for .NET.\n\nA row whose placement went stale on an Items change used to be skipped, so every row component was disposed and built again one round trip later, even rows in both sets; it is now rendered under its own key and hidden until a matching placement arrives. Rows carry a data-key attribute, and the JS side moves every row whose key matches its own item set as soon as it knows the new layout - inside the ResizeObserver callback, before the frame is painted, and when setItems arrives, which also shows the rows .NET hid - instead of one interop round trip later through a .NET render. On a slow WebView bridge that removes the overlap below a row that grew and most of the blank after an insert. A size the ResizeObserver measured now survives the setItems that follows InvalidateItemSize, and a row rendered from an item set JS has not received yet no longer has its size recorded under another item's key.\n\n3.19.8.2: an Items change sends only what the JS side does not hold yet, and snapshots report current sizes.\n\nA change of Items used to send every key and size estimate across the interop bridge again; in a Blazor Hybrid app that is JSON copied through the WebView bridge per keystroke of a search. Both sides now keep a table of the pairs already sent, so a change travels as slot ids (runs packed into two numbers) plus only the new pairs, and an unchanged set sends nothing but a null order: for a 4,010-row search the setItems payload went from 293,225 to 21,170 characters. Per-key measurements survive a change as before. TakeSnapshot, GetOffsetForIndex, ScrollToIndex and GetSnapshot's StartIndex/EndIndex no longer read virtual-core state that lags after a ResizeObserver delivery or an InvalidateItemSize, so they report the sizes and range the virtualizer actually uses, and ScrollToIndex lands its first write on the target.\n\n3.19.8.1: interop calls cut off by disposal no longer throw.\n\nA ScrollToIndex, ScrollToOffset, ScrollToEnd, ScrollBy, ScrollToTop, CancelScroll, ResizeItem, Measure or InvalidateItemSize, or a GetTotalSize, GetVirtualIndexes, GetOffsetForIndex, GetVirtualItemForOffset, GetDistanceFromEnd, GetSnapshot or TakeSnapshot, that was still in flight when the component was disposed no longer throws once the JS side goes away - in a reloaded BlazorWebView it threw a JSException, and a caller that had not awaited it saw an unobserved task exception. A command now completes, a query returns its default, and the failure is logged through ILogger<AdaptiveVirtualize<TItem>>: at Debug for the known ways the JS side goes away, at Warning for anything else. The same holds for a render whose setOptions, setItems or measureRenderedRows was in flight, which surfaced as an unhandled render exception. A failure while the component is alive still throws. Callers no longer need a catch of their own around these calls for teardown.\n\n3.19.8: teardown fixes, IsRtl that works, and @tanstack/virtual-core 3.17.7 -> 3.19.8.\n\nTeardown. DisposeAsync no longer throws a JSException (\"JS object instance with ID n does not exist\") when the component's JS object is already gone from the page: when a BlazorWebView's page reloads, the reloaded page's attach request disposes the previous page's renderer, so the dispose call reaches a page where the object never existed. Disposing while interop is still in flight is safe as well. A render stops calling into JS once disposal has started, instead of going on to fail on the render path. A module or instance whose import or create was still in flight is released when it arrives, instead of being left behind with its scroll and resize observers attached, and a failure or timeout of those calls after disposal neither escapes nor pins the component. On Blazor Server, an interop call that times out during disposal no longer skips the rest of the cleanup. Items or Options changed while the JS instance was still being created now reach it. Interop failures that teardown deliberately swallows are logged through ILogger<AdaptiveVirtualize<TItem>> instead of disappearing: at Debug for the known ways the JS side goes away, so they stay out of error trackers, and at Warning for anything else.\n\nvirtual-core 3.19.8 brings upstream's own teardown fixes (no change notifications after dispose), many iOS WebKit scroll-correction fixes, and cancelScroll, surfaced as CancelScroll(). Behaviour changes: with Lanes above 1, Overscan counts whole rows, and OverscanLeading / OverscanTrailing now count the same way; ScrollToIndex(last, End) no longer overshoots by PaddingEnd, while ScrollToEnd still reaches the very bottom. A scroll write the browser clamped - an end-anchored list whose last item grows before the container does - is re-issued once the container has grown, so a chat-style list stays pinned to the bottom. In Blazor WebAssembly, change notifications raised inside virtual-core's ResizeObserver callbacks now go out one task later, which stops the browser reporting \"ResizeObserver loop completed with undelivered notifications\" as a window error.\n\nScrolling. A ScrollToIndex, ScrollToOffset, ScrollToEnd or ScrollBy issued by code while a touch fling is still moving the list now lands on its target on Android, where Chrome used to carry the fling on past the write: the momentum is stopped first by hiding the scroll axis's overflow for two frames, as virtual-core does itself on iOS 27. This is a stopgap until virtual-core does the same on Android (https://github.com/TanStack/virtual/pull/1347), and goes away with that release. IsRtl now works for horizontal lists: items are placed from the right edge, and scroll writes are negated to match how virtual-core reads the offset, so ScrollToIndex no longer clamps to the start. The scroll container itself has to be direction: rtl.\n\nRender-path allocation work. Row keys, placements and the stale-row filtering are now resolved once per change of the window, item set or options instead of on every render, which removed several string allocations per rendered row per render batch. The item-set snapshot crosses interop as two parallel arrays (keys, sizes) rather than an array of objects, cutting both the allocation count and the JSON payload for large sets; ItemDescriptor is gone as a result. Single-lane lists no longer format their cross-axis constants per row.\n\nAdds OverscanLeading / OverscanTrailing: overscan biased toward the side the user is scrolling towards, as react-window, react-virtualized and Angular CDK all do by default. The leading side follows the scroll direction and flips on reversal; the trailing side is a floor held at all times rather than one that lapses when scrolling stops, because virtual-core memoizes getVirtualIndexes on [rangeExtractor, overscan, count, startIndex, endIndex] - isScrolling is not among them, so a value that lapsed would simply never be recomputed. Compiled into the same rangeExtractor as AlwaysRenderedIndexes, so the two now compose instead of one replacing the other.\n\nWraps @tanstack/virtual-core 3.17.7 with complete option coverage - all 36 VirtualizerOptions are reachable. AdaptiveVirtualize<TItem> measures every item exactly, caches by item key, preserves measurements across item-set changes, and exposes targeted InvalidateItemSize(key). Layouts: vertical, horizontal, multi-lane masonry (per-item Lane), gap and padding as virtualizer geometry, RTL, and a window-scroller mode. Behaviour: FollowOnAppend and AnchorTo for chat-style lists, AlwaysRenderedIndexes (upstream's rangeExtractor reshaped), and IsEnabled suspend/reset. Imperative API: ScrollToIndex, ScrollToOffset, ScrollToEnd, ScrollBy, ScrollToTop, ResizeItem, Measure, GetTotalSize, GetVirtualIndexes, GetOffsetForIndex, GetVirtualItemForOffset, GetDistanceFromEnd, GetSnapshot and TakeSnapshot. Verified by 24 real-browser Playwright tests plus unit tests.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "f8a4e5da37efe732cd1ab1ebaead97345302249c",
+    "type": "git",
+    "url": "https://github.com/Kebechet/Blazor.TanStack.VirtualCore"
+  },
+  "verbatimVersion": "3.19.11",
+  "version": "3.19.11",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net10.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[10.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net6.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[6.0.36, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net7.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net7.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[7.0.20, )"
+        }
+      ],
+      "targetFramework": "net7.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net8.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[8.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#dependencygroup/net9.0/microsoft.aspnetcore.components.web",
+          "@type": "PackageDependency",
+          "id": "Microsoft.AspNetCore.Components.Web",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#Kebechet.Blazor.TanStack.VirtualCore.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4744,
+      "fullName": "Kebechet.Blazor.TanStack.VirtualCore.nuspec",
+      "length": 12302,
+      "name": "Kebechet.Blazor.TanStack.VirtualCore.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 635,
+      "fullName": "LICENSE",
+      "length": 1065,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6532,
+      "fullName": "README.md",
+      "length": 16036,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 2845,
+      "fullName": "icon.png",
+      "length": 2868,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#build/Kebechet.Blazor.TanStack.VirtualCore.props",
+      "@type": "PackageEntry",
+      "compressedLength": 91,
+      "fullName": "build/Kebechet.Blazor.TanStack.VirtualCore.props",
+      "length": 163,
+      "name": "Kebechet.Blazor.TanStack.VirtualCore.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "@type": "PackageEntry",
+      "compressedLength": 673,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "length": 3698,
+      "name": "Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "@type": "PackageEntry",
+      "compressedLength": 641,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "length": 2466,
+      "name": "Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#buildMultiTargeting/Kebechet.Blazor.TanStack.VirtualCore.props",
+      "@type": "PackageEntry",
+      "compressedLength": 89,
+      "fullName": "buildMultiTargeting/Kebechet.Blazor.TanStack.VirtualCore.props",
+      "length": 98,
+      "name": "Kebechet.Blazor.TanStack.VirtualCore.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#buildTransitive/Kebechet.Blazor.TanStack.VirtualCore.props",
+      "@type": "PackageEntry",
+      "compressedLength": 103,
+      "fullName": "buildTransitive/Kebechet.Blazor.TanStack.VirtualCore.props",
+      "length": 112,
+      "name": "Kebechet.Blazor.TanStack.VirtualCore.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net10.0/Blazor.TanStack.VirtualCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20854,
+      "fullName": "lib/net10.0/Blazor.TanStack.VirtualCore.dll",
+      "length": 48128,
+      "name": "Blazor.TanStack.VirtualCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net10.0/Blazor.TanStack.VirtualCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9918,
+      "fullName": "lib/net10.0/Blazor.TanStack.VirtualCore.xml",
+      "length": 46063,
+      "name": "Blazor.TanStack.VirtualCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net6.0/Blazor.TanStack.VirtualCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20934,
+      "fullName": "lib/net6.0/Blazor.TanStack.VirtualCore.dll",
+      "length": 48640,
+      "name": "Blazor.TanStack.VirtualCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net6.0/Blazor.TanStack.VirtualCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9918,
+      "fullName": "lib/net6.0/Blazor.TanStack.VirtualCore.xml",
+      "length": 46063,
+      "name": "Blazor.TanStack.VirtualCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net7.0/Blazor.TanStack.VirtualCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20933,
+      "fullName": "lib/net7.0/Blazor.TanStack.VirtualCore.dll",
+      "length": 48640,
+      "name": "Blazor.TanStack.VirtualCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net7.0/Blazor.TanStack.VirtualCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9918,
+      "fullName": "lib/net7.0/Blazor.TanStack.VirtualCore.xml",
+      "length": 46063,
+      "name": "Blazor.TanStack.VirtualCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net8.0/Blazor.TanStack.VirtualCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20708,
+      "fullName": "lib/net8.0/Blazor.TanStack.VirtualCore.dll",
+      "length": 48128,
+      "name": "Blazor.TanStack.VirtualCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net8.0/Blazor.TanStack.VirtualCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9918,
+      "fullName": "lib/net8.0/Blazor.TanStack.VirtualCore.xml",
+      "length": 46063,
+      "name": "Blazor.TanStack.VirtualCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net9.0/Blazor.TanStack.VirtualCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20713,
+      "fullName": "lib/net9.0/Blazor.TanStack.VirtualCore.dll",
+      "length": 48128,
+      "name": "Blazor.TanStack.VirtualCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#lib/net9.0/Blazor.TanStack.VirtualCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9918,
+      "fullName": "lib/net9.0/Blazor.TanStack.VirtualCore.xml",
+      "length": 46063,
+      "name": "Blazor.TanStack.VirtualCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#staticwebassets/adaptive-virtualize-interop.js",
+      "@type": "PackageEntry",
+      "compressedLength": 10706,
+      "fullName": "staticwebassets/adaptive-virtualize-interop.js",
+      "length": 32668,
+      "name": "adaptive-virtualize-interop.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#staticwebassets/tanstack-virtual-core.js",
+      "@type": "PackageEntry",
+      "compressedLength": 10344,
+      "fullName": "staticwebassets/tanstack-virtual-core.js",
+      "length": 34111,
+      "name": "tanstack-virtual-core.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.03.19.48.49/kebechet.blazor.tanstack.virtualcore.3.19.11.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "blazor",
+    "virtualization",
+    "virtual-scroll",
+    "tanstack",
+    "variable-height",
+    "list",
+    "performance"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

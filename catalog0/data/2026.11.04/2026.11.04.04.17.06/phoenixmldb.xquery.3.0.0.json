@@ -1,0 +1,220 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Endpoint Systems",
+  "catalog:commitId": "91143234-acde-420f-8fa4-6ddd6a70989d",
+  "catalog:commitTimeStamp": "2026-11-04T04:17:06.0538926Z",
+  "copyright": "Copyright © Endpoint Systems 2026. All rights reserved.",
+  "created": "2026-11-04T04:13:29.177Z",
+  "description": "XQuery 4.0 query engine for PhoenixmlDb",
+  "iconFile": "icon.png",
+  "id": "PhoenixmlDb.XQuery",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-04T04:16:26.043Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "nky9y4DluDoieC4cML0126GfIz42PDg2fGXiPWFpuvtVYARmOchB4FphGbTDht0E4fvsD3m0O1GdO+hsnAv/Fg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2778103,
+  "projectUrl": "https://phoenixml.dev/",
+  "published": "2026-11-04T04:13:29.177Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "XPath mode, schema-aware function results and types, bounded schema fetches, tail calls, and a\nlarge drop in QT3 failures. QT3: 31 failing of 31,325 (2.9.0: 207 of 31,331). The count includes\ncorrections to the test harness as well as engine changes, and 5 Unicode cases that depend on\nanother Unicode version are skipped. Requires PhoenixmlDb.Core 2.6.0.\n\n### Security: deeply nested or chained expressions with untrusted queries (GHSA-9qvr-vjmg-m3pf)\n\nOnly hosts that compile or evaluate queries from untrusted parties are affected. A deeply nested\nor long chained expression compiles and evaluates within the thread's stack and in linear time, or\nraises XPDY0130. In browser WebAssembly and WASI, which cannot start a thread, a deep evaluation\ncontinues on the current stack as in 2.9.0, and the workarounds of the advisory still apply. See\n[GHSA-9qvr-vjmg-m3pf](https://github.com/phoenixmldb/phoenixmldb-xquery/security/advisories/GHSA-9qvr-vjmg-m3pf)\nfor the details and workarounds.\n\n### Breaking — read this before upgrading\n\nNo public type or signature is removed or changed. These behaviour changes can affect a host:\n\n- **`E => f(A)` parses to the function call `f(E, A)`**: a `FunctionCallExpression`, or a\n  `DynamicFunctionCallExpression` when `f` is a variable or an expression. The parser makes an\n  `ArrowExpression` only for the thin arrow `->`, and its `IsThinArrow` is always true. Code that\n  walks the AST and looks for `ArrowExpression` to find `=>` must look for the call.\n- **XPDY0130 for an expression nested too deeply for the thread's stack.** A caller can catch it.\n  A deep chain of arithmetic, comparison, `and`, `or` or `||` operators does not raise it: its\n  evaluation continues on a new stack. Chains of predicates, `!` maps, unary operators, lookups\n  and FLWOR clauses can raise it on a small stack. The parser needs a stack of at least 768 KB.\n- **`CostModel.EstimateCardinality` keeps each result per `CostModel` instance.** Do not use one\n  instance from more than one thread at the same time. A change in `IContainerStatistics` after\n  the first estimate does not change the kept results. The library makes a new `CostModel` for\n  each query plan.\n- **`XQueryExpressionRewriter.Rewrite` and `XQueryExpressionWalker.Walk` can continue on another\n  thread when the stack is low.** A subclass that keeps per-thread state (`[ThreadStatic]`) in its\n  `Visit` methods can see a different thread during a deep walk.\n- **A nested `load-xquery-module` (depth more than 1) runs on a new 16 MB stack**, so the limit of\n  64 nested loads gives FOQM0003 on any thread stack size.\n- **FODC0005 for a colon in the first segment of a relative `fn:doc` reference** (#340), for\n  example `doc('2026-01-02T10:30.xml')`. Such a name is not a valid relative URI. A stored\n  document with such a name cannot be read with `doc('name')`; start the reference with `./`\n  (`doc('./2026-01-02T10:30.xml')`).\n\n### API\n\n- **XPath mode: `CompilationOptions.XPath` and `XQueryParserFacade.XPath`** (#328). The text is\n  parsed as an XPath 3.1 expression. XQuery-only syntax (prolog, FLWOR clauses beyond one `for` or\n  `let`, positional and typed bindings, `switch`, `typeswitch`, `try`/`catch`, update expressions,\n  `validate`, extension and ordered expressions, constructors, string constructors, annotations)\n  is XPST0003. `<` is always an operator, string literals are verbatim, line endings are not\n  normalized, and the namespace axis is available. The default is off, and XQuery behaviour does\n  not change.\n- `XdmSequenceType.OptionalNumeric` (#330).\n\n### Schema fetches and locations\n\n- **A schema fetch is bounded, and a timeout is XQST0059** (#348). With no `ResourcePolicy`, a\n  schema location is read through the engine's HTTP client, which gives up on a connect after\n  10 s. A timeout is reported as XQST0059 from `Compile`, and the schema provider is released.\n- **A schema location is resolved as a URI** (#265): a location with a scheme that is not a URI is\n  not read as a path, and a schema hint is not made absolute against the working directory.\n\n### Deep trees\n\n- **A query that builds a deeply nested tree does not end the process** (#301). A constructed\n  element copies its descendants with an explicit stack. `fn:serialize`, the result serializer\n  (xml, adaptive, json, html, xhtml), `fn:deep-equal`, `fn:base-uri` and copy-modify continue on a\n  16 MB thread when the stack is short. `validate {}` over such a tree raises a catchable\n  `InsufficientExecutionStackException`.\n\n### Types and function conversion\n\n- **`fn:analyze-string` results carry the types of their schema** (#345) when the schema provider\n  can take the built-in F&O schema; otherwise they stay untyped. A carriage return in the text\n  survives.\n- **`element(*, xs:numeric)` and `attribute(*, xs:numeric)` match nodes of a numeric type** (#346).\n- **`element(*, U)` is a subtype of `element(*, V)` in a function type only if U derives from V**\n  (#342), when a schema provider is present.\n- **A function result of a schema type casts an untyped value through the schema** (#343), so a\n  union tries its members in order.\n- **`fn:abs`, `ceiling`, `floor`, `round` and `round-half-to-even` return `xs:numeric?`** (#330).\n  The two-argument forms take `xs:anyAtomicType?`, and the result keeps the argument's type.\n- **Node arguments of atomic-typed parameters are atomized** (#306). `escape-html-uri`,\n  `encode-for-uri` and `iri-to-uri` accept nodes; `escape-html-uri` and `iri-to-uri` encode by code\n  point. `fn:id` splits each string value into IDREFs.\n- **An xs:string parameter takes a string, an untyped value or an xs:anyURI** (#317, #332). A\n  number, boolean, date, time, duration, g* value or QName is XPTY0004.\n- **An untyped value that does not cast raises the cast's error** (#321): `local:f(<a/>)` for an\n  xs:boolean parameter is FORG0001.\n- **List-typed nodes** (#305): a list of xs:QName keeps each item's namespace, and a general\n  comparison compares each item.\n- **A string is whitespace-collapsed before a cast to a non-string type** (#307).\n- **An integer wider than 64 bits casts to xs:double and xs:float** (#319).\n- **A double zero keeps its sign, and an xs:decimal zero has none** (#323). The optimizer folds\n  `0 * x` and `x + 0` only where the result is exact.\n- **Value equality compares xs:QName by namespace URI** (#338): `index-of`, `distinct-values` and\n  the other value-equality functions.\n- **`fn:deep-equal` treats a one-item sequence member as its item** (#333).\n- **A validated tree's string values leave out the dropped whitespace** (#331).\n\n### Error codes\n\n- XPST0008 for a prolog variable in its own initializer; a cycle through a function stays XQDY0054\n  (#325).\n- XPST0081 for an undeclared prefix in a literal computed-constructor name (#312) and in a declared\n  variable's name (#337).\n- XQST0040 for two direct attributes with one expanded name (#322).\n- XQST0022 only for a real enclosed expression in a namespace declaration; `{{` and `}}` are\n  literal braces (#311).\n- XQST0034 for a function named like an imported schema type's constructor (#335).\n- XQST0052 for a cast to a type outside the in-scope schema types, reported at compile time (#341).\n- XQTY0105 for a function item in element or document content (#326).\n- XPST0003 for `validate` or an extension expression at the start of a postfix, path or simple map\n  expression without parentheses (#344). **Queries that write `validate { … }/@a` need parentheses.**\n- FOAR0001 for `INF idiv 0` (#313); FOAR0002 for a decimal sum out of range in `fn:avg` (#324);\n  FOAY0002 for a negative `array:subarray` length, with the end check in `long` (#316).\n- FODC0005 for a colon in the first segment of a relative `fn:doc` reference (#340).\n- FOJS0005 for `json-to-xml` with `validate` and `duplicates=\"retain\"`; `duplicates` defaults to\n  `reject` with `validate` (#334).\n- FOUT1190 for undecodable `fn:unparsed-text` content with no encoding named, and XPTY0004 for a\n  non-string encoding (#308).\n- XPTY0004 for an atomic lookup node in `fn:id` and `fn:element-with-id` (#309).\n\n### Other behaviour\n\n- **`fn:normalize-unicode` supports `FULLY-NORMALIZED`** (#339).\n- **A document node without exactly one root element serializes as a fragment** (#318):\n  `document{<a/>, <b/>}`.\n- **`format-number` in a library function uses that module's decimal format first** (#336).\n- **Each closing brace matches the brace it closes** (#320), for an enclosed expression nested in\n  `document { }` in element content.\n- MessagePack 2.5.307 in the language server, for GHSA-qhrr-8q5h-9q3h (#272).\n\n### Also in this release\n\n- **A string walked by a recursive function is linear** (#296, with tail calls): an argument\n  `substring($s, 2)` to a declared function whose parameter is untyped or `xs:string` is passed\n  as a slice of the string, not a copy of its rest. A 50,000-character walk: 909 ms and 2.5 GB\n  -> 73 ms and 133 MB. Tail calls are also open to a host's own functions (the XSLT engine's\n  stylesheet functions); a call never crosses from one kind to the other.\n\n- **Tail calls of declared functions** (#296). A call to a declared function in tail position of\n  a declared function's body (the body; the branches of `if`, `typeswitch` and `switch`; the\n  return of a FLWOR of `let` clauses only; an arrow call there) runs as the caller's next\n  iteration instead of nested, when the callee has the caller's declared return type. Tail\n  recursion, direct or mutual, is no longer limited to a depth of 1,000 (FOER0000): a million\n  iterations run in about 1.4 s. Recursion whose result is used after the call keeps the limit.\n  An infinite tail recursion now runs until it is cancelled, as a loop does. QT3\n  numberformat121, numberformat122.\n\n- **The descendant axes allocate one stack per walk, not one iterator per node** (xquery#294).\n  `iso_svrl_for_xslt2` over NY.EMS.v350: 2,355 -> 1,696 MB, time 0.85x; output unchanged.\n\n- **A query context can be reset and used again** (internal, for hosts): `ResetForReuse`\n  returns it to the state of a new one, and a context an inline function item keeps is marked\n  and never reset. The XSLT engine uses it to evaluate its XPath expressions without a new\n  context each (xquery#294). No public API changes.\n\n- **`if`, arithmetic and value comparisons are evaluated synchronously** where their operands\n  allow it, so an expression containing one no longer leaves the synchronous path (each\n  evaluation allocated an async iterator per operator). W3C evaluate-010, which evaluates\n  `if (position() mod 7 = 0) then $a else $b` 100,000 times: 518 ms -> 350 ms warm, 1,403 MB\n  -> 685 MB. Results unchanged.\n\n- **Character map keys are one character, and are checked as the source requires.** From a map, a\n  key that is not a string (an `xs:QName`) is XPTY0004 and a longer string SEPM0016; from an\n  `output:serialization-parameters` element, a `character` that is not one character makes the\n  element invalid, SEPM0017. A supplementary character (a surrogate pair) is one key, and is\n  mapped. QT3 serialize-xml-023, -023b, -139, -139b.\n\n- **A constructor function item carries its signature** (XPath 3.1 §3.14.2): `xs:T#1` is\n  `function(xs:anyAtomicType?) as xs:T?`, and for a list type returns its item type's sequence\n  (`xs:NMTOKENS#1` returns `xs:NMTOKEN*`; a schema list type of integers, `xs:integer*`). It was\n  `function(item()?) as item()`, so `let $f as function(xs:anyAtomicType) as xs:NMTOKEN* :=\n  xs:NMTOKENS#1` was refused. A list type is cast to only from one `xs:string` or\n  `xs:untypedAtomic`: `xs:ENTITIES(xs:anyURI(\"abcd\"))` and a sequence of two strings are\n  XPTY0004. QT3 CastAs-ListType-17..19, -26, -27.\n\n- **An unprefixed type name in `element()` and `attribute()` tests is in the default namespace for\n  elements and types** (XQuery 3.1 §3.1.1), which `import schema default element namespace` and\n  `declare default element namespace` set. It was read as an xs type: `element(*, restrictedType)`\n  raised XPST0008, or as a step matched nothing. A built-in type name keeps reading as one. QT3\n  ForExprType026..041, step-expr-si-1..3.\n\n- **`fn:substring` of a string held as a slice costs no copy** (#287). An internal string slice\n  (`StringSlice`) shares the characters of the string it was taken from; `fn:substring`,\n  `fn:string-length` and `fn:starts-with` read one without making its string, and every other\n  reader of a variable gets the string. Slices are made only by the XSLT engine, for a template\n  parameter bound to `substring(...)` (see the XSLT release notes); a query never sees one. No\n  public API changes.\n\n- **`count` and `subsequence` of a range are computed from its bounds.** `count(1 to N)`,\n  `count(subsequence(a to b, ...))` and `subsequence(a to b, ...)` no longer generate the integers\n  before the slice, so `count(subsequence(1 to 3000000000, 2147483648))` returns 852516353 instead\n  of stopping at the materialization limit (FOER0000). QT3 cbcl-subsequence-010..014.\n\n- **A year outside 1..9999 survives `fn:dateTime` and the component functions.** `fn:dateTime`\n  dropped the year it holds apart from the .NET date, so `-0012-12-03` combined into\n  `0004-12-03`; and `year-from-date` and the other twelve component functions parsed an untyped\n  argument, or a node, as a .NET date, which refused `-0012-12-03`. An untyped argument is now cast\n  by the XSD type's own parser, and a node atomized first.\n\n- **`schema-element(N)` follows XSD 1.1 substitution groups**: an element in several groups is a\n  member of each (with PhoenixmlDb.Core's change), an abstract element is a member of none, and a\n  nilled element matches only where the declaration of its name is nillable (XPath 3.1 §2.5.5.3).\n  `ISchemaProvider` gains `IsNillableElementDeclaration`, with a default that says true. QT3\n  substitution-020..025.\n\n- **A kind test as the node test of a step is schema-aware**: `document-node(element(N))` and\n  `document-node(schema-element(N))` test the document element (the inner test was not applied, so\n  the step selected every document), and `element(*, T)` / `attribute(*, T)` match a validated node\n  of type T or one derived from it (only the untyped types were known). The prefix of the element\n  test inside `document-node()` is resolved as a step's is. W3C XSLT validation-1401.\n\n- **An untyped element does not match `schema-element(N)`, nor an untyped attribute\n  `schema-attribute(N)`**, even where N is declared with xs:anyType or xs:anySimpleType, from which\n  the untyped types derive (spec bug 10065). They matched such a declaration. W3C XSLT\n  validation-1001, with `input-type-annotations=\"strip\"`.\n\n- **`fn:deep-equal` of two validated elements respects their types' content** (F&O 3.1 §14.2.1):\n  elements whose types have different content varieties (simple, element-only, mixed, empty) are\n  not equal, and two of simple content compare their typed values. Their text and children were\n  compared, so `xs:integer` 2012 equalled `xs:gYear` 2012. QT3 K2-SeqDeepEqualFunc-36, 38, 39, 42.\n\n- **A cast to a schema list type whose item type is a union with an xs:QName member casts each\n  token with the query's prefixes**: `'a b xs:integer' cast as s:sensitiveList` gives two NCNames and\n  a QName. The list was kept whole, and a union with such a list as a member refused the value.\n  `SchemaSimpleType` gains `ListItemType`. QT3 CastAs-UnionType-28..32, CastAs-ListType-21.\n- **`Q{uri}local` names a type of the schema for that namespace**, as a prefix bound to it does. It\n  was looked up by its local name among the built-in types, so `Q{urn:s}u` was \"not a recognized\n  type\" and `Q{urn:s}string` was taken for xs:string.\n\n- **A member type derives from a union only when the union is pure** (XPath 3.1 §2.5.2, §2.5.6.1):\n  not from a union of list types, nor one with facets. An element of one list type matched\n  `element(*, U)` for U the union of two list types. W3C XSLT match-197.\n\n- **A node passed for a parameter of type `xs:anyAtomicType` is atomized** (XPath 3.1 §3.1.5.2): an\n  element validated as xs:integer gives an xs:integer, an untyped one an xs:untypedAtomic. The\n  coercion of arguments skipped that type, so the node itself was bound. QT3 FunctionCall-005/007.\n- **An xs:untypedAtomic value for the xs:QName parameter of `fn:local-name-from-QName`,\n  `fn:namespace-uri-from-QName` and `fn:prefix-from-QName` is XPTY0117**: it is not cast to a\n  namespace-sensitive type. It was XPTY0004. QT3 FunctionCall-018/041, LocalNameFromQNameFunc015a,\n  NamespaceURIFromQNameFunc015a.\n\n- **`document-node(element(...))` and `document-node(schema-element(N))` test the document element\n  as an item**: its namespace, its type, and the substitution group of N. The inner test of\n  `document-node(schema-element(N))` was not applied, so every document matched it, and\n  `document-node(element(N, T))` compared the local name of the element only. W3C XSLT match-185,\n  with the XSLT change.\n- **A prefix that the host binds (`CompilationOptions.StaticNamespaces`) is known while the query is\n  parsed.** A name the parser resolves itself, as in `schema-element(j:array)`, was looked for in no\n  namespace when only the host bound `j` (XPST0008). A prolog declaration of the prefix still wins.\n\n- **An element validated against a type has that type when the schema declares its name with\n  another type.** Validation by type does not use the element's declaration, but the annotating\n  parse assessed the element by it and refused the type, so the element stayed untyped (an XSLT\n  `<e xsl:type=\"xs:string\">` of a declared `e`). W3C XSLT match-220 and match-221, with the XSLT change.\n- **Arithmetic on an xs:boolean, xs:anyURI, xs:hexBinary or xs:base64Binary is XPTY0004.** A boolean\n  was taken as 1 or 0 (`1 + true()` was 2), and the other three escaped as a .NET `FormatException`\n  or `InvalidCastException`. XPath 1.0 compatibility mode still converts its operands to numbers.\n- **The grammar parses the operators from `or` to `cast as` with two left-recursive rules** (#401),\n  not one rule per precedence level. Each operand went through seventeen nested rules, and the\n  parse tree had a node for each. For a generated Schematron validator of 2.3 MB, an XSLT compile\n  now allocates 316 MB, not 399 MB (-21%), and takes about 315 ms, not 375 ms. Precedence, and the\n  XPST0003 for a second comparison, range, cast, castable, treat or instance of on one operand\n  without parentheses, are as before.\n- **A parse-tree node's child list starts with room for one child** (#401). The grammar's precedence\n  chain gives most nodes one child, and each list made an array of four. For a generated Schematron\n  validator of 2.3 MB, an XSLT compile now allocates 399 MB, not 419 MB.\n- **Queries and XPath expressions are parsed in two stages** (#401): SLL prediction first, and full LL\n  with error reporting only for input that SLL cannot parse. For a generated Schematron validator of\n  2.3 MB, an XSLT compile now allocates 795 MB, not 1,095 MB (-27%). With the string-literal lexer\n  change it is 435 MB (-60%), and the compile takes about 400 ms, not 590 ms. Syntax errors are\n  reported as before.\n- **String literals are lexed from the lexer's DFA cache** (#401). A predicate in the string-literal\n  rule (`{AllowRawAmpersand}?`) kept every string literal out of the cache, so each character was\n  matched by ATN simulation. For a generated Schematron validator of 2.3 MB, an XSLT compile now\n  allocates 735 MB, not 1,095 MB (-33%), and takes 460 ms, not 590 ms. A bare `&` in an XQuery\n  string literal is still XPST0003; the error now gives the position of the `&`.\n- **The input document can be validated before a query runs** (#267): `QueryEngine.InputValidation`\n  and `XQueryFacade.InputValidation` (strict or lax), and `--validation strict|lax` (also\n  `--val:strict`, `--val:lax`) on the `xquery` command (package `xquery4`). The context item, when it is a document or an\n  element, is validated as `validate { . }` would, against the schemas the query imports and the\n  other schemas of the schema provider; the query and `$input` then see the typed node. An invalid\n  input is XQDY0027; with strict validation, an element with no top-level declaration is XQDY0084.\n  Without the setting the input stays untyped, as before.\n- **A type derived from `xs:NOTATION` makes an `xs:NOTATION`.** Its constructor function made a\n  value of the type that was not an `instance of xs:NOTATION`. A QName or a NOTATION now casts to a\n  NOTATION type (XPath 3.1 §19.1); it was \"Cannot cast xs:QName to Notation\". QT3 notation-cast-3;\n  W3C XSLT notation-0002, 0003, 0401-0404.\n- **A partial application of a resource function runs as the module that made it**, as a named\n  reference already did: `json-doc(?)` made in a library module and called from the main module\n  resolved its location against the main module's base URI, and `ResourceRequest.ModuleUri`\n  named the main module.\n- **`fn:transform` turned off by the resource policy raises FOXT0004** (\"the XSLT\n  transformation has been disabled\", F&O 3.1); it raised FOXT0001, which means no suitable\n  XSLT processor.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#repository",
+    "commit": "2bb645198e4f763164a03c22f00acf82c8531b8f",
+    "type": "git",
+    "url": "https://github.com/phoenixmldb/phoenixmldb-xquery"
+  },
+  "verbatimVersion": "3.0.0",
+  "version": "3.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net10.0/antlr4.runtime.standard",
+          "@type": "PackageDependency",
+          "id": "Antlr4.Runtime.Standard",
+          "range": "[4.13.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net10.0/lucene.net",
+          "@type": "PackageDependency",
+          "id": "Lucene.Net",
+          "range": "[4.8.0-beta00016, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net10.0/lucene.net.analysis.common",
+          "@type": "PackageDependency",
+          "id": "Lucene.Net.Analysis.Common",
+          "range": "[4.8.0-beta00016, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net10.0/phoenixmldb.core",
+          "@type": "PackageDependency",
+          "id": "PhoenixmlDb.Core",
+          "range": "[2.6.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net8.0/antlr4.runtime.standard",
+          "@type": "PackageDependency",
+          "id": "Antlr4.Runtime.Standard",
+          "range": "[4.13.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net8.0/lucene.net",
+          "@type": "PackageDependency",
+          "id": "Lucene.Net",
+          "range": "[4.8.0-beta00016, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net8.0/lucene.net.analysis.common",
+          "@type": "PackageDependency",
+          "id": "Lucene.Net.Analysis.Common",
+          "range": "[4.8.0-beta00016, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#dependencygroup/net8.0/phoenixmldb.core",
+          "@type": "PackageDependency",
+          "id": "PhoenixmlDb.Core",
+          "range": "[2.6.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#PhoenixmlDb.XQuery.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9404,
+      "fullName": "PhoenixmlDb.XQuery.nuspec",
+      "length": 22987,
+      "name": "PhoenixmlDb.XQuery.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 723,
+      "fullName": "PACKAGE.md",
+      "length": 1350,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 15291,
+      "fullName": "icon.png",
+      "length": 17725,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#lib/net10.0/PhoenixmlDb.XQuery.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1186931,
+      "fullName": "lib/net10.0/PhoenixmlDb.XQuery.dll",
+      "length": 2717184,
+      "name": "PhoenixmlDb.XQuery.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#lib/net10.0/PhoenixmlDb.XQuery.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 182098,
+      "fullName": "lib/net10.0/PhoenixmlDb.XQuery.xml",
+      "length": 1171971,
+      "name": "PhoenixmlDb.XQuery.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#lib/net8.0/PhoenixmlDb.XQuery.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1186443,
+      "fullName": "lib/net8.0/PhoenixmlDb.XQuery.dll",
+      "length": 2716672,
+      "name": "PhoenixmlDb.XQuery.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#lib/net8.0/PhoenixmlDb.XQuery.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 181912,
+      "fullName": "lib/net8.0/PhoenixmlDb.XQuery.xml",
+      "length": 1171599,
+      "name": "PhoenixmlDb.XQuery.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.04.04.17.06/phoenixmldb.xquery.3.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13000,
+      "fullName": ".signature.p7s",
+      "length": 13000,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "xml",
+    "xquery",
+    "xpath",
+    "query",
+    "database"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

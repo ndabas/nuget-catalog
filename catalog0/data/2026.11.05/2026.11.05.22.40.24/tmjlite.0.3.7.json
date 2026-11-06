@@ -1,0 +1,129 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.05.22.40.24/tmjlite.0.3.7.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "TMJ Sistemas",
+  "catalog:commitId": "39d95077-216e-406f-b37c-7a55073b62d8",
+  "catalog:commitTimeStamp": "2026-11-05T22:40:24.856773Z",
+  "copyright": "© 2026 TMJ Sistemas",
+  "created": "2026-11-05T22:37:52.397Z",
+  "description": "TMJLite embedded database driver (.tmjp). Motor nativo incluído para Windows, Linux e macOS — nenhuma configuração necessária.",
+  "id": "TMJLite",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-05T22:40:13.07Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "Ygk79o4meIjZHIMpCtJJpyy1vcdTcTxdC1VIZNA/LeoFINvwdSO8J4nPoXd0HzK0pSVL6SDetazAQVCaBGhdhA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2800898,
+  "projectUrl": "https://tmjlite.com.br/",
+  "published": "2026-11-05T22:37:52.397Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Origem: backlog pós-0.3.5 (achados do harness de carga), itens 1–6.\n\n> **Aviso sobre a 0.3.6 em crates.io, npm e Maven Central:** esses três\n> pacotes saíram **sem a lib nativa de macOS** (só linux-x64 e windows-x64).\n> O build de macOS nunca começou durante o incidente do GitHub Actions de\n> 2026-11-04 e os jobs de publish rodavam com `if: always()`. PyPI e NuGet\n> 0.3.6 vieram do rerun completo e estão íntegros. A próxima release\n> substitui os três; a 0.3.6 é retirada de circulação (`cargo yank`,\n> `npm deprecate`; Maven é imutável).\n\n### Release / CI\n- Jobs de publish em npm, crates.io e Maven agora exigem `build` concluído\n  com sucesso nas três plataformas (a republicação por `workflow_dispatch`,\n  que não compila, continua permitida). Novo input `deprecate_version` no\n  dispatch: `cargo yank` + `npm deprecate` de uma versão publicada quebrada.\n- `scripts/sync-landing-artifacts.sh` também carimba a versão em\n  `drivers/csharp/TMJLite/TMJLite.csproj` (estava em 0.1.6; o CI passava\n  `-p:Version`, então o NuGet nunca saiu errado).\n- Exemplo `landing/examples/cadastro/rust` portado para o crate público\n  `tmjlite` (crates.io): prepared statements com `last_pk`, `IF NOT EXISTS`,\n  cursor em streaming, branches/merge e `conflicts()`. Antes dependia do SDK\n  interno removido.\n\n### Corrigido\n- **Subquery `IN`/`EXISTS`/escalar era O(N×M)** — a subquery rodava de novo\n  para cada linha externa, varrendo a tabela interna (8 s com 2k clientes ×\n  4k pedidos). Agora as referências ao escopo externo no WHERE da subquery\n  viram literais da linha corrente antes de executar (o planner interno\n  usa o índice: `customer_id = '<uuid>' AND status = 'open'` → seek), e o\n  resultado fica em cache por (subquery, valores ligados) durante o\n  statement: subquery não correlacionada roda uma vez e `IN` consulta um\n  conjunto. Semântica tri-valorada de `IN`/`NOT IN` com NULL preservada.\n  `engine/bench/subquery.py`, 2k × 4k: `IN` 7,9 s → 15 ms; `EXISTS` 8,2 s →\n  16 ms; escalar 88 → 12 ms; `NOT IN` 12 ms.\n- **Group commit na `SharedConnection`** — cada escrita autocommit (e cada\n  COMMIT de transação) pagava o próprio `F_FULLFSYNC` dentro do lock do\n  writer, serializando tudo: 90% do tempo do mix de 32 threads do loadTest.\n  Agora o commit é anotado no WAL (`Pager::commit_nosync` → `CommitTicket`),\n  o lock é solto e a thread espera a durabilidade fora dele; o primeiro a\n  esperar vira líder, aguarda uma janela de 1 ms quando há outros\n  escritores em voo e faz UM fsync que cobre todos os commits anotados. A\n  publicação para leitores acontece só depois do fsync, em ordem de época,\n  e cada escrita continua retornando apenas quando durável (teste de queda\n  de energia com o VFS simulado: commit anotado sem esperar não sobrevive,\n  esperado sobrevive). Quem escreve sozinho não paga a janela.\n  16 threads × 50 INSERTs autocommit (Rust, Mac): 3,2 s → 0,6 s, 802\n  commits em 108 fsyncs; mix Python de 32 threads: 285 → 407 ops/s, DML de\n  ~150 para ~90–120 ms de média (o `transaction_batch` ainda segura o lock\n  durante o corpo da transação). `group_commit_stats()` expõe\n  (fsyncs, commits). Autocommit de uma thread fica igual (INSERT 3–4 ms).\n\n- **Varredura reparseava a folha da B+tree a cada linha.** O cursor chamava\n  `read_leaf` (parse da página inteira, clonando chave e payload de todas as\n  células) em cada `next()`: O(células²) por folha. Agora a folha parseada\n  fica no cursor e cada célula é movida uma única vez. Vale para tudo que\n  varre: `COUNT(*)`, `GROUP BY`, cursores, joins materializados.\n  `engine/bench/scan_cost.py`, 50k linhas: `COUNT(*)` 107 → 27 ms (2,1 →\n  0,5 µs/linha); `GROUP BY` + agregações 114 → 29 ms; cursor de 1 coluna\n  168 → 86 ms (o resto é FFI por linha).\n\n- **`EXPLAIN` na `SharedConnection` materializava a tabela** para planejar\n  (~17 ms numa tabela de 10k linhas). O plano só depende do schema e dos\n  índices: o rascunho usa tabelas vazias e nada é lido do disco.\n- **Planner**: `WHERE k = ? AND n > ?` com índice só em `k` ia de scan (o\n  caminho prefixo + filtro residual exigia índice composto). Agora seek por\n  `k` e filtro em `n`, em RAM, engine e snapshot.\n\n### Adicionado\n- **Gate de performance e memória no CI** (`engine/bench/gate.py` +\n  `.github/workflows/perf-gate.yml`, roadmap 3.1): a cada push em `main`\n  que toque engine ou driver Python, Linux compila a lib em release e roda\n  13 cenários com limiares folgados (subqueries 2k×4k, varredura 50k,\n  leitores sob 8 escritores em fsync, vazão de escrita concorrente, lote\n  de 450 upserts, teto de memória). Falha = regressão catastrófica; os\n  números ficam no artifact `gate.json`. Mac (1,6 s): tudo 10–100× abaixo\n  do limiar.\n- **Teto do cache de páginas por snapshot configurável**:\n  `set_snapshot_cache_pages(n)` na `SharedConnection` (FFI\n  `tmjlite_set_snapshot_cache_pages_shared`; nos seis drivers). Cada cursor\n  ou query abre um snapshot com cache de até 2048 páginas de 4 KiB (8 MiB) —\n  com 32 leitores simultâneos eram ~256 MiB de RSS com o engine em 7 MiB.\n  Vale para snapshots abertos depois; 0 desliga; o resultado não muda.\n- CLI: `tmjlite --version` (e `-V`/`version`) imprime a versão; qualquer\n  outra flag desconhecida é erro de uso. Antes, o argumento virava nome de\n  banco e o CLI **criava** `--version` e `--version.lock` no diretório atual.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.05.22.40.24/tmjlite.0.3.7.json#repository",
+    "commit": "9ed25db56dea83f9e030540fb205b99108319c0c",
+    "type": "git",
+    "url": "https://github.com/TMJacometti/TMJPlatform"
+  },
+  "verbatimVersion": "0.3.7",
+  "version": "0.3.7",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.05.22.40.24/tmjlite.0.3.7.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.05.22.40.24/tmjlite.0.3.7.json#TMJLite.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3437,
+      "fullName": "TMJLite.nuspec",
+      "length": 6402,
+      "name": "TMJLite.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.05.22.40.24/tmjlite.0.3.7.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2192,
+      "fullName": "README.md",
+      "length": 4389,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.05.22.40.24/tmjlite.0.3.7.json#lib/net8.0/TMJLite.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2780495,
+      "fullName": "lib/net8.0/TMJLite.dll",
+      "length": 5557760,
+      "name": "TMJLite.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.05.22.40.24/tmjlite.0.3.7.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tmjlite",
+    "database",
+    "embedded",
+    "sql"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

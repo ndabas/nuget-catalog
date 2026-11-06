@@ -1,0 +1,157 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "d6a03095-d816-4f46-bc6b-801e472f5311",
+  "catalog:commitTimeStamp": "2026-11-06T05:10:15.2378132Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-11-06T05:07:12.43Z",
+  "description": "Framework-agnostic core for text-snapshot assertions. Provides string-against-file comparison with line-ending / BOM / whitespace options, default file naming from test class and method names, environment-variable-driven accept-mode workflow with CI guard, and line-based diff rendering. Test-framework-specific entry points live in adapter packages (SnapshotAssertions.TUnit).",
+  "id": "SnapshotAssertions",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-06T05:10:01.157Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "mUeyG9sQ74GJEm8zeeo3j/wQHx1jW1dx4jQUPRSUWG0GvfB2xKl+/gfAa66PabcTsI6zu9bfGMpte9i+j76grg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 69129,
+  "projectUrl": "https://github.com/JohnVerheij/SnapshotAssertions.TUnit",
+  "published": "2026-11-06T05:07:12.43Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/SnapshotAssertions.TUnit/releases/tag/v0.9.0\n\nMinor release. `SnapshotOptions.NormalizedLineEndings` now means \"CRLF and CR become LF, the final newline is ignored\" instead of removing line breaks, and class-level `[Arguments]` rows get their own default-named baseline files; both are breaking for the baselines they affect, and each entry says how to migrate. `SnapshotLineEndingMode.IgnoreLineEndings` is deprecated and its written form keeps line breaks. The accept-mode CI guard also reads `TF_BUILD` and honors `SNAPSHOT_ACCEPT_IN_CI`, accept mode writes into the project's `Snapshots/` folder when the output is elsewhere, `PreserveBom` now keeps the baseline's byte-order mark, the accept-mode fallback and `TryResolveSourceSnapshotsDirectory` now recognize `.fsproj` and `.vbproj`, the build targets are packed under `buildTransitive/`, and the failure message names the project-side baseline.\n\n### Added\n\n- **`SnapshotFileResolver.ResolveByTest(string, string, IReadOnlyList<object?>?, string, IReadOnlyList<object?>?)`** also hashes the value-like class-level (constructor) arguments into the name: `{Class}.{ClassArgsHash8}.{Method}[.{MethodArgsHash8}]`. Value-like means `null`, a string, a `bool`, a `char`, a `Type`, an `IFormattable` (all numeric types, `Guid`, `DateTime`, enums), or an array or other collection that implements the non-generic `ICollection` (such as `List<T>`) of these (recursively); any other argument, such as a `[ClassDataSource]` fixture, a lazy sequence or a `HashSet<T>` (it implements only the generic `ICollection<T>`), is skipped without being enumerated, and a collection with one non-value-like element, such as a dictionary with entries, is skipped as a whole. With no value-like class argument the name is exactly the four-parameter overload's, which stays unchanged. The TUnit adapter uses the new overload for default-named snapshots.\n- **`SnapshotAcceptMode.AzurePipelinesVariableName`** (`TF_BUILD`) and **`SnapshotAcceptMode.AllowInCiVariableName`** (`SNAPSHOT_ACCEPT_IN_CI`) are the names of the two new variables the CI guard reads.\n- **`SnapshotAcceptMode.IsActive(string?, string?, string?, string?)`** is the pure four-variable form (`SNAPSHOT_ACCEPT`, `CI`, `TF_BUILD`, `SNAPSHOT_ACCEPT_IN_CI`) that `IsActive()` now uses. A truthy `SNAPSHOT_ACCEPT_IN_CI` lifts the CI guard, so a pipeline step that regenerates baselines on purpose sets it instead of overriding `CI`. The two-variable overload keeps its meaning.\n\n### Changed\n\n- **BREAKING:** `SnapshotOptions.NormalizedLineEndings` is now `LineEndingMode = NormalizeToLF` with `TrailingNewline = Optional`: CRLF and CR become LF, the final newline is ignored, and every line break still counts. It used to remove line breaks altogether, so `\"a\\nb\"` equalled `\"ab\"`.\n- **BREAKING:** The default-named baselines of class-level `[Arguments]` rows now include a hash of the class arguments in the name (`{Class}.{ClassArgsHash8}.{Method}`), so each row gets its own file; they used to share one. A class whose only constructor argument is a fixture object, and method-only `[Arguments]` rows, keep their names. The `.WithName(...)` workaround from 0.8.1 is now optional.\n- **`SnapshotLineEndingMode.IgnoreLineEndings`** written form (the actual file and an accepted baseline) now keeps the line breaks, joined with LF, instead of one flattened line. Its comparison is unchanged, so a baseline accepted earlier as one line still matches.\n- **Failure message** of a default-named or `.WithName(...)` baseline now ends with one more line, `Project baseline: <path>`, the absolute path the baseline has under the project's `Snapshots/` folder, when the build recorded the project directory and that folder still exists. The core message is unchanged, and a baseline set with `AtPath` or `MatchesSnapshotFile` gets no such line.\n- **`TUnit.Assertions`** and **`TUnit.Core`** minimum versions raised from 1.78.0 to 1.80.0.\n\n### Deprecated\n\n- **`SnapshotLineEndingMode.IgnoreLineEndings`** is marked `[Obsolete]`: it also ignores where lines break and blank lines. Use `NormalizeToLF`. It will be removed in 0.10.0.\n\n### Fixed\n\n- **Accept mode** now counts a truthy `TF_BUILD` (Azure Pipelines sets `True`) as CI, so a stray `SNAPSHOT_ACCEPT=1` on an Azure Pipelines agent is refused like it is where `CI` is set. Before, only `CI` was read, and Azure Pipelines does not set it, so accept mode ran there.\n- **`SnapshotBomHandling.PreserveBom`** now keeps a byte-order mark at the start of the baseline file: the file is read as bytes and a UTF-8, UTF-16 or UTF-32 mark is returned as a leading U+FEFF, so a baseline accepted from an actual that starts with U+FEFF matches on the next run. The mark was consumed by the read, so it never matched. `StripBom` behaves as before, and a file in UTF-16 or UTF-32 is decoded with the encoding its mark declares.\n- **Accept mode** (`SNAPSHOT_ACCEPT=1`) now writes into the project's `Snapshots/` folder when the build output is outside the project (`UseArtifactsOutput`, `dotnet test -o`, a custom `OutputPath`). The package's build targets record the project directory in the test assembly's runtime configuration (`SnapshotAssertions.ProjectDirectory`), and accept mode reads it. Before, it wrote beside the test binary or into an unrelated project higher up.\n- **`SnapshotFileResolver.TryResolveSourceSnapshotsDirectory`** and the accept-mode fallback now also recognize `*.fsproj` and `*.vbproj`, so accept mode finds the project of an F# or Visual Basic test assembly when the build did not record the project directory.\n- **Build targets** are now packed under `buildTransitive/` (with a one-line forwarding file in `build/`), so a test project that gets the package through another project or package also gets the copy of `Snapshots/**/*.expected.txt` to the output directory, unless the intermediate reference sets `PrivateAssets=\"all\"` or excludes the build assets. Before, only a direct `PackageReference` did.\n\n**Upgrade:** Re-accept (`SNAPSHOT_ACCEPT=1`) a baseline that was accepted under the old `NormalizedLineEndings` preset: it is a single line. A multi-line baseline written by hand keeps matching when its line structure matches the output. Re-accept class-level `[Arguments]` rows too: they now get their own files, where they used to share one. Fixture-only classes and method-only `[Arguments]` rows keep their names, so their baselines need no change.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#repository",
+    "commit": "c498325d71c54d43c6183c731c30b27e0f399c44",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/SnapshotAssertions.TUnit"
+  },
+  "verbatimVersion": "0.9.0",
+  "version": "0.9.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#SnapshotAssertions.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3239,
+      "fullName": "SnapshotAssertions.nuspec",
+      "length": 7806,
+      "name": "SnapshotAssertions.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2226,
+      "fullName": "README.md",
+      "length": 4974,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#lib/net10.0/SnapshotAssertions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22816,
+      "fullName": "lib/net10.0/SnapshotAssertions.dll",
+      "length": 51200,
+      "name": "SnapshotAssertions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#lib/net10.0/SnapshotAssertions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 18614,
+      "fullName": "lib/net10.0/SnapshotAssertions.xml",
+      "length": 96496,
+      "name": "SnapshotAssertions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 6787,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 49725,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.05.10.15/snapshotassertions.0.9.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "assertions",
+    "testing",
+    "snapshot",
+    "publicapi",
+    "approval",
+    "text-comparison",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

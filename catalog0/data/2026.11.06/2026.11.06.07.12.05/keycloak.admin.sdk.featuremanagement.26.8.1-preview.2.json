@@ -1,0 +1,142 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Keycloak.Admin.Sdk.FeatureManagement",
+  "catalog:commitId": "bd7c8b0c-4add-4e62-91a2-63f90d9413cc",
+  "catalog:commitTimeStamp": "2026-11-06T07:12:05.4234191Z",
+  "created": "2026-11-06T07:08:43.843Z",
+  "description": "Managed feature flags and opt-in Application Insights telemetry for Keycloak Admin SDK.",
+  "id": "Keycloak.Admin.Sdk.FeatureManagement",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-06T07:11:51.423Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "WPuQM/Ml5b1VAR8gPRvmQoORrdKvl+Ciamqu+/dcw6tFkNDhDWZh8/UxvPhxNeV1cT12ze1MIVk19FGbMsEBNw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 23592,
+  "projectUrl": "https://github.com/sugarst/Keycloak.Admin.Sdk",
+  "published": "2026-11-06T07:08:43.843Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## Keycloak.Admin.Sdk.FeatureManagement\n\nKeycloak.Admin.Sdk 的托管功能开关扩展，基于 Microsoft.FeatureManagement 4.8.0。先执行版本能力策略，再检查宿主总开关和目标功能开关，用于最终灰度开放和关闭。\n\n### 安装\n\n```shell\ndotnet add package Keycloak.Admin.Sdk.FeatureManagement\n```\n\n安装本包会自动引用主包。Native AOT 应用使用主包的能力策略及 `KeycloakFeatureSnapshotGate`。\n\n### 使用示例\n\n以下示例使用内存配置演示组织功能的开放与关闭。先设置 `KEYCLOAK_ACCESS_TOKEN`，再替换服务器地址和 realm；服务器须匹配目标版本及默认 FGAP v2 路线、启用组织功能，令牌须具备相应管理权限。\n\n```csharp\nusing Keycloak.Admin.Sdk;\nusing Keycloak.Admin.Sdk.Capabilities;\nusing Keycloak.Admin.Sdk.FeatureManagement;\nusing Microsoft.Extensions.Configuration;\nusing Microsoft.Extensions.DependencyInjection;\nusing Microsoft.FeatureManagement;\n\nvar configuration = new ConfigurationBuilder().AddInMemoryCollection(\n    new Dictionary<string, string?>\n    {\n        [\"feature_management:feature_flags:0:id\"] = \"KeycloakSdk.AdminApi\",\n        [\"feature_management:feature_flags:0:enabled\"] = \"true\",\n        [\"feature_management:feature_flags:1:id\"] = \"KeycloakSdk.Organizations\",\n        [\"feature_management:feature_flags:1:enabled\"] = \"true\"\n    }).Build();\nusing var configurationLifetime = (IDisposable)configuration;\nvar services = new ServiceCollection();\nservices.AddSingleton<IConfiguration>(configuration);\nservices.AddFeatureManagement();\nusing var provider = services.BuildServiceProvider();\n\nusing var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));\nvar ct = cancellation.Token;\nvar server = new Uri(\"https://keycloak.example.com/\");\nusing var http = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false });\nvar tokens = new StaticAccessTokenProvider(\n    Environment.GetEnvironmentVariable(\"KEYCLOAK_ACCESS_TOKEN\")\n    ?? throw new InvalidOperationException(\"请设置 KEYCLOAK_ACCESS_TOKEN\"));\nvar support = new KeycloakSupportConfiguration(\n    KeycloakTarget.Version, KeycloakRuntimeProfile.Managed);\nIKeycloakAdminClient sdk = await KeycloakFeatureManagedClient.CreateAsync(\n    http, server, tokens, support,\n    provider.GetRequiredService<IVariantFeatureManager>(), cancellationToken: ct);\n\nvar organizations = await sdk.Organizations.SearchAsync(\n    \"target-realm\", max: 20, cancellationToken: ct);\nConsole.WriteLine(organizations.Body?.Count ?? 0);\n\n// 关闭组织功能，后续调用在业务 HTTP 请求发送前被拒绝。\nconfiguration[\"feature_management:feature_flags:1:enabled\"] = \"false\";\nconfiguration.Reload();\ntry\n{\n    await sdk.Organizations.SearchAsync(\"target-realm\", cancellationToken: ct);\n}\ncatch (KeycloakCapabilityDeniedException error) when (\n    error.Decision.Reason == KeycloakCapabilityReason.DisabledByHost)\n{\n    Console.WriteLine(\"组织功能已关闭\");\n}\n```\n\n### 开放规则\n\n- `KeycloakSdk.AdminApi` 总开关与目标功能的 `FeatureId` 开关必须同时允许；缺失或关闭均拒绝。\n- 工厂初始化先读取一次受认证的 `serverinfo`，再检查能力与总开关。配置变化影响后续逻辑请求，不撤销已发送请求。\n- 宿主管理配置提供方、过滤器、灰度范围和刷新机制；支持策略也可通过 `KeycloakSupportConfiguration.Parse` 读取 JSON。\n- 非 Stable 功能先完成独立业务验证和按环境晋升，再通过 schema 2 的 `previewCapabilities` 或 `experimentalCapabilities` 逐功能许可，最后由宿主开关控制开放。开关不会替代验证或修改上游阶段。\n\n### 可选遥测\n\nApplication Insights 功能评估遥测默认关闭。启用时引入 `Keycloak.Admin.Sdk.FeatureManagement.ApplicationInsights` 命名空间，调用 `services.AddFeatureManagement().AddKeycloakApplicationInsightsTelemetry(enabled: true)`，为目标开关设置 `telemetry.enabled=true`，并由宿主注册 `TelemetryClient`、管理遥测生命周期及所注册 hosted services 的启动和停止。\n\n### 文档\n\n- [接入与遥测配置](https://github.com/sugarst/Keycloak.Admin.Sdk/blob/main/docs/feature-management.md)\n- [功能开关配置示例](https://github.com/sugarst/Keycloak.Admin.Sdk/blob/main/contracts/feature-management.example.json)\n- [非 Stable 功能验证与晋升](https://github.com/sugarst/Keycloak.Admin.Sdk/blob/main/docs/non-stable-feature-lifecycle.md)\n- [版本能力与 FGAP 路线](https://github.com/sugarst/Keycloak.Admin.Sdk/blob/main/docs/capability-policy.md)\n- [版本变更](https://github.com/sugarst/Keycloak.Admin.Sdk/blob/main/CHANGELOG.md)\n- [开源项目](https://github.com/sugarst/Keycloak.Admin.Sdk)",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#repository",
+    "commit": "df2934e169da150a2a993192a90f41d3b61da113",
+    "type": "git",
+    "url": "https://github.com/sugarst/Keycloak.Admin.Sdk"
+  },
+  "verbatimVersion": "26.8.1-preview.2",
+  "version": "26.8.1-preview.2",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#dependencygroup/net10.0/keycloak.admin.sdk",
+          "@type": "PackageDependency",
+          "id": "Keycloak.Admin.Sdk",
+          "range": "[26.8.1-preview.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#dependencygroup/net10.0/microsoft.featuremanagement",
+          "@type": "PackageDependency",
+          "id": "Microsoft.FeatureManagement",
+          "range": "[4.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#dependencygroup/net10.0/microsoft.featuremanagement.telemetry.applicationinsights",
+          "@type": "PackageDependency",
+          "id": "Microsoft.FeatureManagement.Telemetry.ApplicationInsights",
+          "range": "[4.8.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#Keycloak.Admin.Sdk.FeatureManagement.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2724,
+      "fullName": "Keycloak.Admin.Sdk.FeatureManagement.nuspec",
+      "length": 6099,
+      "name": "Keycloak.Admin.Sdk.FeatureManagement.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1629,
+      "fullName": "README.md",
+      "length": 3230,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#lib/net10.0/Keycloak.Admin.Sdk.FeatureManagement.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4364,
+      "fullName": "lib/net10.0/Keycloak.Admin.Sdk.FeatureManagement.dll",
+      "length": 9728,
+      "name": "Keycloak.Admin.Sdk.FeatureManagement.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.07.12.05/keycloak.admin.sdk.featuremanagement.26.8.1-preview.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

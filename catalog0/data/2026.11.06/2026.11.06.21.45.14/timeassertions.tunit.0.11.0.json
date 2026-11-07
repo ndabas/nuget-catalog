@@ -1,0 +1,185 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "8ca84416-2f66-4838-ade9-da975a52ebdf",
+  "catalog:commitTimeStamp": "2026-11-06T21:45:14.0043737Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-11-06T21:42:00.74Z",
+  "description": "TUnit-native fluent time-assertion DSL on FakeTimeProvider plus assertion-level timing budget chain extensions via [AssertionExtension]. Provides Assert.That(fakeTime).HasAdvancedExactly(...) / HasAdvancedApproximately(...) / HasUtcNow(...) / HasUtcNowApproximately(...), Assert.That(timestamp).IsRecent(...) / IsBeforeNow(...) / IsAfterNow(...), the cross-cutting Assert.That(value).IsX().And.WithinTimeBudget(TimeSpan) / WithinTimeBudgetCapturing(TimeSpan, Action<TimeSpan>) on any TUnit assertion chain, and timer assertions on an ObservableTimeProvider: leaks (HasNoActiveTimers), fires (HasTimerFiredCount), schedules (HasTimerScheduled), and event-driven waits (HasNoActiveTimersEventually, HasTimerScheduledEventually) that react to each timer change instead of polling. Composes with sibling assertion packages without a binary dependency. AOT-compatible, trimmable, no reflection.",
+  "id": "TimeAssertions.TUnit",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-06T21:44:45.277Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "c1yNiKs3Zyt8kKI4WsmOc8T/TuxQBbVqhfAa0Ngy9KHfLBerkOM2hmKRbwEvxO8x3jNPeOnY7XlJJnEtrNM+mw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 61982,
+  "projectUrl": "https://timeassertions.dev/",
+  "published": "2026-11-06T21:42:00.74Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/TimeAssertions.TUnit/releases/tag/v0.11.0\n\nMinor release with breaking changes (see BREAKING and Upgrade). `AdvanceOnEachTimerUntilAsync` now fails when its task fails and returns its result; a wait that its token ends says what it saw, in an `OperationCanceledException`; every failure message states the expectation once and then only what was found. The `pollingInterval` overloads deprecated in 0.10.0 are removed.\n\n### BREAKING\n\n- **`ObservableFakeTimeProvider.AdvanceOnEachTimerUntilAsync(Task until, TimeSpan step, CancellationToken cancellationToken)`** now completes as `until` did: a fault of `until` is rethrown, and a cancellation of `until` rethrows its `OperationCanceledException`. Before, the call completed when `until` did and dropped its outcome, so a failed task could pass unnoticed. A test that awaits `until` after the call gets the same exception one line earlier. A test that expects the fault asserts on the call: `await Assert.That(() => clock.AdvanceOnEachTimerUntilAsync(run, step, ct)).Throws<X>();` (with `VSTHRD003` enabled, start the operation inside the lambda).\n- **The five `[Obsolete]` `pollingInterval` overloads** of `HasNoActiveTimersEventually`, `HasActiveTimersEventually`, `HasActiveTimerCountEventually`, `HasAtLeastActiveTimerCountEventually` and `HasAtMostActiveTimerCountEventually` are removed, with the class `TimeAssertions.TUnit.EventuallyTimerAssertionExtensions` that held only them, as announced in 0.10.0.\n- **`HasAdvancedExactly`, `HasAdvancedApproximately`, `HasUtcNow`, and `HasUtcNowApproximately`** return `AssertionResult` instead of `bool`, so a failure says how far the clock advanced, or where it stands, in a culture-independent format. Calls through `Assert.That(...)` compile unchanged; code that calls the methods directly as `bool` helpers must change, and code compiled against 0.10.0 must be rebuilt.\n- **`WaitForTimersCreatedAsync`, `WaitForTimersDisposedAsync`, the six \"eventually\" timer assertions, and `AdvanceOnEachTimerUntilAsync`** throw, when their token ends the wait, an `OperationCanceledException` that says what was awaited and what was found (see Changed), instead of the `TaskCanceledException` that a cancellation during the wait threw before. Code that catches or asserts exactly `TaskCanceledException` there catches `OperationCanceledException`, the base type, which also covers the old one.\n\n### Added\n\n- **`ObservableFakeTimeProvider.AdvanceOnEachTimerUntilAsync<T>(Task<T> until, TimeSpan step, CancellationToken cancellationToken)`** advances as the `Task` form does and returns the result of `until`, for example the record of a task of LogAssertions' `WaitForLogAsync` on a `FakeLogCollector`.\n\n### Changed\n\n- **`WaitForTimersCreatedAsync`** and **`WaitForTimersDisposedAsync`** end, when their token is canceled, with an `OperationCanceledException` that names the count they waited for and the count they saw (`Waited for 3 timer(s) created, but 1 timer(s) were created before the wait was canceled.`), instead of a bare cancellation.\n- **`AdvanceOnEachTimerUntilAsync`**, **`AdvanceAndSettleAsync`** and **`AdvanceUntilAsync`** say in their cancellation, and `AdvanceUntilAsync` also in its `TimeoutException`, how many times they advanced, by what step, how far in total, and the fake clock's time in the round-trip format; `AdvanceOnEachTimerUntilAsync` adds the timer counts, and the settle the fired and armed counts. A token that is already canceled before an advance stops them with the same description, before the clock moves (`AdvanceAndSettleAsync` and `AdvanceUntilAsync` threw a bare `The operation was canceled.` there).\n- **The six \"eventually\" timer assertions** end, when their token (not their `timeout`) ends the wait, with an `OperationCanceledException` that names the expectation and what was found (`Canceled while waiting for no active timers: 1 remained (count=1):` and the timers), instead of `A task was canceled.`. The test is still recorded as canceled.\n- **Failure messages** follow one rule. TUnit's `Expected …` line states the expectation (every timer and rate-limit assertion now sets one, instead of `to satisfy Method(args)`), and the `but …` text states only what was found, with its trailer and timer list. `HasUtcNow` and `HasUtcNowApproximately` name the expected time in the `but …` text instead, in the round-trip format, since TUnit would render it in the current culture in the `Expected …` line. A colon introduces the timer list only when one follows, a zero period renders as `one-shot`, the rate-limit timestamps align, and the call expression appears once (the \"eventually\" and budget assertions printed it twice). The `TimeRenderingHelpers` methods render the new texts.\n- **`IsRecent`** throws `ArgumentOutOfRangeException` for a negative `window`, as its documentation said; a negative window always failed before.\n- **`TUnit.Assertions`** and **`TUnit.Core`** minimum versions raised from 1.77.0 to 1.81.0.\n\n**Upgrade:** remove the `pollingInterval` argument from the \"eventually\" timer assertions. After `AdvanceOnEachTimerUntilAsync`, remove an `await` of the same task: the call already rethrows its failure, and the `Task<T>` form returns its result. A test that expects the task to fail asserts on the call, as shown under BREAKING. Use `HasAdvancedExactly`, `HasAdvancedApproximately`, `HasUtcNow` and `HasUtcNowApproximately` through `Assert.That(...)`. Catch `OperationCanceledException` where code caught `TaskCanceledException` from a timer wait, an \"eventually\" assertion or `AdvanceOnEachTimerUntilAsync`. A test that pins a failure message text takes the new text.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#repository",
+    "commit": "264603208c3fa03fdbfc103ea4349592f8673a73",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/TimeAssertions.TUnit"
+  },
+  "verbatimVersion": "0.11.0",
+  "version": "0.11.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#dependencygroup/net10.0/timeassertions",
+          "@type": "PackageDependency",
+          "id": "TimeAssertions",
+          "range": "[0.11.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#dependencygroup/net10.0/microsoft.extensions.timeprovider.testing",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.TimeProvider.Testing",
+          "range": "[10.11.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#dependencygroup/net10.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.81.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#dependencygroup/net10.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.81.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#TimeAssertions.TUnit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2966,
+      "fullName": "TimeAssertions.TUnit.nuspec",
+      "length": 7904,
+      "name": "TimeAssertions.TUnit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3095,
+      "fullName": "README.md",
+      "length": 8777,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#lib/net10.0/TimeAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 11065,
+      "fullName": "lib/net10.0/TimeAssertions.TUnit.xml",
+      "length": 93849,
+      "name": "TimeAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#lib/net10.0/TimeAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21399,
+      "fullName": "lib/net10.0/TimeAssertions.TUnit.dll",
+      "length": 60928,
+      "name": "TimeAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 7770,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 56364,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.21.45.14/timeassertions.tunit.0.11.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tunit",
+    "assertions",
+    "testing",
+    "timing",
+    "timespan",
+    "timeprovider",
+    "faketimeprovider",
+    "timers",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

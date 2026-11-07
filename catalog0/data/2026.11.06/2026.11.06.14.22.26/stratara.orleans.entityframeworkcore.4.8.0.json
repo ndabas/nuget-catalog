@@ -1,0 +1,176 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Norbert Heinz Rosenwinkel",
+  "catalog:commitId": "73d39176-da25-4431-ab74-62f80a96721f",
+  "catalog:commitTimeStamp": "2026-11-06T14:22:26.9536469Z",
+  "copyright": "Copyright © Norbert Heinz Rosenwinkel",
+  "created": "2026-11-06T14:19:48.407Z",
+  "description": "Entity Framework Core persistence for the Stratara Orleans execution model — the commit-order readers (native PostgreSQL and a portable per-partition counter), the projection checkpoint store and the store-schema additions they need.",
+  "iconFile": "icon.png",
+  "id": "Stratara.Orleans.EntityFrameworkCore",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-06T14:22:25.643Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "R8bMNwoUVGRN5izdfaahVs4/2yrjMa0qNgQoM3QJHXqMFZvAOSq6ChzOVFT3Yas8i0g97oFk6hrpIvxeUnIP0Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 163002,
+  "projectUrl": "https://github.com/yesbert/Stratara",
+  "published": "2026-11-06T14:19:48.407Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "The result of a full review of the framework's source: recorded changes to fields marked for encryption are now\nencrypted, blobs are bound to their whole scope, a personal access token follows its user's membership, and a replay\nkeeps deleted tenants and saga positions where they belong. **Read the upgrade notes before moving:** RabbitMQ 4.2 is now\nthe minimum; protected values written by this release cannot be read by earlier hosts, so readers go first; tokens of\nformer or pending members get a `401`; and a few start-up checks are stricter. Two products can now share one Redis by\nnaming themselves.\n\n### Added\n\n- **`ISecureBlobEncryptor.DecryptAsync(stream, scope, purpose)`** decrypts a blob only if it was written for that\n  purpose; a blob written for another purpose fails authentication. It is a default interface method, so an existing\n  implementation keeps compiling — and keeps not checking the purpose until it overrides the method. The\n  framework's encryptor enforces it, and encrypted settings now read through it.\n- **`StrataraBlobEncryptionOptions.WriteV2Blobs`** keeps new blobs in the previous format during a rolling upgrade\n  (see *Blob ciphertext is bound to its whole scope* below). Default `false`.\n- **`KeyUnavailableException`** tells a key that no longer resolves from any other failure when decrypting. It\n  derives from `InvalidOperationException`, as the failure it replaces.\n- **`RedisCoordinationOptions.ProductName`** (section `RedisCoordination`) puts a product's name into every Redis key\n  and channel Stratara uses for projection replays and the outbox lock, so two products can share one Redis. Without\n  it, two products on one server ran each other's replay requests and saw each other's active flag. Letters, digits,\n  `.`, `_` and `-` only; anything else is refused at start. **Nothing changes if no name is set. Set it on all of a\n  product's hosts in one deployment, with no replay running:** a host without the name, or on an earlier release, does\n  not meet named hosts, keeps publishing during their replay, and holds a different outbox lock. Nothing is migrated;\n  old keys stay behind.\n- **`IProjectionCheckpointStore.ListAsync`** and the `StoredCheckpoint` record list stored positions by consumer\n  prefix. The default implementation throws `NotSupportedException`, so an existing store keeps compiling; a replay\n  on such a store runs without the saga-position guard below and logs warning `117_139`.\n\n### Fixed\n\n- **A recorded field-changed event can be replayed.** After a round trip through the store, the value of a\n  `FieldChangedEvent<TAggregate>` comes back as untyped JSON, and applying it with `ApplyPropertyChanged` threw an\n  `ArgumentException` — an aggregate that had ever taken a change set could not be rebuilt from its stream.\n  `PropertyAccessorCache.SetValueByName` now converts such a value to the property's type before assigning it.\n  No migration: events already in the store replay as they are.\n- **A change set leaves out properties the aggregate cannot take.** `ChangeSetBuilder` compared every property the\n  aggregate could read under the same name. It now takes a property only where the aggregate's property is settable\n  and of a compatible type — assignable, nullability of a value type aside, or a sequence whose elements are — and\n  skips an absent value for a property that cannot be absent, so an update no longer records a change that replay\n  cannot apply. `ChangeMerger` copies a property through whose type cannot hold the aggregate's value instead of\n  throwing an `InvalidCastException`, and keeps the submitted value where the current one is absent and the payload's\n  property cannot be.\n- **An unedited collection is no longer reported as changed.** `ChangeSetBuilder` and `ChangeMerger` compared\n  collection properties by reference, so a list that arrived with an update always counted as edited and could\n  overwrite a concurrent change to it. Lists and arrays are now compared element by element in order, sets\n  regardless of order, dictionaries key by key; any other type keeps its own equality.\n- **A collection of another shape can be applied to an aggregate.** `PropertyAccessorCache.SetValueByName` converts\n  a collection that is not of the property's type — an array for a list — the way a recorded value is read back, so\n  applying a field change in memory and replaying it from the store give the same result.\n- **The `IEventUpcaster.TargetEventTypeName` documentation no longer describes an in-place shape change.** An\n  upcaster whose target equals its source has always been refused as a cycle when the event is read; the\n  documentation said otherwise. A reshaped payload moves to a new type name.\n- **The hash-chain worker no longer chains across an entry it has not chained yet.** An entry's timestamp is taken\n  when it is appended, not when it commits, so an entry with a lower sequence number can carry a later timestamp than\n  the one after it. The worker's batch skipped such an entry and linked its successor to its predecessor; the skipped\n  entry was chained on a later pass and verification then reported a break at that point. A batch now ends before the\n  first unchained entry that is not yet settled, and a batch whose predecessor is not chained is left for the next\n  pass instead of being chained off the genesis seed. A custom `IEventStreamRepository` gets the second guard for\n  free; its `GetUnhashedEventsAsync` should return a gap-free run as the updated documentation describes.\n- **Events appended after a nested command are attributed to the outer command.** A command dispatched from inside\n  another command's handler left its own id as the session's causation, so what the outer handler appended afterwards\n  named the inner command as its cause. With command auditing on, the outer command's causation is restored once\n  the inner one returns or fails. The outermost command still leaves its id on the session.\n- **The snapshot shape guard sees properties declared on a base class.** An auto-property without a public setter\n  loses its state when an aggregate is restored from a snapshot, and the start-up guard rejects it — but it missed\n  one declared on an aggregate's base class. **A host whose aggregate inherits such a property now fails at start-up**\n  with the guard's usual message, where it lost that state silently before.\n- **`AddStrataraTestingEventStore` keeps a write unit of work registered before it**, as the PostgreSQL registration\n  does; it replaced one silently.\n- **`MigrateAllDatabasesAsync` disposes the contexts it creates** — it left one undisposed per database.\n- **The command-host examples register command auditing.** The XML examples of `AddCommandWorkerServices`,\n  `AddCommandServices` and `AddHeavyCommandWorkerServices`, the `Stratara.Orleans` README and two guides showed a\n  host whose first append is refused for a missing causation; they now call `AddCommandAuditing()`.\n- **Publishing on Azure Service Bus reuses one sender per topic.** Every publish opened a new sender, and with it a\n  send link that stayed open until the client was disposed — a host publishing at a steady rate accumulated links\n  until the connection's quota was reached. The bus now opens one sender per topic and closes them when it is\n  disposed.\n- **One unreadable outbox row no longer stops the outbox.** A stored entry that could not be read back threw out of\n  the drain pass; entries are drained oldest first, so every pass ended on the same row and nothing behind it was\n  published again. Such an entry is now logged as error `106_109` (`OutboxEntryUnreadable`), left where it is, and\n  the pass continues. A failure while draining commands no longer keeps event bundles from being drained in the\n  same pass.\n- **`AddAuthorizingCommandOutboxDispatcher()` holds whichever order it is called in.** `AddOutboxDispatcher()` — and\n  with it every worker composite — registered a plain dispatcher on top of the authorizing one when it ran second,\n  so commands marked `[RequireRole]` or `[RequirePermission]` were enqueued without a check, silently. It now leaves\n  the decorator in place.\n- **Calling both `ConfigureOpenTelemetry()` and `ConfigureAspNetOpenTelemetry()` no longer stops the host.** With\n  `OTEL_EXPORTER_OTLP_ENDPOINT` set, the documented quick start registered the OTLP exporter twice and the host\n  failed at start-up with `NotSupportedException`. Either method, or both, in any order and any number of times,\n  now configures telemetry once.\n- **The 5000 ms default OTLP export timeout applies.** It was set through the process environment after the host's\n  configuration had been read, so the exporter kept its own 10 s default. The default is now placed in the host's\n  configuration where no timeout is configured, and the process environment is left alone.\n- **Blob ciphertext is bound to its whole scope.** The framework's blob encryptor authenticated a blob against its\n  tenant and purpose only, so a blob written under one user's scope decrypted when read under another user's scope,\n  or under the tenant-level scope, of the same tenant. New blobs are written in a format (leading byte `0x03`) whose\n  authenticated data covers the sensitivity level, the tenant, the user and the purpose. Blobs already stored read\n  as before. **Releases before this one cannot read the new format:** where older hosts still read blobs that newer\n  hosts write, set `Stratara:BlobEncryption:WriteV2Blobs` to `true` until every host is upgraded.\n- **An encrypted setting cannot be read as another setting.** The purpose a blob was written for was taken from the\n  blob itself on read, so the ciphertext of one encrypted setting, copied into another setting's row in the same\n  scope, decrypted there. The setting store now requires the purpose of the setting it reads.\n- **A setting whose key was revoked or erased no longer makes its scope unreadable.** Reading a scope decrypted\n  every encrypted setting in it and failed as a whole when one key was gone — which is the state an erasure leaves\n  behind. Such a setting now reads as absent and is logged as warning `112_011` (`EncryptedSettingUnreadable`); the\n  rest of the scope is returned. Altered ciphertext, a value that is not ciphertext, and a key store failing for\n  another reason still fail the read; a key identifier altered to one that does not resolve reads as absent, like a\n  deleted row. A custom `ISecureBlobEncryptor` signals a lost key with the new `KeyUnavailableException`.\n- **A key revoked or erased by another process stops resolving at once.** A process that held a key of the file key\n  store in memory kept decrypting with it after another process sharing the file had revoked it or erased its\n  scope. A lookup now checks whether the file changed before it answers from memory.\n- **A bearer principal carries its subject as the name identifier.** `AddStrataraJwtBearer` left the principal\n  without `ClaimTypes.NameIdentifier`, the claim the session, the permission policies and the tenant claim read — a\n  bearer request ran with an empty actor and every permission policy refused it. The validated principal now\n  carries its `sub` under that claim type; a token-validated handler the host configures still runs.\n- **`AddStrataraPermissionPolicies()` works after `AddAuthorization()`.** It registered its policy provider only\n  where none was registered, and `AddAuthorization()`, `AddAuthorizationCore()` and `AddControllers()` register the\n  framework's default — every `[Authorize(\"<permission>\")]` endpoint then failed with \"policy not found\". The\n  default provider is now replaced; a provider the host supplies is kept.\n- **Repeating a failed API-key revocation or tenant sweep removes the machine membership it left behind.** A revoke\n  that failed after recording the revocation returned early when repeated, and a tenant sweep deleted the keys\n  before the memberships they identify.\n- **The `MembershipClaimsPrincipalFactory` remarks describe what it does**: no tenant claim where a user has several\n  memberships and none selected.\n- **A replay applies each entry in a scope of its own session.** The full replay built every projection and its\n  scoped dependencies once per batch, before any entry's session was set, and applied the entries of every tenant\n  through those instances — a dependency that takes its tenant when it is constructed wrote all of them without\n  one. Entries are now applied in a fresh scope per run of entries recorded under the same session, with the\n  session set before anything is resolved, as the execution model's readers already do.\n- **A replay fails before it empties anything where the forgotten-tenant store is missing.** With a projection that\n  forgets deleted tenants registered but no store for it, the replay skipped the clearing step, emptied every read\n  model and then failed on the first fact. It now fails at once with the registration message.\n- **The tenant read model ignores a fact older than what it holds.** `TenantProjection` recorded the version of the\n  last fact it applied but never compared it, so a redelivered or late rename, activation, deactivation, locale\n  change or reassignment overwrote newer state. A fact that is not newer than the row is now skipped. A late\n  `TenantCreated` arriving after the tenant's deletion still re-creates the row.\n- **A handler that times out stalls its partition visibly on the Orleans execution model.** A cancellation thrown\n  from inside a projection or saga handler — an HTTP or database timeout — that the reader itself had not requested\n  matched none of the reader's failure paths: nothing was logged, the partition was not marked stalled, a wait\n  reported `TimedOut` instead of `Stalled`, and the entries of the batch that had already applied were applied again\n  on every retry. It is now treated as the failure it is: logged, counted, and checkpointed below the failing\n  entry.\n- **An entry retried after a missing preceding fact starts from a fresh scope on the Orleans execution model**, as\n  it does on the bus. The retry reused the failed attempt's scoped dependencies, so state that attempt had left\n  behind — a tracked change, a staged write — was applied a second time.\n- **`InMemoryMessageBus` gives the handlers of one subscription competing delivery.** It handed every message to\n  every handler on the topic, so several workers on one subscription — which is what `ProjectionWorker` and\n  `SagaWorker` open — each applied every bundle, and a saga issued its command once per worker. Each message now\n  reaches one handler per subscription, in turn, as on RabbitMQ and Azure Service Bus; different subscriptions\n  still each receive every message. **A test that relied on every handler of one subscription seeing every message\n  needs separate subscription names.**\n- **`ProjectionTester` runs the overload production runs.** For a projection declaring both `HandleAsync(TData, …)`\n  and `HandleAsync(IEvent<TData>, …)` it tried the enveloped overload first; the framework tries the payload one\n  first.\n- **JSON attributes are honoured on a type with field-level encryption.** A type with at least one property marked\n  `[EncryptData]` is stored property by property, and that path ignored the type's `System.Text.Json` attributes\n  when writing while the read applied them: a property renamed with `[JsonPropertyName]` came back empty, a\n  `[JsonIgnore]` property was stored — in plaintext — although it was excluded, and a property's `[JsonConverter]`\n  was skipped. A renamed property now round-trips, an ignored property is no longer stored, and a property's\n  converter is applied when writing too. Stored names do not change and payloads already stored still read; a\n  property with its own converter is stored in the converter's form from now on, which is what an upcaster sees in\n  new events.\n- **A heavy command waiting for a permit keeps waiting while the permit keeper cannot be reached.** When the silo\n  keeping the permits died or the call timed out, the failure was recorded as a failed attempt of a handler that had\n  never run; repeated failovers could park a command that was only waiting. The wait now continues until the keeper\n  answers or the silo stops.\n- **A host whose sagas need a session to be constructed starts.** The timer start-up check constructed every\n  registered saga without a session and failed the start where a saga's dependency refuses that. It now decides from\n  the registrations.\n- **`IntentGrace` must be longer than three times `CompletionWindow`.** The start-up validation only required the\n  grace to be longer than the window. A completed command's record is no longer renewed while its completion is\n  being collected, and its last renewal can be two thirds of the grace old — with a window longer than the rest, the\n  drain handed the command over again and its handler ran a second time. **A host configured with a window of a\n  third of the grace or more now fails at start-up**; the defaults (30 s and 20 ms) are far inside the bound.\n- **A personal access token validates only while its user is an active member of the key's tenant.** Validation\n  checked existence, revocation and expiry, so a token kept authenticating with its tenant claim after the membership\n  had ended, and an endpoint that needs only authentication served that tenant's data. **Such a token now gets a\n  `401` while the membership is former, pending or missing**, and works again if the membership becomes active. The\n  token is not revoked, and machine keys are unaffected. **A custom `IApiKeyStore` must apply the same check**; the\n  compiler does not flag it. A service modelled as a user without an active membership should move to a machine key.\n- **A recorded change to a field marked for encryption is encrypted.** A change set, or a `FieldChangedEvent<T>`\n  appended directly, wrote the new value of an `[EncryptData]` property in plaintext to the event store and the bus,\n  where a later erasure could not reach it. It is now stored as ciphertext at the property's level and for the\n  stream's owner; the property name stays readable, and once the key is destroyed replay sets the property to null or\n  its type's default and continues. No API change and no migration. **Upgrade every host that reads the stream or\n  consumes its events before any host that writes, and roll back all hosts together:** an earlier host fails on such\n  a value for a string, number, identifier, enum or collection property, and silently gets a wrong value for a\n  record, class, `object` or `JsonElement` property. **Changes already recorded in the clear stay as they are**, keep\n  replaying, and are not reached by an erasure, because rewriting them would break the tamper-evident chain; the\n  guide *Encrypt Sensitive Data* shows how to find them and what the options are. Upcasters see ciphertext for such a\n  value, and rewriting the recorded property name makes it unreadable.\n- **A drain pass attempts each stored message once.** Republishing from the outbox ran every entry through the\n  dispatcher's retries, about 1.4 s for each entry that could not be published, so a backlog such as heavy commands\n  with no worker bound made a pass outlive its lock and kept event bundles waiting behind the commands. The next pass\n  is now the retry, and a first dispatch keeps its retries. A brief publish failure of a stored message therefore waits\n  for the next polling interval, and a policy re-registered under a dispatcher name no longer affects republication.\n- **Removing a membership, a tenant selection or a setting and writing it again in one scope no longer throws.** The\n  stores deleted directly in the database and left the tracked copy behind, so on the scoped registration the second\n  write failed with EF's identity-conflict `InvalidOperationException`. A consumer's other pending changes are not\n  touched.\n- **A fact of a forgotten tenant no longer adds a row.** A projection declaring `IForgetsDeletedTenants` consulted its\n  record only after reporting a missing prerequisite, and a fact that adds a row reports nothing, so a fact read after\n  its tenant's deletion left a row nothing removes — on every full replay, and whenever a partition lags. A declaring\n  projection is now not called for a fact of a tenant it recorded as deleted, except the deletion facts, and the\n  pass-over is logged as `104_014`. **A fact that removes something elsewhere is passed over too**, and each other fact\n  costs one read of the record per declaring projection: about 0.3 to 0.6 ms per fact against a local PostgreSQL, so\n  several minutes per million facts on a replay. Projections that do not declare it are unchanged.\n- **A truncator cannot restart every saga.** `IProjectionViewTruncator` recommended `TRUNCATE ... CASCADE` across the\n  read-store schema, which also holds the saga positions, and a replay that emptied them sent every saga back to the\n  beginning. The contract now names what must survive. On a host with `AddStrataraProjectionGrains`, a replay also\n  writes back any saga position its truncator removed or moved back, and logs warning `117_138` naming the truncator;\n  error `117_140` names positions it could not write back, and that replay fails. A host with saga grains and bus-fed\n  projections has the contract only.\n\n### Changed\n\n- **RabbitMQ 4.2 is the minimum version.** On 3.13, 4.0 and 4.1 a broker restart removes a topic exchange and its\n  bindings, so a message for a subscription not yet bound again is lost, silently, while the publisher sees success.\n  From 4.2 they survive. **A deployment below 4.2 updates its broker first.** The framework does not check the version.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#repository",
+    "commit": "c354afbc4d9eacff4843a4131b92369fff4c6408",
+    "type": "git",
+    "url": "https://github.com/yesbert/Stratara.git"
+  },
+  "verbatimVersion": "4.8.0",
+  "version": "4.8.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#dependencygroup/net10.0/stratara.eventsourcing.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Stratara.EventSourcing.EntityFrameworkCore",
+          "range": "[4.8.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#dependencygroup/net10.0/stratara.orleans",
+          "@type": "PackageDependency",
+          "id": "Stratara.Orleans",
+          "range": "[4.8.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#Stratara.Orleans.EntityFrameworkCore.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9202,
+      "fullName": "Stratara.Orleans.EntityFrameworkCore.nuspec",
+      "length": 23252,
+      "name": "Stratara.Orleans.EntityFrameworkCore.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 649,
+      "fullName": "LICENSE",
+      "length": 1082,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1162,
+      "fullName": "README.md",
+      "length": 2671,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 56408,
+      "fullName": "icon.png",
+      "length": 71161,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#lib/net10.0/Stratara.Orleans.EntityFrameworkCore.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 67936,
+      "fullName": "lib/net10.0/Stratara.Orleans.EntityFrameworkCore.dll",
+      "length": 178176,
+      "name": "Stratara.Orleans.EntityFrameworkCore.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#lib/net10.0/Stratara.Orleans.EntityFrameworkCore.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 12239,
+      "fullName": "lib/net10.0/Stratara.Orleans.EntityFrameworkCore.xml",
+      "length": 70734,
+      "name": "Stratara.Orleans.EntityFrameworkCore.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.06.14.22.26/stratara.orleans.entityframeworkcore.4.8.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "orleans",
+    "virtual-actors",
+    "event-sourcing",
+    "cqrs",
+    "efcore",
+    "ef-core",
+    "entity-framework",
+    "postgresql",
+    "commit-order",
+    "checkpoints",
+    "dotnet",
+    "stratara"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Zyntal.com",
+  "catalog:commitId": "bd938363-94ed-42fc-b4ee-1a86dd5eeb65",
+  "catalog:commitTimeStamp": "2026-11-07T16:40:49.5642936Z",
+  "copyright": "Copyright © 2026 Zyntal.com",
+  "created": "2026-11-07T16:36:39.623Z",
+  "description": "Social platform integrations (Discord, Steam) for CodeLogic 5 applications",
+  "id": "CodeLogic.SocialConnect",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-07T16:40:47.333Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "AGVeQs8/AlEk5D8HqMBeaXjLWFSC3CGCwFX4yi0O3ZNv4JcMIKo0witeoYuQUlOqEQn06HfbOQu35NaRwEAsPQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 89515,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-11-07T16:36:39.623Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.SocialConnect — Changelog\n\nAll notable changes to **CodeLogic.SocialConnect** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/).\n\n## 5.0 (unreleased)\n\n### Audit completion (2026-11-07)\n\n- Record only provider-verified nonces; cap verification concurrency and replay-store capacity, refusing overload without evicting valid nonces. Failed assertions consume no replay entries. Use the shared bounded log formatter.\n\n\n### Breaking\n\n- Targets **.NET 11** (`net11.0`) and requires **CodeLogic 5.0** (`[5.0.0, 6.0.0)`). On .NET 10, stay on\n  4.9.x. CodeLogic 5 makes `Result<T>` / `Result` C# 15 unions and `Error` a closed record with\n  kind subtypes (`NotFoundError`, `ValidationError`, ...). Results can now be matched\n  exhaustively with `switch`.\n- `Auth.AuthenticateAsync` returns `Result<SteamTicketIdentity>` instead of `Result<SteamAuthResult>`.\n  The mutable `SteamAuthResult` class (with `IsAuthenticated`, `ErrorDescription` and `0`/`1` ints for\n  bans) is gone: the immutable `SteamTicketIdentity(SteamId, OwnerSteamId, AppId, VacBanned, PublisherBanned)`\n  record (plus `IsFamilyShared`) is only ever a success, and every failure is an `Error` kind —\n  `ValidationError` `social.steam.invalid_ticket` / `social.steam.no_appid`, `UnauthorizedError`\n  `social.steam.auth_failed`, `TimeoutError` `social.steam.timeout`, `UnavailableError`\n  `social.steam.network_error`, `InternalError` `social.steam.request_rejected` / `parse_error` / `error`.\n- A ticket that is not hex is now refused locally with `social.steam.invalid_ticket` (it used to be\n  pasted unescaped into the request URL). A 4xx from Steam (e.g. a bad API key) is now\n  `InternalError` `social.steam.request_rejected` instead of `UnavailableError` `social.steam.network_error`.\n- **Steam OpenID checks `openid.response_nonce`.** `VerifyAsync` never looked at the nonce, so an intercepted\n  assertion stayed usable indefinitely. It now refuses, before asking Steam, a nonce without a valid\n  `yyyy-MM-ddTHH:mm:ssZ` prefix or dated more than a minute ahead (`social.steam.openid_invalid`) and an\n  assertion older than the new `SteamConfig.OpenIdNonceMaxAgeSeconds` (default 300; `0` turns the age check\n  off) with `UnauthorizedError` `social.steam.openid_expired`. `SteamOpenIdResult` gains the required\n  `ResponseNonce` and `NonceIssuedAtUtc`: record accepted nonces and refuse a repeat to stop replays inside\n  the window. Code that constructs `SteamOpenIdResult` itself must set both.\n- **Discord webhook URLs are restricted to Discord (SSRF).** `SendMessageAsync` / `SendEmbedAsync` / `SendAsync`\n  posted to any URL they were given. Only `https` URLs on `discord.com` / `discordapp.com` (and their `ptb.` /\n  `canary.` subdomains) with a `/api[/v{n}]/webhooks/{id}/{token}` path are accepted now; anything else fails\n  with `ValidationError` `social.discord.invalid_url` before a request, and redirects are not followed. A\n  `Discord.DefaultWebhookUrl` that is not such a URL fails configuration validation.\n- **`WebhookSentEvent.WebhookUrl` no longer carries the webhook token.** It holds the redacted URL\n  (`https://discord.com/api/webhooks/{id}/***`); the new `WebhookId` property holds the id.\n- **Steam profile reads validate the Steam ID.** `GetPlayerAsync`, `GetPlayerBansAsync` and `GetOwnedGamesAsync`\n  spliced `steamId` and the API key unescaped into the query string, so `\"7656…&key=…\"` could add or override\n  parameters. A Steam ID that is not a SteamID64 (17 digits, `7656119…`) now fails with `ValidationError`\n  `social.steam.invalid_steamid` before a request, and both values are URL-escaped.\n- **`Steam.ApiBaseUrl` must be an absolute `https` URL without user info, query or fragment** (the API key travels\n  in every request's query string, so `http` would send it in clear). `SocialConnectConfig.Validate` refuses\n  anything else, and `SteamProfileService` / `SteamAuthenticationService` throw `ArgumentException` for such a\n  config instead of building a client for it. `SteamConfig.TryGetApiBaseUri` is the check.\n- **Steam sign-in refuses a replayed assertion.** `SteamOpenIdService.VerifyAsync` records each verified\n  `openid.response_nonce` in an `IOpenIdNonceStore` (default: in memory, per process) and refuses one it has seen\n  with `UnauthorizedError` `social.steam.openid_replayed`. The nonce is recorded before Steam is asked, so an\n  assertion whose confirmation failed cannot be presented again either. Applications no longer need their own\n  nonce tracking, unless they run several servers without a shared store.\n- **Cancellation is an error, not an exception.** `SteamOpenIdService.VerifyAsync` rethrew the caller's\n  `OperationCanceledException`; it now returns `UnavailableError` `social.steam.cancelled`. The new\n  `CancellationToken` parameters on the other services map the same way (`social.steam.cancelled`,\n  `social.discord.cancelled`), following the CL.Storage convention.\n- **`Auth.AuthenticateAsync` checks Steam's answer.** A `steamid` or `ownersteamid` that is not a SteamID64 fails\n  with `InternalError` `social.steam.parse_error`; no identity is published or returned.\n- `SteamProfileService` throws `ArgumentNullException` for a `null` config (it used to throw a\n  `NullReferenceException` later).\n\n### Added\n\n- `DiscordWebhookService.IsValidWebhookUrl(url)` and `DiscordWebhookService.RedactWebhookUrl(url)`.\n- `SteamIds.IsSteamId64(value)` (`CL.SocialConnect.Models.Steam`).\n- `WebhookSentEvent.WebhookId`.\n\n- `SteamAuthenticationService(SteamConfig, HttpMessageHandler, ILogger?, IEventBus?)` constructor for\n  tests and outbound proxies, matching `SteamOpenIdService`.\n- `DiscordWebhookService(DiscordConfig, HttpMessageHandler, …)` and `SteamProfileService(SteamConfig, HttpMessageHandler, …)`\n  constructors, so every service can be tested or routed through a proxy. A `SocketsHttpHandler` or\n  `HttpClientHandler` given to the Discord service has automatic redirects switched off.\n- **`Steam.OpenIdRealm`** (default empty): the site Steam sign-in belongs to. When set, every `return_to` passed to\n  `BuildLoginUrl` must lie inside it (same scheme, host and port, path under the realm's path) or the call throws\n  `ArgumentException`, and it is the realm Steam shows unless the call gives one. Without it, and without a\n  `realm` argument, the realm is still derived from `return_to` itself, which accepts any absolute URL: set\n  `OpenIdRealm` whenever `return_to` is not a constant in your code.\n- `SteamOpenIdService.CreateState()`: 256 random bits as a URL-safe base64url string, for the per-attempt state in\n  `return_to` and the cookie.\n- `IOpenIdNonceStore` / `InMemoryOpenIdNonceStore`, and a `nonceStore` parameter on both `SteamOpenIdService`\n  constructors. The library shares one in-memory store across live config changes.\n- **`Steam.MaxCacheEntries`** (default 10 000): each profile cache (players, bans, games) is bounded; expired entries\n  are dropped when read and the oldest entries are evicted when a cache is full. They grew without limit before.\n- `CancellationToken` (last parameter, default `default`) on `SteamProfileService.GetPlayerAsync` /\n  `GetPlayerBansAsync` / `GetOwnedGamesAsync`, `SteamAuthenticationService.AuthenticateAsync` and\n  `DiscordWebhookService.SendMessageAsync` / `SendEmbedAsync` / `SendAsync`.\n\n### Fixed\n\n- **A live config change cannot wipe the Steam services.** `OnConfigChangedAsync` cleared `Steam`, `Auth` and\n  `OpenId` before constructing their replacements, so a constructor failure left all three gone. The new services\n  are built first and swapped in afterwards, and a configuration the services refuse is logged and ignored.\n- **A hostile OpenID parameter name no longer reaches logs and events verbatim.** The name of a repeated\n  `openid.*` parameter was echoed into the log line, the `SteamOpenIdVerifiedEvent` and the error message after\n  URL-decoding, so `%0D%0A` could forge log lines. Control characters are now replaced and the name is cut to 64\n  characters.\n- `DiscordWebhookService.SendAsync` disposes the `HttpResponseMessage`.\n\n- **Steam sign-in works without a Steam Web API key**, as documented. Validation demanded `ApiKey` whenever\n  Steam was enabled, so OpenID could not be used on its own. With `Steam.Enabled` and `OpenIdEnabled` on and no\n  key, the config is valid and only `OpenId` is created (`HasSteam` is `false`). Ticket authentication\n  (`AuthEnabled`) now requires the key explicitly.\n- **Live config changes are validated by the library too.** An invalid configuration that reaches\n  `OnConfigChangedAsync` is logged and ignored, and the running services keep the last valid one; later changes\n  are compared with the configuration actually running.\n- `DiscordUser.GetAvatarUrl` no longer throws on a non-numeric discriminator, and escapes the id and avatar hash.\n\n### Documentation\n\n- The model reference matches the code: the Discord and Steam models are (non-sealed) classes with `List<>`\n  collections, `DiscordEmbed.Timestamp` is a `DateTime?`, and the embed sub-models use `required` members.\n  The examples use collection expressions and compile against the library.\n- `DiscordUser` and `DiscordOAuthToken` are documented as data models for applications that run Discord OAuth2\n  themselves; the library does not implement Discord OAuth2.\n- Configuration examples in the README and the docs use the camelCase keys the CodeLogic loader reads.\n  The PascalCase keys shown before are matched case-sensitively and were ignored, leaving defaults active.\n\n## 2026-10-30\n\n### Fixed\n\n- **Health with every service switched off is Healthy** (`No services enabled`). It reported Unhealthy\n  \"Not initialized — no services active\", although services are only ever absent because the config\n  turns them off — an app that uses only some of the library (or none of it yet) showed as broken.\n\n## 2026-10-26\n\n### Added\n\n- **Steam sign-in (OpenID 2.0)** for websites: `SteamOpenIdService`, exposed as `social.OpenId` with\n  `HasSteamOpenId`. `BuildLoginUrl(returnTo, realm?)` builds the \"Sign in through Steam\" redirect;\n  `VerifyAsync(query, expectedReturnTo)` checks the signed assertion locally (Steam's endpoint and\n  namespace, exact `return_to`, `claimed_id` = `identity` as a SteamID64, required signed fields, no\n  repeated parameters), then asks Steam to confirm it (`check_authentication`), and returns the\n  player's 64-bit Steam ID as `Result<SteamOpenIdResult>`. Publishes `SteamOpenIdVerifiedEvent`.\n- `Steam.OpenIdEnabled` (default `true`): sign-in is available whenever Steam is enabled (which\n  requires `Steam.ApiKey`). It follows live config changes like the other Steam services: a Steam\n  settings change replaces `social.OpenId`, and it can be switched on or off without a restart.\n\n## 2026-10-24\n\n### Added\n\n- **Live config changes** (requires CodeLogic 4.9+). `SocialConnectLibrary` implements\n  `IConfigReloadable`: a change to `config.socialconnect.json` made through `Libraries.UpdateConfigAsync`,\n  `Libraries.ReloadConfigAsync` or the config file watcher is applied without a restart, rebuilding only\n  the service whose settings changed (`Discord`, or `Steam` + `Auth`). Services and the library can be\n  switched on or off. A replaced service is disposed after its request timeout, so running requests finish.\n\n## 2026-09-12\n\n### Changed\n\n- Unified the version line with the CodeLogic framework on **4.8.x**. Every official\n  library and the framework now share one `major.minor`, so a given `4.8.<patch>`\n  means the same generation across all packages.\n- `version.txt` moved from `4.6` to `4.8`. The patch component remains the CI run\n  number, composed at pack time; `AssemblyVersion` stays pinned at `Major.Minor.0.0`\n  (now `4.8.0.0`) so every patch in the line loads interchangeably.\n\n## 2026-06-20\n\n### Fixed\n\n- Discord sends now validate the 2000-character content limit and 10-embed limit\n  up front, returning a clear validation error instead of a failed HTTP\n  round-trip.\n- Corrected the `CommunityVisibilityState` documentation comment (the Steam Web\n  API returns 1 = not visible / 3 = public to third parties; the previous\n  comment listed nonexistent levels).\n\n### Documentation\n\n- Full rewrite of the README and the `docs/libs/socialconnect.md` guide to the\n  current house style.\n- README restructured to the standard layout (badges, tagline, intro, Install,\n  Quick start, Features, Configuration with table + JSON, Documentation,\n  Requirements, License) and now links the published docs page.\n- Corrected the `Result` contract throughout: Discord methods return `Result`\n  (no value); Steam profile and auth methods return `Result<T>`. Examples use\n  `IsSuccess` / `IsFailure`, `.Value`, and `Error?.Message`.\n- Documented the canonical load sequence (`LoadAsync` → `ConfigureAsync` →\n  `StartAsync` → `Libraries.Get`) and the `HasDiscord` / `HasSteam` /\n  `HasSteamAuth` guards (Steam disabled by default).\n- Added a deep guide covering the three services, Discord webhook methods and\n  full model reference (with a rich-embed example), the Steam profile/bans/games\n  models and computed properties, Steam ticket authentication, caching\n  (`CacheTtlSeconds`, `ClearCache`), configuration, events, and the health check.\n\n## [4.5.2] — 2026-06-20\n\n### Documentation\n\n- Corrected the README Quick Start: the text-message helper is\n  `Discord.SendMessageAsync(...)`, not `SendAsync(string, username:)`.\n- Fixed the README configuration example to use PascalCase JSON keys and added the\n  previously omitted `DefaultAvatarUrl`, `AuthEnabled`, `AppId`, and `ApiBaseUrl` fields.\n- Documented previously undocumented user-facing API surface:\n  - Discord `SendAsync(DiscordWebhookMessage)`, `DiscordAllowedMentions`\n    (`.None` / `.All`), and the `Tts` flag.\n  - Steam `SteamProfileService.ClearCache()` and the `GetOwnedGamesAsync`\n    `includeAppInfo` parameter.\n  - Per-call `appId` override on `Auth.AuthenticateAsync`.\n  - `SteamPlayer` (`IsPublic`, `IsInGame`, `AccountCreated`), `SteamPlayerBans`\n    (`HasAnyBan`), and `SteamGame` (`TotalPlaytime`, `RecentPlaytime`, `LastPlayed`,\n    `GetIconUrl`) computed helpers; the `DiscordUser` model.\n  - `HasDiscord` / `HasSteam` / `HasSteamAuth` availability properties and the\n    `InvalidOperationException` thrown when a disabled service is accessed.\n  - Event-bus events `WebhookSentEvent`, `SteamProfileFetchedEvent`, and\n    `SteamAuthenticatedEvent`, and the `SocialError` failure-code enum.\n\n## [4.5.0] — 2026-05-24\n\n### Changed\n\n- **Unified versioning.** All CodeLogic.Libs now share a single version line\n  controlled by `version.txt` in the repo root. This is a version alignment\n  release — no functional changes to this library.\n## [4.0.4] — 2026-04-16\n\n### Changed\n\n- README + manifest refresh for the v4 baseline. No functional changes vs 4.0.3.\n- `LibraryManifest.Version` now reads from assembly metadata.\n\n## [4.0.2] — 2026-04-09\n\n### Changed\n\n- Annotated SocialConnect configuration with `[ConfigField]` for the admin UI surface.\n- Aligned with the v4 baseline across all libraries.\n\n### Fixed\n\n- Closed resource leaks in the OAuth client + reworked the health check so\n  it no longer mutates internal state as a side-effect.\n\n## [4.0.0] — 2026-04-09\n\nMajor rewrite. Republished as v4.0.0 to reset the version line under the\nunified v4 baseline. OAuth/OIDC providers (Google, Discord, Steam,\ngeneric OIDC) with a uniform abstraction.\n\n### Notes\n\n- Earlier history is retained in the\n  [git log](https://github.com/zyntal-com/CodeLogic.Libs/commits/main/CL.SocialConnect).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#repository",
+    "commit": "0b2490b478027a03f8eed397388a934b1a4b158f",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "5.0.117-preview+0b2490b",
+  "version": "5.0.117-preview+0b2490b",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#dependencygroup/net11.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[5.0.0-preview, 6.0.0)"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#lib/net11.0/CL.SocialConnect.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 42715,
+      "fullName": "lib/net11.0/CL.SocialConnect.dll",
+      "length": 101376,
+      "name": "CL.SocialConnect.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#lib/net11.0/CL.SocialConnect.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 14083,
+      "fullName": "lib/net11.0/CL.SocialConnect.xml",
+      "length": 87888,
+      "name": "CL.SocialConnect.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6359,
+      "fullName": "CHANGELOG.md",
+      "length": 15580,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#CodeLogic.SocialConnect.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6866,
+      "fullName": "CodeLogic.SocialConnect.nuspec",
+      "length": 16672,
+      "name": "CodeLogic.SocialConnect.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3842,
+      "fullName": "README.md",
+      "length": 9539,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.40.49/codelogic.socialconnect.5.0.117-preview.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "discord",
+    "steam",
+    "webhook",
+    "social"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

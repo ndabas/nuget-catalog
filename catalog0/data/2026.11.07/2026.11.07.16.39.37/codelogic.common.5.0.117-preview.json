@@ -1,0 +1,196 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Zyntal.com",
+  "catalog:commitId": "2d44badd-6866-4d2b-96d8-5a5dafbec1c0",
+  "catalog:commitTimeStamp": "2026-11-07T16:39:37.4987707Z",
+  "copyright": "Copyright © 2026 Zyntal.com",
+  "created": "2026-11-07T16:36:32.37Z",
+  "description": "General-purpose utility toolkit for CodeLogic 5 applications",
+  "id": "CodeLogic.Common",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-07T16:39:07.57Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "QZyKSv8HHPNSDPV29rjN/FIMPTI83SEM2dmw94scXEOm9z3nWar3fyBwMC/9zA4Kq4bVW5LBb90sPVfGyTlNnA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 158492,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-11-07T16:36:32.37Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.Common — Changelog\n\nAll notable changes to **CodeLogic.Common** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/).\n\n## 5.0 (unreleased)\n\n### Audit completion (2026-11-07)\n\n- Share log formatting/async-cleanup source helpers across libraries and split oversized source files by operation without new package dependencies.\n\n\n### Security\n\n- **`HttpHeaderHelper.GetEffectiveClientIp` no longer trusts spoofable headers.** It returned the first\n  non-RFC 1918 `X-Forwarded-For` entry from any peer, so every client could choose its own address. New overload\n  `GetEffectiveClientIp(remoteIp, xForwardedFor, TrustedProxies)` (and `GetEffectiveClientIpAddress`, returning\n  `IPAddress?`) reads the header only when the direct peer is a trusted proxy, walks it right to left skipping\n  trusted hops and returns the first untrusted address. New `TrustedProxies` type: `Parse([\"10.0.0.0/8\",\n  \"203.0.113.7\"])` returns a `Result` (`web.invalid_trusted_proxy`); also `FromAddresses`, `FromNetworks`, `Union`,\n  `IsTrusted` and the presets `None`, `Loopback`, `PrivateNetworks`. Every entry is parsed with the new\n  `HttpHeaderHelper.TryParseIp` (ports, brackets and quotes stripped, IPv4 shorthand rejected, IPv4-mapped IPv6\n  normalised); unparsable values are never returned.\n- **`HttpHeaderHelper.IsPrivateIp`** now covers IPv6 (`::1`, `::`, link-local `fe80::/10`, unique-local\n  `fc00::/7`), IPv4-mapped IPv6, link-local `169.254/16`, carrier-grade NAT `100.64/10`, all of `127/8` and\n  `0/8`. New overload taking an `IPAddress`.\n- **Decompression output cap.** `CompressionHelper.DecompressGzip` / `DecompressBrotli` / `DecompressZstandard` /\n  `DecompressLz4` / `DecompressString` take an optional `maxOutputBytes` (default\n  `CompressionHelper.DefaultMaxDecompressedBytes`, 100 MiB) and fail with `compression.output_limit_exceeded`\n  (validation) instead of inflating a decompression bomb into memory.\n- **Unbiased random generation.** `PasswordGenerator` and `IdGenerator` mapped random bytes with `byte % pool`,\n  making some characters more likely than others (digits 0-5 in PINs, for example). They now use\n  `RandomNumberGenerator.GetString` / `GetInt32` / `Shuffle`.\n- **Password hashes are self-describing.** `Hashing.HashPassword` writes\n  `$pbkdf2-sha256$v1${iterations}${salt}${hash}` and defaults to **600 000** iterations (OWASP guidance for\n  PBKDF2-SHA256; was 100 000). `VerifyPassword` reads the count from the hash and still verifies legacy Base64\n  salt+hash strings (using its `iterations` argument, default 100 000). New `Hashing.NeedsRehash(hash, iterations\n  = 600000)` tells you when to re-hash after a successful login. New constants `DefaultPasswordIterations`,\n  `LegacyPasswordIterations`, `PasswordHashPrefix`.\n- `StringValidator.MatchesPattern` runs the caller's regex with a timeout (optional `matchTimeout`, default\n  `StringValidator.DefaultMatchTimeout`, 1 s); a timed-out match returns `false` (ReDoS guard).\n- **`HtmlHelper.Sanitize` runs in linear time** (audit 2026-11). Its tag regex was quadratic on input such as\n  `<a <a <a …` or unbalanced quotes, with no timeout, so a few hundred KB of user HTML could pin a CPU core. Tags\n  are now found by a single linear scan (no regex); `StripTags` uses a `NonBacktracking` regex. Output for\n  well-formed input is unchanged.\n- **`HttpHeaderHelper.GetPrimaryLocale` validates the tag.** It returned raw header text (anything up to the first\n  `,`/`;`), which callers put into cookies, paths and culture lookups. Only BCP 47-shaped tags\n  (`^[A-Za-z]{1,8}(-[A-Za-z0-9]{1,8})*$`) are considered; otherwise `HttpHeaderHelper.DefaultLocale` (`\"en-US\"`).\n- **`Encryption` blobs are versioned and use 600 000 PBKDF2 iterations** (was 100 000). New blobs start with a\n  version byte (`0x01`); `DecryptAes` / `DecryptBytes` still read the unversioned pre-5.0 layout. New constants\n  `Encryption.Iterations` and `Encryption.LegacyIterations`.\n- `HttpClientHelper` validates request headers (`Headers.Add`), so a value with a line break fails the call instead\n  of being sent; `User-Agent`, `Authorization`, `Proxy-Authorization`, `Cookie` and `Referer` stay unvalidated, and\n  content headers (`Content-Type`, `Content-Language`, …) go on the body.\n- `HttpClientHelper` puts at most `MaxErrorBodyLength` (256) characters of a failed response body into\n  `Error.Message`, followed by the full length, instead of the whole body.\n\n### Fixed\n\n- `CronParser`: when both day-of-month and day-of-week are restricted (neither starts with `*`), a day matches if\n  **either** matches, as in standard cron (`0 0 1 * 1` = the 1st and every Monday). It used to require both.\n- `CronParser.GetNextOccurrence` fails at once with a validation error when a field can never match (`99 * * * *`,\n  `0 0 0 * *`, `0 0 * 13 *`) instead of scanning a year minute by minute and returning an internal error.\n- `UrlHelper.ParseQuery` decodes `+` as a space (form encoding) and ignores a `#fragment`; `UrlHelper.Combine`\n  treats a null argument as empty instead of throwing.\n- `IdGenerator.RandomHex` throws `ArgumentOutOfRangeException` for a zero or negative length, like the other\n  generators (it returned `\"\"` or threw from a slice).\n- `HttpHeaderHelper.IsBot` / `IsMobile` and `StringValidator` use source-generated regexes (`[GeneratedRegex]`).\n- `ConfigureAwait(false)` on the awaits of `HttpClientHelper`, `FileSystem`, `JsonHelper`, `NetworkUtils`;\n  `CommonLibrary` lifecycle methods no longer use `async`.\n- `StringHelper.Truncate` no longer throws when `maxLength` is smaller than the suffix; the result never exceeds\n  `maxLength` (clipped without the suffix when it does not fit; empty for `maxLength <= 0`).\n- `DateTimeHelper.NextBusinessDay`: the XML doc claimed it returns the same day for a business day; the method\n  (and the docs site) always returned the first Monday-Friday strictly after the date. The doc now says so; the\n  behaviour is unchanged.\n\n- `FastHash.XxHash128` is about 10x faster (~70 ns instead of ~700 ns per call on .NET 11): `XxHash128.HashToUInt128` has a large fixed cost, so the hash is now computed into bytes and read back. The values are unchanged.\n- `StringHelper` (`ToSlug`, `ToPascalCase`, `ToSnakeCase`, `ToKebabCase`, `StripHtml`, `WordCount`, `ExtractNumbers`) uses source-generated regexes (`[GeneratedRegex]`) instead of looking each pattern up in the static `Regex` cache and running it through the interpreter on every call. Output is unchanged.\n\n### Breaking\n\n- **`HttpHeaderHelper.GetEffectiveClientIp(remoteIp, xForwardedFor)` behaviour change.** It now behaves like the\n  new overload with `TrustedProxies.PrivateNetworks`: the header is honoured only when the direct peer is a\n  loopback/private/link-local address; a public peer is returned as is. If your reverse proxy has a public\n  address, pass it explicitly: `GetEffectiveClientIp(remote, xff, TrustedProxies.Parse([...]).ValueOrThrow())`.\n  The result is always a normalised address (`::ffff:1.2.3.4` becomes `1.2.3.4`, ports stripped) or `\"0.0.0.0\"`\n  when the remote address is missing or unparsable (it used to echo the raw string).\n- **`Hashing.HashPassword` output format changed** (see Security). Hashes from 4.x still verify; code that\n  parsed the old Base64 layout itself, or verifies with another stack, must handle the new format.\n- **`Encryption` output format changed**: new blobs carry a version byte and use 600 000 iterations. 5.0 decrypts\n  both formats; 4.x cannot decrypt blobs written by 5.0. `DecryptAes` throws `CryptographicException` (not\n  `FormatException`) for invalid Base64, as its documentation said.\n- **`ICache<TKey>.Set` / `MemoryCache.Set` return `bool`**: `false` when the entry is larger than `SizeLimit` and was\n  not stored (it used to be dropped silently). Source compatible for callers; custom `ICache` implementations\n  must change their signature.\n- `HttpHeaderHelper.GetPrimaryLocale` returns `\"en-US\"` for headers whose preferred entry is not a well-formed\n  language tag (including `*`) instead of echoing it.\n- `CompressionHelper.Decompress*` reject output above 100 MiB by default; pass `maxOutputBytes` for larger\n  payloads. The new optional parameters are source compatible but change the method signatures (recompile).\n\n- Targets **.NET 11** (`net11.0`) and requires **CodeLogic 5.0** (`[5.0.0, 6.0.0)`). On .NET 10, stay on\n  4.9.x. CodeLogic 5 makes `Result<T>` / `Result` C# 15 unions and `Error` a closed record with\n  kind subtypes (`NotFoundError`, `ValidationError`, ...). Results can now be matched\n  exhaustively with `switch`.\n- `NetworkPing.PingAsync` returns `Result<PingResponse>` instead of `Result<PingResult>`. The old\n  `PingResult(bool Success, long RoundTripMs, string Host)` reported \"no reply\" as a *successful* result\n  with `Success = false`; now success always means the host replied, and\n  `PingResponse(string Host, string Address, long RoundTripMs)` adds the answering address. No reply is a\n  failure: `TimeoutError` `networking.ping_timeout`, `UnavailableError` `networking.ping_unreachable`\n  (unreachable host/network or unresolvable name; `Details` carries the `IPStatus`), otherwise\n  `InternalError` `networking.ping_failed`.\n- **Imaging moved to the new `CodeLogic.Imaging` package.** `CL.Common.Imaging.CLU_Imaging`,\n  `ImageProcessOptions`, `ProcessedImage` and `ImageFormat` are gone from CL.Common, and so is the SkiaSharp\n  dependency. See `MIGRATION.md` in CodeLogic.Imaging for the old → new mapping.\n- **Newtonsoft.Json dependency removed** (nothing used it; `JsonHelper` is System.Text.Json).\n- **`ICache` / `MemoryCache` replaced.** The Task-based `ICache` (`SetAsync`/`GetAsync`/`ExistsAsync`/\n  `RemoveAsync`/`RemoveByPrefixAsync`/`ClearAsync`/`GetCountAsync`) and `MemoryCache(TimeSpan? cleanupInterval)`\n  are gone. Use `ICache<TKey>` / `MemoryCache<TKey>` or the string-keyed `ICache` / `MemoryCache`:\n  `SetAsync(k, v, ttl)` → `Set(k, v, new CacheEntryOptions { AbsoluteExpiration = ttl })`;\n  `GetAsync<T>(k)` → `TryGet<T>(k, out var v)`; `ExistsAsync(k)` → `TryGet<object>(k, out _)`;\n  `RemoveAsync` → `Remove`; `RemoveByPrefixAsync` → `RemoveByPrefix`; `ClearAsync` → `Clear`;\n  `GetCountAsync()` → `GetStatistics().Count`. The cleanup interval is `MemoryCacheOptions.ExpirationScanInterval`.\n- **Trimming annotations.** The reflection-based `JsonHelper` and `HttpClientHelper` overloads are marked\n  `[RequiresUnreferencedCode]` / `[RequiresDynamicCode]`; `ReflectionHelper` name-based member access,\n  `AssemblyHelper.LoadFrom` / `GetFileMetadata` / `GetImplementors` / `GetTypesWithAttribute` are\n  `[RequiresUnreferencedCode]`. Trimmed and Native AOT apps now get analyzer warnings where they call them.\n  `ReflectionHelper.CreateInstance<T>` / `CreateInstance(Type, …)` / `ToDictionary<T>` /\n  `HasDefaultConstructor(Type)` gained `[DynamicallyAccessedMembers]` on their type parameter.\n- `AssemblyHelper.GetFileMetadata` reports `Location` as the full path of the file passed in (single-file safe).\n\n### Added\n\n- **Trim- and Native-AOT-compatible** (`IsAotCompatible`): the package builds with no trimming, AOT or single-file\n  analyzer warnings.\n- `JsonHelper.Serialize` / `Deserialize` / `SerializeToFile` / `DeserializeFromFile` overloads taking a\n  source-generated `JsonTypeInfo<T>` (and `Serialize` / `Deserialize` taking a `JsonSerializerContext`); the file\n  overloads stream and accept a `CancellationToken`. `HttpClientHelper.GetJsonAsync` / `PostJsonAsync` /\n  `PutJsonAsync` gain `JsonTypeInfo<T>` overloads.\n- **`CL.Common.Resilience`**: `RetryPolicy` (`RetryOptions`, `BackoffKind` Constant/Linear/Exponential/\n  DecorrelatedJitter, jitter from an injectable `Random`, `Retrying` event, `GetDelay`) and `CircuitBreaker`\n  (`CircuitBreakerOptions` with consecutive-failure or failure-ratio trigger, half-open trial limit, `StateChanged`,\n  allocation-free `TryAcquire` / `CircuitLease`, `Isolate` / `Reset`). Errors: `resilience.circuit_open`,\n  `resilience.retries_exhausted` (last error as `InnerError`), `resilience.cancelled`,\n  `resilience.unhandled_exception`. Both take an optional `TimeProvider`.\n- **`CL.Common.Scheduling.JobScheduler`**: `JobSchedule.Interval` / `Cron` (with time zone) / `Once` (a C# 15\n  closed hierarchy), `JobOptions` (overlap, timeout, jitter), max concurrency, pause/resume, `TriggerAsync`,\n  `JobCompleted`, `Jobs` snapshot, drain-then-cancel `StopAsync`. A throwing job becomes the run's error\n  (`scheduling.job_failed`). Timers come from the `TimeProvider`.\n- **`CL.Common.Caching` v2**: `ICache<TKey>`, `MemoryCache<TKey>` and string-keyed `ICache` / `MemoryCache` with\n  absolute/sliding expiration, tags (reverse index), `SizeLimit` / `MaxEntries` with priority-aware approximate-LRU\n  compaction, stampede-protected `GetOrCreateAsync`, `RemoveByPrefix`, span-key `TryGet`, `CacheStatistics`.\n- **`CL.Common.Hashing.FastHash` / `FastHasher`**: XXH3 (64-bit) and XXH128 hashing of bytes and text (no\n  allocation), `ToHex`, incremental hasher. Adds the `System.IO.Hashing` dependency.\n- **`CL.Common.Threading.AsyncKeyedLock<TKey>`**: async per-key lock with pooled, ref-counted entries.\n- `CronParser.GetNextOccurrence(expression, DateTimeOffset from, TimeZoneInfo? timeZone)`: next occurrence with the\n  fields evaluated in a time zone.\n- `CommonErrors`: the stable error codes of the resilience and scheduling modules.\n\n- `CompressionHelper.CompressZstandard` / `DecompressZstandard` → `Result<byte[]>`: Zstandard via the\n  .NET 11 built-in `System.IO.Compression.ZstandardStream` (no extra package). Same shape and error\n  handling as the Brotli pair; failures are `compression.zstandard_compress_failed` /\n  `compression.zstandard_decompress_failed`.\n\n## 2026-10-27 (4.9.104)\n\n### Added\n\n- `CLU_Imaging.ProcessImage(stream, ImageProcessOptions?)` → `Result<ProcessedImage>` for user uploads:\n  checks the pixel count from the header **before** decoding (`MaxPixels`, default\n  `CLU_Imaging.DefaultMaxPixels` = 40 megapixels; `imaging.too_large`), turns photos upright from their EXIF\n  orientation (`ApplyOrientation`), scales down (never up) into `MaxWidth` × `MaxHeight`, and encodes to\n  `Format` (default WebP) at `Quality` (default 85). Re-encoding drops metadata such as GPS positions.\n  `ProcessedImage` carries the bytes, the final width and height, and the format.\n- `CLU_Imaging.FitWithin(width, height, maxWidth, maxHeight)`: the scaled-down size for a box.\n- `ResizeImage(stream, targetWidth, targetHeight, allowCrop, format, quality = 90)`: resize to another\n  format than PNG.\n\n### Fixed\n\n- **Decompression bombs.** `ConvertImage` and `ResizeImage` decoded any image, so a small PNG claiming\n  50,000 × 50,000 pixels allocated about 10 GB. They now refuse images over `DefaultMaxPixels` with\n  `imaging.too_large`; `ProcessImage` makes the limit configurable.\n- **Sideways phone photos.** `ConvertImage` and `ResizeImage` ignored the EXIF orientation, so portrait\n  photos came out rotated. They now turn the image upright first.\n- **`ResizeImage(..., allowCrop: false)` stretched the image** to exactly the target size instead of\n  keeping the aspect ratio as documented; it now fits inside the target. The file overload's\n  `maintainAspectRatio: true` (which maps to it) is fixed with it, and its doc for `false` now says what it\n  does: scale to cover and crop.\n- **Crop edges.** The cover-and-crop path truncated the scaled size and could leave a transparent row or\n  column; it now rounds up. Resizing uses Mitchell cubic sampling instead of nearest-neighbour.\n- `IsValidSize`, `IsValidAspectRatio` and `GetImageDimensions` read only the header instead of decoding the\n  whole image (fast, and safe for huge images). Their `catch` no longer swallows `OutOfMemoryException`.\n\n### Upgrade notes\n\n- Images over 40 megapixels now fail `ConvertImage`/`ResizeImage` with `imaging.too_large`. Use\n  `ProcessImage` with a larger `MaxPixels` if you need them.\n- Output is upright: an EXIF-rotated photo comes out with width and height swapped compared to before.\n- `ResizeImage(stream, w, h, allowCrop: false)` (and the file overload with `maintainAspectRatio: true`) may\n  return an image smaller than `w` × `h` on one side.\n- `GetImageDimensions` reports the stored size (before EXIF orientation), as it did before.\n\n## 2026-10-27\n\n### Security\n\n- `HtmlHelper.Sanitize` is now an allowlist sanitizer. It used to remove only `<script>`/`<style>`\n  blocks and double-quoted `on*=\"…\"` attributes, so unquoted or single-quoted handlers\n  (`<img src=x onerror=alert(1)>`), `javascript:` links, `<iframe>`, `<object>`, `<svg>`, `<form>` and\n  inline styles got through. It now rebuilds the markup: the formatting elements in the new\n  `SanitizeAllowedTags` (p, br, b, strong, i, em, lists, headings, blockquote, code, …) without\n  attributes, links with an `href` only when it is http, https, mailto or relative (plus\n  `rel=\"nofollow noopener noreferrer\"`); script, style, iframe, object, svg and similar elements are\n  removed with their content, other tags are removed and their text kept.\n\n### Upgrade notes\n\n- Output changes: attributes (`class`, `style`, `title`, `src`), images, tables and embeds are no longer\n  kept. For rich text that needs them, use a full allowlist sanitizer such as CL.WebLogic's\n  `WebHtmlSanitizer`.\n\n## 2026-10-24\n\n### Changed\n\n- Requires **CodeLogic 4.9+**. The official libraries move to the 4.9 line together with the framework,\n  whose live config changes the stateful libraries now use. No API changes in this library.\n\n## 2026-09-12\n\n### Changed\n\n- Unified the version line with the CodeLogic framework on **4.8.x**. Every official\n  library and the framework now share one `major.minor`, so a given `4.8.<patch>`\n  means the same generation across all packages.\n- `version.txt` moved from `4.6` to `4.8`. The patch component remains the CI run\n  number, composed at pack time; `AssemblyVersion` stays pinned at `Major.Minor.0.0`\n  (now `4.8.0.0`) so every patch in the line loads interchangeably.\n\n## 2026-06-20\n\n### Documentation\n\n- Full rewrite of the README and docs to house style. The README is now concise\n  Markdown-only (renders on both GitHub and NuGet): install, quick start showing the\n  static helpers and the optional `CommonLibrary` load, a grouped feature list, and a\n  link to the docs site. Notes that `CL.Common` is stateless and needs no configuration.\n- Expanded the documentation site into a three-page set under `docs/libs/common/`:\n  an **Overview** (toolkit map, how static helpers are organized by namespace, the full\n  catalog table, health check), **Security & Data** (`Encryption`, `Hashing`,\n  `IdGenerator`, `PasswordGenerator`/`PasswordStrength`, `JsonHelper`, `TypeConverter`,\n  `CompressionHelper`), and **Utilities** (`StringHelper`/`StringValidator`,\n  `DateTimeHelper`, the web helpers, the networking set, `CronParser`, `CLU_Imaging`,\n  `ICache`/`MemoryCache`, `FileSystem`, and the reflection helpers). Each page documents\n  per-member return types accurately — plain values vs. `Result`/`Result<T>`. No API changes.\n\n## [4.5.2] — 2026-06-20\n\n### Documentation\n\n- Documented the full public surface of the toolkit in the README. Previously only\n  imaging, hashing, caching, file handling, compression, and networking were listed;\n  the README now also covers **Security** (`Encryption` AES-256-GCM and the `Hashing`\n  PBKDF2/HMAC helpers), **Generators** (`IdGenerator`, `PasswordGenerator`),\n  **Data** (`JsonHelper`), **Conversion** (`TypeConverter`), **Parser** (`CronParser`),\n  **Time** (`DateTimeHelper`), **Strings** (`StringHelper`, `StringValidator`),\n  **Web** (`UrlHelper`, `HtmlHelper`, `HttpClientHelper`, `HttpHeaderHelper`),\n  the full **Networking** set (`NetworkPing`, `NetworkDns`, `SubnetCalculator`,\n  `TraceRoute`), and **Reflection** (`AssemblyHelper`, `ReflectionHelper`).\n- Corrected the Quick Start hashing example: the helper is `Hashing.Sha256(...)`\n  (no `CLU_Hashing.SHA256` type exists), and clarified that GZip, Brotli, and LZ4\n  are all available from `CompressionHelper`. No API changes.\n\n## [4.5.0] — 2026-05-24\n\n### Changed\n\n- **Unified versioning.** All CodeLogic.Libs now share a single version line\n  controlled by `version.txt` in the repo root. This is a version alignment\n  release — no functional changes to this library.\n## [4.0.4] — 2026-04-16\n\n### Changed\n\n- README + manifest refresh across every CodeLogic library for the v4\n  baseline. No functional changes vs 4.0.3.\n- `LibraryManifest.Version` now reads from the assembly's `AssemblyVersion`\n  attribute at runtime instead of a hard-coded string.\n\n## [4.0.2] — 2026-04-09\n\n### Changed\n\n- Aligned with the v4 baseline across all libraries.\n\n## [4.0.0] — 2026-04-09\n\nMajor rewrite — republished as v4.0.0 to reset the version line under the\nunified v4 baseline. All public APIs refreshed.\n\n### Notes\n\n- Bundles cross-platform native assets transitively for libraries that need\n  them (e.g. SkiaSharp for image handling).\n- Earlier history is retained in the\n  [git log](https://github.com/zyntal-com/CodeLogic.Libs/commits/main/CL.Common).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#repository",
+    "commit": "0b2490b478027a03f8eed397388a934b1a4b158f",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "5.0.117-preview+0b2490b",
+  "version": "5.0.117-preview+0b2490b",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#dependencygroup/net11.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[5.0.0-preview, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#dependencygroup/net11.0/k4os.compression.lz4.streams",
+          "@type": "PackageDependency",
+          "id": "K4os.Compression.LZ4.Streams",
+          "range": "[1.3.8, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#dependencygroup/net11.0/system.io.hashing",
+          "@type": "PackageDependency",
+          "id": "System.IO.Hashing",
+          "range": "[10.0.9, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#lib/net11.0/CL.Common.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 87287,
+      "fullName": "lib/net11.0/CL.Common.dll",
+      "length": 203264,
+      "name": "CL.Common.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#lib/net11.0/CL.Common.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 34117,
+      "fullName": "lib/net11.0/CL.Common.xml",
+      "length": 256037,
+      "name": "CL.Common.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 9116,
+      "fullName": "CHANGELOG.md",
+      "length": 21141,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#CodeLogic.Common.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 9676,
+      "fullName": "CodeLogic.Common.nuspec",
+      "length": 22600,
+      "name": "CodeLogic.Common.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2662,
+      "fullName": "README.md",
+      "length": 5590,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.common.5.0.117-preview.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "utilities",
+    "caching",
+    "resilience",
+    "retry",
+    "circuit-breaker",
+    "scheduler",
+    "cron",
+    "hashing",
+    "xxhash",
+    "compression",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

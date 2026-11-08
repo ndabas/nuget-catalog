@@ -1,0 +1,203 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Zyntal.com",
+  "catalog:commitId": "2d44badd-6866-4d2b-96d8-5a5dafbec1c0",
+  "catalog:commitTimeStamp": "2026-11-07T16:39:37.4987707Z",
+  "copyright": "Copyright © 2026 Zyntal.com",
+  "created": "2026-11-07T16:36:35.36Z",
+  "description": "Image decoding, editing pipeline, metadata, analysis and web helpers for CodeLogic applications, built on SkiaSharp",
+  "id": "CodeLogic.Imaging",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-07T16:39:11.44Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "+EIdRHuw+C6SQ439rdNq1Ns/6Wh6j2NFbet3IVi2ktdHHmq6AsuU9O2ehfKkEwrln1xX2aLXTprSYhE2QDO4Yw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 119026,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-11-07T16:36:35.36Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Changelog\n\n## 5.0 (unreleased)\n\n### Audit completion (2026-11-07)\n\n- Prevent pooled-buffer reference resurrection during concurrent final release and acquisition; cover it with a race regression.\n\n\n### Breaking\n\n- **New package, moved from CodeLogic.Common.** Imaging lived in CL.Common as `CL.Common.Imaging.CLU_Imaging`\n  (with `ImageProcessOptions`, `ProcessedImage` and `ImageFormat`). It is now CodeLogic.Imaging, namespace\n  `CL.Imaging`, with a new API; CL.Common no longer references SkiaSharp. `MIGRATION.md` maps every old method.\n  `ImageFormat` gained members, so its numeric values changed; `imaging.invalid_options` is now\n  `imaging.invalid_argument`.\n- Targets **.NET 11** and requires **CodeLogic 5.0** (`Result<T>` / `Error` unions).\n\n### Added\n\n- `ImageDocument`: load from streams, bytes and files (sync and async) with a header pixel limit and a byte limit;\n  `Create`, `FromSkiaBitmap`, `GetPixel`, `Clone`. Decodes JPEG, PNG, WebP, GIF (first frame), BMP, ICO, and HEIF/AVIF\n  where the platform's Skia has the codec.\n- `ImagePipeline` (`doc.Edit()`): a lazy fluent pipeline with `AutoOrient`, `Resize` (Fit, Fill, Stretch, Pad, Max;\n  anchor; resample quality), `Crop`, `SmartCrop`, `Rotate`, `FlipHorizontal`/`FlipVertical`, `Brightness`,\n  `Contrast`, `Saturation`, `Gamma`, `Hue`, `Exposure`, `Grayscale`, `Sepia`, `Invert`, `Tint` (fused into one pass),\n  `GaussianBlur`, `Sharpen`, `Pixelate`, `RoundCorners`, `Border`, `Pad`, `Watermark` (image or text), `DrawText`,\n  `DrawRectangle`, `DrawEllipse`, `DrawLine`, `Composite` (blend modes, opacity) and `StripMetadata`. Argument errors\n  surface from `Apply()` / `Encode()` as `imaging.invalid_argument`.\n- Encoding to JPEG, PNG and WebP (lossy and lossless) into pooled buffers (`EncodedImage`, with `ToArray`,\n  `AsStream`, `WriteToAsync`, `SaveAsync`, `ToBase64`, `ToDataUri`); `ImageEncodeOptions` with `KeepIccProfile`\n  (original profile written back byte for byte), `KeepMetadata` (original EXIF written back, orientation updated), `RemoveGps` (drop only the GPS position from\n  kept EXIF) and\n  `Background` for JPEG.\n- `ImageInfo.Probe` (format, size, orientation, alpha, frames from the header only) and\n  `ImageFormatExtensions` (`Detect`, `MimeType`, `FileExtension`, `CanEncode`).\n- `ImageMetadata` / `ImageMetadataReader`: camera, lens, software, artist, copyright, date taken and offset, GPS,\n  orientation, ISO, exposure, f-number, focal length, flash, read by a managed EXIF/TIFF reader from JPEG, PNG and WebP.\n- Analysis: `ImageAnalysis.AverageColor`, `DominantColor`, `Palette`, `HasAlpha`, `IsMostlyTransparent`;\n  `BlurHash.Encode`/`Decode`; `PerceptualHash.DHash`/`PHash` with `HammingDistance`, `Similarity`,\n  `IsNearDuplicate`; `SmartCrop.FindRegion`; `ImageCompare.Difference` with an optional diff image.\n- `ImageTools`: `ProcessUpload(Async)` (the former `ProcessImage`), `GenerateVariants(Async)` with `ToSrcSet`,\n  `Thumbnail(Async)`, `ToDataUri`, `FitWithin`.\n- `ImagingErrors` with `imaging.*` codes, `ImagingDefaults` / `ImagingSettings`, and an optional `ImagingLibrary`\n  whose `imaging` config section (`DefaultMaxPixels`, `DefaultMaxBytes`, `DefaultQuality`, `DefaultFormat`,\n  `StripMetadataByDefault`) sets the defaults, live on config changes.\n\n### Changed\n\n- **`EncodedImage.AsStream()` owns its bytes** (audit round 5). The stream shared the pooled array, so one kept past\n  the image's `using` block (handed to a response, a background writer) read whatever the pool had since given that\n  array to, possibly another request's image. The pooled buffer is now reference-counted: each stream holds a\n  reference, the array goes back to the pool when the image and every stream are disposed, and a stream stays valid\n  after the image is disposed. `Span`, `Memory`, `ToArray`, `ToBase64` and `AsStream` throw `ObjectDisposedException`\n  after `Dispose` as before; `Dispose` is idempotent.\n- **`ImageInfo.Probe` refuses a header that claims a side over 32 767 pixels** with `imaging.too_large`, decided from\n  the header alone (nothing is allocated for pixels, also on a non-seekable stream). The decoder refused such images\n  already; `Probe` now says so up front instead of reporting a size that cannot be loaded.\n- Package versions are pinned (SkiaSharp and SkiaSharp.NativeAssets.Linux.NoDependencies 4.154.0) instead of floating (`4.*`).\n- **Kept EXIF no longer carries the source thumbnail or MakerNote.** `KeepMetadata = true` zeroes the IFD1 thumbnail\n  (and unlinks IFD1) and the MakerNote before writing the EXIF back. Both describe the source pixels (MakerNotes can\n  embed previews and a vendor GPS copy), so a blurred face stayed visible in the thumbnail and coordinates survived\n  `RemoveGps`. Other tags are still written back as they were.\n- `BlurHash.IsValid`/`Decode` reject size flags above 80 (ten component rows; the spec allows 1-9 per axis), and\n  `Decode` caps the output at `BlurHash.MaxDecodePixels` (1 048 576 pixels, new constant) and evaluates the\n  separable cosine basis from tables, so a hash from a request cannot buy seconds of CPU per call.\n- Reading a stream with no byte limit (`MaxBytes = 0`) rents at most 16 MiB up front instead of whatever the stream\n  reports as its length; larger images grow the buffer as they are read.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#repository",
+    "commit": "0b2490b478027a03f8eed397388a934b1a4b158f",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "5.0.117-preview+0b2490b",
+  "version": "5.0.117-preview+0b2490b",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#dependencygroup/net11.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[5.0.0-preview, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#dependencygroup/net11.0/skiasharp",
+          "@type": "PackageDependency",
+          "id": "SkiaSharp",
+          "range": "[4.154.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#dependencygroup/net11.0/skiasharp.nativeassets.linux.nodependencies",
+          "@type": "PackageDependency",
+          "id": "SkiaSharp.NativeAssets.Linux.NoDependencies",
+          "range": "[4.154.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#lib/net11.0/CL.Imaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 72033,
+      "fullName": "lib/net11.0/CL.Imaging.dll",
+      "length": 155648,
+      "name": "CL.Imaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#lib/net11.0/CL.Imaging.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 19594,
+      "fullName": "lib/net11.0/CL.Imaging.xml",
+      "length": 116353,
+      "name": "CL.Imaging.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2630,
+      "fullName": "CHANGELOG.md",
+      "length": 5287,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#CodeLogic.Imaging.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3214,
+      "fullName": "CodeLogic.Imaging.nuspec",
+      "length": 6613,
+      "name": "CodeLogic.Imaging.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#MIGRATION.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1797,
+      "fullName": "MIGRATION.md",
+      "length": 4713,
+      "name": "MIGRATION.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4000,
+      "fullName": "README.md",
+      "length": 8545,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.imaging.5.0.117-preview.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "imaging",
+    "image",
+    "resize",
+    "crop",
+    "thumbnail",
+    "webp",
+    "exif",
+    "blurhash",
+    "phash",
+    "skiasharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

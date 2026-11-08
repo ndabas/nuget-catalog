@@ -1,0 +1,183 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Zyntal.com",
+  "catalog:commitId": "2d44badd-6866-4d2b-96d8-5a5dafbec1c0",
+  "catalog:commitTimeStamp": "2026-11-07T16:39:37.4987707Z",
+  "copyright": "Copyright © 2026 Zyntal.com",
+  "created": "2026-11-07T16:36:38.61Z",
+  "description": "DNSBL blacklist checking and IP geolocation services for CodeLogic 5 applications",
+  "id": "CodeLogic.NetUtils",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-07T16:39:13.463Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "tOotF54jGc/DBETPtvmHvI2erk15Q+uK0CZK4GGnaNVK11iObTzk2XuC5M0UpCaoo53jsrRetnpjMz+ixov3zQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 83833,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-11-07T16:36:38.61Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.NetUtils — Changelog\n\nAll notable changes to **CodeLogic.NetUtils** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/).\n\n## 5.0 (unreleased)\n\n### Audit completion (2026-11-07)\n\n- Propagate cancellation and timeout through archive extraction reads; share bounded single-line log formatting across libraries.\n\n\n### Breaking\n\n- Targets **.NET 11** (`net11.0`) and requires **CodeLogic 5.0** (`[5.0.0, 6.0.0)`). On .NET 10, stay on\n  4.9.x. CodeLogic 5 makes `Result<T>` / `Result` C# 15 unions and `Error` a closed record with\n  kind subtypes (`NotFoundError`, `ValidationError`, ...). Results can now be matched exhaustively\n  with `switch`.\n- **A DNSBL check that could not query a zone is no longer reported as clean.** Timeouts, resolver\n  failures and DNSBL error answers (Spamhaus `127.255.255.x`) used to end as `NotBlacklisted`. When no\n  zone lists the address but some zone failed, the result is now `Status = DnsblCheckStatus.Indeterminate`\n  with the zones in `FailedServices` and a message in `ErrorMessage`; `IsBlacklisted` stays `false`.\n  NXDOMAIN is still \"not listed\". Check `Status` where an unchecked address must not pass.\n- **`GeoIp.DownloadUrl` must be `https` on a trusted host.** The MaxMind credentials were sent to any\n  configured URL. The host must now be listed in the new `GeoIp.TrustedDownloadHosts` (default\n  `[\"download.maxmind.com\"]`); otherwise the download is refused before any request and configuration\n  validation fails.\n- **SharpCompress dependency removed.** The GeoIP archive is read with the built-in `System.Formats.Tar`\n  and `System.IO.Compression` (`tar.gz` and `zip`).\n- **`GeoIpService.DownloadDatabaseAsync` returns `Result`** (audit round 5). It used to swallow every failure into a\n  log line; it now reports a `netutils.*` error (`NetUtilsErrors`: `download_refused`, `download_failed`,\n  `download_timeout`, `download_too_large`, `checksum_unavailable`, `checksum_mismatch`, `invalid_database`,\n  `cancelled`). `await`-ing it as before still compiles.\n- **GeoIP downloads are verified against MaxMind's published SHA-256 by default** (`GeoIp.VerifyChecksum`, new,\n  default `true`): the `.sha256` next to the archive (`…download?suffix=tar.gz.sha256`) is fetched first and a\n  mismatch installs nothing. A mirror in `TrustedDownloadHosts` that publishes no checksum needs\n  `VerifyChecksum = false`.\n- **`GeoIp.TimeoutSeconds` now covers the whole download** (checksum, request and the entire body; before it stopped\n  at the response headers) and its default is 120 s instead of 30 s, enough for GeoLite2-City (about 70 MB) on a slow link.\n- **`DnsblCheckStatus.Cancelled`** (new member): a check whose cancellation token fired reports it instead of\n  `Status = Error`, so a caller can tell its own abort from a failed check. Switches over the enum need the case.\n- **`GeoIp.DatabaseType` is validated.** It becomes the default file name, so a value with path separators or\n  `..` could place the database outside the data directory. It must now be an edition id (letters, digits, `-`,\n  `_`, `.`, at most 64 characters); otherwise configuration validation fails and `GeoIpService` throws\n  `ArgumentException`.\n- **Malformed DNSBL zones are no longer queried.** A zone that is not a DNS name (blank line, IP literal,\n  spaces, control characters, a single label) is skipped and reported in `FailedServices`, so the check is\n  `Indeterminate`. Zones are trimmed, and `MatchedService` / `FailedServices` hold the trimmed name.\n\n### Added\n\n- `NetUtilsLibrary.HasDnsbl` and `DnsblChecker.IsEnabled`.\n- GeoIP serves the **Country, Enterprise, ASN and ISP** editions as well as City: the edition is read from the\n  database metadata (`GeoIpService.LoadedDatabaseType`). New `IpLocationResult.AutonomousSystemNumber` and\n  `AutonomousSystemOrganization`; `IsSuccessful` is also `true` for an ASN/ISP result without a country.\n- `GeoIp.DownloadUrl` accepts a `{DatabaseType}` placeholder, and the default URL uses it, so the configured\n  edition is downloaded (`GeoIpConfig.DatabaseTypePlaceholder`, `GeoIpConfig.IsValidDatabaseType`).\n- `DnsblCheckStatus` (`NotBlacklisted`, `Blacklisted`, `Indeterminate`, `Error`), `DnsblCheckResult.Status`,\n  `DnsblCheckResult.FailedServices` and `DnsblCheckResult.Indeterminate(...)`.\n- `DnsblCheckRequest.ParallelQueries` (default `true`).\n- `GeoIpConfig.TrustedDownloadHosts` and `GeoIpConfig.TryGetTrustedDownloadUri(...)`.\n- **`NetUtilsLibrary` implements `IConfigReloadable`** (audit round 5): a change to `config.netutils.json` (admin UI,\n  `LibraryManager.UpdateConfigAsync`, reload, file watcher) is applied without a restart. DNSBL settings replace\n  `Dnsbl` at once; GeoIP settings build a new `GeoIpService` (downloading when needed) and swap it in, the old one\n  closing after a grace period; a GeoIP configuration that fails to initialize keeps the previous database serving\n  and reports Degraded; the library can be turned on and off. Read `Dnsbl` and `GeoIp` per use rather than caching them.\n- `GeoIp.MaxDownloadBytes` (default 512 MB): the most a database download may be, enforced on the archive body as it\n  arrives and again on the unpacked database, so neither a long body nor a small archive that inflates to gigabytes\n  fills the disk (`netutils.download_too_large`).\n- `NetUtilsErrors`: the `netutils.*` error codes and factories.\n- `DnsblCheckResult.Cancelled(...)` and the localized string `NetUtilsStrings.DnsblCancelled`.\n\n### Fixed\n\n- **`DnsblCheckRequest.IsAllowedAsync` receives the canonical address** (audit round 5). It was given the caller's\n  text, so an allowlist holding `1.2.3.4` did not match a check for `::ffff:1.2.3.4` or `0x01.0x02.0x03.0x04`; it now\n  gets `ip.ToString()` of the parsed (IPv4-unmapped) address. `DnsblCheckResult.IpAddress` still echoes the input.\n- **Caller cancellation of a DNSBL check is no longer reported as `Status = Error`**; see `DnsblCheckStatus.Cancelled`.\n- **`GeoIpService.LookupIpAsync` no longer holds the service lock for the MaxMind lookup.** It snapshots the reader\n  under the lock and looks up outside it, so lookups run concurrently and a database swap never waits for them; a\n  replaced reader stays open for a grace period (10 s) so lookups that started on it finish.\n- `NetUtilsLibrary` awaits the GeoIP initialization with `ConfigureAwait(false)` and a token that is cancelled when\n  the library stops, so a download still running at shutdown gives up instead of outliving the library.\n\n- **`NetUtilsLibrary.Dnsbl` no longer throws when DNSBL checking is disabled** (audit 2026-11-01). The docs\n  said it is always available, but with `dnsbl.enabled` (or `enabled`) off it threw `InvalidOperationException`.\n  It now returns a checker whose checks answer `Status = Error` with \"DNSBL checking is disabled\", without a\n  DNS query. It still throws before the library has initialized.\n- **GeoIP is no longer City-only** (audit 2026-11-01). `DatabaseType` was documented as any edition, but only a\n  City database installed and every lookup called `City()`. A downloaded database must now be of the same kind\n  as `DatabaseType` (a Country download never replaces a City database).\n- **`NetUtilsStrings` is used** (audit 2026-11-01). The localization model was registered but nothing read it.\n  Lifecycle and DNSBL/GeoIP log lines, and the error messages in `DnsblCheckResult` / `IpLocationResult`\n  (invalid address, DNSBL disabled, GeoIP not initialized, location not found), now come from it; new strings\n  `InvalidIpAddressFormat`, `DnsblDisabled`, `GeoIpNotInitialized`, `LocationNotFound`. The English defaults\n  match the previous messages.\n- **Caller input can no longer forge log lines.** IP addresses and zones are logged with control characters\n  replaced and cut to 64 characters.\n- **A corrupt GeoIP download can no longer replace a working database (re-audit R2).** The extracted file is opened with the MaxMind reader, must be a supported edition of the configured kind, and must answer a test lookup. Only then is it renamed into place. The open reader switches without a gap, and on any failure the old file and reader stay in use. Readers load the database into memory, so the file is never locked.\n- **`GeoIp.AutoUpdate` now works:** before, nothing read it. On startup it refreshes an existing database when credentials are set; a failed refresh is logged and the existing database stays in use. A missing database is downloaded regardless.\n- **`Dnsbl.ParallelQueries` is honoured.** Zones were always queried one at a time. Now the zones of a\n  list are queried concurrently by default, and with `ParallelQueries = false` one at a time, stopping at\n  the first listing. DNS lookups use the asynchronous resolver, so the per-zone timeout is enforced.\n- **GeoIP database replacement is selective and atomic.** Every archive entry (licence, readme, ...) was\n  extracted straight into the database directory, over the live file. Now the archive is unpacked in a\n  private temporary directory, only the `.mmdb` entry is extracted (by content, never by entry path),\n  checked for the MaxMind metadata marker, and moved over the database in one rename; an open reader is\n  switched to the new file. A failed or invalid download leaves the existing database untouched. A custom\n  `DatabasePath` with a different file name than the archive's `.mmdb` now gets the database too.\n- `LookupIpAsync` reads the database reader under its lock, so a concurrent reload or dispose cannot\n  race it.\n- Package versions are pinned (`MaxMind.GeoIP2` 6.1.0) instead of floating.\n- **DNSBL queries are built from the parsed address.** The IPv4 query label reversed the dot-separated input\n  text, so a shorthand that `IPAddress.TryParse` accepts (`1.2.3` = 1.2.0.3, hex `0x01.0x02.0x03.0x04`,\n  a single 32-bit number) queried the wrong name and was never found listed. The label now comes from the\n  address bytes, and an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`) is checked against the IPv4 zones.\n- **More non-routable addresses skip the DNSBL query:** IPv4 `0.0.0.0/8`, link-local `169.254/16`, shared\n  address space (CGNAT) `100.64/10`, `192.0.0/24`, the documentation ranges (`192.0.2/24`, `198.51.100/24`,\n  `203.0.113/24`), benchmarking `198.18/15`, multicast `224/4`, reserved `240/4` and broadcast; IPv6 unspecified\n  `::` and documentation `2001:db8::/32`. Like the existing private ranges they return *not blacklisted*.\n\n### Documentation\n\n- Configuration examples use the camelCase keys the CodeLogic loader reads (PascalCase keys were ignored).\n- The DNSBL guide describes the actual query order, fallback rule and failure handling.\n\n## 2026-10-30\n\n### Fixed\n\n- **Health no longer reports optional features that are off as faults.** GeoIP with neither a database file\n  nor MaxMind credentials is now *not configured* and Healthy (it was Degraded \"GeoIP unavailable\"), and is\n  logged at Info instead of a startup warning. Degraded now means GeoIP was set up (database file or\n  credentials) and still failed to start; the message carries the reason. The health message lists both\n  services, e.g. `DNSBL on, GeoIP not configured`. A library with both services switched off is Healthy too.\n\n### Added\n\n- `GeoIpService.DatabasePath` and `GeoIpService.CanDownload`.\n\n## 2026-10-24\n\n### Changed\n\n- Requires **CodeLogic 4.9+**. The official libraries move to the 4.9 line together with the framework,\n  whose live config changes the stateful libraries now use. No API changes in this library.\n\n## 2026-09-12\n\n### Changed\n\n- Unified the version line with the CodeLogic framework on **4.8.x**. Every official\n  library and the framework now share one `major.minor`, so a given `4.8.<patch>`\n  means the same generation across all packages.\n- `version.txt` moved from `4.6` to `4.8`. The patch component remains the CI run\n  number, composed at pack time; `AssemblyVersion` stays pinned at `Major.Minor.0.0`\n  (now `4.8.0.0`) so every patch in the line loads interchangeably.\n\n## 2026-06-20\n\n### Documentation\n\n- Full rewrite of the README and the deep docs page to house style: NuGet + MIT\n  badges, blockquote tagline, concise quick-start, feature list, and a complete\n  configuration table covering every `Dnsbl.*` and `GeoIp.*` field.\n- Documented the correct load pattern (`Libraries.LoadAsync<NetUtilsLibrary>()`\n  → `ConfigureAsync` → `StartAsync` → `Libraries.Get`) and both `Dnsbl` /\n  `GeoIp` accessors, with the `HasGeoIp` guard for the optional GeoIP service.\n- Documented both `CheckIpAsync` overloads, the default IPv4/IPv6 blacklist\n  zones, and the per-call `DnsblCheckRequest` (per-call zone lists, timeout, and\n  async allowlist predicate).\n- Documented the `DnsblCheckResult` and `IpLocationResult` records field by\n  field, including `IpLocationResult.IsSuccessful`.\n- Documented GeoIP database resolution and auto-download: `DatabasePath` vs the\n  `{dataDir}/geoip/{DatabaseType}.mmdb` fallback, and `DownloadDatabaseAsync`\n  fetching/extracting the `.mmdb` via HTTP Basic Auth with `AccountId` +\n  `LicenseKey`.\n\n## [4.5.2] — 2026-06-20\n\n### Documentation\n\n- Corrected the README Quick Start to match the real API: `Dnsbl.CheckIpAsync`\n  (was `CheckAsync`) returning `DnsblCheckResult.IsBlacklisted` / `MatchedService`\n  (was `IsListed`), and the async `GeoIp.LookupIpAsync` returning\n  `IpLocationResult.CountryName` / `CityName` (was a synchronous `Lookup`).\n- Documented the `DnsblCheckRequest` overload of `CheckIpAsync` — per-call\n  service lists plus an optional async allowlist predicate (`IsAllowedAsync`).\n- Documented the `DnsblCheckResult` and `IpLocationResult` result records and\n  the `IpLocationResult.IsSuccessful` helper.\n- Documented that local/private addresses are short-circuited as not blacklisted.\n- Added the `GeoIp.DownloadUrl` field to the sample `config.netutils.json`.\n\n## [4.5.0] — 2026-05-24\n\n### Changed\n\n- **Unified versioning.** All CodeLogic.Libs now share a single version line\n  controlled by `version.txt` in the repo root. This is a version alignment\n  release — no functional changes to this library.\n## [4.0.4] — 2026-04-16\n\n### Changed\n\n- README + manifest refresh for the v4 baseline. No functional changes vs 4.0.3.\n- `LibraryManifest.Version` now reads from assembly metadata.\n\n## [4.0.2] — 2026-04-09\n\n### Added\n\n- `DnsblCheckRequest` overload that accepts a caller-supplied DNSBL service\n  list — useful when the calling app stores its own service registry instead\n  of relying on the bundled defaults.\n\n### Changed\n\n- Annotated NetUtils configuration with `[ConfigField]` for the admin UI surface.\n- Aligned with the v4 baseline across all libraries.\n\n## [4.0.0] — 2026-04-09\n\nMajor rewrite. Republished as v4.0.0 to reset the version line under the\nunified v4 baseline. GeoIP, DNSBL, and IP/CIDR utilities.\n\n### Notes\n\n- Earlier history is retained in the\n  [git log](https://github.com/zyntal-com/CodeLogic.Libs/commits/main/CL.NetUtils).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#repository",
+    "commit": "0b2490b478027a03f8eed397388a934b1a4b158f",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "5.0.117-preview+0b2490b",
+  "version": "5.0.117-preview+0b2490b",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#dependencygroup/net11.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[5.0.0-preview, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#dependencygroup/net11.0/maxmind.geoip2",
+          "@type": "PackageDependency",
+          "id": "MaxMind.GeoIP2",
+          "range": "[6.1.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#lib/net11.0/CL.NetUtils.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 41340,
+      "fullName": "lib/net11.0/CL.NetUtils.dll",
+      "length": 94208,
+      "name": "CL.NetUtils.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#lib/net11.0/CL.NetUtils.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 10542,
+      "fullName": "lib/net11.0/CL.NetUtils.xml",
+      "length": 53645,
+      "name": "CL.NetUtils.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6188,
+      "fullName": "CHANGELOG.md",
+      "length": 14948,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#CodeLogic.NetUtils.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 6701,
+      "fullName": "CodeLogic.NetUtils.nuspec",
+      "length": 16098,
+      "name": "CodeLogic.NetUtils.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3442,
+      "fullName": "README.md",
+      "length": 8381,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.07.16.39.37/codelogic.netutils.5.0.117-preview.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "dns",
+    "dnsbl",
+    "geoip",
+    "geolocation"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

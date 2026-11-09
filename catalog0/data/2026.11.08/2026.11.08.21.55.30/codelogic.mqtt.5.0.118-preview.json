@@ -1,0 +1,190 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Zyntal.com",
+  "catalog:commitId": "fdf8bc36-327d-4c53-97e3-f0048d210ced",
+  "catalog:commitTimeStamp": "2026-11-08T21:55:30.2740469Z",
+  "copyright": "Copyright © 2026 Zyntal.com",
+  "created": "2026-11-08T21:51:11.937Z",
+  "description": "MQTT clients with automatic reconnect and an embedded MQTT broker for CodeLogic 5 applications",
+  "id": "CodeLogic.Mqtt",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-08T21:55:03.193Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "zXLt7ot2YDS3DwRYzHX4RIPhLU0/p9nrLbV+aTzovpGW4qoA9cj/QaKPkbxpT3jbtZA/0Q/9PPi3Aw1dY8kygA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 112357,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-11-08T21:51:11.937Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.Mqtt — Changelog\n\nAll notable changes to **CodeLogic.Mqtt** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/).\n\n## 5.0 (unreleased)\n\n### Changed\n\n- Capture the sweeper's cancellation token before scheduling so an immediate stop cannot clear its source first. Broker listeners and cancellation sources are released even if a sweeper fails during shutdown; deferred-start and faulted-sweep regressions cover both paths.\n\n- Make session ownership and quotas atomic, protect pending/replaced sessions during sweeping, warn for every network-visible plain listener, stop retrying refused credentials, and make synchronous Dispose nonblocking. Add concurrency, writer-interleaving and disposal regressions.\n\n\nFirst release. Targets **.NET 11** (`net11.0`) and **CodeLogic 5.0**; built on MQTTnet 5.2.\n\n### Added\n\n- **`MqttLibrary`** (`CL.Mqtt`): a CodeLogic `ILibrary` with `config.mqtt.json`.\n  - **Connections:** named client connections (`Client()`, `Client(name)`, `Clients`), plus `CreateClient` for clients outside the configuration.\n  - **Broker:** an optional embedded broker (`Broker`, `HasBroker`).\n  - **Health:** the check reports the broker and every auto-connect connection.\n  - **Live config changes:**\n    - connections are added, removed or reconfigured in place, keeping their subscriptions;\n    - broker user changes apply at once, and listener changes restart the broker.\n- **`MqttClientService`:**\n  - **Connection:** MQTT 3.1.1 and 5.0, TLS (optionally accepting untrusted certificates), credentials, last will, clean or persistent sessions.\n  - **Reconnect:** automatic, with exponential back-off and jitter; state is reported as `MqttConnectionState`.\n  - **Subscriptions:**\n    - they are kept by the client and sent again on every connect, and can be registered before the first connect;\n    - several handlers can share a filter, and disposing one does not affect the others.\n  - **Publishing:** raw bytes, UTF-8 text and JSON (reflection or source-generated `JsonTypeInfo<T>`), with `MqttPublishOptions` for QoS, retain and MQTT 5 properties.\n  - **Live settings:** `ReconfigureAsync` applies new settings and keeps subscriptions.\n- **`MqttBrokerService`:**\n  - **Listening:** binds to exactly the configured address (`127.0.0.1` by default; no stray IPv6 listener). An optional TLS\n    listener (`broker.tls`: PKCS#12 certificate, port 8883, `disablePlainPort`) for brokers opened to a network; a broker\n    reachable from the network without TLS logs a warning at start.\n  - **Access:** `IMqttBrokerAuthorizer` decides connections, publishes and subscriptions. The default `ConfigBrokerAuthorizer`\n    uses the configured users, compares passwords in constant time (clear text or a `MqttBrokerUser.HashPassword` PBKDF2-SHA256\n    hash), checks topic permissions with filter coverage, honours `canPublish` / `canSubscribe` and the optional `clientIds` a\n    user may connect with.\n  - **Session protection:** client ids starting with `$` are refused (`$broker` is the broker's own); a client id belongs to\n    the user that holds its session, so another user can neither take the session over (and inherit its subscriptions and\n    queued messages) nor disconnect the client; `maxSessionsPerUser` (100) caps connected plus persistent sessions per user;\n    `persistentSessionExpiryMinutes` (1 day) deletes persistent sessions nobody reconnects to. Refusals carry a `Reason` on\n    `MqttBrokerConnectionRejectedEvent`.\n  - **Taps and publishing:** `Tap` observes client publishes, and `PublishAsync` publishes as the broker. The broker's own\n    messages are recognised by their session, never by the client id. `GetClientsAsync` lists connected clients.\n  - **Retained messages:** persisted to `retained.json` in the library's data directory (batched writes by a single writer,\n    atomic replace); `maxRetainedMessages` (10 000) and `maxRetainedPayloadBytes` (1 MiB) bound what clients can store\n    (MQTT 5 publishers get \"quota exceeded\"; a clear always passes).\n  - **Queues:** `maxPendingMessagesPerClient` drops the oldest queued message, as documented (the overflow strategy is set\n    explicitly); clients have 15 s to send CONNECT.\n- **Messages:** `MqttMessage` carries a payload copy, text/JSON readers and MQTT 5 properties.\n- **Topics:** `MqttTopic` validates topics and filters, matches topics against filters, and checks filter coverage (`Covers`).\n- **Events** on the CodeLogic bus: `MqttConnectedEvent`, `MqttDisconnectedEvent`, `MqttBrokerStartedEvent`,\n  `MqttBrokerStoppedEvent`, `MqttBrokerClientConnectedEvent`, `MqttBrokerClientDisconnectedEvent`,\n  `MqttBrokerConnectionRejectedEvent`.\n- **Errors:** stable codes in `MqttErrorCodes` (`mqtt.not_connected`, `mqtt.authentication_failed`,\n  `mqtt.subscribe_rejected`, ...).\n\n### Security\n\n- A client could connect with the client id `$broker` and publish anywhere unchecked and unseen by taps, because the\n  broker's own injected messages were recognised by that id. Reserved ids are now refused and injected messages are\n  recognised by their session items.\n- Any authenticated client could resume another client's persistent session (inheriting its subscriptions and queued\n  messages) or kick it off by reusing its client id. Client ids are now bound to the user holding them.\n- Persistent sessions and retained messages had no bound; see the caps above.\n- `cleanSession: false` did nothing on MQTT 5 because no session expiry was sent; `sessionExpirySeconds` (1 day) is now\n  sent on `V500`.\n- Refused credentials were retried like a network outage; they now stop automatic retries until an explicit ConnectAsync call.\n  MQTTnet 5.2 exposes failure codes through exception text; the parser matches known enum names.\n- The retained-message store could run two writers on the same temporary file and lose a snapshot; it has one writer.\n- `publishTopics` / `subscribeTopics` set to `null` in JSON no longer throw; user names cannot contain whitespace or start\n  with `$`; client ids in the connection config cannot start with `$`.\n- `MqttLibrary` implements `IAsyncDisposable`; `Dispose()` no longer blocks on network I/O after a normal stop.\n\n### Documentation\n\n- The docs list `empty client id` as a broker refusal reason, and say that a `maxPendingMessagesPerClient` change\n  restarts the broker. The README's trailing relative link, which broke on nuget.org, is gone.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#repository",
+    "commit": "21f8da9f30e150f05ec0b336e719eea8ad928e4e",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "5.0.118-preview+21f8da9",
+  "version": "5.0.118-preview+21f8da9",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#dependencygroup/net11.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[5.0.35-preview, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#dependencygroup/net11.0/mqttnet",
+          "@type": "PackageDependency",
+          "id": "MQTTnet",
+          "range": "[5.2.0.1603, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#dependencygroup/net11.0/mqttnet.server",
+          "@type": "PackageDependency",
+          "id": "MQTTnet.Server",
+          "range": "[5.2.0.1603, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#lib/net11.0/CL.Mqtt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 73431,
+      "fullName": "lib/net11.0/CL.Mqtt.dll",
+      "length": 174080,
+      "name": "CL.Mqtt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#lib/net11.0/CL.Mqtt.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 14960,
+      "fullName": "lib/net11.0/CL.Mqtt.xml",
+      "length": 88337,
+      "name": "CL.Mqtt.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2875,
+      "fullName": "CHANGELOG.md",
+      "length": 6403,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#CodeLogic.Mqtt.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3428,
+      "fullName": "CodeLogic.Mqtt.nuspec",
+      "length": 7642,
+      "name": "CodeLogic.Mqtt.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2059,
+      "fullName": "README.md",
+      "length": 4593,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.21.55.30/codelogic.mqtt.5.0.118-preview.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "mqtt",
+    "iot",
+    "broker",
+    "pubsub",
+    "mqttnet"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

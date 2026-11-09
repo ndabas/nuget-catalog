@@ -1,0 +1,213 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Zyntal.com",
+  "catalog:commitId": "138e2ff5-d824-4764-909d-39ea3b0e59a5",
+  "catalog:commitTimeStamp": "2026-11-08T23:08:06.0009147Z",
+  "copyright": "Copyright © 2026 Zyntal.com",
+  "created": "2026-11-08T23:04:24.27Z",
+  "description": "Provider-neutral database framework (ORM) for CodeLogic 5 applications: typed LINQ queries, repositories, schema sync, migrations, caching, replicas and telemetry. Install a provider package (CodeLogic.Data.MySql, .PostgreSql, .SqlServer or .Sqlite) next to it.",
+  "id": "CodeLogic.Data",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-08T23:07:33.56Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "13vawj9uiJMQ48FwdnxQSkDMzf9NQz/AC/T6xOX3jBQAKqm6umcHq31uVEa+Hz1ud7OaKxjOqwNLCPN2u1cHCw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 567439,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-11-08T23:04:24.27Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# Changelog\n\n## 5.0 (unreleased)\n\n### Breaking\n\n- **`ConnectionResetMode` replaces `MySqlConnectionReset`:** one enum (`WhenDirty`, `Always`, `Never`) for `mySql.connectionReset` and the new `postgreSql.connectionReset`. Configuration values are unchanged; C# code that names the old type must use the new one.\n\n### Security\n\n- **Bookkeeping reads use the primary:** schema sync state, migration and seed history, the database cache bus and every schema introspector (`ReadTableAsync`, `ListTablesAsync`) read the primary, whatever the read preference. Before, with replicas and the default `PreferReplica`, a lagging replica made startup sync try to create `cl_data_schema` a second time and let a second node re-apply migrations despite the advisory lock.\n- **Raw SQL that writes runs as a write:** `SqlQueryAsync`, `SqlReadAsync`, `SqlScalarAsync` and `DataBatch.Sql` classify the statement conservatively (`SqlIntent.Auto`). Only a single plain `SELECT`, `WITH ... SELECT`, `VALUES` or `SHOW` is a read; anything else (`INSERT ... RETURNING`, data-modifying CTEs, `SELECT ... INTO`, `FOR UPDATE`, `EXEC`, several statements, ...) runs on the primary, is not retried once sent (no duplicate inserts after a transient error), and drops the connection's cached results. New overloads take an explicit `SqlIntent` (`Read`, `ReadPrimary`, `Write`, `SideEffect`); mark a `SELECT` that calls a function with side effects (`nextval`, `GET_LOCK`) as `Write` or `SideEffect`. **Behaviour change:** a raw non-`SELECT` statement through these APIs no longer goes to a replica and now clears the connection's cache.\n- **Backup restore checks the manifest (breaking for unusual schemas):** `Backup.RestoreAsync` refuses (`data.validation`, before anything is dropped) a `manifest.json` whose store types, collations, defaults or table options are not plain values, and rows files outside the backup directory. Before, these were written into `CREATE TABLE` as they were, so anyone who could write the backup directory could run any SQL, and `file` could point anywhere. Store types must be a type name with an optional size and modifiers (`varchar(64)`, `timestamp(3) with time zone`, `bigint unsigned`, `enum('a','b')`); a default may only use literals, parentheses, casts and known functions (`CURRENT_TIMESTAMP`, `now()`, `newid()`, `gen_random_uuid()`, ...). Tables with user-defined types or computed defaults cannot be restored from a logical backup.\n- **Cached results of array parameters:** the result-cache key writes array and list parameters element by element (and strings with their length). Before, an `int[]` parameter was keyed as `System.Int32[]`, so two cached queries over different arrays shared one result.\n- **Large `InsertManyAsync` calls keep the command pipeline:** the switch to the native bulk path (`bulkThreshold`) is skipped when the database has command interceptors or middleware, so an auditing or policy interceptor sees every insert. Before, those inserts bypassed `OnExecutingAsync`/`OnExecutedAsync` silently.\n- **Endpoints never print secrets:** `NodeEndpoint.ToString()` (and the record's generated member list) shows the name, role, host, port and user, never the password or the connection string. Before, logging an endpoint printed its password.\n- **Slow-query plans never re-run statements:** `captureExplainOnSlowQuery` only explains a single plain read. Before, a slow `DataBatch` (or a multi-statement raw query) had `EXPLAIN` put in front of its first statement only, so the following statements ran a second time on the background connection.\n\n### Fixed\n\n- **Packages depend on a signed CodeLogic:** published nuspecs require CodeLogic `[5.0.35-preview, 6.0.0)` (the version the libraries are built against) instead of `[5.0.0-preview, 6.0.0)`. NuGet resolved the lowest match, 5.0.28-preview, whose `CodeLogic.dll` is not strong-name signed, so projects failed with `CS0012 'Result<>' is defined in an assembly that is not referenced` unless they referenced a newer CodeLogic themselves.\n- **Advisory-lock release failures are no longer ignored:** when `RELEASE_LOCK` (or `pg_advisory_unlock`) fails or does not report the lock as released, the lock's connection is reset (MySQL) before it can be reused.\n- **Provider table hints are applied:** `[PostgresTable(Unlogged, FillFactor, Tablespace)]` and `[SqlServerTable(FileGroup, DataCompression)]` now shape `CREATE TABLE` (new `DdlGenerator.CreateTableKeyword` hook). They apply when sync creates a table; existing tables are not altered. `[SqlServerColumn(Sparse)]` and `[MySqlColumn(Charset)]` are still not applied and are marked `[Obsolete]` (set `Collation`, which implies the MySQL character set). Before, all of them were declared and documented but ignored.\n- **Compiled queries keep `WithCache()` and `ReadFrom()`:** a compiled chain's cache policy and read preference apply to every call. Before, both were dropped silently, so a compiled query was never cached and always followed the connection's read preference.\n- **`SeedAppliedEvent` is published** for every seed a `SeedRunner` applies (and forwarded to the CodeLogic event bus by `DataLibrary`). Before, it was declared and documented but never raised.\n- **Replicas configured by `host` keep the primary's database and credentials** when the primary uses `connectionString` (the documented pattern): the replica starts from the primary's connection string and puts its own host, port and credentials on top. Before, such a replica connected without a database, user or password.\n- **Ordered and limited set-based deletes:** `Query<T>().Where(...).OrderBy(...).Take(n).DeleteAsync(hard: true)` deletes at most `n` rows in that order (MySQL `DELETE ... ORDER BY ... LIMIT`, SQL Server and the others through a key subquery). Before, `Take` and `OrderBy` were silently ignored and **every** matching row was deleted. `Skip`, and `Take` on a soft delete, now fail with `data.validation`.\n- **Set-based updates with `Take`/`Skip`** fail with `data.validation` instead of updating every matching row.\n- **Covering indexes on MySQL:** `[Index(Include = ...)]` columns are folded into the desired key where the database has no `INCLUDE` (MySQL), the same way the DDL creates the index. Before, every sync saw a missing index and planned to create it again.\n- **MySQL rebuilds a table once per sync, not once per column:** a table's added, modified and dropped columns go into one `ALTER TABLE` (NULL backfills first). Before, every column change was its own statement, and MySQL copied large tables once per column. New `DdlGenerator.GenerateAll(changes)` hook; scripts and sync both use it.\n- **Making a column NOT NULL** first replaces existing NULLs with the column's default (or an implicit one) in the same plan, so the `ALTER` no longer fails on tables that hold NULLs.\n- **Tenant isolation on writes (security):**\n  - **No tenant:** updating, deleting (soft or hard, by entity or by key) or adjusting a counter on a `[TenantKey]` entity without a tenant now fails with `data.tenant_missing`, exactly like reads. Before, such writes ran unscoped and could change another tenant's row by key.\n  - **Upserts:** an upsert can no longer update another tenant's row that has the same conflict key. Every dialect guards the conflict update by the tenant column (PostgreSQL/SQLite `DO UPDATE ... WHERE`, MySQL `IF(...)` per assignment, SQL Server join condition), and a pre-check reports `data.conflict` before anything is written.\n  - **Inserts, upserts and bulk copy (breaking):** these also need a tenant now. Before, an entity whose tenant column was already set could be inserted for any tenant through an unscoped database. Write for a specific tenant through `db.ForTenant(id)`.\n  - **Retention:** a purge from a tenant view deletes only that tenant's expired rows. Without a tenant, the purge stays the system-wide job for every tenant's rows.\n- **MySQL: saving an unchanged entity:** `UpdateAsync` of an entity whose values were already stored failed with `data.not_found` on MySQL. CL.Data turns on `UseAffectedRows`, which insert-ignore needs, and with it MySQL counts only rows that changed. An update reporting no rows is now confirmed with a `SELECT 1` using the same key, tenant and token conditions. This only happens on providers flagged `ProviderCapabilities.AffectedRowsCountChangesOnly`, and only in that case.\n- **Column collation hints are per provider:** a column's collation now comes only from the hint of the provider being synced (`[MySqlColumn]`, `[PostgresColumn]`, `[SqlServerColumn]`, `[SqliteColumn]`). Before, the first hint of any provider was used, so an entity with both a MySQL and a SQL Server collation sent `COLLATE utf8mb4_bin` to SQL Server. Providers implement `DataProvider.GetColumnCollation`.\n- **SQL Server: unique indexes over nullable columns:** they are created filtered (`WHERE col IS NOT NULL`), so many rows may leave the column empty, as on MySQL, PostgreSQL and SQLite. Before, SQL Server treated NULLs as equal and a second row without a value failed with `data.duplicate_key`. Existing indexes are matched by shape and left as they are; drop and re-sync to get the filtered form.\n- **Dropped tables are recreated by the next sync:** `Admin.DropTableAsync` forgets the table's fingerprint in `cl_data_schema`. Before, a sync without `Force` reported the dropped table as unchanged and never recreated it.\n- **Mixed identity upserts:** an `UpsertManyAsync` call mixing explicit and server-generated identities is split into two statements. Before, the identity column was dropped for every row and explicit identities were replaced.\n- **Streaming:** `AsAsyncEnumerable` runs through the command pipeline: interceptors, telemetry, read routing (replicas, `ReadFrom`) and retries of the open. Before, streams always opened a primary connection directly.\n- **Captured `SqlFn` calls:** a `SqlFn` call whose arguments are all captured values (for example `SqlFn.BucketUtc(at, 60)` in a projection) is translated to SQL. Before, it was evaluated on the client and failed.\n- **Cache hits** no longer walk the statement to find the tables it reads; the tags are worked out only when a result is stored.\n- **Mixed identity inserts:** when explicit and server-generated identities are interleaved in one `InsertManyAsync` call, generated identities are written back to the right entities. Before, a generated identity could overwrite an explicit entity's identity.\n\n- Float-to-decimal materialization preserves the float's shortest round-trip representation instead\n  of promoting it to double first (for example, `0.1f` now reads as `0.1m`).\n- Converter registry version increments are atomic under concurrent registration/removal. Removing a\n  nullable model type now removes the underlying registration, matching converter lookup.\n- Query plan variants use volatile publication so concurrent readers see fully initialized snapshots.\n\n### Changed\n\n- **The entity cache drops only the rows a write names (behaviour change):** key lookups are tagged with their row instead of the table, so an update, delete, increment or adjustment by key keeps every other row's lookup cached, and an insert drops a cached \"not found\" for its keys. Writes whose rows are not known (set-based updates and deletes, upserts, bulk copy, raw SQL, `Invalidate` with a table tag, invalidations from the cache bus) still drop every lookup of the table. Query results are still dropped on any write to their tables. A 95% lookup / 5% update workload on a hot set went from 767 µs to 191 µs per operation (14.7 KB → 2.4 KB).\n- **Faster key lookups:** `GetByIdAsync` / `GetByKeyAsync` build their SELECT once per entity, dialect, naming policy and schema and only bind the key (and tenant); entities with user filters keep the general path. A MySQL lookup by key allocates 8.9 KB instead of 11.9 KB and runs within the noise of raw ADO.NET and Dapper; a cached lookup takes 0.8 µs instead of 2.2 µs (1.6 KB instead of 4.0 KB).\n- **Leaner command execution:** pooled async state machines on the per-command path, no closure per read, the registered value converter looked up once per type instead of per value, cached insert column lists, and an update's match check built only when the provider needs it. Under 32 parallel workers a lookup by key allocates 7.6 KB instead of 11.7 KB (Dapper: 6.8 KB), a 100-row filter runs 9% faster and an insert 13% faster; a single insert allocates 9.8 KB instead of 11.5 KB.\n- **PostgreSQL resets only dirty sessions (behaviour change):** see `postgreSql.connectionReset` in the provider docs.\n- **`prepareStatements` documents what it does:** PostgreSQL auto-prepare, and on MySQL `Prepare()` in code run through `WithConnectionAsync`. Preparing CL.Data's own key lookups on MySQL was measured (no gain) and not adopted.\n\n- **MySQL skips the connection reset round trip (behaviour change):** pooled MySQL connections are no longer reset by the driver on every open, which cost one full round trip per command (a lookup by key took about twice as long against a remote server). CL.Data resets a connection itself, before it returns to the pool, only when it may carry session state: raw SQL that is not one plain query, DML or DDL statement (`SET`, `CALL`, transaction control, user variables, `GET_LOCK`, temporary tables, several statements), connections handed to `WithConnectionAsync`, advisory locks that were not released cleanly, SQL rewritten by an interceptor, and commands interrupted by anything but a plain statement error. `mySql.connectionReset` (`WhenDirty`, the default; `Always`, the old behaviour; `Never`) chooses. Without the reset on open, a pooled connection dropped while idle fails on its first command: keep `mySql.connectionIdleTimeoutSeconds` (default 180) below any proxy's idle timeout. See the MySQL section of the provider docs.\n- N+1 diagnostics use a dedicated `System.Threading.Lock` for each counting window.\n\n### Added\n\n- **Dialect-aware raw-SQL lexing:** `SqlDialect.Lexicon` (`SqlLexicon.Standard`, `.MySql`, `.PostgreSql`) tells the raw-SQL classifiers how the server lexes comments and literals: MySQL `#` comments and `-- ` with a space (`1--1` is arithmetic), PostgreSQL dollar quotes, `[identifiers]` only on SQL Server and SQLite. A `'...'` or `\"...\"` literal with a backslash is ambiguous (escaping depends on `sql_mode` / `E'...'`) and makes the statement count as a write that may change the session. Before, one lexer served every dialect, so text the server runs could look like a comment or literal (for example `SELECT 1--1, ...` on MySQL, or `$x$` identifiers), and `SqlIntent.Auto` could take a write for a plain read.\n- **Dirty-session tracking for providers:** `DataProvider.ResetsDirtySessions`, `ResetSessionAsync`, `DiscardSessionAsync` and `MayChangeSession` let a provider run its pool without a reset on every open and reset only connections that may carry session state. `SessionSqlRules` classifies raw SQL conservatively (single statement, neutral first word, no user variables, executable comments or listed words; CL.Data's numbered parameters are not taken for variables). New metrics `cl.data.session.resets` and `cl.data.session.reset_failures`.\n- **MySQL: index changes join the table's single ALTER:** `DROP INDEX` / `ADD [UNIQUE] INDEX` become clauses of the one `ALTER TABLE` per table (with the column changes), so a table copy no longer rebuilds an index that is dropped right after, and index-only changes are one in-place pass.\n- **Slow-query log includes the plan:** with `captureExplainOnSlowQuery` the captured EXPLAIN is written to the library log under the SQL (`SlowQueryWithPlan`), not only carried on `SlowQueryEvent.Plan`.\n- **Schema scripts:** `db.Schema.ScriptAsync(maps, level)` / `ScriptAsync<T>()` compares the models with the database and returns the DDL table sync would run, without running it (`SchemaScript`: per-table changes, pending items, `Statements`, `ToSql()`). Generate reviewed migration scripts from the models against a copy of production; an empty script means the database matches.\n- **Stale-while-refresh cache:** `CachePolicy.InvalidateOnWrite = false` keeps a result through writes to its tables and reloads it at the next refresh tick (CL.MySQL2 SmartCache pools behaved like this). `DataCache.RefreshAsync(tags)` reloads warm results in place and drops the rest. `WithCache` on `ProjectedQuery` and `GroupProjection` (after `Select`, also after `GroupBy(...).Select(...)`).\n- **Scoped raw SQL invalidation:** `ExecuteSqlAsync(sql, tables)` drops only the cached results reading those tables instead of the whole connection's.\n- **Whole-second time columns:** `[Column(Precision = 0)]` on a time type gives MySQL `DATETIME`, SQL Server `datetime2(0)`, PostgreSQL `timestamptz(0)`. `Precision` now defaults to `-1` (unset: the provider maximum for time types, 18 for decimals).\n- New package, part of the CL.Data database framework that replaces CL.MySQL2, CL.MSSQL, CL.PostgreSQL and\n  CL.SQLite in the CodeLogic 5 line. Targets .NET 11 and CodeLogic 5.\n- **Errors:** `DataErrors` holds every `data.*` error code, each always paired with the same error kind\n  (NotFound, Conflict, Timeout, Unavailable, Unauthorized, Validation, Internal). Messages never contain\n  parameter values or secrets.\n- **Events:** `DataEvent` is a closed event hierarchy (query executed, slow query, N+1, cache hit/miss, schema\n  synced and drift, migration, seed, retention, bulk copy, node health, circuit state). Each event carries the\n  connection, provider and node.\n- **Localization:** `DataStrings`, the localizable log messages (section `data`).\n- **Configuration:**\n  - `data` section (`DataConfig`): named connections (`DataConnectionConfig`) with provider, server, failover hosts,\n    TLS, pooling, naming policy, sync mode, performance, diagnostics, resilience and replica settings, plus typed\n    per-provider options (`MySql`, `PostgreSql`, `SqlServer`, `Sqlite`).\n  - `data.cache` section (`DataCacheConfig`).\n  - Validation reports field paths. Connection names stay case-insensitive after loading from JSON.\n- **Mapping attributes:**\n  - Entity and column attributes: `[Table]`, `[DataRow]`, `[Column]` (composite keys via `KeyOrder`), `[Ignore]`.\n  - Relationship and index attributes: `[ForeignKey]` and `[ForeignKey<TEntity>]`, `[Index]` (multi-column, direction,\n    included columns), `[CompositeIndex]`.\n  - Behavior attributes: `[SoftDelete]`, `[RetainDays]`, `[ConcurrencyToken]`, `[CreatedAt]`/`[UpdatedAt]`/`[CreatedBy]`/\n    `[UpdatedBy]` and `[TenantKey]`.\n  - Types: a provider-neutral `DataType` enum, plus provider hint attributes (`[MySqlTable]`/`[MySqlColumn]`,\n    `[PostgresTable]`/`[PostgresColumn]`, `[SqlServerTable]`/`[SqlServerColumn]`, `[SqliteTable]`/`[SqliteColumn]`).\n- **Metadata model:**\n  - `EntityMap` / `ColumnMap` / `KeyMap`: composite keys are first-class. Column roles: identity, soft delete,\n    concurrency token, audit, tenant, retention. Also indexes and foreign keys.\n  - Names are resolved per `NamingPolicy` (AsIs, SnakeCase, CamelCase) and cached.\n  - Invalid models report every problem at once.\n- **Entity keys:** `EntityKey` holds single and composite key values, normalized so `5` equals `5L`.\n- **Accessors:** `IEntityAccessor<T>` with an `EntityAccessorRegistry` for generated accessors.\n  - Types without generated mapping fall back to reflection (compiled delegates where dynamic code is available).\n  - The fallback can be switched off with `CLDataReflectionMapping=false`; Native AOT publishes switch it off by default.\n- **Value conversion:** `ValueReader<T>` / `ValueConversion` handle driver differences: integers as booleans or enums,\n  bytes or text as GUIDs, `DateTime` as `DateTimeOffset` (UTC), and double → decimal through round-trip text.\n- **Provider contract:**\n  - `DataProvider` with `ProviderCapabilities`, `ITypeMapper`, `IErrorClassifier`, connection-string building per\n    `NodeEndpoint` (the primary or a replica) and a `DbDataSource` per node.\n  - `DataProviderRegistry` checks the contract version of each provider.\n  - `SqlDialect` base with ANSI quoting, parameter names and LIKE escaping.\n- **Database and raw SQL:**\n  - `Database` (one per named connection) owns a pooled `DbDataSource` for the primary and each replica.\n  - Raw SQL with `SqlQueryAsync<T>`, `ExecuteSqlAsync`, `SqlScalarAsync<T>` and `PingAsync`. Raw SQL is written as\n    interpolated strings (`SqlText`): every hole becomes a typed parameter, and `Sql.Identifier(...)` holes become\n    quoted identifiers. Values never reach the SQL text.\n  - Failures and cancellation come back as `Result` errors, never exceptions.\n- **Data sources:** `InitializingDataSource` is a base for data sources that need per-connection setup.\n- **Command pipeline:** every command runs through one middleware chain (`ICommandMiddleware`, `CommandContext`,\n  allocation-free `CommandNext<T>`). Application `IDataInterceptor`s run outermost: they can rewrite the SQL,\n  refuse a command or observe its result. Caching, routing, resilience and telemetry plug into this chain.\n- **Value converters:** one conversion layer for every boundary (reading rows, entity writes, raw SQL parameters,\n  scalars).\n  - `ValueConverter<TModel, TStore>` with a global `ValueConverters` registry and per-column `[Column(Converter = ...)]`.\n  - Typed ids implement `IDataValue<TSelf, TStore>` (static abstract members, no reflection).\n  - `EnumToStringConverter<TEnum>` stores enums by name.\n  - `JsonValueConverter<T>` stores JSON columns through System.Text.Json source-gen metadata.\n- **Background jobs:** `DataScheduler` runs CL.Data's background work on CL.Common's `JobScheduler`, with one\n  clock (`TimeProvider`), no overlapping runs and failures reported per run. CL.Data now depends on CodeLogic.Common.\n- **SQL tree:** statements are closed record trees (`SqlExpr`, `SqlStatement`: select with joins, grouping,\n  HAVING, paging and locks; insert with RETURNING; update; limited delete; upsert).\n  - `SqlWriter` renders them through dialect hooks with exhaustive switches, adding only the parentheses that\n    precedence needs.\n  - Limits and offsets are parameters, so the SQL text does not change with their values.\n  - Literals accept only numbers and booleans.\n- **LINQ translation** (`SqlTranslator`, strict). Anything that touches a column must translate or fail with\n  `data.translation_failed`; values independent of the row are evaluated once and bound as parameters.\n  - **Null handling:** comparisons with null (including captured nulls) become `IS NULL`.\n  - **Booleans:** boolean columns used as conditions become `= TRUE`.\n  - **Strings:** `Contains`/`StartsWith`/`EndsWith` become escaped LIKE patterns.\n  - **Collections:** collection `Contains` becomes `IN`. This covers C# 14+ span-bound array calls, including the\n    three-argument `MemoryExtensions.Contains` that nullable and enum arrays bind to. Long lists are split, and a\n    null entry in the list matches NULL rows.\n  - **Converters:** compared values go through the column's converter (enums stored as text bind their names).\n  - **Functions:** arithmetic, string, math and date/time functions, plus `??` and `?:`.\n- **SQL functions:** `SqlFn` holds query functions that work in `Where` too, not only in projections and updates.\n  - Date parts, `BucketUtc`, `UtcNow`, `Coalesce`/`IfNull`, `Least`/`Greatest`, string functions, `Like`, and generic-math\n    `Round`/`Floor`/`Ceiling`/`Abs`.\n  - `SqlFn.Json.Value/Exists/Contains` and `SqlFn.FullText.Match` translate to neutral function nodes that each\n    provider renders.\n- **Dialect hooks:** conditions and boolean literals are rendered through dialect hooks (`RenderConditionLiteral`),\n  `SqlPredicates.IsPredicate` is public, and dialects declare when an upsert needs a transaction\n  (`UpsertRequiresTransaction`, `UpsertParameterMultiplier`).\n- **Unified write path:** `WritePlanner` plans every entity write (insert, update, soft/hard delete, delete by key,\n  upsert with overwrite, increments and ignore) in one place. It covers:\n  - audit columns, tenant stamping and checks, and optimistic concurrency (integer tokens bumped after success;\n    rowversion tokens returned);\n  - server-generated identity (`RETURNING`/`OUTPUT`, or last-insert-id);\n  - batching by the provider's parameter limit;\n  - cache tags (`table:` and `entity:`).\n- **Write context:** `IDataUserAccessor` and `IDataTenantAccessor` supply the current user and tenant.\n- **Repositories:** `db.Repository<T>()`.\n  - Writes: `InsertAsync`/`InsertManyAsync` write generated identities back, `UpdateAsync` (also for selected\n    properties), `DeleteAsync` (soft), `HardDeleteAsync`, `DeleteByIdAsync`/`DeleteByKeyAsync`.\n  - Reads: `GetByIdAsync`/`GetByKeyAsync` (composite keys), `GetAllAsync`, `FindAsync`, `CountAsync`, and\n    `GetPagedAsync`, which counts only when asked and always sets `HasMore`.\n  - Reads hide soft-deleted rows and other tenants' rows. A stale update fails with `data.concurrency`; a duplicate\n    unique value fails with `data.duplicate_key`.\n- **Write execution:** multi-statement upserts run in a serializable transaction. Generated values come from\n  RETURNING/OUTPUT, or from the provider's last-insert-id. When the provider's RETURNING does not keep insert order,\n  rows with generated keys are inserted one per statement.\n- **Upserts and counters:** `UpsertAsync`/`UpsertManyAsync` (conflict on the key, a unique index or chosen properties),\n  `UpsertWithIncrementsAsync`, `InsertIgnoreAsync` (`InsertOutcome.Inserted`/`Duplicate`) and `InsertManyIgnoreAsync`,\n  plus atomic `IncrementAsync`/`DecrementAsync`/`AdjustAsync` (generic math). Each update also writes the audit\n  columns and bumps the concurrency token.\n- **Query builder:** `db.Query<T>()` is immutable and translates its lambdas at the terminal call.\n  - Shaping: `Where`, `OrderBy`/`ThenBy` (and descending), `Take`/`Skip`, `Exclude`, `IncludeDeleted`.\n  - Subqueries: correlated `WhereExists`/`WhereNotExists`, and `WhereIn`/`WhereNotIn` (the inner entity's filters apply).\n  - Reads: `ToListAsync`, `FirstOrDefaultAsync`, `CountAsync`, `AnyAsync`, `Max`/`Min`/`Sum`/`AverageAsync`.\n    Aggregates over no rows return null, and sums return zero.\n  - Set-based writes: `UpdateAsync(x => new T { ... })` (values may use the row's columns; audit columns are written and\n    the token bumped) and `DeleteAsync` (soft unless `hard`).\n- **Paging and streaming:** `ToPagedListAsync` (offset paging, count only on request), `ToCursorPageAsync` and\n  `AsAsyncEnumerable`.\n  - Cursor paging is keyset paging: the order is completed with the key, so ties are broken and the cost does not grow\n    with depth. Cursors from a differently ordered query fail with `data.invalid_cursor`.\n  - Streams hold one connection while you enumerate. A failure mid-stream throws `DataQueryException`, the one place\n    CL.Data throws.\n- **Projections:** `Select` projects into scalars, anonymous types, records and DTOs.\n  - Projected values can be computed: arithmetic, string concatenation, comparisons, `?:` and `SqlFn` functions.\n  - `Distinct()` removes duplicate results.\n  - A projected column keeps its column converter, so enums stored as text come back as enums.\n  - Rows are built with the constructor and setters named in the expression (no extra reflection; Native AOT safe).\n- **Joins:** typed `Join`/`LeftJoin` over 2 to 5 tables, including self-joins and key-selector joins (composite keys\n  through anonymous types).\n  - Lambdas take one parameter per table.\n  - `Where`/`OrderBy`/`ThenBy`/`Take`/`Skip`, `Select` projections, `CountAsync`, and `ToListAsync` returning\n    entity tuples (null for an unmatched LEFT JOIN).\n  - Joined entities' soft-delete and tenant filters go into their ON clause.\n- **Grouping:** `GroupBy` takes a value, an anonymous type of columns, or a computed key.\n  - `Having`, `OrderBy`/`ThenBy` over aggregates, `Take`/`Skip`, and `Select` into any projection.\n  - Group lambdas receive `IDataGroup<TKey, T>`: `Key`, `Count`, `Count(predicate)`, `LongCount`, `CountDistinct`,\n    `Sum`, `Average`, `Min`, `Max`, `Any`.\n  - Sums of NULLs are zero, and integer averages are not truncated (SQL Server).\n- **Transactions:** `BeginTransactionAsync` returns a `DataTransaction` whose `Db`, `Repository` and `Query` run\n  inside it; disposing without commit rolls back. Also savepoints.\n  - `InTransactionAsync` commits on success, rolls back on failure or exception, and retries after deadlocks and lock\n    timeouts. Nested calls join the outer transaction.\n- **Locking reads:** `ForUpdate`/`ForShare` with `LockWait.NoWait`/`SkipLocked` need a transaction.\n- **`UpdateAndGetAsync`:** locks the matching keys, updates them and returns the updated rows (RETURNING where\n  available). With `OrderBy`/`Take`/`SkipLocked` it is a safe job-queue claim.\n- **Batches:** `db.Batch()` sends several queries in one round trip: `Add(query)`, `Count(query)`, `Sql<T>(...)`, then\n  `ExecuteAsync` and each result's `Value`.\n  - It uses `DbBatch` where the driver supports it, otherwise one multi-statement command with globally numbered\n    parameters.\n  - A planning error (such as a translation failure) runs nothing.\n- **Fixes found on MySQL:**\n  - Upserts qualify target columns (shared `QualifyColumns`), because the incoming-row alias has the same column names.\n  - Savepoints fall back to standard `SAVEPOINT` SQL when a driver has no savepoint API.\n- **Upsert fix (found on PostgreSQL):** `ON CONFLICT DO UPDATE` qualifies target columns, because PostgreSQL treats a\n  bare name as ambiguous with `EXCLUDED`.\n- **Grouping fix (found on SQL Server):** a condition used as a group key is grouped as a CASE value, because SQL\n  Server cannot group by a predicate.\n- **Breaking:** `SqlServerAuthentication.EntraPassword` was removed (deprecated by Microsoft).\n\n---\n\nRelease notes truncated to fit NuGet's 35 000 character limit. The complete changelog ships inside this package as CHANGELOG.md.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#repository",
+    "commit": "8f1045eb3651430c3842f6b6b739c34734ceb6fe",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "5.0.119-preview+8f1045e",
+  "version": "5.0.119-preview+8f1045e",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#dependencygroup/net11.0/codelogic.common",
+          "@type": "PackageDependency",
+          "id": "CodeLogic.Common",
+          "range": "[5.0.119-preview, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#dependencygroup/net11.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[5.0.35-preview, 6.0.0)"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#analyzers/dotnet/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "analyzers/dotnet/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#analyzers/dotnet/cs/CL.Data.Generator.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27311,
+      "fullName": "analyzers/dotnet/cs/CL.Data.Generator.dll",
+      "length": 67072,
+      "name": "CL.Data.Generator.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#buildTransitive/CodeLogic.Data.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 401,
+      "fullName": "buildTransitive/CodeLogic.Data.targets",
+      "length": 794,
+      "name": "CodeLogic.Data.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#lib/net11.0/CL.Data.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 400652,
+      "fullName": "lib/net11.0/CL.Data.dll",
+      "length": 1082880,
+      "name": "CL.Data.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#lib/net11.0/CL.Data.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 88076,
+      "fullName": "lib/net11.0/CL.Data.xml",
+      "length": 572045,
+      "name": "CL.Data.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 20468,
+      "fullName": "CHANGELOG.md",
+      "length": 52663,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#CodeLogic.Data.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 12936,
+      "fullName": "CodeLogic.Data.nuspec",
+      "length": 31521,
+      "name": "CodeLogic.Data.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1452,
+      "fullName": "README.md",
+      "length": 2799,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.08.23.08.06/codelogic.data.5.0.119-preview.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "database",
+    "orm",
+    "sql",
+    "mysql",
+    "postgresql",
+    "sqlserver",
+    "sqlite",
+    "linq",
+    "repository",
+    "codelogic"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

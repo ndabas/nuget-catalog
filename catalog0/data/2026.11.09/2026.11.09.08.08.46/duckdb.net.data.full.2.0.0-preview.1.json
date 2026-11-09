@@ -1,0 +1,213 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Giorgi Dalakishvili",
+  "catalog:commitId": "d2439bac-5ae9-49bd-abe1-86b271424f45",
+  "catalog:commitTimeStamp": "2026-11-09T08:08:46.6603823Z",
+  "copyright": "Copyright © 2020 - 2026 Giorgi Dalakishvili",
+  "created": "2026-11-09T08:05:44.497Z",
+  "description": "DuckDB ADO.NET Provider for C#.",
+  "iconFile": "Logo.jpg",
+  "id": "DuckDB.NET.Data.Full",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-09T08:08:30.903Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "8ecfwTHFbnxdvOwKB2fAGqYR3ke1BsBiabLsDHnL2BnLEFZyu28X9eKxbvIQR87tSaNpORC917XhaPmoSbqZgQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 331834,
+  "projectUrl": "https://github.com/Giorgi/DuckDB.NET",
+  "published": "2026-11-09T08:05:44.497Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "- Updated to DuckDB v2.0.0\n\nBreaking changes:\n- DuckDB.NET.Data 2.0 needs DuckDB.NET.Bindings 2.0: upgrade both packages together\n- HUGEINT and UHUGEINT are read as Int128 and UInt128 by default (GetValue, ExecuteScalar, GetFieldType, the schema tables, DataTable and values nested in lists, maps and structs), instead of BigInteger. sum() of an integer column is a HUGEINT, so (BigInteger)command.ExecuteScalar() after a SUM throws: cast to Int128, or read it with GetFieldValue<BigInteger>. VARINT stays BigInteger. A DataTable with such a column is written by WriteXml but not read back by ReadXml unless Int128 and UInt128 are added to the DataSet type allow-list\n- IDuckDBAppenderRow has new members AppendValue(Int128?), AppendValue(UInt128?), AppendValue(DateOnly?) and AppendValue(TimeOnly?): a class that implements the interface must add them. With C# 12 (the default for net8.0 projects) an integer constant passed to AppendValue is ambiguous; give it the type of its column, for example (int?)1\n- DuckDBDateOnly and DuckDBTimeOnly convert to DateOnly and TimeOnly only explicitly. dateOnly.Equals(duckDBDateOnly) now returns false and dateOnly.CompareTo(duckDBDateOnly) throws: cast the DuckDB value first. Assignments and comparisons that relied on the implicit conversion need a cast, and assemblies built against 1.x that call it need a rebuild\n- A typed scalar function with no nullable parameter returns NULL for a NULL argument without being called, for a column as for a constant. In projects without nullable reference types this includes string and object parameters, which were called with null: declare the parameter string? or mark it [AllowNull] to be called. A function closed over string? in a generic method is treated as not nullable\n- A FLOAT, DOUBLE or DECIMAL value with a fractional part, read as an integer type, throws InvalidCastException instead of being rounded: cast in SQL (x::INTEGER) or read it as double or decimal and round\n- A list item, map key or value or struct field read as a type it cannot be read as throws InvalidCastException instead of ArgumentException or OverflowException. Reads that the column allowed and these paths refused now give the value: an integer as BigInteger, a HUGEINT, UHUGEINT or VARINT as a smaller integer type when it fits, an ENUM as any integer type\n- A STRUCT read into a C# struct gives the values of its fields; under JIT every property was left at its default\n- A BLOB read with GetValue, ExecuteScalar, GetProviderSpecificValue or as object is a byte[] instead of a Stream, and GetFieldType and the schema tables report byte[]. GetStream and GetFieldValue<Stream> still return a stream. The stream pointed into the reader's memory, so one returned by ExecuteScalar read freed memory\n- A DECIMAL of more than 18 digits that fits a decimal keeps the scale of its column: 1.5 from a DECIMAL(38,4) reads as 1.5000, as it does from a DECIMAL(18,4). Equality and arithmetic are unchanged; ToString and serialization show the trailing zeros\n- A string with NUL characters is stored in full by the appender, the mapped appender, the results of scalar and table functions, and parameters; it was cut at the first NUL\n- A BigInteger appended to a column other than HUGEINT or UHUGEINT throws InvalidOperationException, as an Int128 does; its 16 bytes overwrote neighbouring values\n- A table function parameter read with GetValue<T> as a type other than its own, object, a nullable or an interface of it throws InvalidCastException; the bytes were reinterpreted as T\n- An Int128 or UInt128 parameter is sent as a HUGEINT or UHUGEINT value instead of text, with DbType VarNumeric\n- A DateTime appended to a TIME column stores its time of day; it stored the microseconds of the whole timestamp, more than a day\n- A TimeOnly or DuckDBTimeOnly written to a DATE, TIMETZ or timestamp column, and a DateOnly or DuckDBDateOnly written to a TIME column, by the appender or a table function, throw InvalidOperationException instead of storing the bytes of the other type\n- A DATE, TIMESTAMP, TIME, TIMETZ or INTERVAL value read into an object property of a class or struct, or with GetValue<object> in a function, is a DateOnly, DateTime, TimeOnly, DateTimeOffset or TimeSpan, the column's own .NET type, instead of the DuckDB struct. Numbers, HUGEINT, ENUM, STRUCT, LIST and MAP values read into object follow the same rule; they threw or gave an empty object\n- A class derived from Dictionary<string, object> is refused as a MAP target, as Dictionary<string, object> already was\n- ExecuteNonQuery and RecordsAffected return -1 for statements other than INSERT, UPDATE, DELETE, MERGE and COPY, and the reader counts the rows of these statements (#374)\n- DbCommand.CommandType defaults to Text and DbParameter.Direction to Input; both started at 0, which is not a valid value (#372)\n- GetOrdinal falls back to a case-insensitive search, and throws IndexOutOfRangeException for a missing column (#375)\n- Prepare() requires an open connection (#378)\n- Unsupported savepoint operations fail the same way on every method (#380)\n\nNew features:\n- Int128 and UInt128 (#370): read HUGEINT and UHUGEINT as Int128 and UInt128, and every other integer column, VARINT, a whole DECIMAL and ENUM when the value fits; append them with AppendValue and the mapped appender; use them as scalar and table function types; Int128 and UInt128 parameters are sent as HUGEINT and UHUGEINT values\n- DuckDBCommand.Prepare() prepares the statement once and keeps it on the connection, shared by commands with the same text, until the connection closes; later executions only bind and execute. A command of several statements is not prepared. After a schema change that alters a parameter's type, call Prepare() again\n- TIME_NS columns can be read and written as TimeOnly, TimeSpan, DateTime and DuckDBTimeOnly, in columns, lists, maps, structs and DuckDBValue (#386, #387)\n- Typed reads of LIST, MAP and STRUCT columns: a List<T> of any element type, a Dictionary<TKey, TValue> and a class or struct are filled without boxing, and lists and dictionaries are created at their size. Classes derived from List<T> or Dictionary<TKey, TValue>, generic or not, are read through their base. The common element, key and value types also work under Native AOT, where lists of most element types threw MissingMethodException\n- [AllowNull] on a scalar function parameter makes it nullable, as string? and [MaybeNull] do\n- GetFieldValue<byte[]> reads a BLOB, also as a list item, map value or struct field (#384)\n- GetBytes and GetChars read part of a BLOB or a string into a buffer, and return the length for a null buffer (#377)\n- GetSchema(\"DataTypes\") and the ADO.NET metadata collections describe DuckDB's types (#364)\n- GetValues copies only as many values as the array holds (#376), and Close() can be called more than once (#373)\n\nThanks to Alaric Dailey (@alaricd) for his pull requests that brought DuckDB.NET's ADO.NET behaviour in line with the documented contracts, and to Michał Rusinek (@Mr444-dev) for TIME_NS support.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#repository",
+    "branch": "refs/heads/develop",
+    "commit": "4df9b32e1f715b3f98ce7f9ca0a6a168e4e3c79f",
+    "type": "git",
+    "url": "https://github.com/Giorgi/DuckDB.NET"
+  },
+  "verbatimVersion": "2.0.0-preview.1",
+  "version": "2.0.0-preview.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#dependencygroup/net10.0/duckdb.net.bindings.full",
+          "@type": "PackageDependency",
+          "id": "DuckDB.NET.Bindings.Full",
+          "range": "[2.0.0-preview.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#dependencygroup/net10.0/apache.arrow",
+          "@type": "PackageDependency",
+          "id": "Apache.Arrow",
+          "range": "[23.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#dependencygroup/net8.0/duckdb.net.bindings.full",
+          "@type": "PackageDependency",
+          "id": "DuckDB.NET.Bindings.Full",
+          "range": "[2.0.0-preview.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#dependencygroup/net8.0/apache.arrow",
+          "@type": "PackageDependency",
+          "id": "Apache.Arrow",
+          "range": "[23.0.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#DuckDB.NET.Data.Full.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3607,
+      "fullName": "DuckDB.NET.Data.Full.nuspec",
+      "length": 8526,
+      "name": "DuckDB.NET.Data.Full.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#LICENSE-DuckDB.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 631,
+      "fullName": "LICENSE-DuckDB.txt",
+      "length": 1072,
+      "name": "LICENSE-DuckDB.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 643,
+      "fullName": "LICENSE.md",
+      "length": 1076,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#Logo.jpg",
+      "@type": "PackageEntry",
+      "compressedLength": 8379,
+      "fullName": "Logo.jpg",
+      "length": 9462,
+      "name": "Logo.jpg"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1719,
+      "fullName": "README.md",
+      "length": 4741,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#lib/net10.0/DuckDB.NET.Data.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 106433,
+      "fullName": "lib/net10.0/DuckDB.NET.Data.dll",
+      "length": 244736,
+      "name": "DuckDB.NET.Data.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#lib/net10.0/DuckDB.NET.Data.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 44174,
+      "fullName": "lib/net10.0/DuckDB.NET.Data.pdb",
+      "length": 86616,
+      "name": "DuckDB.NET.Data.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#lib/net8.0/DuckDB.NET.Data.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 106684,
+      "fullName": "lib/net8.0/DuckDB.NET.Data.dll",
+      "length": 245248,
+      "name": "DuckDB.NET.Data.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#lib/net8.0/DuckDB.NET.Data.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 44081,
+      "fullName": "lib/net8.0/DuckDB.NET.Data.pdb",
+      "length": 86428,
+      "name": "DuckDB.NET.Data.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.08.08.46/duckdb.net.data.full.2.0.0-preview.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12981,
+      "fullName": ".signature.p7s",
+      "length": 12981,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "DuckDB",
+    "ADO.NET",
+    "Database",
+    "Olap",
+    "Embedded"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

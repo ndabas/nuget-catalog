@@ -1,0 +1,203 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Valtuutus",
+  "catalog:commitId": "a126e729-1ff4-4e4b-825e-1d4599c6866d",
+  "catalog:commitTimeStamp": "2026-11-09T18:42:54.7617987Z",
+  "copyright": "© Copyright Valtuutus 2026",
+  "created": "2026-11-09T18:38:53.743Z",
+  "description": "Valtuutus relational db data abstractions; Valtuutus is a high-performance Relationship-Based Access Control (ReBAC) authorization library for .NET inspired by Google Zanzibar, for fine-grained permissions in ASP.NET Core and .NET applications.",
+  "id": "Valtuutus.Data.Db",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-09T18:42:36.84Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "r1KZdSoWLVr72sRPGYGOxJfaBa/WORF9fgjsE8FJIcXCIvMT0J5/3PB7hDIs5SzvxCTVGQvvAGRvICopdQbcpg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 121249,
+  "projectUrl": "https://github.com/valtuutus/valtuutus",
+  "published": "2026-11-09T18:38:53.743Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## Summary\n\nValtuutus 3.0 makes snap tokens safe against out-of-order commits. A request without a snap token now reads at a **settled** token: one no write can still commit under. So an answer read at a token, cached or not, never changes afterwards. This needs a new table on Postgres, SQL Server and MySQL/MariaDB.\n\n3.0 also lets relations point at entities of different types, aligns arrow validation with how arrows are evaluated, and simplifies the caching, Weasel and provider option APIs.\n\n## Before you upgrade: apply the new migration\n\nPostgres, SQL Server, MySQL and MariaDB need the  table. Until it exists, writes and requests without a snap token fail.\n\n- **Scripts:** run  for your provider:\n  - [Postgres](src/Valtuutus.Data.Postgres/Database/migrations/20261109120000_transactions_pending.sql)\n  - [SQL Server](src/Valtuutus.Data.SqlServer/Database/migrations/20261109120000_transactions_pending.sql)\n  - [MySQL/MariaDB](src/Valtuutus.Data.MySql/Database/migrations/20261109120000_transactions_pending.sql)\n- **Custom schema or table names:** the table is named after your transactions table (), in the same schema. Edit the script to match.\n- **Weasel packages:** create it on the next apply; nothing to do.\n- **InMemory:** needs nothing.\n\n## Breaking changes\n\n- **Arrows are validated on the entity each tuple points at (#384).**\n  - An arrow () evaluates its member on the entity a tuple names. For a userset target  that is the group itself, not the group's members. Every engine already did this, as SpiceDB and Permify do.\n  - The schema check validated the member on the type the userset resolves to instead. A schema could pass while that arrow path never granted.\n  - Now the member must exist on every entity the relation names directly, and the error says how to fix it: define the member on that entity (e.g. ) or remove the userset target.\n  - Every known schema we checked parses unchanged.\n- ** and  are removed (#385).**\n  - With settled tokens an answer cached at a token can't go stale, so shortening how long recent answers are cached only cost hits.\n  - Results are now cached for . Delete lines that set either option.\n  - A custom  used with caching must return settled tokens from  (see ).\n- ** moved to the  namespace (#386).**\n  - One method now serves every Weasel package and runs every registered applier, so referencing two Weasel packages no longer makes the call ambiguous.\n  - Add  where you call it.  is now public there.\n- **Provider schema and table names are  properties (#387).**\n  - The four-name constructors of ,  and  are gone.\n  - Set only the names you change: , or . Blank names are still refused.\n\n## Features\n\n- **Settled snap tokens (#376 Postgres, #377 MySQL/MariaDB, #378 SQL Server, #380 InMemory).**\n  - The problem: a write takes its id before it commits. When a write with an older id committed after a newer one, its rows landed inside a snapshot requests had already read. An answer cached at that token went stale, and a late revoke could keep answering allowed.\n  - How it's fixed:\n    - writes now register while in flight;\n    - a request without a token reads at the newest committed id below every open write;\n    - a write whose id isn't above the newest committed one (e.g. from a node whose clock is behind) takes a new id above it ().\n  - Stress run: 20 s, 16 writers in caller transactions toggling the same tuples, 8 readers rechecking every answer at its token afterwards.\n\n    | provider | answers that changed, 2.4 | 3.0 |\n    |---|---|---|\n    | Postgres | 62,102 of 378,627 | 0 of 181,561 |\n    | SQL Server (RCSI) | 235,437 of 522,894 | 0 of 412,104 |\n    | MySQL 8.4 | 117,352 of 366,589 | 0 of 317,551 |\n    | MariaDB 10.11 | 127,403 of 402,123 | 0 of 356,320 |\n  - Costs:\n    - **Write latency:** a single write takes about 0.15 ms longer on Postgres.\n    - **Check latency under heavy write load:** checks without a token are slower. p50 under 16 writers: Postgres 0.16 → 0.20 ms, MySQL 0.35 → 0.49 ms.\n    - **Check latency without writers:** within a few microseconds of 2.4.\n    - **Long transactions:** a long transaction you own holds settled tokens back until it commits. Requests carrying a token, such as the one  returned, are unaffected.\n  - On SQL Server, a request without a token no longer waits for open writes, with or without . Data reads touching rows an open write changed still wait without RCSI; the README recommends turning it on.\n  - InMemory (#380): requests in another scope now see writes made elsewhere, and concurrent writes apply in id order.\n- **The cache only stores final answers (#379).**\n  - After a write, the cache's latest token moves to the provider's latest settled token, not the written one.\n  - A request carrying a token newer than the latest token the cache knows is answered without the cache, until that token settles.\n- **Relations whose targets are of different types (#382).**\n  -  is now accepted.\n  - Each subject is evaluated as its own type.\n  - An arrow over such a relation needs the member on every target type. It compiles to one batched query per target type where possible.\n- **Native AOT smoke test in CI (#383).** A Native AOT app is published with warnings as errors and run against InMemory, Postgres, MySQL and SQL Server on every build, so an AOT regression fails CI.\n\n## Fixes\n\n- **MySQL/MariaDB: resolving the latest token no longer takes row locks (#375).** It was a locking read, so it waited for every open write and deadlocked with writers under load. Stress run: 49,742 deadlocks on MySQL, 4,113 on MariaDB. It is now a consistent read.\n- **MySQL: deletes no longer deadlock under concurrent writes (#381).**\n  - With mostly tombstoned tuples, MySQL planned the delete as a table scan that locked every row. An optimizer hint now makes it seek the index the filter leads with: 0 deadlocks in the same stress run, against 82–139.\n  - MariaDB can still deadlock on deletes in your own transaction under . Use  there, or retry (README).\n\n## Pull requests\n\n- #375 fix(mysql): resolve the latest snap token with a consistent read\n- #376 feat(postgres): resolve only settled snap tokens\n- #377 feat(mysql): resolve only settled snap tokens\n- #378 feat(sqlserver): resolve only settled snap tokens\n- #379 feat(caching): cache only answers at settled tokens\n- #380 fix(inmemory): share the latest token across scopes and write in id order\n- #381 fix(mysql): delete relations through the index the filter leads with\n- #382 feat(lang): relations whose targets are of different entity types\n- #383 ci: publish and run a Native AOT smoke app\n- #384 feat(lang)!: validate an arrow's member on each entity the relation names\n- #385 feat(caching)!: retire the settle window\n- #386 feat(weasel)!: one ApplyValtuutusSchemaAsync for every provider\n- #387 feat(db)!: set provider schema and table names with init properties\n- #388 test(inmemory): bound the executor drain waits by 30 s\n- #374 Build(deps): Bump EnricoMi/publish-unit-test-result-action",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#repository",
+    "commit": "48d198a95fc39eaea4458cd4c05f4eb7198b6033",
+    "type": "git",
+    "url": "https://github.com/valtuutus/valtuutus"
+  },
+  "verbatimVersion": "3.0.0",
+  "version": "3.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net10.0/valtuutus.data",
+          "@type": "PackageDependency",
+          "id": "Valtuutus.Data",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net10.0/microsoft.extensions.objectpool",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ObjectPool",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net11.0/valtuutus.data",
+          "@type": "PackageDependency",
+          "id": "Valtuutus.Data",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net11.0/microsoft.extensions.objectpool",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ObjectPool",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net9.0/valtuutus.data",
+          "@type": "PackageDependency",
+          "id": "Valtuutus.Data",
+          "range": "[3.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#dependencygroup/net9.0/microsoft.extensions.objectpool",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.ObjectPool",
+          "range": "[9.0.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#Valtuutus.Data.Db.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3599,
+      "fullName": "Valtuutus.Data.Db.nuspec",
+      "length": 8841,
+      "name": "Valtuutus.Data.Db.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5813,
+      "fullName": "README.md",
+      "length": 16501,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#lib/net10.0/Valtuutus.Data.Db.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34617,
+      "fullName": "lib/net10.0/Valtuutus.Data.Db.dll",
+      "length": 82944,
+      "name": "Valtuutus.Data.Db.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#lib/net11.0/Valtuutus.Data.Db.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27457,
+      "fullName": "lib/net11.0/Valtuutus.Data.Db.dll",
+      "length": 64000,
+      "name": "Valtuutus.Data.Db.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#lib/net9.0/Valtuutus.Data.Db.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34604,
+      "fullName": "lib/net9.0/Valtuutus.Data.Db.dll",
+      "length": 82944,
+      "name": "Valtuutus.Data.Db.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.09.18.42.54/valtuutus.data.db.3.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Valtuutus",
+    "rebac",
+    "zanzibar",
+    "authorization",
+    "access-control",
+    "permissions",
+    "dotnet",
+    "aspnetcore",
+    "fine-grained-authorization",
+    "db"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jason Wood",
+  "catalog:commitId": "0d8954fa-1e14-4b16-b9ee-ba551ce45042",
+  "catalog:commitTimeStamp": "2026-11-10T01:41:24.4621238Z",
+  "created": "2026-11-10T01:37:15.107Z",
+  "description": "Plug your old PCs back in and give them work. lanq sends builds, tests and coding-agent jobs to spare machines on your LAN over key-only SSH, with allowlisted commands and per-job git worktrees.",
+  "iconFile": "icon.png",
+  "id": "LanQueue",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-10T01:41:16.52Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "Lg4GUoh5ya/F9z9gMVnVEJMaNsV2q1vDx6ulHgTBiDJ13xF1p9jOK5AY6PlEMoRfTQYSudDz0nJsjZ3UTGGWRg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 817497,
+  "projectUrl": "https://github.com/jangolath/lanqueue",
+  "published": "2026-11-10T01:37:15.107Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "### Agents and scripts\n\n- `nextSteps` in every `--json` object: each run, dry run, `lanq health` row, init, wake, `makeready --all` and `--add`\n  object and every error object. Each step is `{action, reason, command?, argv?, safeToRunUnattended}`. `action` is\n  one of `proceed`, `retry`, `wait`, `fix_code`, `fix_command`, `ask_developer`, `run_doctor`, `run_health`, `none`\n  (treat an unknown one as `ask_developer`). `argv` is authoritative; `command` is the same as one line for bash and\n  PowerShell when that is safe. A suggestion never does more than the command it follows and is never `unlock`,\n  `init`, `wake`, `--force`, `--yes` or `--add`. The single `lanq makeready <machine> --json` report is unchanged and\n  has none.\n- `retryable` and `excluded` on `NoCapacity` (exit 75): `retryable` is false when no machine can ever take the job as\n  configured; `excluded` lists each machine with a `reason` code (`missing_capability`, `busy`, ...), `why` and\n  `permanent`.\n- `lanq run --dry-run`: what `lanq run` would do now (the same checks, snapshot scan, probe and choice: the machine,\n  every excluded machine and why, `--shards` N and placement, the machine it would wake) without claiming a slot,\n  sending, logging or waking anything. Exit 0 would start, 75 no machine now, 2 refused. `--json` prints one object\n  with status `WouldRun`.\n- `lanq health --needs a,b [--mem N]`: judges every machine for such a job as `lanq run` does\n  (`-> eligible (2 slots)` or `-> not eligible: lacks gpu ...`); JSON rows add `eligible`, `why`, `reason`,\n  `permanent` and `jobSlots`. Exit 0 when a machine is eligible, 75 when none is.\n- `logPath` in every `lanq run --json` object (the job's local log; null when no job started) and `--log-tail N`\n  (1 to 200, `--json` only) for its last N lines as `logTail`. Agents no longer need to redirect stderr to a file.\n- A run cancelled with Ctrl+C after its job started now reports that job's `logPath`.\n\n### Adding a machine\n\nEvery write is local; lanq still never changes a worker.\n\n- `lanq makeready --ssh user@host --os windows|linux --setup` prints the PC's full one-time setup and connects to\n  nothing: the build user, your public key in its `authorized_keys` (Windows: every grant by SID), the work folder\n  (`C:/lq`, `/srv/lq`), firewall scoping, the host key fingerprint check, the first connection, then password logins\n  off. Only `.pub` files are read.\n- `lanq makeready --ssh user@host --os X --add --name NAME [--yes]` scans the PC and adds it to `machines.yml` only when\n  it is READY: as text after the last machine, every other byte kept, checked before an atomic replace, never through\n  a link. It asks first (`--yes` without a terminal and with `--json`), then probes the new machine once.\n- `--key-env VAR` with `lanq makeready --ssh`: scan with that key and write `key_env: VAR` into the entry.\n- `lanq makeready --ssh` that fails because the key was refused or the host key is unknown now suggests `--setup`.\n- `lanq init`'s next steps now show `--setup`, then `--add --name`, then deleting `example-01`.\n\n### Behaviour changes\n\n- Fail fast on exit 75: when no machine can ever take the job (none has every `--needs` capability, `--mem` above\n  every machine's RAM, git or tar missing, ...), `lanq run` ends at once with `retryable: false` instead of waiting\n  out `--wait`, and never wakes a machine. The message starts `No eligible machine, and no machine can ever take this\n  job as configured (waiting will not help).` The exit code is still 75.\n- The `NoCapacity` message gives the reason waiting cannot cure first: a machine that is down and lacks a capability\n  says `lacks gpu (...)` instead of its ssh error.\n- `Next: ...` lines on stderr for people (`[lanq] Next: ...` in `lanq run`), before the `[lanq] log: <path>` line and\n  the final `[lanq] <Status>: ...` line, which stays last. stdout is unchanged in text mode.\n- `lanq health --json` rows gain `nextSteps`; nothing else in a plain `health` row changes.\n- `lanq init`'s starter `machines.yml` uses `work_root: /srv/lq` (and `C:/lq` in its Windows example), the same\n  folder `makeready` and `--setup` suggest.\n\n### Releases\n\n- Release notes from CHANGELOG.md now appear on nuget.org and on the GitHub release.\n\n### Docs\n\n- New: https://github.com/jangolath/lanqueue/blob/main/docs/JSON.md (the `--json` contract: every field, status,\n  reason code and the `nextSteps` rules), a tool-agnostic https://github.com/jangolath/lanqueue/blob/main/AGENTS.md,\n  https://github.com/jangolath/lanqueue/blob/main/llms.txt and\n  https://github.com/jangolath/lanqueue/blob/main/docs/AGENTS-GUIDE.md with snippets for agent instruction files.\n- Agent docs use `--log-tail` and `logPath`, a dry run before heavy work, `retryable`, and only `nextSteps` that are\n  safe unattended.\n- https://github.com/jangolath/lanqueue/blob/main/docs/TEAM-QUICKSTART.md follows `--setup` and `--add`, uses\n  `C:\\lq` and `/srv/lq`, grants by SID, cuts the work folder's inherited ACL, turns off keyboard-interactive logins on\n  Linux and explains when a ufw LAN rule does nothing.\n\nFull changelog: https://github.com/jangolath/lanqueue/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#repository",
+    "commit": "fd805627fdb8360c5a2f0b162a37b920434e8e99",
+    "type": "git",
+    "url": "https://github.com/jangolath/lanqueue"
+  },
+  "verbatimVersion": "0.6.0",
+  "version": "0.6.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#LanQueue.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2890,
+      "fullName": "LanQueue.nuspec",
+      "length": 6220,
+      "name": "LanQueue.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3490,
+      "fullName": "PACKAGE.md",
+      "length": 7318,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26568,
+      "fullName": "icon.png",
+      "length": 26558,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 179,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#tools/net10.0/any/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121764,
+      "fullName": "tools/net10.0/any/YamlDotNet.dll",
+      "length": 300032,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#tools/net10.0/any/lanq.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 417,
+      "fullName": "tools/net10.0/any/lanq.deps.json",
+      "length": 945,
+      "name": "lanq.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#tools/net10.0/any/lanq.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 405130,
+      "fullName": "tools/net10.0/any/lanq.dll",
+      "length": 1277440,
+      "name": "lanq.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#tools/net10.0/any/lanq.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 241194,
+      "fullName": "tools/net10.0/any/lanq.pdb",
+      "length": 370932,
+      "name": "lanq.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#tools/net10.0/any/lanq.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 245,
+      "fullName": "tools/net10.0/any/lanq.runtimeconfig.json",
+      "length": 435,
+      "name": "lanq.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.01.41.24/lanqueue.0.6.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "dotnet-tool",
+    "ssh",
+    "build",
+    "ci",
+    "lan",
+    "distributed",
+    "homelab",
+    "ai-agents",
+    "claude-code",
+    "test-runner"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

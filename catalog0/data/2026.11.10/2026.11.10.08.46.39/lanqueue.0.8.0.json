@@ -1,0 +1,183 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jason Wood",
+  "catalog:commitId": "fa88e6ac-f100-4aba-86a6-a1e4b28b6ef4",
+  "catalog:commitTimeStamp": "2026-11-10T08:46:39.4408618Z",
+  "created": "2026-11-10T08:25:30.003Z",
+  "description": "Plug your old PCs back in and give them work. lanq sends builds, tests and coding-agent jobs to spare machines on your LAN over key-only SSH, with allowlisted commands and per-job git worktrees.",
+  "iconFile": "icon.png",
+  "id": "LanQueue",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-10T08:46:26.347Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "tJSjbReIiKdIv7El43iHr7heH9Jii6OmtbeuSJFuRrqHOPCV5BQAKat34UlByU6eAioMD67NukZsvJjfHkWZ+A==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1037058,
+  "projectUrl": "https://github.com/jangolath/lanqueue",
+  "published": "2026-11-10T08:25:30.003Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "### Routing\n\n- `--min-size light|medium|heavy` (that class or larger) and `--size C[,C]` (one of these classes) on `lanq run`\n  (single, `--shards`, `--dry-run`) and `lanq health`. They do not go together. A machine's size is its `size:` in\n  `machines.yml` when it has one, else the probed class (under 6 GB light; 16 GB or more with 4 cores heavy; else\n  medium).\n- Optional machine key `size: light|medium|heavy`: declare a 16 GB laptop `medium` to keep heavy jobs off it, or a\n  machine whose memory cannot be probed. Without it nothing changes.\n- New permanent reason codes `wrong_size` (the machine's size does not match) and `size_unknown` (no declared size and\n  no reported memory). A declared size is judged from the config alone, so a job no machine can ever take for its\n  size ends at once with 75 and `retryable: false`, before any ssh.\n- `--on m[,m]` on `lanq run` (also `--shards`, `--dry-run`) and `lanq health`: only these machines, matched ignoring\n  case; an unknown name is refused (exit 2) before any network. It only narrows: capabilities, size, `--mem`, holds,\n  allowed hours, slots and wake rules all still apply. A pinned machine that is busy or held is `NoCapacity`\n  (`retryable: true`, waits out `--wait`); one that can never take the job ends at once (`retryable: false`).\n  Suggested next steps keep `--on`, `--size` and `--min-size` and never drop them.\n\n### Plan files\n\n- `lanq run --plan` runs the jobs of `lanq.yml` at the repository top (`--plan-file PATH` for another file):\n  `version: 1`, optional `defaults:`, and up to 32 `jobs:`, each one `lanq run` line (`command`, `dir`, `needs`,\n  `mem`, `size` or `min_size`, `on`, `timeout`, `shards`, `target_minutes`, `shard_retries`, `fail_fast`, `fetch`)\n  plus `after:` to order them. Jobs run side by side on one snapshot of the repository and give one result.\n- Every job is checked as its own `lanq run` line before anything is sent (allowlist, allowed directories, flags,\n  command-line and payload secret scans, the Windows rule): one refusal refuses the plan (2), and a job no machine can\n  ever take ends it with 75 before the snapshot.\n- A job whose `after:` job did not complete is `Skipped`. Others keep running unless `--fail-fast` (running jobs are\n  cancelled and cleaned up, the rest skipped). `--wait` counts only while no job of the plan holds a slot.\n- `--only a,b` runs only those jobs; `--dry-run` prints each job's equivalent `lanq run` line and what it would do now\n  (`WouldRun`, `WouldWait`, `Pending`, `NoCapacity`), sending nothing; `--json` prints one object with a `jobs` array.\n  Exit 0 only when every job completed, else the first failed job's own code, then 2, 124, 70, 75, 130.\n- `lanq.yml` has no keys for hosts, ssh, keys, env, paths, wake, priority or policy: unknown keys are refused with the\n  line and a did-you-mean, and machine settings are pointed back to `machines.yml`. YAML anchors, aliases and merge\n  keys are refused (share values with `defaults:`). A job can do nothing its `lanq run` line could not.\n- Guide: https://github.com/jangolath/lanqueue/blob/main/docs/PLANS.md\n\n### Windows workers\n\n- `&` and `|` in arguments are allowed when the program is a native `.exe` (`dotnet test --filter \"A|B\"`): a bare name\n  or a path with no extension or `.exe`, not `cmd` or a package-manager shim (`npm`, `npx`, `pnpm`, `yarn`,\n  `corepack`). The worker checks again before starting anything: when the name resolves there (with `path_prepend:`)\n  to anything but an `.exe`, nothing runs and the job is `Rejected` (2) naming what it found. `\"` `<` `>` `^` `%` stay\n  refused for every program.\n- Workers whose build account is denied WMI/CIM now work: memory falls back to .NET (`GlobalMemoryStatusEx`), load to\n  two `GetSystemTimes` samples, and with no source at all `lanq health` shows `load ?` and load never holds the\n  machine. Each job runs in a Windows job object, so a timeout, Ctrl+C, a stale slot or cleanup ends the whole process\n  tree without WMI (`taskkill` stays the fallback).\n- `lanq doctor --remote` shows a `wmi` WARN for such a worker, with what the owner could grant.\n\n### Setup\n\n- `lanq init` without `--config` writes the per-user config file lanq reads without flags\n  (`%APPDATA%\\lanq\\machines.yml`, `~/.config/lanq/machines.yml`), creating the folder; never the current folder.\n- When the `dotnet` check fails (`dotnet --version` now needs an SDK: a runtime-only install counts as missing),\n  `lanq doctor --remote` searches the worker's usual and private install folders (read-only, about five seconds) and\n  names the `path_prepend:` and `DOTNET_ROOT` lines to add; `lanq makeready --add` proposes them in the entry it shows.\n  lanq still never edits a config or a worker's `PATH` by itself.\n\n### Behaviour changes\n\n- `lanq health --json`: `size` is the effective size (the machine's `size:` when set, else the probe), and every row\n  gains `sizeSource` (`probe` or `config`) and `loadKnown` (`false` when the worker could not measure its load). The\n  text line changes only for a machine with `size:` (`(size: medium in machines.yml; probe: heavy)`).\n- `jobs.jsonl` lines of a plan run gain optional `planJob` (the job's name) and `planRun` (shared by one plan run);\n  `v` stays 2.\n- Jobs of a plan run get `LANQ_PLAN_JOB=<name>` in their environment.\n- On Windows, processes a job leaves running (build servers, for example) now end with the job.\n- `lanq init` no longer writes `./machines.yml` (see Setup).\n\n- Loading a config now checks the Windows job script at its largest (a job given `&` or `|`, the longest plan job\n  name), so a Windows machine whose `env:` leaves no room for such a job is refused at load instead of at run time.\n- With no per-user config folder (no usable `HOME`/`APPDATA`), `lanq init` and config lookup exit 2 and name\n  `--config`/`LANQ_CONFIG`; a relative `XDG_CONFIG_HOME` is ignored.\n\n### Security\n\n- Windows workers run lanq's helper script (`work_root/bin`) only when its SHA-256 matches lanq's own copy, and lanq\n  rewrites it before each job if it changed, so a job cannot plant code in later jobs' wrapper, stop, cleanup or doctor\n  scripts, or stop a cleanup before it frees the slot.\n- The job wrapper's `LANQ_EXIT` and `LANQ_WINARGS` lines carry a per-run random value that is not in the job's\n  environment, so a job that prints them is ordinary output, not a refusal or an exit code.\n- `lanq.yml` refuses YAML anchors and aliases (`&name`, `*name`) with their line number, so an alias-bomb file cannot\n  hang lanq.\n\n### Fixed\n\n- Windows workers denied WMI showed `ram ?`, a silent `load 0.00` and size `unknown`, and a timeout, stop or stale-slot\n  cleanup could leave the job's process tree running.\n- `dotnet` passed `lanq doctor --remote` on a worker with only a .NET runtime, and the job then failed with \"No .NET\n  SDKs were found\".\n- With `--plan` and `--wait 0`, a job no longer ends `NoCapacity` when a sibling frees the slot just after the job saw\n  it taken; it looks again first (also for jobs with shards).\n- When several plan jobs fail, the plan exits with the first failed job's own exit code in `lanq.yml` order, whatever\n  order they were launched in.\n- When a Windows job times out, its process tree is walked before the job object is ended, so a grandchild started\n  before the job object took hold is stopped too.\n\nFull changelog: https://github.com/jangolath/lanqueue/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#repository",
+    "commit": "bf6ef7ff483b3016f79913df88c0f8b3455d564f",
+    "type": "git",
+    "url": "https://github.com/jangolath/lanqueue"
+  },
+  "verbatimVersion": "0.8.0",
+  "version": "0.8.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#LanQueue.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3930,
+      "fullName": "LanQueue.nuspec",
+      "length": 8469,
+      "name": "LanQueue.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3898,
+      "fullName": "PACKAGE.md",
+      "length": 8419,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26568,
+      "fullName": "icon.png",
+      "length": 26558,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 179,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#tools/net10.0/any/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121764,
+      "fullName": "tools/net10.0/any/YamlDotNet.dll",
+      "length": 300032,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#tools/net10.0/any/lanq.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 417,
+      "fullName": "tools/net10.0/any/lanq.deps.json",
+      "length": 945,
+      "name": "lanq.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#tools/net10.0/any/lanq.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 553353,
+      "fullName": "tools/net10.0/any/lanq.dll",
+      "length": 1756160,
+      "name": "lanq.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#tools/net10.0/any/lanq.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 311084,
+      "fullName": "tools/net10.0/any/lanq.pdb",
+      "length": 496540,
+      "name": "lanq.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#tools/net10.0/any/lanq.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 245,
+      "fullName": "tools/net10.0/any/lanq.runtimeconfig.json",
+      "length": 435,
+      "name": "lanq.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.08.46.39/lanqueue.0.8.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "dotnet-tool",
+    "ssh",
+    "build",
+    "ci",
+    "lan",
+    "distributed",
+    "homelab",
+    "ai-agents",
+    "claude-code",
+    "test-runner"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

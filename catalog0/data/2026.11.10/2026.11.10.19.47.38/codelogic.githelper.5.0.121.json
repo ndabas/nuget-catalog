@@ -1,0 +1,182 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Zyntal.com",
+  "catalog:commitId": "6844b212-e958-45b5-a3a6-a4a7bd99c873",
+  "catalog:commitTimeStamp": "2026-11-10T19:47:38.9333269Z",
+  "copyright": "Copyright © 2026 Zyntal.com",
+  "created": "2026-11-10T19:44:29.057Z",
+  "description": "Git repository management library for CodeLogic 5 applications",
+  "id": "CodeLogic.GitHelper",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-10T19:47:38.487Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "FiJcrTJPQvXTskfF9o0rHOqvLr4/aS0aqDSGFE3fLzSl4jZHlz07DbeC2qh1fe3GVy0VFcGt1RbN7WtUnkzzNw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 105568,
+  "projectUrl": "https://github.com/zyntal-com/CodeLogic.Libs",
+  "published": "2026-11-10T19:44:29.057Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "# CL.GitHelper — Changelog\n\nAll notable changes to **CodeLogic.GitHelper** are documented here. Versions follow\n[Semantic Versioning](https://semver.org/).\n\n## 5.0 (2026-11-10)\n\n### Breaking\n\n- Targets **.NET 11** (`net11.0`) and requires **CodeLogic 5.0** (`[5.0.0, 6.0.0)`). On .NET 10, stay on\n  4.9.x. CodeLogic 5 makes `Result<T>` / `Result` C# 15 unions and `Error` a closed record with\n  kind subtypes (`NotFoundError`, `ValidationError`, ...). This library now returns those types\n  directly (see below), so its results can be matched exhaustively with `switch`.\n- **`GitResult<T>` is removed**; every operation returns CodeLogic's `Result<T>` / `Result`\n  (`CodeLogic.Core.Results`). `ErrorMessage` → `Error.Message`; `Exception` is gone (the library\n  logs it, and `Error.Details` holds the exception type name); `Diagnostics` is gone (see below).\n- Signature changes on `GitRepository`:\n  - `FetchAsync`, `PullAsync`, `PushAsync`: `Task<GitResult<bool>>` → `Task<Result<GitDiagnostics>>`.\n    The diagnostics are now the success value. A pull's diagnostics include its fetch step's\n    messages, and a failed fetch inside a pull returns the fetch's own error.\n  - `CheckoutBranchAsync`, `ResetHardAsync`: `Task<GitResult<bool>>` → `Task<Result>`.\n  - `CloneAsync`, `EnsureUpToDateAsync`, `GetRepositoryInfoAsync`: `Task<GitResult<RepositoryInfo>>`\n    → `Task<Result<RepositoryInfo>>`. `CommitAsync` → `Task<Result<CommitInfo>>`, `GetStatusAsync`\n    → `Task<Result<RepositoryStatus>>`, `ListBranchesAsync` → `Task<Result<List<BranchInfo>>>`,\n    `GetCommitLogAsync` → `Task<Result<List<CommitInfo>>>`. Clone, commit and status no longer\n    return diagnostics; clone logs its duration and messages instead.\n- `GitHelperLibrary` / `GitManager`: `FetchAllAsync` → `Task<Dictionary<string, Result<GitDiagnostics>>>`,\n  `GetAllStatusAsync` → `Task<Dictionary<string, Result<RepositoryStatus>>>`.\n- **Expected failures are results, not exceptions**:\n  - `GetRepositoryAsync` (library and manager) → `Task<Result<GitRepository>>`. An unknown id is a `NotFoundError`\n    `git.repository_not_found` with `Details = \"not_configured\"` (was `ArgumentException`); on the library, calling it\n    before initialization, while disabled or after stop is an `UnavailableError` `git.not_initialized` (was\n    `InvalidOperationException`). Migrate with `(await git.GetRepositoryAsync(id)).ValueOrThrow()` or check `IsFailure`.\n  - `RegisterRepository` (library and manager) → `Result`: a duplicate id is a `ConflictError` `git.repository_exists`,\n    a missing URL/path or an escaping path a `ValidationError` `git.invalid_configuration`, and on the library\n    `git.not_initialized` (all used to throw).\n  - `GitHelperLibrary.FetchAllAsync` / `GetAllStatusAsync` → `Task<Result<Dictionary<…>>>` (`git.not_initialized`\n    instead of `InvalidOperationException`). The `GitManager` versions are unchanged.\n- **`Dispose()` on a `GitRepository` obtained from the manager is a no-op.** The manager owns cached instances and\n  disposes them on eviction, config change or stop; a consumer `using` used to dispose the cached instance and\n  break every later caller. Instances you construct yourself are not affected.\n- `GitHelperConfig.Validate()` and `RepositoryConfiguration.IsValid()` reject a relative `LocalPath` that climbs out of\n  `BaseDirectory` (`../../etc`, `a/../../b`); use a path inside it or an absolute path.\n- `GitManager` implements `IAsyncDisposable`; `GitManager.Retire()` (internal) is gone.\n- Failures have a kind and a stable code, all listed as constants on the new\n  `CL.GitHelper.Errors.GitErrors`:\n  - `NotFoundError`: `git.repository_not_found` (not cloned), `git.remote_not_found`,\n    `git.branch_not_found` (checkout or reset target), `git.not_found`.\n  - `ValidationError`: `git.empty_commit_message`, `git.nothing_to_commit`, `git.ssh_not_supported`.\n  - `UnauthorizedError`: `git.authentication_failed`.\n  - `ConflictError`: `git.directory_not_empty`, `git.uncommitted_changes`, `git.checkout_conflict`,\n    `git.non_fast_forward`.\n  - `UnavailableError`: `git.cancelled`.\n  - `InternalError` (anything else): `git.clone_failed`, `git.fetch_failed`, `git.pull_failed`,\n    `git.push_failed`, `git.commit_failed`, `git.status_failed`, `git.info_failed`,\n    `git.list_branches_failed`, `git.checkout_failed`, `git.reset_failed`, `git.log_failed`.\n\n### Changed\n\n- Apply the shared bounded single-line formatter after credential redaction; split repository operations and manager responsibilities into partial files.\n\n- Fetch now records `ObjectCount` and `BytesTransferred` in its diagnostics.\n- Failures of read operations (status, info, branches, log) are logged at debug level with the\n  full exception; before, the exception was only on the result.\n- LibGit2Sharp is pinned to 0.32.0 instead of floating (`0.32.*`).\n\n### Documentation\n\n- Configuration examples in the README and the docs use the camelCase keys the CodeLogic loader reads.\n  The PascalCase keys shown before are matched case-sensitively and were ignored, leaving defaults active.\n- The live config section no longer says \"CodeLogic 4.9+\"; every 5.x install has it. The docs' error example\n  switches on the result union (`GitDiagnostics d => …, Error e => …`), and the setup examples add the\n  `CL.GitHelper.Models` / `CL.GitHelper.Services` usings they need.\n- The README's last line, a relative link that broke on nuget.org, is removed.\n\n### Fixed\n\n- **Reads no longer race disposal**. `GetStatusAsync`, `GetRepositoryInfoAsync`, `ListBranchesAsync`,\n  `GetCommitLogAsync`, the dirty check of `EnsureUpToDateAsync` and the lazy open used the native handle without the\n  repository lock, so an eviction could dispose it mid-read (and two first calls could each open, leaking a handle).\n  Every operation now runs under the lock; an operation on a disposed instance returns `git.repository_disposed`.\n- **A disposed cached instance is never handed out again**: `GetRepositoryAsync` and the cleanup sweep check\n  `IsDisposed` and create a fresh instance.\n- **Runtime registration is thread-safe.** `RegisterRepository` / `UnregisterRepositoryAsync` mutated the repository\n  list that batch calls, the health check and auto-fetch enumerate; they now replace the configuration as a whole\n  under the cache lock, like live config changes. Repository ids in the cache are case-insensitive.\n- **Stopping waits for running operations.** `OnStopAsync` disposed every repository at once, under running clones;\n  it now awaits `GitManager.DisposeAsync()`, which disposes each repository once its operation finishes, bounded by\n  `GitManager.DefaultDisposeTimeout` (30 s; a repository still busy then is disposed when it returns).\n- **A stalled transfer no longer wedges the repository.** A connection that hangs before any progress callback kept\n  libgit2 (and the repository lock) busy forever and queued every later call behind it. A watchdog now logs\n  \"transfer stalled\" `GitRepository.DefaultStallGrace` (30 s) after the timeout; from then on, until the native call\n  returns, waiting and new calls return `git.timeout` at once (`GitRepository.IsStalled`).\n- `ConfigureAwait(false)` on every library await.\n- **Cache eviction no longer disposes a repository under a running operation.** The idle-expiry timer,\n  `GetRepositoryAsync` replacing a stale entry, `EvictFromCacheAsync` and `ClearCacheAsync` disposed the\n  evicted `GitRepository` at once. Idle time only counts `GetRepositoryAsync` calls, so a clone or fetch that ran\n  longer than `CacheTimeoutMinutes` had its LibGit2 handle and lock disposed underneath it (the operation's\n  lock release then threw `ObjectDisposedException`). Evicted instances are now disposed once their current\n  operation finishes, as config changes and disabling the library already did.\n- **Push and pull use the configured credentials.** `PushAsync` passed no credentials provider, and\n  `PullAsync` called `Commands.Pull` without fetch options, so every push, and every pull of a private\n  repository, failed with `git.authentication_failed` even with a PAT configured.\n- **Documented options are honoured.** `PullOptions.Strategy` (merge, rebase or fast-forward only),\n  `PullOptions.RemoteName`, `PushOptions.PushTags`, the `OnProgress` callbacks of clone, fetch and push,\n  `RepositoryConfiguration.TimeoutSeconds` / `GitHelperConfig.DefaultTimeoutSeconds` and\n  `RepositoryConfiguration.AutoFetchIntervalMinutes` were never read. See the pull, push, timeout and\n  auto-fetch notes below.\n- **Cancellation aborts a running transfer.** The token only stopped an operation that had not started\n  yet; libgit2's progress callbacks now return `false` once it is cancelled, so a clone, fetch or push\n  stops mid-transfer with `git.cancelled`.\n- **Bare repositories count as cloned.** `EnsureUpToDateAsync` and every operation looked for a `.git`\n  directory, so a bare repository (or a worktree with a `.git` file) was reported as not cloned and\n  `EnsureUpToDateAsync` tried to clone into it. `EnsureUpToDateAsync` on a bare repository now only\n  fetches, and `RepositoryInfo` for it no longer throws.\n- **The health check reports a disabled library as `Healthy`** (\"disabled\") instead of `Unhealthy`.\n- **Live config changes are validated.** A change that fails `GitHelperConfig.Validate()` is logged and\n  ignored, keeping the current settings, just as an invalid file stops initialization.\n- A clone that fails or is cancelled removes the directory it created, so the next attempt does not fail\n  with `git.directory_not_empty`.\n\n### Security\n\n- **Redaction gaps closed**. Commit, checkout and reset failures, and the catch blocks of the batch\n  calls, auto-fetch, start-up probe and health check, logged or returned the raw exception message (and handed the\n  exception, with its message, to the logger). All now go through redaction. `Redact` masks the configured token\n  before the URL user-info, so a token containing `@` is no longer half-masked (`https://***@ss@host`), and also\n  masks its percent-encoded form (`p%40ss`).\n- **The PAT is sent only to the configured host.** The credentials callback answered every request,\n  so a submodule, second remote or redirect on another host received the token. It now hands it out only\n  when the request's scheme, host and port match `RepositoryUrl` (no `https` → `http` downgrade); other\n  hosts get empty credentials and fail with `git.authentication_failed`, and a warning is logged.\n- **Credentials are redacted.** URLs with embedded credentials (`https://user:token@host/…`) were logged\n  verbatim (\"Cloning …\") and could appear in error messages. User info in URLs and the configured token\n  are now replaced by `***` in log lines, `Error.Message` and `RepositoryInfo.RemoteUrl`.\n\n### Added\n\n- Error codes `git.repository_exists`, `git.invalid_configuration`, `git.not_initialized`, `git.repository_disposed`\n  and `GitErrors.NotConfiguredDetails`; `GitRepository.IsDisposed` is public.\n- Error codes `git.timeout` (`TimeoutError`), `git.merge_conflict` and `git.push_rejected` (`ConflictError`)\n  on `GitErrors`.\n- **Pull strategies.** `Merge` fast-forwards or creates a merge commit; on conflicts it returns\n  `git.merge_conflict` and leaves the conflicted files in place, as `git pull` does. `Rebase` replays\n  local commits on the fetched tip and aborts on conflicts. `FastForwardOnly` returns\n  `git.non_fast_forward` when the branches diverged. The upstream is the branch's tracking branch on\n  `RemoteName`, else the remote branch of the same name (`git.branch_not_found` when neither exists).\n  `PullOptions.RemoteName` selects the remote; when left at `\"origin\"`, `FetchOptions.RemoteName` is\n  used as before.\n- **Push.** `PushTags` pushes every local tag (tags are never forced). References the remote refuses\n  return `git.push_rejected` with its reason; before, such a push reported success.\n- **Timeouts.** Clone, fetch, the fetch step of pull, and push stop after the repository's\n  `TimeoutSeconds` and return `git.timeout`. `TimeoutSeconds` now accepts `0`, meaning\n  `DefaultTimeoutSeconds`. The timeout is checked at progress callbacks, so it cannot interrupt a\n  connection that hangs before any data arrives.\n- **Background fetch.** `AutoFetchIntervalMinutes > 0` starts a fetch timer per repository when the\n  library starts. Config changes and `RegisterRepository` add, retime or remove timers; a fetch still\n  running at the next tick is skipped; stopping or disabling the library cancels running fetches.\n- `GitHelperConfig.Validate()` also rejects duplicate repository ids (case-insensitive), a negative\n  `AutoFetchIntervalMinutes` and a `TimeoutSeconds` outside 0–3600. A config file with duplicate ids\n  used to load (the first entry won); it now fails validation.\n- Push and pull diagnostics carry `ObjectCount` and `BytesTransferred`; pull adds a `MergeStatus` or\n  `RebaseStatus` metric.\n\n## 2026-10-24\n\n### Added\n\n- **Live config changes** (requires CodeLogic 4.9+). `GitHelperLibrary` implements `IConfigReloadable`:\n  a change to `config.githelper.json` made through `Libraries.UpdateConfigAsync`,\n  `Libraries.ReloadConfigAsync` or the config file watcher is applied without a restart, touching only\n  the repositories that changed. Changed or removed repositories are evicted from the cache and their\n  old `GitRepository` is disposed once its running git operation finishes; untouched repositories keep\n  their instances; library-wide settings and `baseDirectory` apply at once; added or changed\n  repositories with `autoFetch` are fetched in the background. `Enabled` can be switched either way.\n  The `RequiresRestart` hints on `id`, `repositoryUrl`, `localPath` and `baseDirectory` were removed.\n\n### Changed\n\n- `GitManager` keeps its own copy of the configuration. Repositories added with `RegisterRepository`\n  no longer appear in `Configuration.Get<GitHelperConfig>()` (and so can no longer be written to\n  `config.githelper.json` by a later save); they are kept across config changes.\n\n## 2026-09-12\n\n### Changed\n\n- Unified the version line with the CodeLogic framework on **4.8.x**. Every official\n  library and the framework now share one `major.minor`, so a given `4.8.<patch>`\n  means the same generation across all packages.\n- `version.txt` moved from `4.6` to `4.8`. The patch component remains the CI run\n  number, composed at pack time; `AssemblyVersion` stays pinned at `Major.Minor.0.0`\n  (now `4.8.0.0`) so every patch in the line loads interchangeably.\n\n## 2026-06-20\n\n### Fixed\n\n- SSH is not supported by the bundled LibGit2Sharp transport; configuring an SSH\n  key now logs a clear warning and cloning an SSH URL (`git@…` / `ssh://…`)\n  fails fast with an explanatory message instead of silently doing nothing.\n- `EnsureUpToDateAsync` now refuses to hard-reset (and discard) a dirty working\n  tree unless called with `discardLocalChanges: true`, preventing accidental\n  data loss.\n- The repository cache now expires entries by idle time rather than absolute\n  age, so a repository in active use is no longer disposed out from under a\n  caller; batch concurrency is clamped to at least 1; `CommitOptions` gained a\n  `CancellationToken`.\n\n### Documentation\n\n- Full house-style rewrite of the README and the `docs/libs/githelper.md` deep guide.\n- Documented the repository workflow around `GetRepositoryAsync` and highlighted\n  `EnsureUpToDateAsync` as the idempotent clone-or-update easy path.\n- Documented the per-operation options models (`GitCloneOptions`, `GitFetchOptions`,\n  `GitPullOptions`, `GitPushOptions`, `GitCommitOptions`) and the `MergeStrategy` enum.\n- Documented the `GitResult<T>` / `GitDiagnostics` contract and the result-bearing models\n  (`RepositoryInfo`, `CommitInfo`, `BranchInfo`, `RepositoryStatus`, `FileStatusEntry`).\n- Documented manager batch operations (`FetchAllAsync`, `GetAllStatusAsync`), runtime\n  registration, repository caching (`CacheStats` / `CacheEntryStats`), and the health check.\n- Clarified authentication: HTTPS only, PAT-only auth sends `x-access-token`, and the SSH\n  key fields are present in config but not currently wired.\n\n## [4.5.2] — 2026-06-20\n\n### Documentation\n\n- Documented the full `GitRepository` workflow in the README: `CloneAsync`,\n  `FetchAsync`, `PullAsync`, `PushAsync`, `ListBranchesAsync`, `CheckoutBranchAsync`,\n  `CommitAsync` (with `FilesToStage`), and `GetCommitLogAsync`.\n- Documented the `ResetHardAsync` and `EnsureUpToDateAsync` sync helpers with examples.\n- Documented the `GitResult<T>` return contract (`IsSuccess` / `Value` / `ErrorMessage`\n  / `Diagnostics`).\n- Documented `GitManager` access via `GetManager()`, including `ExecuteOnAllAsync`,\n  `HealthCheckAsync`, runtime `RegisterRepository` / `UnregisterRepositoryAsync`, and\n  cache control (`GetCacheStats`, `ClearCacheAsync`).\n- Clarified authentication: PAT-only auth sends `x-access-token`, and the SSH key\n  configuration fields are reserved but not currently wired (use HTTPS URLs).\n\n## [4.5.0] — 2026-05-24\n\n### Changed\n\n- **Unified versioning.** All CodeLogic.Libs now share a single version line\n  controlled by `version.txt` in the repo root. This is a version alignment\n  release — no functional changes to this library.\n## [4.0.4] — 2026-04-16\n\n### Changed\n\n- README + manifest refresh for the v4 baseline. No functional changes vs 4.0.3.\n- `LibraryManifest.Version` now reads from assembly metadata.\n\n## [4.0.3] — 2026-04-15\n\n### Added\n\n- Wired credentials through to `Clone` / `Fetch` / `Pull` and added\n  `ResetHard` + `EnsureUpToDate` helpers.\n\n## [4.0.2] — 2026-04-09\n\n### Changed\n\n- Annotated GitHelper configuration with `[ConfigField]` for the admin UI surface.\n- Aligned with the v4 baseline across all libraries.\n\n## [4.0.0] — 2026-04-09\n\nMajor rewrite. Republished as v4.0.0 to reset the version line under the\nunified v4 baseline. Thin libgit2sharp wrapper for programmatic clone /\npull / fetch / reset.\n\n### Notes\n\n- Earlier history is retained in the\n  [git log](https://github.com/zyntal-com/CodeLogic.Libs/commits/main/CL.GitHelper).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#repository",
+    "commit": "4885b82baa8160cfbaf7567eb0db3dffeb28dde5",
+    "type": "git",
+    "url": "https://github.com/zyntal-com/CodeLogic.Libs"
+  },
+  "verbatimVersion": "5.0.121+4885b82",
+  "version": "5.0.121+4885b82",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#dependencygroup/net11.0/codelogic",
+          "@type": "PackageDependency",
+          "id": "CodeLogic",
+          "range": "[5.0.37, 6.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#dependencygroup/net11.0/libgit2sharp",
+          "@type": "PackageDependency",
+          "id": "LibGit2Sharp",
+          "range": "[0.32.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#lib/net11.0/CL.GitHelper.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 56901,
+      "fullName": "lib/net11.0/CL.GitHelper.dll",
+      "length": 130560,
+      "name": "CL.GitHelper.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#lib/net11.0/CL.GitHelper.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 15533,
+      "fullName": "lib/net11.0/CL.GitHelper.xml",
+      "length": 89596,
+      "name": "CL.GitHelper.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#package/services/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#package/services/metadata/",
+      "@type": "PackageEntry",
+      "compressedLength": 0,
+      "fullName": "package/services/metadata/",
+      "length": 0,
+      "name": ""
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6936,
+      "fullName": "CHANGELOG.md",
+      "length": 18096,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#CodeLogic.GitHelper.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7445,
+      "fullName": "CodeLogic.GitHelper.nuspec",
+      "length": 19432,
+      "name": "CodeLogic.GitHelper.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 639,
+      "fullName": "LICENSE",
+      "length": 1067,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3150,
+      "fullName": "README.md",
+      "length": 7438,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.19.47.38/codelogic.githelper.5.0.121.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12984,
+      "fullName": ".signature.p7s",
+      "length": 12984,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "git",
+    "repository",
+    "libgit2"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

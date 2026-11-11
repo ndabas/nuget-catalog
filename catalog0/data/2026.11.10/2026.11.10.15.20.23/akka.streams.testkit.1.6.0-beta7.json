@@ -1,0 +1,165 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Akka.NET Team",
+  "catalog:commitId": "1fa943f8-0cba-44d7-8de3-f8cba691c10b",
+  "catalog:commitTimeStamp": "2026-11-10T15:20:23.0466277Z",
+  "copyright": "Copyright © 2013-2026 Akka.NET Team",
+  "created": "2026-11-10T14:19:09.927Z",
+  "description": "Testkit for Reactive stream support for Akka.NET",
+  "iconFile": "akkalogo.png",
+  "id": "Akka.Streams.TestKit",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-10T15:20:05.483Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "2ztxwDfmUHpxcU7wLhAZquEm87/yPh2h6T285P0QO0abOoz3jew9vN8g9OiqD4ErpjlvXWwuPPW88x9l66+5zg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 105940,
+  "projectUrl": "https://getakka.net/",
+  "published": "2026-11-10T14:19:09.927Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Akka.NET 1.6.0-beta7 adds opt-in TLS to Akka.IO TCP, Akka.Streams TCP and Artery remoting, fixes two Akka.Persistence ordering bugs, and ships a DotNetty-to-Artery migration guide. Read the [v1.6 getting started guide](https://github.com/akkadotnet/akka.net/blob/dev/GETTING_STARTED_V1.6.md) for the full upgrade path.\n\n**Akka.IO / TLS**\n\n* TCP now supports opt-in TLS. Pass `TlsClientSettings` to `Tcp.Connect` or `TlsServerSettings` to `Tcp.Bind` and the connection is encrypted and authenticated before any bytes flow. Server-only TLS authenticates the server; mutual TLS has both peers present and validate a certificate. A command without `Tls` uses plaintext TCP exactly as before, and Akka.IO never falls back to plaintext when a configured handshake fails. ([#8771](https://github.com/akkadotnet/akka.net/pull/8771))\n* Peer trust is an explicit policy: `TlsPeerPolicy.SystemTrust()` uses the OS chain, `PinnedCertificates(...)` trusts a leaf thumbprint, and `CustomTrust(callback)` hands the decision to your code. Compose extra checks with `.And(...)` - `TlsCertificateValidation.ValidateHostname()`, `ValidateSubject(...)`, `ValidateIssuer(...)` - to narrow an already-trusted peer. `SystemTrust()` ignores only a name-mismatch error and does not check a host name by itself, so add `ValidateHostname()` when DNS identity matters. ([#8771](https://github.com/akkadotnet/akka.net/pull/8771))\n* New public types: `TlsClientSettings` and `TlsServerSettings` (immutable, with `ServerOnly`/`Mutual` factories, `WithHandshakeTimeout` and `WithProtocols`), `TlsPeerPolicy`, `TlsCertificateValidation` and the `TlsCertificateValidationCallback` delegate. Certificates stay caller-owned and must outlive the actor system. ([#8771](https://github.com/akkadotnet/akka.net/pull/8771))\n* An outgoing `Tcp.Connected` is sent only after the handshake succeeds, and a failed or timed-out handshake (10s default, `WithHandshakeTimeout`) arrives as the existing `Tcp.CommandFailed`. An incoming connection reaches its handler only after its handshake succeeds; the listener stays available for other clients. ([#8771](https://github.com/akkadotnet/akka.net/pull/8771))\n* `TlsCertificateLoader` loads PKCS#12 certificates from a file or byte array, or finds one in an X.509 store. It requires an accessible RSA or ECDSA private key and returns a caller-owned certificate - keep it alive until the actor system and every transport using it have stopped. ([#8787](https://github.com/akkadotnet/akka.net/pull/8787))\n* **Migration:** `ITransportConnection` implementors must add `InitializeAsync(CancellationToken)` and `Start()`, and `TcpTransportConnection` constructors no longer start pumps automatically. This affects only the v1.6 beta API; v1.5 is unchanged. See the [v1.6 breaking-change ledger](https://github.com/akkadotnet/akka.net/blob/dev/BREAKING_CHANGES_V1.6.md). ([#8771](https://github.com/akkadotnet/akka.net/pull/8771))\n\n**Akka.Streams**\n\n* `Tcp.BindTls`, `Tcp.BindAndHandleTls` and `Tcp.OutgoingConnectionTls` add TLS listeners and outgoing connections, using the same `TlsClientSettings`/`TlsServerSettings` as Akka.IO. `BindAndHandleTls` completes when the listener is ready, and an outgoing graph's materialized value completes after authentication. Existing plaintext `Bind`, `BindAndHandle` and `OutgoingConnection` keep their current behavior, and TLS does not change back-pressure or half-close semantics. ([#8788](https://github.com/akkadotnet/akka.net/pull/8788), addresses [#2750](https://github.com/akkadotnet/akka.net/issues/2750))\n* A failed TCP command now surfaces its original exception as the `InnerException` of the `StreamTcpException` instead of dropping it, so a TLS handshake failure reports why it failed. ([#8788](https://github.com/akkadotnet/akka.net/pull/8788))\n\n**Akka.Remote / Artery (experimental)**\n\n* Artery can now run over TLS. Add one `ArteryTlsSetup` carrying an immutable `ArteryTlsSettings` profile to the actor-system setup and Artery uses TLS for inbound connections and every outbound channel - control, ordinary and large-message traffic. Without it, Artery stays on plaintext TCP, and a failed handshake closes the connection rather than retrying as plaintext. Profiles and validation callbacks are configured in code; there is no Artery TLS HOCON schema. ([#8791](https://github.com/akkadotnet/akka.net/pull/8791), refs [#4436](https://github.com/akkadotnet/akka.net/issues/4436))\n* **Deployment note:** TLS is all-or-nothing per transport. A TLS-enabled Artery node cannot associate with a plaintext Artery node, and a TLS-enabled Akka.IO listener will not accept plaintext clients. Configure every participating node the same way. ([#8771](https://github.com/akkadotnet/akka.net/pull/8771), [#8791](https://github.com/akkadotnet/akka.net/pull/8791))\n* Akka.Hosting's `WithArteryRemoting` exposes the same profile. It enables Artery, allows explicit bind host and port overrides, preserves an already selected Cluster, Remote or custom actor-ref provider, and adds or replaces the typed TLS setup when `Tls` is set. ([#8791](https://github.com/akkadotnet/akka.net/pull/8791))\n\n**Akka.Persistence**\n\n* Stashed commands now run in send order when an async `Persist`/`PersistAll` handler, or the async `onCompleteAsync` callback of `PersistAll`, completes asynchronously. Two unstashes used to fire for the same invocation in the same turn, and because each `Unstash()` puts the oldest stashed command at the front of the mailbox, the second overtook the first. The same double unstash hit `PersistAsync`, `PersistAllAsync` and `DeferAsync` with async handlers. Synchronous handlers behave as before. ([#8941](https://github.com/akkadotnet/akka.net/pull/8941), fixes [#8942](https://github.com/akkadotnet/akka.net/issues/8942))\n* `Desequenced` is now exempt from serialization verification. With `akka.actor.serialize-messages = on`, every journal write reply was round-tripped through the `System.Object` JSON fallback before reaching the persistent actor, so the persist callback received a JSON copy of the event instead of the instance that was persisted. For a C# 15 union event that copy arrived with `Value == null`, so the handler saw an empty event. ([#8912](https://github.com/akkadotnet/akka.net/pull/8912), fixes [#8910](https://github.com/akkadotnet/akka.net/issues/8910))\n\n**Docs**\n\n* New [TLS for Akka.IO, Akka.Streams, and Artery](https://github.com/akkadotnet/akka.net/blob/dev/docs/articles/remoting/tls-for-io-streams-artery.md) guide covers server-only and mutual TLS, trust policies, certificate lifetime, and the Streams and Artery APIs. ([#8771](https://github.com/akkadotnet/akka.net/pull/8771), [#8787](https://github.com/akkadotnet/akka.net/pull/8787), [#8788](https://github.com/akkadotnet/akka.net/pull/8788), [#8791](https://github.com/akkadotnet/akka.net/pull/8791))\n* New [Migrating From DotNetty to Artery](https://github.com/akkadotnet/akka.net/blob/dev/docs/articles/remoting/dotnetty-to-artery.md) guide covers the transport change, cluster transition, address changes, Hosting, and bind-address limitations. ([#8913](https://github.com/akkadotnet/akka.net/pull/8913))\n\n**Internal**\n\n* Native AOT verification uses the serviced .NET 10 SDK 10.0.403. ([#8914](https://github.com/akkadotnet/akka.net/pull/8914))\n\n1 contributor since release 1.6.0-beta6\n\n| COMMITS | LOC+ | LOC- | AUTHOR          |\n|---------|------|------|-----------------|\n| 8       | 5511 | 284  | Aaron Stannard  |",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#repository",
+    "commit": "0e9a8b99124451d3fdda264e9247a33c8220c0b2",
+    "type": "git",
+    "url": "https://github.com/akkadotnet/akka.net"
+  },
+  "verbatimVersion": "1.6.0-beta7",
+  "version": "1.6.0-beta7",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#dependencygroup/net10.0/akka.streams",
+          "@type": "PackageDependency",
+          "id": "Akka.Streams",
+          "range": "[1.6.0-beta7, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#dependencygroup/net10.0/akka.testkit",
+          "@type": "PackageDependency",
+          "id": "Akka.TestKit",
+          "range": "[1.6.0-beta7, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#Akka.Streams.TestKit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3421,
+      "fullName": "Akka.Streams.TestKit.nuspec",
+      "length": 8678,
+      "name": "Akka.Streams.TestKit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3013,
+      "fullName": "README.md",
+      "length": 9508,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#akkalogo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 14746,
+      "fullName": "akkalogo.png",
+      "length": 17058,
+      "name": "akkalogo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#lib/net10.0/Akka.Streams.TestKit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 64836,
+      "fullName": "lib/net10.0/Akka.Streams.TestKit.dll",
+      "length": 167936,
+      "name": "Akka.Streams.TestKit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#lib/net10.0/Akka.Streams.TestKit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 4880,
+      "fullName": "lib/net10.0/Akka.Streams.TestKit.xml",
+      "length": 62067,
+      "name": "Akka.Streams.TestKit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.10.15.20.23/akka.streams.testkit.1.6.0-beta7.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "akka",
+    "actors",
+    "actor",
+    "model",
+    "Akka",
+    "concurrency",
+    "reactive",
+    "stream",
+    "testkit"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

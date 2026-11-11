@@ -1,0 +1,188 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Wolfgang Mitterbucher",
+  "catalog:commitId": "7a44efde-2027-4b19-a7c8-79e415aefd6e",
+  "catalog:commitTimeStamp": "2026-11-11T11:25:01.1255814Z",
+  "copyright": "Copyright © Wolfgang Mitterbucher",
+  "created": "2026-11-11T11:01:25.133Z",
+  "description": "Reusable .NET 8 library to read EUDI Wallet PID identity data over OpenID4VP, two ways behind one contract: in process with no verifier backend (hosting the wallet-facing endpoints and verifying the presentation itself, for an ecosystem whose relying-party access certificate you hold), or through the EUDI Verifier Backend REST API. Builds the DCQL request (mso_mdoc and SD-JWT VC), waits for the wallet response and extracts the identity data, including SD-JWT disclosure parsing. Requires the ASP.NET Core shared framework.",
+  "id": "miEUDIverifier.Core",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-11T11:24:39.2Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "rkrhyFWxXfSt7TQFlKOQ/A628V8yXVGZKUXqjPJdckckwCRd3joYz8ZpRbNeWNXQUPOeOeLpe0n2UMZYuZ4uHA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 73064,
+  "projectUrl": "https://github.com/Mibuw/miEUDIverifier",
+  "published": "2026-11-11T11:01:25.133Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "2.0.0 — Verify a presentation in process, with no verifier backend.\nWhatever signs the request objects is the verifier. Where you hold the relying-party access\ncertificate yourself, a verifier backend is a container doing work your own process can do — so\nthis release does it. AddInProcessVerifier() plus MapInProcessVerifier() host the endpoints the\nwallet calls (the signed request object and the response callback) and verify the presentation with\nTessio.Verifier, no eudi-srv-verifier-endpoint container and no JVM. Verified with a real\npresentation from the German EUDI Wallet on 11 November 2026.\nNew IVerifierEngine is the contract both paths implement: InitializeTransactionAsync,\nWaitForWalletResponseAsync and ExtractIdentityDataAsync. VerifierApiService implements it unchanged,\nso callers that use it directly need no edit. Which path a deployment takes is configuration:\nVerifierSettings.InProcessBackend names the ecosystem verified in process, and\nVerifierSettings.InProcess carries its access certificate, registration certificate and the PID\nissuer's trust anchors. Keep the backend path for an ecosystem whose verifier identity you do not\nhold — the EU reference one at verifier-backend.eudiw.dev is such a case, which is why both paths\nremain.\nThe in-process path supplies what Tessio.Verifier 0.30.2 cannot yet: a request object carrying the\nregistration certificate in verifier_info (format \"registration_cert\", a JWT whose typ header is\nrc-wrp+jwt), and an x5c holding the access certificate AND its path up to, but excluding, the trust\nanchor, as HAIP 1.0 section 5 and ETSI TS 119 472-2 clause 6.4.2 require.\nBREAKING — the ASP.NET Core shared framework is now required. The package hosts HTTP endpoints, so\nit references Microsoft.AspNetCore.App. A web application is unaffected. A console or worker host\nthat only consumes the backend path still compiles and runs, but needs the ASP.NET Core runtime\npresent rather than the .NET runtime alone; a self-contained publish grows accordingly.\nBREAKING — the minimum QRCoder version moves from 1.6.0 to 1.8.1, which Tessio.Verifier requires.\nKnown limitation, deliberate and documented: the in-process path does NOT check revocation, so it\nconfirms a PID was validly issued rather than that it is still valid. Set\nInProcessVerifierOptions.CheckRevocation to turn it on; against the German PID test issuer every\npresentation then fails status_invalid, because EAA-6.2.10.1-06.2 requires the status list's chain\nto be signed by whatever signed the Document Signer and that issuer uses sibling CAs under one\nroot. No trust anchor configuration changes that. The backend path checks revocation, and a\ndeployment that needs the guarantee should use it. Tell your users what you do and do not check.\n\n1.4.2 — Make the outcome of the type check visible to callers.\n1.4.0 rejects a presentation whose credential type was not requested, but said so only in the log:\nthe result looked like any other incomplete one. IdentityData.CredentialType is now carried through\nthe app's JSON responses, and a response from which nothing was accepted is reported as \"rejected\"\nrather than \"partial\" — the difference between \"verified, some attributes missing\" and \"nothing\nverified at all\". The data endpoint answers 409 for that state instead of 200.\nLibrary behaviour is unchanged; CredentialType already existed in 1.4.0. Callers that branch on\nthe status string should handle the new value.\nWith thanks to Vítor Fonte, who noted the endpoint still answered 200 for rejected presentations\nand contributed the regression test for the German PID extension namespace.\n\n1.4.0 — Security: check the credential type of a presentation before trusting it.\nReported by Vitor Fonte, University of Minho.\nThe library relied on the verifier backend to bind the returned credential to the requested type\nand did not re-check that binding. It took any claim named family_name, given_name or birth_date\nfrom any namespace of the response, so a credential whose docType or vct was not the requested PID\ntype could be reported as a complete, verified identity.\nThree changes. Every presentation is now checked against the types the transaction requested —\ndocType for mso_mdoc, vct for SD-JWT VC — before any attribute is read; this covers all three\nresponse shapes, including documents decoded through the backend utility endpoint. Typed identity\nfields are taken only from the PID namespace, so other namespaces — including the German extension\nnamespace, which shares the docType — contribute to AdditionalClaims alone. Identity data comes\nfrom a single credential and is no longer combined across the credentials of one response.\nNew overload ExtractIdentityDataAsync(envelope, options, ct): pass the TransactionOptions the\ntransaction was started with, so the expected types match what was asked for. The existing\ntwo-argument overload still works and falls back to the configured defaults.\nIdentityData gained CredentialType, carrying the docType or vct the data actually came from.\nBehaviour change worth noting: a response whose credential type cannot be established is now\nrejected where earlier versions would have returned an identity. Every rejection is logged with\nthe type found and the types expected.\n\n1.3.0 — Request a wider PID attribute set, and scope a request to what a Registration\nCertificate covers.\nNew VerifierSettings.PidClaims / PidClaimsByBackend select the PID attributes to request, given in\nmso_mdoc spelling; the SD-JWT VC options translate the two names that differ there (birth_date →\nbirthdate, nationality → nationalities). The default stays at family name, given name and birth\ndate, so existing configuration is unaffected.\nNew SdJwtOnlyBackends and TransactionOptions.SdJwtOnly mirror MdocOnly / MdocOnlyBackends for a\nbackend scoped to an SD-JWT VC certificate; setting both at once throws. New\nSdJwtVctValuesByBackend and GermanPidVctValuesByBackend give per-backend vct lists, mirroring how\nIntendedUseIds backs IntendedUseId. A blank entry drops that credential option, since .NET\nconfiguration cannot express an empty collection through environment variables.\nGermanPidVctValues now also lists urn:eudi:pid:de:1, the identifier the German developer guide\ndocuments for the German PID; the Bundesdruckerei prototype value is kept alongside it.\nIdentityData gained PlaceOfBirth, Nationality, IssuingAuthority and IssuingCountry.\nSD-JWT VC disclosures are now resolved properly: an object hiding properties behind its own _sd\nand an array hiding elements as {\"...\": digest} are both resolved recursively, matched by the\ndisclosure digest and honouring _sd_alg. Earlier versions only applied flat [salt, name, value]\ndisclosures, so a nested place of birth and the nationalities array came through as raw\nplaceholders. A disclosure the payload never references is still applied by name, as before.\nBehaviour change worth noting: claim values that are arrays or objects are no longer dropped\nsilently — arrays are joined with \", \" and objects kept as raw JSON, so AdditionalClaims can now\ncontain entries that earlier versions discarded.\n\n1.2.0 — Fixes two defaults that made the library unusable out of the box.\nBackendUrl now points at https://verifier-backend.eudiw.dev (the REST API). It previously\ndefaulted to https://verifier.eudiw.dev, which serves the Angular demo UI and answers the API\npaths with 405.\nNew VerifierSettings.IntendedUseId (scalar, default \"TEST-01\") is sent as intended_use_id when a\ntransaction carries none of its own — mirroring how ResponseMode backs ResponseModes. Since August\n2026 eudiw.dev rejects any request without one (MissingRegistrationCertificate); TEST-01 is the\npublic test intended use it publishes at GET /ui/intended-uses. A per-backend IntendedUseIds entry\nstill wins; set IntendedUseId to \"\" when pointing at a backend of your own.\nBoth defaults only apply where nothing is configured, so existing configuration is unaffected.\n\n1.1.0 — Multi-backend support: serve several trust ecosystems from one app.\nAdded VerifierSettings.Backends / DefaultBackend / MdocOnlyBackends / IntendedUseIds /\nResponseModes, the TransactionOptions type, intended_use_id on the init request, and the\nGerman EUDI Wallet (Bundesdruckerei prototype) PID as a further SD-JWT VC option.\nNote: InitializeTransactionAsync gained an optional TransactionOptions parameter ahead of\nthe CancellationToken. Calls passing the token by name or omitting it are unaffected;\npositional InitializeTransactionAsync(ct) calls must be updated to (null, ct).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#repository",
+    "commit": "a45aa46346168f02bc71a097eb68e16c441609b8",
+    "type": "git",
+    "url": "https://github.com/Mibuw/miEUDIverifier"
+  },
+  "verbatimVersion": "2.0.0",
+  "version": "2.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.configuration.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Configuration.Abstractions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.dependencyinjection.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.DependencyInjection.Abstractions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.logging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Logging.Abstractions",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#dependencygroup/net8.0/microsoft.extensions.options",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options",
+          "range": "[8.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#dependencygroup/net8.0/qrcoder",
+          "@type": "PackageDependency",
+          "id": "QRCoder",
+          "range": "[1.8.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#dependencygroup/net8.0/tessio.verifier.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "Tessio.Verifier.AspNetCore",
+          "range": "[0.30.2, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#miEUDIverifier.Core.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4477,
+      "fullName": "miEUDIverifier.Core.nuspec",
+      "length": 10961,
+      "name": "miEUDIverifier.Core.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3347,
+      "fullName": "PACKAGE.md",
+      "length": 7382,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#lib/net8.0/miEUDIverifier.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 36764,
+      "fullName": "lib/net8.0/miEUDIverifier.Core.dll",
+      "length": 83456,
+      "name": "miEUDIverifier.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#lib/net8.0/miEUDIverifier.Core.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 13239,
+      "fullName": "lib/net8.0/miEUDIverifier.Core.xml",
+      "length": 59665,
+      "name": "miEUDIverifier.Core.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.11.25.01/mieudiverifier.core.2.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "eudi",
+    "eudi-wallet",
+    "eudi-verifier",
+    "openid4vp",
+    "eidas2",
+    "digital-identity",
+    "verifiable-credentials",
+    "pid",
+    "mdoc",
+    "sd-jwt",
+    "iso18013-5"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,218 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Emanuele Longo, Antonio Macrì",
+  "catalog:commitId": "98528acb-dcaf-4506-a509-14a866ed0d31",
+  "catalog:commitTimeStamp": "2026-11-11T14:41:21.5723105Z",
+  "copyright": "Copyright 2026 Emanuele Longo and Antonio Macrì",
+  "created": "2026-11-11T13:55:24.367Z",
+  "description": "Define MentorAgent Level-2 specialist agents in YAML instead of C#. Wraps the Agent Framework's declarative agent factory and plugs the resulting agents into MentorAgent's handoff graph, reusing the existing tools with their role checks and human-approval gates intact. Optional — install only if you want file-based agent definitions.",
+  "iconFile": "IconMA.png",
+  "id": "Novior.MentorAgent.Declarative",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-11T14:40:35.98Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "CLBzyl72/5iLQTjqnKUrVUbXWLuUUK1gV2fCazNYLMgwA20x4HwFm3zI8Av2khFG1AKjUOiP2sd39M6poxe+sg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 144616,
+  "projectUrl": "https://mentoragent.net/",
+  "published": "2026-11-11T13:55:24.367Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "1.3.0 - 2026-11-05\n\n### Added\n\n- ACTION-RULES.md lists the rules by which a method becomes an action, how actions are named, and how roles and\n  confirmations add up. Each rule has a name that does not change and at least one test that fails when the rule does;\n  a rule that comes in, changes or is retired is named in the release notes of its version. The rules of 1.3.0:\n  `scan.assemblies-once`, `scan.concrete-classes`, `scan.public-instance-declared`, `scan.marker`,\n  `scan.mentor-action-wins`, `scan.override-keeps-action`, `kind.one-per-class`, `kind.page-is-separate`,\n  `kind.agent-owns-methods`, `kind.skill-methods-level1`, `kind.team-needs-members`, `kind.member-tools-leave-level1`,\n  `kind.member-tools-same-rules`, `name.snake-case`, `name.team-tool`, `name.shared-warned`,\n  `name.called-method-decides`, `confirm.declared-decides`, `confirm.default-for-writes`,\n  `confirm.description-only-not-defaulted`, `confirm.predicate-adds`, `confirm.master-switch`,\n  `confirm.beats-read-only`, `confirm.unconfirmed-writes-warned`, `roles.any-of`, `roles.signed-in`,\n  `roles.checked-before-confirmation`, `roles.offered-when-allowed`, `surface.coordinator-only`,\n  `surface.mcp-withholds-gated` and `surface.card-ungated-only`.\n\n- An action can ship off, and the application can turn its actions on and off from outside its code.\n  `[MentorAction(Enabled = false)]` keeps an action in the catalogue (`MentorActionInfo.EnabledByDefault` is false)\n  and nowhere else: no agent is offered it, no model reads about it, the MCP server does not list it, the A2A card\n  does not show it, and a call to it does not run. An `IMentorActionGovernor`, registered with\n  `AddMentorActionGovernor<T>()`, answers for each action whether it is on, and can turn on one the code ships off:\n  registering one gives whoever implements it the power to widen what the code allows. It is asked once as a session\n  builds its tools, on every `tools/list` of the MCP server and before every call, with the session's id; a session\n  keeps the tools it was built with, and a call to an action turned off meanwhile is refused. There can be one: a\n  second registration throws. A governor that throws, or does not answer within `ActionPolicyTimeout`, stops the\n  action. The A2A card follows the code only, so an action turned on from outside is not on it. New reason codes:\n  `disabled` (`Denied`) and `governor-failed` (`PolicyFailed`). New rules: `enabled.off-by-default`,\n  `enabled.external-decides` and `surface.governor-session`; `surface.mcp-withholds-gated` and\n  `surface.card-ungated-only` now also leave out an action that is off.\n\n- The governor can also give an action its roles: `IMentorActionGovernor.GetRequiredRolesAsync` answers in place of\n  `[MentorAction(RequiredRoles = ...)]`, with `null` for the code's roles and an empty list for none. The answer\n  decides whom the action is offered to, the check at every call, before a confirmation and again after it, and which\n  MCP callers see and call it: an action the MCP server withheld only for its roles is published once the governor\n  requires none. `MentorActionDecision.RolesFromOutside` says when the roles came from the governor. New rule:\n  `roles.external-replace`; `roles.checked-before-confirmation` now checks the governor's roles when it gives them.\n\n- The governor can also decide whether the user confirms an action: `IMentorActionGovernor.GetConfirmationAsync`\n  answers `MentorConfirmationChoice.Code` for the code's confirmation, `Required` to ask even if the code does not,\n  and `None` not to ask even if the code does — declared, by default for writes, or by `RequiresApproval`. A\n  confirmation added counts from the call, one taken away from the next session, and in Native mode no auto-approval\n  rule lets a required one through. A policy's `Confirm` still asks, a hosted MCP server's approval still comes from\n  its provider, and with `RequireConfirmation` off nobody is asked. An action whose confirmation is taken away still\n  counts as one that changes data. The MCP server publishes an action that asks for confirmation once the governor\n  takes it away, and withholds one it requires. `MentorActionDecision.ConfirmationFromOutside` says when the governor\n  changed whether a call is confirmed. New rule: `confirm.external-decides`; `confirm.predicate-adds` and\n  `surface.mcp-withholds-gated` now say what the governor can take away.\n\n- The governor can also rewrite the description the model reads: `IMentorActionGovernor.GetDescriptionAsync` answers\n  in place of the code's, with `null` or a blank text for the code's. It is asked as a session builds its tools and\n  on every `tools/list` of the MCP server, and the answer is what the coordinator, the specialists and the team\n  members read, what tool filtering ranks, and what `tools/list` shows; the action's name and argument schema never\n  change, and the code's `ProactiveHint` still follows the description. What the user sees keeps the code's\n  description: the confirmation banner, the bar of the running action and `MentorActionDecision.DisplayName`. On a\n  call to the MCP server the policies are asked with the code's description. New rule: `describe.external-replace`.\n\n- An `IMentorAgentSource` says what it loaded and what it left out, and when it is asked is a promise. A source is\n  asked whenever a coordinator is built: at least once per session — once per Blazor circuit, MAUI app scope or hub\n  connection, and at every request on `/mentor/chat` and every task over A2A — and `MentorAgentSourceContext.SessionId`\n  names the session, as `MentorActionRequest.SessionId` does. MentorAgent now calls `IMentorAgentSource.LoadAsync`,\n  which returns a `MentorAgentSourceResult`: the agents, and a `MentorAgentRejection` (`Name`, `ReasonCode`, `Detail`,\n  `Tool`) for each definition left out or tool taken away. Its default body returns the agents of `GetAgentsAsync`, so\n  an existing source works unchanged. An `IMentorAgentSourceObserver`, registered with\n  `AddMentorAgentSourceObserver<T>()`, receives a `MentorAgentSourceReport` for each source every time a coordinator\n  is built, also when the source loaded nothing; a source that throws is reported as `source-failed`, with the\n  exception's type and never its message. The reason codes, in `MentorAgentRejectionReasons`: `invalid-definition`,\n  `not-an-agent`, `foreign-tools`, `invalid-configuration`, `source-failed`, `tool-not-found` and\n  `hosted-tool-removed`. **Novior.MentorAgent.Declarative** reports every definition it does not load and every tool\n  it takes away. New rules: `declarative.functions-match` and `declarative.no-hosted-tools`.\n\n- `MentorRuntimeOptions.Changeable` lists the options that can be changed while the application runs, and from when\n  a change applies (`MentorOptionReadAt`). From the next turn of every session: `Language`, `RateLimitPerUser`,\n  `RateLimitWindowSecs`, `ConfirmationMessage`, `ConfirmationTimeout`, `ActionPolicyTimeout`, `EnableActionFeedback`,\n  `EnableGenerativeCards`, `EnableSafetyCheck` and `CheckAnnouncedActions`. From the sessions that begin after the\n  change: `MentorshipLevel`,\n  `ProactiveNextSteps`, `EnableRichResponses`, `RefuseOutOfScope`, `ToolFilterMaxTools` and `MaxSessionMessages`. To\n  change one, assign it on the `IOptions<MentorOptions>` value, replacing a collection rather than changing it in\n  place. Every other option is read before the application starts: set it there. Each option listed has a test that\n  changes it on a running application, and every option declares when it is read, so a new one cannot ship without\n  the decision.\n\n- After a turn in which the coordinator called no tool, MentorAgent asks a model whether its reply announces an action\n  (\"I'm registering the note…\") or reports one as done when nothing ran (`MentorOptions.CheckAnnouncedActions`, on by\n  default). If it does, the coordinator gets one more request in the same turn, with the same tools, told to call the\n  tool now or to say that it was not done. The question names the tools the model was sent, and the answer names the\n  one that does the action: the second request then says that this tool is there to call now. The instruction is that\n  request's last message, read after the reply it is about, and never stored. A call to an action of the application\n  the agent was not given (one that is off for the session) runs nothing, and the turn is checked as one in which\n  nothing ran. The call is never required and passes the gate as any other, the reply\n  already shown is not held back, and the second reply is not checked again. The question goes to\n  `ClassifierChatClient`, or to `ChatClient` without one: a few hundred tokens after every reply that called no tool,\n  so a small deployment there is worth configuring. Its verdict is logged at Information for every reply it checks,\n  with the time and the tokens it took. On Path A with the history kept by MentorAgent; not with\n  `UseServiceManagedHistory` nor with a pre-built `Agent` (BUG-220).\n\n- A call the model makes to an action of the application that the coordinator was not given in the turn — one that\n  is off, or another agent's — reaches no gate and runs nothing. `IMentorActionObserver` now receives its one\n  decision, `Denied` with the new reason code `not-offered`, and the call's span says the same, in Blocking and in\n  Native mode, with `CheckAnnouncedActions` on or off. A call the coordinator was given keeps the decisions of its\n  gate, and only those.\n\n- One instance of the application can tell which tenant a request belongs to. `IMentorTenantResolver`, registered with\n  `services.AddMentorTenantResolver<T>()` (one per application), names it from the caller, the surface and the\n  request's services; `IMentorTenant.Id` reads it, in an action, a policy or the governor, and\n  `IMentorTenant.GetIdAsync()` resolves it first in a scope that had no turn yet. It is asked when a turn\n  starts — in a Blazor circuit, on the hub, on `/mentor/chat`, in an A2A task — and for every `tools/list` and\n  `tools/call` of the MCP server, where each call reads its own. A request is never served without a tenant: a resolver\n  that throws, or answers `null`, empty or white space, refuses it before the model or the action, and a turn whose\n  tenant is not the one its conversation began with is refused too. Without a resolver there is one tenant, as before,\n  and `IMentorTenant.Id` is `null`.\n\n- With an `IMentorTenantResolver`, two tenants on one instance share no memory, no rate limit and no conversation.\n  `MentorMemoryService.GetUserIdAsync()` — the key of the memory and of `RateLimitPerUser` — is the tenant's own\n  (`tenant:<id>/<the user's key>`), the shared anonymous bucket included, and so is the MCP server's per-caller\n  allowance. A session snapshot names its tenant and is restored for that tenant only: one of another tenant, one that\n  names none where a resolver is registered, and one that names a tenant where none is, are refused before the\n  conversation changes (a 400 on `/mentor/session`). The history MentorAgent keeps is a coordinator's own, as before; a\n  single `ChatHistoryProvider` instance with a resolver registered is reported at start-up, since it serves every tenant\n  — `ChatHistoryProviderFactory` runs in the conversation's scope, where `IMentorTenant` reads the tenant. Without a\n  resolver every key and every snapshot is as before.\n\n- With an `IMentorTenantResolver`, every metric names its tenant: the `mentoragent.tenant` tag is on the four counters\n  (`mentoragent.turns`, `mentoragent.tool_calls`, `mentoragent.errors`, `mentoragent.guardrail_blocks`) and on the\n  `mentor.turn` span, the MCP server's calls included, so the whole instance is read per tenant from OpenTelemetry. The\n  token & cost dashboard and `GET /mentor/admin/metrics` show the figures of the reader's tenant only: tokens, cost,\n  turns, errors, guardrail blocks and top actions. A reader whose tenant the resolver does not name sees none (a 403\n  on the endpoint). `IMentorMetrics.GetSnapshot(string? tenant)` and `IMentorMetricsStore.QueryAsync(string? tenant,\n  CancellationToken)` are new, with defaults that keep existing implementations working. A custom `IMentorMetrics`\n  shows a tenant nothing rather than the instance's figures (a 204 on the endpoint). A store is asked for a tenant only\n  when it implements the new overload. A tenant's figures are kept in RAM since the process started; the store saves\n  and seeds the instance's. Without a resolver the series, the dashboard and the endpoint are as before.\n\n- With an `IMentorTenantResolver`, retrieval and the logs know the tenant. `MentorRagRequest.TenantId` gives a RAG\n  source the turn's tenant; MentorAgent filters nothing, so a source that holds several tenants' documents returns\n  that tenant's. A source that implements only the `(query, maxResults)` overload never sees it, and a Warning says\n  so at its first search with a tenant. Every log line of a turn, the application's own code in the turn included,\n  and of a call to the MCP server is written in a log scope with one pair, `mentoragent.tenant`, the key of the\n  metrics and the span; a provider that includes scopes shows it. Without a resolver nothing changes.\n\n- `MentorOptions.RagNoResultsNotice` (off by default) tells the model when the knowledge-base search of a turn kept no\n  document — none returned, or every one below `RagMinScore`: a question the documents would cover is answered \"not\n  found in the documents\" rather than from memory, and a message that needs no document, such as a greeting or an\n  action, is answered as usual. The text is MentorAgent's, in the language of the turn, in that request's\n  instructions only. It is not given after a search that failed, nor without a source.\n\n- A knowledge-base search that fails can be monitored. With `EnableObservability` it is counted on\n  `mentoragent.rag_failures`, tagged with the source (`mentoragent.rag.source`, its type's full name) and the\n  exception's type (`mentoragent.error.type`), never its message, and with `mentoragent.tenant` when a resolver is\n  registered; a Stop during the search is not counted. Each search has a `mentor.rag.search` span, with the source,\n  and the status Error when it failed. The Warning names the source: \"The search of … failed — RAG context skipped.\".\n\n- `IMentorRagSource.OnConversationChangedAsync` tells a source that the session's conversation changed, so one that\n  keeps state for it clears it: `MentorConversationChange.Reason` is `Reset` (New conversation), `Restored` (a saved\n  conversation took its place) or `Replaced` (a restored conversation the service no longer knew was replaced,\n  BUG-110), with the session's id and its tenant. The default does nothing, so an existing source works unchanged. It\n  is called with `UseRag` on, on the instance the session searches with, bounded by `SafetyCheckTimeout`; a source\n  that throws or does not answer in time is logged as a warning, and the conversation changes anyway.\n\n- `MentorVectorStoreRagSource<TRecord>`, a knowledge-base source over any collection of\n  `Microsoft.Extensions.VectorData` (pgvector, Qdrant, Azure AI Search, an in-memory one), registered with\n  `services.AddMentorVectorStoreRag(sp => collection, new MentorVectorStoreRagOptions<TRecord> { Content = … })`.\n  The options say what of a record is the document, its title, its link and its metadata, and which records a request\n  may see (`Filter`, given the `MentorRagRequest` with its tenant and user). Scores are read as similarities whatever\n  the collection's distance function: with `CosineDistance`, the Postgres default, the source uses 1 − distance, so\n  `RagMinScore` keeps the nearest documents. The function comes from `DistanceFunction` or from the record's\n  `[VectorStoreVector]` attribute; when neither names one, or it is a Euclidean, Manhattan or Hamming distance,\n  registering the source fails. The message is embedded once per turn with `MentorOptions.EmbeddingGenerator` and\n  shared with routing, tool filtering and memory, or with a generator of the source's own; without either, the\n  collection embeds the text itself. `DefaultMinScore` is 0.5. With a tenant resolver and no `Filter`, the first\n  search with a tenant is logged as a warning. `Novior.MentorAgent` now references\n  `Microsoft.Extensions.VectorData.Abstractions` 10.10.0, which Agent Framework already brought.\n\n- A provider that ignores `tool_choice: \"required\"` is reported. `RequireLookupForRecordQuestions` and\n  `RequireActionForChangeRequests` require the first call of the turn with `ChatToolMode.RequireAny`; a provider that\n  answers such a request without any call — Ollama ignores `tool_choice` — makes them do nothing, and the first time\n  it does a warning says so, once per provider client: \"The provider answered a request that required a tool call\n  (tool_choice: required) without calling one: …\". A call to a tool the request did not offer is still a call, and a\n  streamed reply is looked at as it goes by, nothing held back. The README has a recipe for llama-server and vLLM.\n\n- `CoordinatorSampling` (`MentorSamplingOptions`): the coordinator's sampling — `Temperature`, `TopP`, `TopK`,\n  `MaxOutputTokens`, `FrequencyPenalty`, `PresencePenalty`, `Seed` — on every request of its turns, the forced first\n  call and the follow-ups of the tool loop included. The option unset, and each value left null, is the provider's\n  own; in configuration, `Mentor:CoordinatorSampling:Temperature` and so on. The classifiers call the provider directly\n  and keep their own settings: those that ask for temperature 0 still do, the others keep the provider's default, as\n  before. A negative temperature, a top-p outside (0, 1], or a top-k or output limit below 1 stops the application at\n  startup. Stop sequences are not offered: one that also occurs in a tool call's arguments would cut the call short.\n\n- `WarmUpChatModel`: with `WarmUpAtStartup`, the warm-up also sends the coordinator's model one minimal request, so\n  the first turn does not pay for opening the connection, the provider's empty prompt cache or a local model still\n  loading. Every start costs one request per client — `ChatClient`, and `StrongChatClient` when it is set — with the\n  coordinator's instructions, tools and sampling, no call allowed (`ChatToolMode.None`), one short user message and at\n  most 16 output tokens. It goes straight to the provider client: no history, no memory, no turn on the dashboard;\n  the warm-up's log line gives its time and tokens. A request that fails is a warning, and the application carries\n  on; without `WarmUpAtStartup` the option has no effect, and a startup warning says so.\n\n- `MentorEvaluator.RunConversationsAsync`: whole conversations (`EvalConversation`, `EvalTurn`) through the mentor\n  itself — the orchestrator, streaming, with its tools, filters, roles, RAG, memory and the history from one turn to\n  the next — each in a session of its own. A turn can require tools (`ExpectTools`: \"at turn 2 it must call X\"),\n  forbid others (`ForbidTools`), and set a token budget, a limit on the time to the first token and an expectation\n  for the judge. Its result adds `ToolsCalled`, read from the tool gate, `TimeToFirstToken`, `TurnDuration`,\n  `Conversation` and `Turn`; its tokens are those of its own session, exact while other sessions talk. **Every\n  confirmation is answered no by default: an evaluation does not write data on its own.**\n  `MentorEvalOptions.ApproveConfirmations` answers yes, and `PrepareSession` sets the conversation's user or page\n  before its first turn. `RunAsync` is unchanged; `SystemInstructions`, `Checks` and `Evaluators` stay its own.\n\n- `EvalTurn.ExpectRefusal`: a conversation turn can expect the mentor to refuse — `EvalRefusal.OutOfScope`\n  (`RefuseOutOfScope`), `EvalRefusal.Guardrail` (the safety check, the host's `InputGuardrail`, or the model refusing\n  to answer) or `EvalRefusal.Any`. That refusal, shown to the user as an error, then passes the turn and the\n  conversation goes on; a turn that was answered, refused the other way or failed, fails, and its notes say which. A\n  safety check that could not run, a message too long, the rate limit and a missing tenant are not refusals: they stay\n  errors. Without the expectation a refusal fails the turn as before. `MentorEvalResult.Refusal` reports the refusal a\n  turn showed, expected or not.\n\n- A `dotnet new` template in the repository, `templates/mentoragent-blazor`: a Blazor Server helpdesk with a\n  MentorAgent assistant and three actions — `list_open_tickets`, `assign_ticket` with a confirmation, `close_ticket`\n  with a confirmation and the `Agent` role — the model from the configuration with its key in the user secrets, and a\n  test sign-in with two users, one without the role. Its test project runs the assistant with a scripted model through\n  `RunConversationsAsync`: a support agent who confirms closes a ticket, without a yes the ticket stays open, and\n  without the role the action is not offered. It is installed from a clone of the repository, not from NuGet:\n  `dotnet new install templates/mentoragent-blazor`, then `dotnet new mentoragent-blazor -n Helpdesk`.\n\n### Changed\n\n- An `IMentorRagSource` that answers with no list (`null`) fails at once, with a message that says a source finding\n  nothing returns an empty list, instead of a `NullReferenceException` later on. The turn goes on without documents,\n  as before.\n\n- **Novior.MentorAgent.Declarative:** a `kind: function` entry that names no action of the session — unknown to the\n  application, or off for the session — is taken away from the agent, with a warning, and the agent loads without it.\n  The Agent Framework used to give the agent a function of that name with nothing behind it: the model could call it,\n  nothing ran, and the agent stopped without a word in the log. An action that is off is therefore described to no\n  model through a definition that names it either.\n\n- Every package is now checked at pack time against the public API of 1.2.0, so 1.3.0 cannot break code built\n  against 1.2.0 by accident. An intended break is listed in this file as Breaking.\n\n- The family moves onto the Microsoft Agent Framework 1.27.0 line (`Microsoft.Agents.AI` and\n  `Microsoft.Agents.AI.Workflows` 1.27.0). **Novior.MentorAgent.Declarative:** `Microsoft.Agents.AI.Declarative` moves\n  to 1.27.0-rc1, on the same line. The two breaking changes of Agent Framework 1.27 are in parts MentorAgent does not\n  use: `AddFoundryResponses` for hosted Foundry applications, and the redirect callbacks of `DefaultHttpRequestHandler`.\n\n- The packages' description and tags say what MentorAgent is: AI agents in a .NET application under your rules —\n  roles, confirmations, cost control. The tags of `Novior.MentorAgent`, `.Server` and `.Blazor` now include\n  `ai-governance`, `governance`, `authorization`, `roles`, `approval` and `human-in-the-loop`; the `mentor` tag, which\n  found only namesakes, is gone from all five packages.\n\n### Fixed\n\n- When a restored conversation the service no longer knew was replaced by a new one (BUG-110), the knowledge-base\n  search kept the recent messages of the conversation that was gone: the first search of the new one was given the\n  message of the turn that had failed. They are now cleared, as on a reset or a restore.\n\n- The turn's vector of the message (`IMentorQueryEmbedding`) was kept on its text alone (BUG-229): a knowledge-base\n  source that embeds the message with a model of its own was handed the vector of `MentorOptions.EmbeddingGenerator`,\n  or routing, tool filtering and memory were handed the source's, whichever asked first in the turn. Each generator\n  now gets the vector it makes, still computed once per turn, compared by reference; at most four generators are\n  remembered, the oldest dropped first, so one built for every call cannot make the cache grow.\n\n### Security\n\n- **Novior.MentorAgent.Server:** BUG-230 (S1): `GET /mentor/chat` ran a turn for any request the browser sent with the\n  sign-in cookie, and with cookie authentication (`SameSite=Lax`) that includes a link clicked on another site: one\n  link ran a turn as the signed-in user, with the link author's question, even with `RequireAuthorization`. Both\n  `GET` and `POST /mentor/chat` now answer `403` before the turn when the browser's Fetch Metadata says another site\n  started the request (`Sec-Fetch-Site` `cross-site` or `same-site`, `Sec-Fetch-Mode` not `cors`), and log a warning\n  `chat.cross-site-refused` without the question. Your own page's calls, clients without Fetch Metadata and `cors`\n  requests work as before. With a `SameSite=None` cookie, or for browsers that send no Fetch Metadata, add a check\n  of your own: the Server README says how.\n\nThe full history is in CHANGELOG.md, inside this package.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#repository",
+    "commit": "403783e32c187b0330d51d4680c0c54c61cefbc1",
+    "type": "git",
+    "url": "https://github.com/Novior-dev/MentorAgent"
+  },
+  "title": "Novior.MentorAgent.Declarative",
+  "verbatimVersion": "1.3.0",
+  "version": "1.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#dependencygroup/net10.0/novior.mentoragent",
+          "@type": "PackageDependency",
+          "id": "Novior.MentorAgent",
+          "range": "[1.3.0, 1.3.0]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#dependencygroup/net10.0/microsoft.agents.ai.declarative",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Agents.AI.Declarative",
+          "range": "[1.27.0-rc1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#CHANGELOG.md",
+      "@type": "PackageEntry",
+      "compressedLength": 64507,
+      "fullName": "CHANGELOG.md",
+      "length": 196980,
+      "name": "CHANGELOG.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#IconMA.png",
+      "@type": "PackageEntry",
+      "compressedLength": 19444,
+      "fullName": "IconMA.png",
+      "length": 19436,
+      "name": "IconMA.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 3951,
+      "fullName": "LICENSE",
+      "length": 11560,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#NOTICE",
+      "@type": "PackageEntry",
+      "compressedLength": 410,
+      "fullName": "NOTICE",
+      "length": 679,
+      "name": "NOTICE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#Novior.MentorAgent.Declarative.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 10080,
+      "fullName": "Novior.MentorAgent.Declarative.nuspec",
+      "length": 26928,
+      "name": "Novior.MentorAgent.Declarative.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 9043,
+      "fullName": "README.md",
+      "length": 24669,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#THIRD-PARTY-NOTICES.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1707,
+      "fullName": "THIRD-PARTY-NOTICES.md",
+      "length": 3633,
+      "name": "THIRD-PARTY-NOTICES.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#lib/net10.0/Novior.MentorAgent.Declarative.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10776,
+      "fullName": "lib/net10.0/Novior.MentorAgent.Declarative.dll",
+      "length": 25600,
+      "name": "Novior.MentorAgent.Declarative.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#lib/net10.0/Novior.MentorAgent.Declarative.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 3268,
+      "fullName": "lib/net10.0/Novior.MentorAgent.Declarative.xml",
+      "length": 10758,
+      "name": "Novior.MentorAgent.Declarative.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#_manifest/spdx_2.2/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 5300,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json",
+      "length": 52692,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_2.2/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.41.21/novior.mentoragent.declarative.1.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13002,
+      "fullName": ".signature.p7s",
+      "length": 13002,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "ai",
+    "ai-agents",
+    "ai-governance",
+    "human-in-the-loop",
+    "llm",
+    "agent",
+    "yaml",
+    "declarative",
+    "configuration",
+    "agent-framework",
+    "microsoft-agent-framework",
+    "dotnet",
+    "csharp"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,435 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "ProjectThunder",
+  "catalog:commitId": "186535a0-2a1a-4ee2-86d6-481ffb56c7a6",
+  "catalog:commitTimeStamp": "2026-11-11T18:53:59.168761Z",
+  "copyright": "Copyright (c) 2026 ProjectThunder",
+  "created": "2026-11-11T18:45:50.07Z",
+  "description": "thunder-dbf: check, inspect, import, export and migrate dBASE and FoxPro data from the command line.",
+  "iconFile": "icon.png",
+  "id": "thunder-dbf",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-11T18:53:56.057Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "7zjejT8ICPrCpX6i4y9Bi1mYvC1eyd016m6IvLI9dmWKEJT5wJfx/VZlJH+nJv2O5jzM9GDrxtYlJXIJAIwb7w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 17897279,
+  "projectUrl": "https://github.com/pthunder/Thunder.Dbf",
+  "published": "2026-11-11T18:45:50.07Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Eighteen bug fixes, found by reading the whole library through for bugs and checked again by a release audit of the fixes. The ones most worth upgrading for: an `.mdx` that grew with every rebuild or `Pack()`, FoxPro currency and nullable index tags that couldn't be sought, a `Pack()` whose failed safety copy could be mistaken for the table, and, on Linux, locks one table could drop for another in the same process. Each has a test that fails without the fix, bar the PostgreSQL one (the tests run against SQLite). Checked on Windows, Linux and macOS.\n\n**Upgrading from 0.4.2:** nothing in the public API changed. Three things behave differently:\n- A table with a `.cdx` currency tag keyed the way Harbour keys one now refuses writes (`IndexWouldGoStale`). Visual FoxPro's keys used to be written into it.\n- `Append` and `Update` take `\"\"` for a date or datetime field as blank, where they threw.\n- `ModifyStructure` carries a 16- or 17-digit `double` into a numeric field wide enough for it, where it called that a loss.\n\n### Fixed\n\n- **Rebuilding an `.mdx` no longer grows the file.** `RebuildIndex()` and `Pack()` freed every tag's old nodes to a list that's never read back and built the new tree at the end of the file, so each one added the index's whole size again. At 2 GB the rebuild failed partway and the table refused writes. A rebuild now builds the new tree in the old one's nodes, when the file shows each node to be that tag's alone: every tree walked whole, no node reached twice or shared by two tags, none on the free list. An index that fails that (a cut-off write can leave one so) is rebuilt in new pages, and its old pages are neither reused nor freed: freeing one already on the free list, or one two tags reach, would hand a live node to a program that reuses the list. A rebuild cut off partway (a power cut) leaves the tag half built, as it always has: the next writable open finds it out of step and refuses writes until `RebuildIndex()` is run again. A file that has already grown keeps its size.\n- **A FoxPro `.cdx` tag on a currency field, or on a nullable character field, is read correctly.** `Seek` and `SeekExact` found nothing in either, and `Entries()` gave wrong keys: the reader took a currency key for a double and didn't know the marker byte Visual FoxPro puts in front of a nullable field's key. Writing those tags was already right. `SeekExact(null)` finds the `.NULL.` records, whose key reads as `null`. Harbour keys a currency field as a plain number instead, and a tag it made is still read that way: which of the two a tag holds is settled by checking its lowest and highest keys against the records they point at. A tag with no keys, or only zeros, can't say, and counts as Visual FoxPro's. A table with a Harbour-keyed currency tag now refuses writes (`IndexWouldGoStale`), where Visual FoxPro's keys used to be written into it: Harbour's own conversion of the value isn't reproduced exactly.\n- **SQL `LIKE` with a `%` in the text.** `NOTE LIKE '%50%'` missed \"50% off\", and `'100%'` missed \"100% sure\": a `%` in the pattern was taken as a literal wherever the text had one.\n- **Reading a record into a class and updating it no longer fills in its blank fields.** A blank date read as `DateTime.MinValue` (or `DateOnly.MinValue`) and a blank character as `'\\0'`, and `UpdateRecord` and `AppendRecord` wrote those back as 0001-01-01 and a NUL byte. They're written as blank, and in a `Nullable` field as a blank rather than a `.NULL.`. A non-nullable `bool` or number property still writes `F` or `0` over a blank, since those can't be told from real values; make the property nullable to keep the blank.\n- **A `double` written to a numeric field keeps all its digits.** It was rounded to 15 significant digits on the way, so `9007199254740992` was stored as `9007199254740990`. A `float` keeps its own digits (`0.1f` is still `0.1`). `ModifyStructure` therefore carries a 16- or 17-digit double into a numeric field wide enough for it, where it used to call that a loss.\n- **An index whose key divides by a field** (`TOTAL/QTY`) stopped the index, and a writable open of its table, with a `DivideByZeroException`: the key's type is worked out on a blank record, where the field is 0. While the type is being worked out, a division by zero now counts as 0; a real record that divides by zero still fails, as before.\n- **A number right before `.AND.`, `.OR.` or `.NOT.`** (`TYPE=1.AND.ACTIVE`, written without spaces) no longer fails to parse. The dot was read as the number's decimal point, and a tag with such a filter counted as one that can't be kept up to date.\n- **A `.cpg` file naming a code page .NET doesn't have** (`895`, say) made `Open` throw `NotSupportedException`. The table now opens with its header's code page, as it does for a name that isn't an encoding at all.\n- **`DbfDataReader.GetFieldValue<DateOnly?>`** threw for every row that had a date; only null rows worked.\n- **`DbfDataReader.HasRows`** turned false once the rows had been read to the end. It stays true, as other ADO.NET providers do.\n- **A `Pack()` that fails while making its safety copy leaves the table as it was.** The copy was written straight to `NAME.dbf.packing`, the name that means \"a pack didn't finish\". A full disk or a kill during the copy left a partial file under it: every later write was refused with advice to put that copy in the table's place, which would have replaced an untouched table with a cut-off one. The copy is now written under a temporary name and renamed once it's whole and on disk, and no record moves before that.\n- **An `Append` whose commit fails no longer leaves its index keys behind.** They stayed queued, and the next `Append` on the same table wrote them for the record that took the failed one's place: `Seek` then found the wrong record, and the next writable open refused the `.mdx` as out of step. The keys are dropped. If the header on disk did count the rows (it went out and the flush after it failed), the table asks for `RebuildIndex()`, and a journal's note of the append stays for the next writer.\n- **Linux: closing a second handle to a table or index no longer lets go of another table's locks on it.** On Linux, closing any handle to a file drops every lock the process holds on that file. `DbfTable.Dispose` allowed for that; an open that failed partway, a `.cdx` or `.ntx` opened to be read and closed again (as every writable open does for the other indexes in the folder), and an exclusive open of a file already open in the process did not. Each could release a record, table or index lock another `DbfTable` in the same process was holding, in the middle of its write. The web service's first-write backup released its own table lock the same way, by closing its copy of the `.dbf`. Windows was never affected: its locks belong to handles.\n- **A Visual FoxPro memo file with one-byte blocks** (`SET BLOCKSIZE TO 0`) was refused as damaged. It's read and written.\n- **A short `.fpt` whose header names an end past 2 GB isn't padded.** An exclusive open pads a short `.fpt` to the end its header names, and took that end on trust: a header holding garbage asked for the whole gap as one array (an `OutOfMemoryException`), or wrote gigabytes of zeros. Padding is written in pieces, and not at all past the 2 GB a memo file can be.\n- **A table with a dot in its name** (`SALES.2019.dbf`) was listed by `TableNames` but couldn't be opened by that name, and stopped `DbfMigrator.Migrate`, `Check()`, `GetSchema(\"Columns\")` and the web service. Only a trailing `.dbf` counts as an extension now.\n- **Web service: a table listed as `X.dbf`** (the file `X.dbf.dbf`) opened `X.dbf` instead, so a key allowed one table could read the other. Each listed name opens the file it was listed for.\n- **Web service: settings in a `Data:Folder` connection string apply to writes too.** `Lock Scheme`, `Code Page`, `Journal` and the rest were used for reads only, so a server set to Clipper's lock positions wrote with dBASE's, uncoordinated with the Clipper app, and wrote text in a different code page from the one it read with.\n- **`DbfMigrator.Migrate` on PostgreSQL.** The check for an existing table ran inside the transaction that then creates it; on PostgreSQL the failed check aborts that transaction, so no table could be created in an empty database. The check runs first. (Reasoned from PostgreSQL's rules; the tests run against SQLite.)\n\n### Changed\n\n- **An empty string is a blank date.** `Append` and `Update` take `\"\"` for a date or datetime field as blank, as they do for a character field. In a `Nullable` field that's the way to write a blank that isn't `.NULL.`; `null` there still means `.NULL.`.\n\n### Tests\n\n- **The Visual FoxPro round-trip test covers FoxPro writing added since 0.2.0:** tables made by `DbfTable.Create` in both FoxPro formats, a `.cdx` made by `CreateIndexTag`, appends without a `_NullFlags` value, and `ModifyStructure` with `DropIndexTag`. VFP lists every value and must read what Thunder.Dbf reads. All eight pass against VFP 9 SP2 on the Windows test PC (on the 0.4.0 package, four of them failed); the [checklist](docs/maintainers/visual-foxpro-test.md) says how to run them.\n\nFull changelog: https://github.com/pthunder/Thunder.Dbf/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#repository",
+    "commit": "5f69fd40bbfaa2b49de645ff3827ec593b578088",
+    "type": "git",
+    "url": "https://github.com/pthunder/Thunder.Dbf"
+  },
+  "verbatimVersion": "0.4.3",
+  "version": "0.4.3",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#thunder-dbf.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4548,
+      "fullName": "thunder-dbf.nuspec",
+      "length": 10297,
+      "name": "thunder-dbf.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 700,
+      "fullName": "README.md",
+      "length": 1459,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 18511,
+      "fullName": "icon.png",
+      "length": 18501,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 140,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 193,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/Microsoft.Data.Sqlite.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 74707,
+      "fullName": "tools/net10.0/any/Microsoft.Data.Sqlite.dll",
+      "length": 177464,
+      "name": "Microsoft.Data.Sqlite.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/SQLitePCLRaw.batteries_v2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2208,
+      "fullName": "tools/net10.0/any/SQLitePCLRaw.batteries_v2.dll",
+      "length": 5120,
+      "name": "SQLitePCLRaw.batteries_v2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/SQLitePCLRaw.core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20929,
+      "fullName": "tools/net10.0/any/SQLitePCLRaw.core.dll",
+      "length": 51200,
+      "name": "SQLitePCLRaw.core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/SQLitePCLRaw.provider.e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14752,
+      "fullName": "tools/net10.0/any/SQLitePCLRaw.provider.e_sqlite3.dll",
+      "length": 36864,
+      "name": "SQLitePCLRaw.provider.e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/Thunder.Dbf.Sql.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19535,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.Sql.dll",
+      "length": 43520,
+      "name": "Thunder.Dbf.Sql.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/Thunder.Dbf.Sql.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 11742,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.Sql.pdb",
+      "length": 20700,
+      "name": "Thunder.Dbf.Sql.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/Thunder.Dbf.Sql.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2499,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.Sql.xml",
+      "length": 11613,
+      "name": "Thunder.Dbf.Sql.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/Thunder.Dbf.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 245352,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.dll",
+      "length": 603648,
+      "name": "Thunder.Dbf.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/Thunder.Dbf.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 79937,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.pdb",
+      "length": 169708,
+      "name": "Thunder.Dbf.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/Thunder.Dbf.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 42549,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.xml",
+      "length": 210003,
+      "name": "Thunder.Dbf.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/browser-wasm/nativeassets/net9.0/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 599567,
+      "fullName": "tools/net10.0/any/runtimes/browser-wasm/nativeassets/net9.0/e_sqlite3.a",
+      "length": 1308854,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-arm/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 629811,
+      "fullName": "tools/net10.0/any/runtimes/linux-arm/native/libe_sqlite3.so",
+      "length": 982224,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-arm64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 748260,
+      "fullName": "tools/net10.0/any/runtimes/linux-arm64/native/libe_sqlite3.so",
+      "length": 1534296,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-armel/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 701281,
+      "fullName": "tools/net10.0/any/runtimes/linux-armel/native/libe_sqlite3.so",
+      "length": 1375344,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-mips64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 724305,
+      "fullName": "tools/net10.0/any/runtimes/linux-mips64/native/libe_sqlite3.so",
+      "length": 1756544,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-musl-arm/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 679054,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-arm/native/libe_sqlite3.so",
+      "length": 1322584,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-musl-arm64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 724839,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-arm64/native/libe_sqlite3.so",
+      "length": 1450704,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-musl-riscv64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 599291,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-riscv64/native/libe_sqlite3.so",
+      "length": 1015888,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-musl-s390x/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 757858,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-s390x/native/libe_sqlite3.so",
+      "length": 1685752,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-musl-x64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 713516,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-x64/native/libe_sqlite3.so",
+      "length": 1445336,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-ppc64le/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 860595,
+      "fullName": "tools/net10.0/any/runtimes/linux-ppc64le/native/libe_sqlite3.so",
+      "length": 1937408,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-riscv64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 732146,
+      "fullName": "tools/net10.0/any/runtimes/linux-riscv64/native/libe_sqlite3.so",
+      "length": 1291896,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-s390x/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 766352,
+      "fullName": "tools/net10.0/any/runtimes/linux-s390x/native/libe_sqlite3.so",
+      "length": 1655776,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-x64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 731249,
+      "fullName": "tools/net10.0/any/runtimes/linux-x64/native/libe_sqlite3.so",
+      "length": 1470784,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/linux-x86/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 804832,
+      "fullName": "tools/net10.0/any/runtimes/linux-x86/native/libe_sqlite3.so",
+      "length": 1547984,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/maccatalyst-arm64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 872457,
+      "fullName": "tools/net10.0/any/runtimes/maccatalyst-arm64/native/libe_sqlite3.dylib",
+      "length": 1695264,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/maccatalyst-x64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 935286,
+      "fullName": "tools/net10.0/any/runtimes/maccatalyst-x64/native/libe_sqlite3.dylib",
+      "length": 1724352,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 873715,
+      "fullName": "tools/net10.0/any/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "length": 1696624,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/osx-x64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 935822,
+      "fullName": "tools/net10.0/any/runtimes/osx-x64/native/libe_sqlite3.dylib",
+      "length": 1724472,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/win-arm64/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 946303,
+      "fullName": "tools/net10.0/any/runtimes/win-arm64/native/e_sqlite3.dll",
+      "length": 1814528,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/win-x64/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1103611,
+      "fullName": "tools/net10.0/any/runtimes/win-x64/native/e_sqlite3.dll",
+      "length": 1978880,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/runtimes/win-x86/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 880425,
+      "fullName": "tools/net10.0/any/runtimes/win-x86/native/e_sqlite3.dll",
+      "length": 1533952,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/thunder-dbf.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1401,
+      "fullName": "tools/net10.0/any/thunder-dbf.deps.json",
+      "length": 8786,
+      "name": "thunder-dbf.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/thunder-dbf.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7341,
+      "fullName": "tools/net10.0/any/thunder-dbf.dll",
+      "length": 22016,
+      "name": "thunder-dbf.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/thunder-dbf.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8138,
+      "fullName": "tools/net10.0/any/thunder-dbf.pdb",
+      "length": 13280,
+      "name": "thunder-dbf.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#tools/net10.0/any/thunder-dbf.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 208,
+      "fullName": "tools/net10.0/any/thunder-dbf.runtimeconfig.json",
+      "length": 330,
+      "name": "thunder-dbf.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.18.53.59/thunder-dbf.0.4.3.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "dbase",
+    "foxpro",
+    "clipper",
+    "xbase",
+    "dbf",
+    "mdx",
+    "cdx",
+    "ntx",
+    "legacy",
+    "migration",
+    "cli",
+    "dotnet-tool",
+    "sqlite"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

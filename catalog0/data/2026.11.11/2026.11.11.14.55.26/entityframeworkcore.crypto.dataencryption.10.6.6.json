@@ -1,0 +1,227 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "efcore-encryption.com",
+  "catalog:commitId": "691d2d0f-4232-437a-bc6b-f723b3d1c4aa",
+  "catalog:commitTimeStamp": "2026-11-11T14:55:26.5683975Z",
+  "copyright": "Copyright © 2022-2026 efcore-encryption.com. All rights reserved.",
+  "created": "2026-11-11T14:32:00.293Z",
+  "description": "Field-level encryption for Entity Framework Core 10 on .NET 10. AES-GCM authenticated encryption, key rotation, blind-index equality lookups, exact Contains/StartsWith/EndsWith search, accent-insensitive and typo-tolerant search and in-application sorting on encrypted columns, a query guard that throws instead of returning wrong results, verified batch re-encryption (CBC to GCM, key rotation), convention-based AutoEncryption, ML PII classifier, Crypto Sentinel decryption-anomaly monitoring, email/webhook alerting and DPDP/GDPR compliance reports. Core encryption, key rotation, blind-index and search run without a license key; a license key unlocks the ML PII classifier, Crypto Sentinel, email/webhook alerting and DPDP/GDPR-ready compliance reporting.",
+  "iconFile": "Icon.png",
+  "id": "EntityFrameworkCore.Crypto.DataEncryption",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-11T14:54:32.94Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "zXDzFw/Of6jlopo4Bay12g9Z9hAbLiw0fLSNCbEOukMbc/4734s5Fq22tnZ35Z2gdB+2DNSRguWMZf6f2dy/SQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 769630,
+  "projectUrl": "https://efcore-encryption.com/",
+  "published": "2026-11-11T14:32:00.293Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Version 10.6.6\n\n\t\t\tIN SHORT\n\t\t\t- For .NET 10 and EF Core 10 only. Unlike 10.6.5, this version has no .NET 8 or .NET 9 build; see BREAKING CHANGES.\n\t\t\t- Fixes a thread-safety defect in AES-GCM on Linux. If you run on Linux or in a container, upgrade. See IMPORTANT FIX.\n\t\t\t- Faster: search indexing, query tokens, blind-index hashing and fuzzy matching take about half the time and allocate up to 16 times less memory; reading legacy AES-CBC data is about 12 times faster.\n\t\t\t- New: accent-insensitive search, AnyAsync and FirstOrDefaultAsync on encrypted queries, SearchIndexBackfill.RebuildAsync, and a wider query guard.\n\t\t\t- Includes everything from 10.1.0 to 10.4.0 (search, sorting, query guard, rotation, tolerant decryption) and fuzzy search, none of which was in 10.6.5.\n\n\t\t\tIMPORTANT FIX: AES-GCM UNDER CONCURRENT LOAD ON LINUX\n\t\t\t- What was wrong: AesGcmCryptoProvider kept one platform AES-GCM object per key and used it from every thread. That object is not safe to share. On Windows this did not show. On Linux (OpenSSL), when several threads encrypted or decrypted at the same moment on one provider, operations failed and, more rarely, a decryption returned the wrong bytes without an error.\n\t\t\t- How it was measured: 12 threads sharing one provider, 2.4 million encrypt and decrypt round trips of a 35-byte value, in a Linux container. Before: about 1.95 million round trips failed with an exception and about 40,000 returned a wrong value. After: 0 failed and 0 wrong, and throughput rose from about 470,000 to about 1,380,000 round trips per second. On Windows the same test had no failures before or after.\n\t\t\t- Who is affected: every earlier version that has AesGcmCryptoProvider, used on Linux by more than one thread at a time, which is how a web application uses it. KmsCryptoProvider and MigrationCryptoProvider use it internally and were affected the same way.\n\t\t\t- What to do: upgrade. No setting or code change is needed. Stored data needs no conversion. A value that was written while the defect was active and cannot be decrypted now was damaged when it was written; this release cannot repair it. Tolerant decryption (OnDecryptionFailure = ReturnNull) with its failure callback will list such rows.\n\t\t\t- The fix: each provider now holds several AES-GCM objects, one per processor up to 32, each used by one thread at a time. A thread takes a free one and does not wait for other threads unless all are busy. The blind-index hasher and the legacy AES-CBC provider use the same design.\n\n\t\t\tPERFORMANCE (measured, one 12-core Windows desktop, .NET 10, single runs, before and after this release)\n\t\t\t- Search index build for a 23-character value: 9,317 ns to 4,178 ns; memory per value 7,712 bytes to 480 bytes.\n\t\t\t- Search query tokens: 2,098 ns to 1,053 ns. Fuzzy query tokens: 9,459 ns to 4,215 ns.\n\t\t\t- Blind-index hash: 320 ns to 209 ns; memory 224 bytes to 88 bytes.\n\t\t\t- Fuzzy match check (edit distance, 23 characters, 2 edits): 888 ns to 333 ns.\n\t\t\t- Legacy AES-CBC: encrypt 911 ns to 339 ns, decrypt 4,385 ns to 356 ns, memory about 1,300 bytes to 200 bytes per value.\n\t\t\t- One AES-GCM provider shared by 12 threads: 3.4 million to 5.5 million round trips per second. A single AES-GCM encrypt (about 310 ns) or decrypt (about 150 ns) is unchanged.\n\t\t\t- SaveChanges with a blind or search index: the list of indexed properties is now worked out once per entity type and read without a lock, and the change tracker is walked once per save, not once per indexed property.\n\t\t\t- SearchIndexBackfill reads rows after the last key it processed, so each batch costs the same however many rows are already done. Before, each batch skipped past all earlier rows.\n\t\t\t- These are micro-measurements of the library's own code. They are not database timings, and other machines will give different numbers.\n\n\t\t\tNEW FEATURES\n\t\t\t- Accent-insensitive search: HasSearchIndex(caseInsensitive: true, accentInsensitive: true). A search for \"jose\" finds \"José\" and \"nguyen\" finds \"Nguyễn\", for Contains, StartsWith, EndsWith and WhereSimilar. Only accents are ignored: letters such as ø, ß, æ and ł, and the vowel signs of Indic, Arabic and Hebrew scripts, are left as they are. The stored encrypted value is not changed. Switching the option on for existing data needs SearchIndexBackfill.RebuildAsync.\n\t\t\t- AnyAsync(maxRows) and FirstOrDefaultAsync(maxRows) on AsEncrypted(...) queries. They read candidates one at a time and stop at the first confirmed match, so they do not load or decrypt every matching row.\n\t\t\t- SearchIndexBackfill.RebuildAsync: recomputes the search index of every row, for a new index key or a changed case or accent option. Rows that already hold the right index are not written.\n\t\t\t- Fuzzy (typo-tolerant) search: AsEncrypted(...).WhereSimilar(c => c.Name, \"Jhon Smith\", maxEdits: 1) finds \"John Smith\". The result is exact: no matching row is missed and none is wrongly included. It uses the existing search index.\n\t\t\t- Query guard now also rejects, on a randomized column: Equals in all its forms, GroupBy, Join and GroupJoin keys, Distinct and Contains over a projection of the column, and Min, Max, OrderBy over such a projection. It also rejects an encrypted column passed as the argument of a string method. On a deterministic column the equality-based ones stay allowed.\n\n\t\t\tOTHER FIXES\n\t\t\t- Query guard: when the check \"is this provider deterministic\" failed (for example a key service was unreachable for a moment), the guard remembered the provider as deterministic and stopped checking equality on it until restart. It now asks again next time.\n\t\t\t- MigrationCryptoProvider: a value with the AES-GCM envelope that fails authentication and is not legacy data either now reports that, in place of the legacy decryptor's unrelated \"padding is invalid\".\n\t\t\t- EncryptionRotator: a failed rollback (usually a lost connection) can no longer hide the error that caused it.\n\t\t\t- ToListAsync(int.MaxValue) no longer overflows.\n\t\t\t- The blind-index hasher no longer keeps a second copy of its key, and wipes the buffers that held plaintext before returning them to the pool.\n\n\t\t\tWHAT ELSE CHANGED SINCE 10.6.5 (first published in 10.1.0 to 10.4.0)\n\t\t\t- Exact Contains / StartsWith / EndsWith search on encrypted columns through a keyed search index (HasSearchIndex, AsEncrypted). The key is never sent to the database. Includes SearchIndexBackfill for existing rows.\n\t\t\t- In-application sorting of encrypted columns with a chosen culture and null placement, under a required maxRows cap that throws instead of truncating.\n\t\t\t- WhereBlindIn for IN-list lookups on a blind-indexed column, and per-column normalization (WithNormalization, NormalizeForQuery).\n\t\t\t- Query guard (UseEncryptedQueryGuard): queries that cannot work on ciphertext throw EncryptedQueryNotSupportedException instead of silently returning nothing.\n\t\t\t- Tolerant decryption (opt-in, EncryptionOptions.OnDecryptionFailure = ReturnNull): an unreadable string, byte[] or JSON value reads as null, is logged without any data, and no longer fails the whole query.\n\t\t\t- EncryptionRotator: verified, resumable batch re-encryption for CBC to GCM migration and key rotation.\n\t\t\t- Fixed: MigrationCryptoProvider could fail to read about 1 in 256 legacy AES-CBC values whose first bytes looked like a GCM envelope with an unregistered key ID.\n\t\t\t- Licensing: on a local development machine nothing is checked or logged and every feature works with no key. A deployment with no valid key still fails at startup. See LICENSE BEHAVIOR.\n\n\t\t\tBREAKING CHANGES\n\t\t\t- .NET 8 and .NET 9 are not supported by this version. 10.6.5 had net8.0 and net9.0 builds; 10.6.6 has net10.0 only. A project on .NET 8 or .NET 9 that asks for 10.6.6, or for a floating range such as 10.6.*, fails to restore with NU1202. Stay on 10.6.5 there, or use a later release that includes a build for your framework.\n\t\t\t- No public API was removed or changed incompatibly against 10.6.5 for .NET 10 (checked by the pack-time API validation).\n\t\t\t- The query guard is stricter (see NEW FEATURES). A query it now rejects was returning wrong results before, such as every row in its own group. If you rely on one of them on purpose, load the rows and do that step in memory.\n\t\t\t- The net10.0 package requires Microsoft.EntityFrameworkCore 10.0.14 or later (10.6.5 required 10.0.11).\n\t\t\t- With licensing, a deployment that calls AddDataEncryptionML without a valid key fails at startup in production-like environments (unchanged from 10.6.5). A local development machine works silently.\n\n\t\t\tNEW AND REMOVED APIS (compared with 10.6.5)\n\t\t\t- Added in 10.6.6: HasSearchIndex(caseInsensitive, accentInsensitive); EncryptedQuery.AnyAsync and FirstOrDefaultAsync; SearchIndexBackfill.RebuildAsync; WhereSimilar.\n\t\t\t- Added in 10.1.0 to 10.4.0: HasSearchIndex, AsEncrypted, WhereContains, WhereStartsWith, WhereEndsWith, OrderBy, ThenBy, EncryptedSortOptions, SearchIndexBackfill; WhereBlindIn; UseEncryptedQueryGuard, EncryptedQueryNotSupportedException, EncryptedQueryLimitExceededException; WithNormalization, NormalizeForQuery; EncryptionRotator, RotationOptions, checkpoint stores; DecryptionFailurePolicy, DecryptionFailure, EncryptionOptions, the UseEncryption(provider, options) overload and AutoEncryptionOptions.Encryption; LicenseEnforcer.Outcome.AllowedInDevelopment and LicenseGate.IsDevelopmentMode.\n\t\t\t- Removed: none.\n\n\t\t\tDEPENDENCIES\n\t\t\t- net10.0: Microsoft.EntityFrameworkCore and Microsoft.Extensions.* 10.0.14.\n\t\t\t- MailKit 4.18.2. Microsoft.ML and Microsoft.ML.TimeSeries 5.0.1.\n\t\t\t- Security: MailKit 4.18.2 brings in System.Security.Cryptography.Pkcs 10.0.13, which fixes advisories GHSA-846f-f764-76mx (high severity) and GHSA-2fmv-rv2c-59x7 (moderate) that affected the Pkcs version used by 10.6.5 and earlier.\n\n\t\t\tSTORED DATA FORMAT\n\t\t\t- Unchanged. Values written by earlier versions, AES-GCM or legacy AES-CBC, read exactly as before. Nothing needs re-encrypting to upgrade.\n\t\t\t- The blind-index and search-index columns are unchanged too. The faster code was compared with the build released as 10.4.0 on 6,030 inputs (ASCII, accented, Asian scripts, emoji, invalid UTF-16) and produced identical output for every one, so existing indexes keep working without a rebuild.\n\t\t\t- HasSearchIndex adds an optional nullable column named after the property plus SearchIndex. It needs a database migration and a one-time SearchIndexBackfill for existing rows. An accent-insensitive index stores different tokens for accented text, so turning that option on or off for existing rows needs RebuildAsync.\n\n\t\t\tTESTING\n\t\t\t- 420 unit tests pass on .NET 10 on Windows. The same source also passes them in a Linux container, where the thread-safety fix was measured.\n\t\t\t- 41 real-database tests pass on EF Core 10 against PostgreSQL 16, MySQL 8.4 and SQL Server 2022.\n\t\t\t- The real-database tests include accent-insensitive search, AnyAsync, FirstOrDefaultAsync, RebuildAsync and the new guard rules.\n\n\t\t\tLICENSE BEHAVIOR\n\t\t\t- The license is checked only when AddDataEncryptionML is called. UseEncryption, blind index, search, fuzzy search, sorting, tolerant decryption and EncryptionRotator never check it.\n\t\t\t- Community needs no key: field encryption, key rotation, cloud KMS, blind indexing, search and auto-encryption. Enterprise needs a key: ML classifier, Crypto Sentinel, email and webhook alerts, custom alert channels, decryption audit trail, compliance reports.\n\t\t\t- Local development (default mode Auto): everything works with or without a key, every feature is available, and no license warning or error is shown.\n\t\t\t- Deployed (Auto): without a valid key it throws LicenseValidationException at startup in Kubernetes, managed cloud, a container (unless the environment is Development), or when the environment is Production or Staging.\n\t\t\t- To log a warning instead of failing, set Enforcement.Mode to WarnOnly in the options, or set the environment variable EFCRYPTOML_LICENSE_ENFORCEMENT to WarnOnly. Paid features then stay off until a key is added. Strict mode fails everywhere, including a developer machine.\n\t\t\t- Plans: Community (free, under $2,000 annual revenue), Enterprise Annual ($2,999/yr), Enterprise 3-Year ($5,999 prepaid), Enterprise 5-Year ($6,999 prepaid), all Enterprise plans with unlimited developers and projects. See https://efcore-encryption.com/#plans\n\n\t\t\tKNOWN LIMITS\n\t\t\t- No independent security review has been done, of the encryption or of the search index. See SECURITY.md and docs/SEARCH_INDEX_SECURITY_REVIEW_BRIEF.md.\n\t\t\t- AES-GCM uses a random 96-bit nonce per value. Rotate a key before it has encrypted about 4 billion values (2 to the power 32), the usual limit for random nonces.\n\t\t\t- An encrypted value is not tied to its row or column. Someone who can write to the database can copy a valid encrypted value from one row to another and it will decrypt there. Changing a value is detected; moving one is not.\n\t\t\t- Legacy AES-CBC values have no tamper detection. Migrate them with EncryptionRotator.\n\t\t\t- The query guard is a safety net for common mistakes. It does not follow a value through every possible subquery shape.\n\t\t\t- Accent-insensitive search needs Unicode normalization from the runtime. With InvariantGlobalization or a container image without ICU it throws PlatformNotSupportedException when the model is built. It makes an accented and an unaccented spelling share index tokens, which is the point, and also means the index no longer tells them apart.\n\t\t\t- Fuzzy search compares the whole value. It does not match inside a longer value; use WhereContains for that. A term that is too short for the allowed edits is refused: roughly 3 characters for 1 edit, 7 for 2 edits, 11 for 3 edits. Its end-to-end timing against a database has not been benchmarked.\n\t\t\t- Range search on encrypted columns is not provided. It would need order-preserving encryption, which reveals the order of values.\n\t\t\t- Tolerant decryption applies to reference-type columns only (string, byte[], dictionaries, JSON classes). Numeric columns always throw. EncryptionRotator refuses to run over a tolerant column.\n\t\t\t- Sorting an encrypted column runs in the application and needs a maxRows cap. If more rows match, it throws and never truncates.\n\t\t\t- Contains search needs a term of at least 3 characters. StartsWith and EndsWith accept shorter terms.\n\t\t\t- The search index reveals which rows share short fragments of text, not the text itself. Use a dedicated blind-index key.\n\t\t\t- Existing rows are not searchable until SearchIndexBackfill has run. On PostgreSQL a trigram GIN index on the search column is recommended; the published timings were measured without one.\n\t\t\t- EncryptionRotator, BackfillAsync and RebuildAsync need a single-column primary key. EncryptionRotator also needs a concurrency token (or AllowWithoutConcurrencyToken) and stops on a row that cannot be decrypted.\n\t\t\t- Not tested: tables over 300,000 rows, MariaDB, managed cloud databases, and sustained concurrent load against a real database (the concurrency tests exercise the providers and hashers directly).\n\n\t\t\tRoadmap: https://github.com/efcore-encryption/EntityFrameworkCore.Crypto.DataEncryption/blob/main/ROADMAP.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#repository",
+    "branch": "refs/heads/main",
+    "type": "git",
+    "url": "https://github.com/efcore-encryption/EntityFrameworkCore.Crypto.DataEncryption"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "10.6.6",
+  "version": "10.6.6",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0/mailkit",
+          "@type": "PackageDependency",
+          "id": "MailKit",
+          "range": "[4.18.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0/microsoft.entityframeworkcore",
+          "@type": "PackageDependency",
+          "id": "Microsoft.EntityFrameworkCore",
+          "range": "[10.0.14, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0/microsoft.extensions.caching.memory",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Caching.Memory",
+          "range": "[10.0.14, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0/microsoft.extensions.hosting.abstractions",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Hosting.Abstractions",
+          "range": "[10.0.14, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0/microsoft.extensions.http",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Http",
+          "range": "[10.0.14, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0/microsoft.extensions.options.dataannotations",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Options.DataAnnotations",
+          "range": "[10.0.14, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0/microsoft.ml",
+          "@type": "PackageDependency",
+          "id": "Microsoft.ML",
+          "range": "[5.0.1, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#dependencygroup/net10.0/microsoft.ml.timeseries",
+          "@type": "PackageDependency",
+          "id": "Microsoft.ML.TimeSeries",
+          "range": "[5.0.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#EntityFrameworkCore.Crypto.DataEncryption.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7116,
+      "fullName": "EntityFrameworkCore.Crypto.DataEncryption.nuspec",
+      "length": 18074,
+      "name": "EntityFrameworkCore.Crypto.DataEncryption.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#Icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 288747,
+      "fullName": "Icon.png",
+      "length": 294014,
+      "name": "Icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 2190,
+      "fullName": "LICENSE",
+      "length": 7036,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3765,
+      "fullName": "README.md",
+      "length": 8906,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#ROADMAP.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5820,
+      "fullName": "ROADMAP.md",
+      "length": 14876,
+      "name": "ROADMAP.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#lib/net10.0/EntityFrameworkCore.Crypto.DataEncryption.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 385742,
+      "fullName": "lib/net10.0/EntityFrameworkCore.Crypto.DataEncryption.dll",
+      "length": 614912,
+      "name": "EntityFrameworkCore.Crypto.DataEncryption.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#lib/net10.0/EntityFrameworkCore.Crypto.DataEncryption.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 60453,
+      "fullName": "lib/net10.0/EntityFrameworkCore.Crypto.DataEncryption.xml",
+      "length": 407526,
+      "name": "EntityFrameworkCore.Crypto.DataEncryption.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.11.14.55.26/entityframeworkcore.crypto.dataencryption.10.6.6.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12992,
+      "fullName": ".signature.p7s",
+      "length": 12992,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "entity-framework-core",
+    "extensions",
+    "dotnet-core",
+    "dotnet",
+    "encryption",
+    "ef-core",
+    "data-encryption",
+    "crypto",
+    "pii-detection",
+    "ml-net",
+    "dlp",
+    "anomaly-detection",
+    "compliance",
+    "dpdp",
+    "gdpr",
+    "readme",
+    "roadmap",
+    "documentation"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

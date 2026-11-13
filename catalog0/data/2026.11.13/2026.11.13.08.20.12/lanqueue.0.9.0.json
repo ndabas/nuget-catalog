@@ -1,0 +1,183 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jason Wood",
+  "catalog:commitId": "99223426-9e71-4e28-b367-a6deeee8a263",
+  "catalog:commitTimeStamp": "2026-11-13T08:20:12.2681933Z",
+  "created": "2026-11-13T08:15:50.167Z",
+  "description": "Plug your old PCs back in and give them work. lanq sends builds, tests and coding-agent jobs to spare machines on your LAN over key-only SSH, with allowlisted commands and per-job git worktrees.",
+  "iconFile": "icon.png",
+  "id": "LanQueue",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-13T08:20:08.07Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "taMFtQd00sULnJZ1QmWEjIIOlJTsU28siHyH0lBBIlq6woqCL7OlZ8EeZZaa8KL1WjN0MCnMVNIMIzlQQCSkHQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1121770,
+  "projectUrl": "https://github.com/jangolath/lanqueue",
+  "published": "2026-11-13T08:15:50.167Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "### Per-job environment variables\n\n- `lanq run --env NAME=VALUE` (repeatable; single runs, `--shards`, `--dry-run`) sets a variable for this job only.\n  Shards get it too. The split is at the first `=`, and a name may be given only once (names are compared ignoring\n  case).\n- The developer decides which names jobs may set: machines.yml `policy.allowed_env`, exact names or prefixes ending in\n  `*` (`[CONFIGURATION, TEST_FILTER, \"MYAPP_*\"]`). It is empty by default, so every `--env` is refused until the\n  developer lists names. A name not listed is `Rejected` (2) with an `ask_developer` step.\n- A hard deny table applies on top, even to listed names, because these variables can make an allowlisted command run\n  other code or move where tools keep their files: the loader and shell startup names machines.yml already refused,\n  `PATH`, Node (`NODE_OPTIONS`, `NODE_PATH`), .NET (`DOTNET_STARTUP_HOOKS`, `DOTNET_ROOT*`, `CORECLR_*`, `COR_*`, ...),\n  Java, Python, Perl and Ruby startup and path variables, the Go toolchain and module settings and `CC`/`CXX`/`CGO_*`,\n  Rust (`RUSTFMT`, `RUSTUP_TOOLCHAIN`, `RUSTC`, `RUSTDOC`, `RUSTFLAGS`, `RUSTDOCFLAGS`, `RUSTC_WRAPPER`,\n  `RUSTC_WORKSPACE_WRAPPER`, `CARGO_ENCODED_RUSTFLAGS`, `CARGO_HOME`, `CARGO_TARGET_*`, `CARGO_BUILD_*`,\n  `CARGO_REGISTRIES_*`, `CARGO_SOURCE_*`), build tools (`JAVA_OPTS`, `GRADLE_USER_HOME`, `GRADLE_OPTS`, `MAVEN_OPTS`,\n  `MAVEN_ARGS`,\n  `MAKEFILES`, `MAKEFLAGS`, `DOTNET_HOST_PATH`, `NUGET_PLUGIN_PATHS`, `COMPLUS_*`, `DOTNET_MSBUILD_SDK_RESOLVER_*`),\n  TLS trust and proxies (`NODE_TLS_REJECT_UNAUTHORIZED`, `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, `SSL_CERT_DIR`,\n  `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`, `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`), package indexes\n  (`PIP_*`, `UV_INDEX_URL`, `UV_EXTRA_INDEX_URL`, `UV_INDEX`, `UV_DEFAULT_INDEX`, `UV_FIND_LINKS`, `UV_PYTHON`), OpenSSL and glibc module paths, profile and system folders (`HOME`, `USERPROFILE`, `APPDATA`, `TEMP`,\n  `TMP`, `XDG_CONFIG_HOME`, ...), `IFS`, `CDPATH`, and every name starting `GIT_`, `SSH_`, `NPM_CONFIG_`, `YARN_`,\n  `MSBUILD`, `LD_`, `DYLD_` or `LANQ_`. `NODE_ENV`, `GOOS` and `GOARCH` stay allowed. An `allowed_env` entry the\n  table fully covers (`GIT_*`, `HOME`, `PIP_*`, `CARGO_BUILD_*`, `CARGO_REGISTRIES_*`, `CARGO_SOURCE_*`) makes the\n  config fail to load; a prefix that only\n  partly overlaps (`NODE_*`, `UV_*`, `CARGO_*`) loads, and `lanq doctor` prints an informational `OK` line (`allowed_env`) saying those names stay refused, for\n  example `policy.allowed_env CARGO_*: names on lanq's deny list (CARGO_ENCODED_RUSTFLAGS, CARGO_HOME, CARGO_TARGET_*,\n  ...) stay refused`.\n- A deny-table name on the command line is a `fix_command` step (\"this variable can never be set by a job; drop it or\n  ask the developer: ...\"); from `lanq.yml` it is `ask_developer` (\"the developer drops it from that job's env: in\n  lanq.yml\").\n- Each value must be non-empty and free of control characters, at most 4,096 characters, and 16,384 for all of a job's\n  variables together (`NAME=VALUE` each). Values are never echoed in a refusal.\n- A machine whose own `env:` in machines.yml sets the same name is not used for the job (`env_conflict`), and neither\n  is a Windows machine on which lanq's largest job script plus the values would pass 8,000 characters\n  (`windows_command_too_long`). Both are permanent and judged from the config. When every capable machine clashes,\n  the run ends at once with `NoCapacity` (75, `retryable: false`) and an `ask_developer` step (\"ask the developer:\n  they can drop --env CONFIGURATION or remove it from the machine's env (build-01, big-01)\"); when the length rules\n  out the last ones, it is `Rejected` (2), naming each clashing machine too, with an `ask_developer` step (\"they can\n  shorten or drop the --env values, or change machines.yml\"; for a plan, \"that job's env: values in lanq.yml\"). An\n  agent stops and reports these; it never edits the config or drops variables to get through.\n- `lanq.yml` gains `env:` in a job and in `defaults:`, a mapping of `NAME: value`. It is merged by name, the job's value\n  winning: the one exception to \"a job's value replaces the default\". Each entry becomes an `--env` flag.\n- Variables go after the machine's `env:` and before lanq's own `LANQ_*`, quoted as data like the machine's.\n\n### Exclusive jobs\n\n- `lanq run --exclusive` (lanq.yml `exclusive: true`) takes every slot of the machine (`max_jobs`), all or nothing, so\n  no other lanq job, from you or anyone else, runs there while it does.\n- It waits while any live slot is in use (`busy`, retryable: \"busy (slots 1/4; --exclusive needs all 4 free)\"). There\n  is no reservation, so on a machine that is never idle it waits out `--wait` and ends `NoCapacity` (75). Use `--on` with a\n  machine that is idle, or run it in quiet hours.\n- `--exclusive --shards N` puts one shard on each machine; `--shards auto` counts the idle machines. A fixed N above the\n  machines that can take the job by config (capabilities, `size:`, `--env`) is refused (2) before any network.\n  `--mem` and Windows arguments are not part of that count, so extra shards wait for a machine that is idle.\n- In a plan, the dry run marks an exclusive job's machine full, so a sibling job waits.\n- Each slot of an exclusive job is an ordinary slot file, so `lanq unlock` and the stale-slot reclaim handle it like any\n  other (slot release itself now checks the holder; see Security).\n- An exclusive claim also backs out when a live `slot-N` above its own `max_jobs` exists: another developer's\n  `machines.yml` with a higher `max_jobs` for the same `work_root` has a job there. That is one look at claim time, so\n  such a developer can still start a job in a higher slot afterwards: everyone sharing a worker should use the same\n  `max_jobs`.\n- To fit the Windows command-line limit, every Windows slot claim (normal and exclusive) carries its fixed PowerShell\n  slot functions compressed (deflate, base64) and dot-sources them in memory, as the helper install already does. Some endpoint-protection tools flag that\n  pattern; the inflated text is lanq's constant claim code, and AMSI scans it as such.\n\n### Baseline rerun: is this failure new?\n\n- `lanq run --baseline` (lanq.yml `baseline: true`): when a job, a shard or a plan job ends `Failed` (its own non-zero\n  exit), lanq runs the same request again at the base commit, a clean tree, and says whether the failure is new.\n  Never after `TimedOut`, `WindowClosed`, `InfraError`, `NoCapacity`, `Rejected` or `Cancelled`.\n- The base is the merge-base of HEAD and the default branch (`origin/HEAD`, else `origin/main`, `origin/master`,\n  `main`, `master`). `--baseline-ref REF` (lanq.yml `baseline_ref:`, implies `--baseline`) uses the merge-base of HEAD\n  and REF instead. On the base commit with uncommitted changes, the base is HEAD without them; with none, the baseline\n  is `skipped`. Refused (`Rejected`, 2) before anything is sent: a REF that is empty, over 256 characters, has control\n  characters, starts with `-` or contains `..`; a REF that is not a commit; a repository with no commit; no default\n  branch; unrelated history. A shallow clone that lacks the merge-base is not refused: the baseline is `inconclusive`.\n- lanq.yml `baseline_ref:` must name a branch or tag (under `refs/heads/`, `refs/remotes/` or `refs/tags/`): a commit\n  id, `HEAD`/`*_HEAD` and revision characters are refused (\"baseline_ref must name a branch or tag (a commit can be\n  given on the command line with --baseline-ref)\"), so a repository's file cannot make lanq send any old tree to an\n  archive worker. `--baseline-ref` on the command line still takes any commit. A short name must exist under exactly\n  one of those (`baseline_ref NAME is both a branch and a tag; write refs/heads/NAME or refs/tags/NAME`, `baseline_ref\n  NAME names more than one ref (refs/heads/NAME, refs/remotes/NAME); write one of them`); a full `refs/heads/NAME` or\n  `refs/tags/NAME` is accepted; git's short forms `heads/main`, `tags/v1.0` and `remotes/origin/main`, which git would\n  accept, are refused with the full ref to write (`baseline_ref heads/main: write refs/heads/main`). The baseline's `ref` and label show the name as written.\n- How the keys combine: a job's own `baseline: false` with its own `baseline_ref:` is an error; its own `baseline: false`\n  drops an inherited ref quietly; its own `baseline_ref:` turns the baseline on even when `defaults:` say `false`; its\n  own `baseline: true` under `defaults:` with `baseline: false` and a ref gives a plain `--baseline`.\n- The verdict is `new` (the base completed), `preexisting` (the base failed too, any exit code), `inconclusive`\n  (anything else: timed out, no machine, the base could not be read or sent, Ctrl+C) or `skipped`. It is information\n  only: the run's status and exit code never change.\n- Shards: only the failed shards rerun, with the same `LANQ_SHARD`/`LANQ_SHARDS`. Plans: only the failed jobs that\n  asked for it, after the whole plan has ended. Each rerun gets its own `--wait`.\n- A rerun goes to the machine the job failed on: while that machine could take it but is busy, it waits up to 2 looks\n  (about 15 s each, never past what is left of its `--wait`) for a slot there, then takes any eligible machine; with\n  `--wait 0` (the default) it does not wait for it. A held or ruled-out machine is not waited for. On another machine,\n  `baseline.sameMachine` is `false` and the message and the `new` reason end `(on big-01, not build-01 where it\n  failed: the result may reflect the machine)`. Rerun lines are prefixed `[baseline]`, `[baseline 2/4]` or\n  `[baseline unit 2/4]` (`[baseline] [lanq] waiting for a slot on build-01, where the job failed, before taking\n  another machine (look 1 of 2)`, or `... (the other baseline reruns hold some)` while sibling reruns hold slots).\n- Ctrl+C: a rerun not yet started is `inconclusive: cancelled (Ctrl+C) before it started` on every path (single,\n  shards, plans), with `status` `null` before it began waiting and `Cancelled` (130) while it waited or claimed a slot;\n  a running one is stopped and cleaned up (`Cancelled`, 130, inconclusive). A rerun that finds no machine is\n  `NoCapacity` (75), inconclusive.\n- A rerun of an older commit leaves the worker's newer stored base (and `bases.json`) alone, so the next normal job\n  still gets a small incremental bundle.\n- Output: a `[lanq] baseline: ...` line per rerun before the status line, a `baseline` object in `--json` (run, each\n  shard, each plan job), and the verdict in the `fix_code` reason. `--dry-run` prints the base (`Baseline: on failure,\n  rerun at 1a2b3c4 (merge-base with origin/main) (a dry run runs nothing)`; the JSON message has no suffix). When the\n  merge-base is the branch tip the base is named by the branch: `at 1a2b3c4 (origin/main)`.\n- The base commit's payload gets the same committed-name and package-config secret scans as any snapshot (a hit:\n  `inconclusive: the base commit was not sent: Refused: possible secrets in payload (...)`). On an archive worker the\n  rerun receives the base commit's tree, an older version of the files.\n- A red run costs about twice as long with `--baseline`.\n\n### JSON and records\n\n- Run, shard and plan job objects (and the dry runs) gain `env` (the variable names only, never values),\n  `exclusive: true` and `baseline` (`{ref, sha, status, exitCode, machine, jobId, logPath, durationSeconds, verdict,\n  message}`, plus `sameMachine` when the rerun ran somewhere). Each is left out when it does not apply.\n- New permanent reason codes `env_conflict` and `windows_command_too_long`.\n- `lanq health --json` rows gain `slotsStale` (only when above 0), and `freeSlots` counts live slots only; the text\n  line adds `(4 stale: reclaimed by the next claim)` and busy reasons `, 1 stale: reclaimed by the next claim`.\n- `jobs.jsonl` gains optional `envNames`, `exclusive`, and on baseline reruns `baselineOf` (the failed job's id) and\n  `commit` (the base's short id); `v` stays 2. `lanq stats`, `--target-minutes` and the plan's history order leave\n  baseline reruns out.\n- Like the other job options, `--env`, `--exclusive`, `--baseline` and `--baseline-ref` are refused with `--plan`\n  (set them in `lanq.yml`).\n\n### Security\n\n- `--env` is gated by `policy.allowed_env` (empty by default) and the hard deny table, and each `NAME=VALUE` goes\n  through the secret scan (`Rejected` 2, value never echoed). A repository's `lanq.yml` can set only names the\n  developer allowed. The table is a guard against the obvious ways a variable can turn an allowlisted command into\n  other code; it is not a sandbox.\n- Values are visible to other users of the worker (its process list) and appear in the dry run and in suggested\n  commands in `nextSteps`, which repeat your command line. Never pass secrets with `--env`.\n- Slot release now checks the holder: cleanup removes each slot (a normal job's single slot too) only while its first\n  line is still this job's id, so a late cleanup can no longer delete a slot another job reclaimed meanwhile.\n- A claim that did not report back (timed out, lost connection, unreadable output, Ctrl+C mid-claim) is followed by a\n  best-effort release of the slots that hold this job's id (15 seconds, never fails the job).\n\n### Fixes\n\n- `--shards` with `--mem`: a shard that started while lanq was probing the machines was counted as running, as if its\n  memory showed in the probe's answer, although the machine answered before it ran. The next round could then place\n  one shard too many on that machine. Which shards are not running yet is now taken before the probe.\n- Stale slots (a crashed run's, more than 30 minutes past their deadline) no longer make a machine busy. The probe\n  reports them (`slots_stale=`), placement and `freeSlots` count only live slots, and the next claim reclaims them as\n  it passes. Before, one dead job's slot kept a machine busy for every `--exclusive` job for ever, and a dead\n  exclusive job's slots blocked the machine for everyone until something reclaimed them. `lanq health` shows them as\n  `(4 stale: reclaimed by the next claim)`.\n- A stale slot a claim cannot reclaim counts as busy for the rest of the run. The claim reports it\n  (`RECLAIM=STUCK slot-N`) only when the slot's `.reclaim` lock is older than about a minute (a dead reclaimer's), no lock\n  could be made, or the file could not be moved or deleted; a younger lock (a reclaim in progress) or a claim that\n  simply lost the slot to another job never marks the machine. lanq prints one line per machine, counting the slots\n  the claim named: `[lanq] build-01: 1 stale slot could not be reclaimed (a .reclaim lock or file\n  permissions); counting it as busy for this run; lanq unlock build-01 clears it`. Busy reasons then read `busy (slots\n  2/2, 1 stale, not reclaimable)`. On Windows an unreadable slot above `max_jobs` now counts as live, as on Linux.\n- Linux workers: stopping a stale job from inside the stale-slot reclaim or `lanq unlock` overwrote the loop's own\n  variables, which could miss the reclaim, leave a `.reclaim` lock behind and report a slot as `REMOVED=` that was not.\n\n### Tests\n\n- Two tests that failed now and then on GitHub's Windows runner are now deterministic. The `--mem` placement test's\n  fake machine now reports less free memory once a shard's upload is done, as a real job would use it. The newline-free flood test now measures the reader's\n  memory on one thread, not process-wide, where work left by earlier tests counted too.\n- The exclusive-claim race tests run the real sh scripts behind a ready/go barrier, including an exclusive claim that\n  must back out while two normal claims race it.\n- The plan test for `--wait` counting only while no plan job holds a slot (`WaitCountsOnlyWhileNoPlanJobHoldsASlot`)\n  no longer depends on timing: it releases the first job only after the second has said it waits.\n\n### Dependencies\n\n- The native binaries carry the .NET 10.0.15 runtime (was 10.0.14).\n\n### Docs\n\n- README sections for `--env`, `--exclusive` and `--baseline`:\n  https://github.com/jangolath/lanqueue/blob/main/README.md\n- Plan keys `env`, `exclusive`, `baseline` and `baseline_ref`: https://github.com/jangolath/lanqueue/blob/main/docs/PLANS.md\n- The new JSON fields and reason codes: https://github.com/jangolath/lanqueue/blob/main/docs/JSON.md\n- What an agent may and may not do with each: https://github.com/jangolath/lanqueue/blob/main/AGENTS.md and\n  https://github.com/jangolath/lanqueue/blob/main/docs/AGENTS-GUIDE.md (also the snippets, the skill and llms.txt).\n- `machines.example.yml` shows a commented `policy.allowed_env`.\n\nFull changelog: https://github.com/jangolath/lanqueue/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#repository",
+    "commit": "b714311ad7ecb0d9cb49adcb032678eaa517dbfd",
+    "type": "git",
+    "url": "https://github.com/jangolath/lanqueue"
+  },
+  "verbatimVersion": "0.9.0",
+  "version": "0.9.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#LanQueue.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 7582,
+      "fullName": "LanQueue.nuspec",
+      "length": 17750,
+      "name": "LanQueue.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4162,
+      "fullName": "PACKAGE.md",
+      "length": 9009,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26568,
+      "fullName": "icon.png",
+      "length": 26558,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 179,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#tools/net10.0/any/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121764,
+      "fullName": "tools/net10.0/any/YamlDotNet.dll",
+      "length": 300032,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#tools/net10.0/any/lanq.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 426,
+      "fullName": "tools/net10.0/any/lanq.deps.json",
+      "length": 988,
+      "name": "lanq.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#tools/net10.0/any/lanq.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 614432,
+      "fullName": "tools/net10.0/any/lanq.dll",
+      "length": 1963520,
+      "name": "lanq.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#tools/net10.0/any/lanq.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 330792,
+      "fullName": "tools/net10.0/any/lanq.pdb",
+      "length": 532176,
+      "name": "lanq.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#tools/net10.0/any/lanq.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 245,
+      "fullName": "tools/net10.0/any/lanq.runtimeconfig.json",
+      "length": 435,
+      "name": "lanq.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.08.20.12/lanqueue.0.9.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "dotnet-tool",
+    "ssh",
+    "build",
+    "ci",
+    "lan",
+    "distributed",
+    "homelab",
+    "ai-agents",
+    "claude-code",
+    "test-runner"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

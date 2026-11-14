@@ -1,0 +1,183 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jason Wood",
+  "catalog:commitId": "2d372803-1e3a-4caa-8f75-e4366452860c",
+  "catalog:commitTimeStamp": "2026-11-13T23:00:29.3822685Z",
+  "created": "2026-11-13T22:56:45.31Z",
+  "description": "Plug your old PCs back in and give them work. lanq sends builds, tests and coding-agent jobs to spare machines on your LAN over key-only SSH, with allowlisted commands and per-job git worktrees.",
+  "iconFile": "icon.png",
+  "id": "LanQueue",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-13T23:00:00.253Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "StVeU8G19ERza5VXTXdXwwu6Hx9t2ZBWnxB19vgPklWel7D9Xs2uXuuKGTsPbmn5GFN2iFkU8YzwkMg/6WDCSw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1194916,
+  "projectUrl": "https://github.com/jangolath/lanqueue",
+  "published": "2026-11-13T22:56:45.31Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "### Added\n\n- **Whole-plan timeout.** `lanq run --plan --plan-timeout M`, or a top-level `plan_timeout: M` in `lanq.yml` (1 to\n  10080 minutes; the command line replaces the file's value; `plan_timeout:` is judged by `--plan-timeout`'s own\n  parser). The clock starts after the command-line checks and the snapshot. It covers waiting for slots, the jobs and\n  the baseline reruns. When the time runs out lanq prints `[lanq] plan_timeout: 60 min reached; stopping N started\n  job(s)`, and then:\n  - running jobs are stopped and cleaned up, and end `TimedOut` (124);\n  - jobs waiting for a slot end `TimedOut`;\n  - jobs not started yet are `Skipped` (\"not started: plan_timeout reached\");\n  - unfinished baselines are `inconclusive`;\n  - `jobs.jsonl` records the stopped jobs as `TimedOut`, never `Cancelled`.\n\n  The plan is `TimedOut` (124) unless a `Failed` or `Rejected` job decides it, also when nothing was running (between\n  `after:` waves, or with every job waiting). A job's own `timeout:` still applies, and Ctrl+C before the limit still\n  ends the plan `Cancelled` (130). `--json` adds the conditional `planTimeoutMinutes` and `planTimedOut: true`\n  (whenever the limit came due before the plan finished its work, a `--fail-fast` hold included; not when it came\n  only during the last cleanup). The dry run shows the limit on a `Timeout:` line and warns when history's expected\n  critical path is longer.\n  `--plan-timeout` without `--plan` is refused (exit 2). The `fix_code` step says where to look and that raising\n  the limit is the developer's decision. It never suggests a command.\n- **Narrowing a plan from the command line.** `--on`, `--size` and `--min-size` now work with `--plan`, where they\n  were refused before. They narrow every selected job and never widen one:\n  - a job's own `on:` is intersected with `--on`, or `--on` applies alone when the job has none;\n  - its size classes are intersected with the command line's.\n\n  The dry run prints each job's narrowed `lanq run` line. An unknown `--on` name is refused before any network (exit\n  2). A job the narrowing leaves with no machine ends the plan before the snapshot, with nothing sent: `NoCapacity`\n  (75, `retryable: false`), for example \"--on big-01 leaves job 'unit-windows' no machine (its on: [micro-01])\". Its\n  `nextSteps` are `ask_developer`, then `fix_command`: the same command with `--only` set to the jobs that can still\n  run, leaving out every job that starts after a narrowed-out job (directly or not), so no job runs without its\n  prerequisite. That `--only` replaces any `--only` given, the narrowing is kept, and the step is not safe to run\n  unattended (its dry run is). Without these options a plan behaves\n  exactly as before.\n- **Plan fetch limits and folder.** `lanq.yml` gains `fetch_max` and `fetch_max_files`, on a job or in `defaults:`\n  (where they apply to the jobs that fetch). They are `--fetch-max` and `--fetch-max-files`, and **may only lower** the\n  200 MB / 500-file defaults: a larger value is refused (exit 2) with \"lanq.yml may lower fetch limits (at most 200M /\n  500 files); a larger limit is the developer's choice: lanq run --plan --fetch-max 1G\". `fetch_dir` is not a\n  `lanq.yml` key: it is refused with a hint to `--fetch-dir`. With `--plan`, the developer's `--fetch-dir`,\n  `--fetch-max` and `--fetch-max-files` (refused with `--plan` before) apply to every selected job that fetches. They\n  replace the file's values, up to the 2 GB / 5,000-file ceiling, and are refused when no selected job fetches. There\n  is no plan-wide total: at worst a plan writes the fetching jobs times the per-job limit (6.4 GB for 32 jobs at the\n  defaults).\n- **`lanq stats` by plan job.** Plan jobs in `jobs.jsonl` now carry `planFile`, the plan file's full local path (`v`\n  stays 2). `lanq stats` groups plan jobs by plan file and job name, with one run per plan run:\n  - completed when all N shards were recorded and each one's last attempt completed (a shard that `--fail-fast` or\n    Ctrl+C cancelled leaves no record, so such a run is other);\n  - failed when any failed;\n  - other otherwise.\n\n  The wall time runs from the first start to the last end. `--json` always carries `planJobs` (`planFile`, `job`,\n  `runs`, `completed`, `failed`, `other`, `medianSeconds`, `p90Seconds`, `lastRunUtc`, `lastShards`). It is capped at\n  500 like `commands`, with the conditional `planJobsMore`. The text adds a \"Plan jobs\" table. Records written before\n  0.10.0 group under `planFile: null`. Clones of one repository in different folders count separately; on Windows a\n  path that differs only in case is the same plan file. Baseline reruns are left out.\n\n### For coding agents\n\n- An agent may narrow a plan with `--on`/`--size`/`--min-size`. The suggested `fix_command` rerun after a narrowing\n  leaves jobs out, so it is never `safeToRunUnattended` (only its dry run is): the agent asks the developer before\n  running it, and then reports the jobs it left out. It never edits `lanq.yml` (`on:`, `size:`, `min_size:`) to widen\n  a job.\n- A plan with `planTimedOut: true` is reported with where it was slow. Raising `--plan-timeout` or `plan_timeout:` is\n  the developer's decision, never a way to make a plan pass.\n- An agent never raises `--fetch-max` or `--fetch-max-files`, never adds `fetch_max` to `lanq.yml` and never picks a\n  `--fetch-dir` the developer did not name to get files through. It reports `fetchSkipped` instead.\n\n### Project\n\n- `scripts/smoke-workers.ps1` scenario 8 now runs on a 0.10 binary (an older one is N/A):\n  - `--plan-timeout 1` must end a plan `TimedOut` (124), with its job cleaned up;\n  - `--plan --on` must put every job on the machine named;\n  - a narrowing that leaves a job no machine must be `NoCapacity` (75, `retryable: false`) with a rerun `--only`.\n\nFull changelog: https://github.com/jangolath/lanqueue/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#repository",
+    "commit": "c3af019da361ea51c555cf9bdc18f22efaa90e42",
+    "type": "git",
+    "url": "https://github.com/jangolath/lanqueue"
+  },
+  "verbatimVersion": "0.10.0",
+  "version": "0.10.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#LanQueue.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3042,
+      "fullName": "LanQueue.nuspec",
+      "length": 6907,
+      "name": "LanQueue.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4309,
+      "fullName": "PACKAGE.md",
+      "length": 9342,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26568,
+      "fullName": "icon.png",
+      "length": 26558,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 179,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#tools/net10.0/any/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121764,
+      "fullName": "tools/net10.0/any/YamlDotNet.dll",
+      "length": 300032,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#tools/net10.0/any/lanq.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 425,
+      "fullName": "tools/net10.0/any/lanq.deps.json",
+      "length": 990,
+      "name": "lanq.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#tools/net10.0/any/lanq.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 666929,
+      "fullName": "tools/net10.0/any/lanq.dll",
+      "length": 2167808,
+      "name": "lanq.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#tools/net10.0/any/lanq.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 355836,
+      "fullName": "tools/net10.0/any/lanq.pdb",
+      "length": 574740,
+      "name": "lanq.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#tools/net10.0/any/lanq.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 245,
+      "fullName": "tools/net10.0/any/lanq.runtimeconfig.json",
+      "length": 435,
+      "name": "lanq.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.23.00.29/lanqueue.0.10.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "dotnet-tool",
+    "ssh",
+    "build",
+    "ci",
+    "lan",
+    "distributed",
+    "homelab",
+    "ai-agents",
+    "claude-code",
+    "test-runner"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,183 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jason Wood",
+  "catalog:commitId": "8a0924e6-7d13-4455-a032-1f0dc756715c",
+  "catalog:commitTimeStamp": "2026-11-13T20:46:43.1630379Z",
+  "created": "2026-11-13T20:44:04.79Z",
+  "description": "Plug your old PCs back in and give them work. lanq sends builds, tests and coding-agent jobs to spare machines on your LAN over key-only SSH, with allowlisted commands and per-job git worktrees.",
+  "iconFile": "icon.png",
+  "id": "LanQueue",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-13T20:46:41.233Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "3Mc9ZIgNagz2qUykQ63q8RHUdjURb6AtSpk/9NQoXpWmSmtn3wNx0uPQ4jedRZqJM/MSbPdM0I8Q1z8n8KntRA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1164654,
+  "projectUrl": "https://github.com/jangolath/lanqueue",
+  "published": "2026-11-13T20:44:04.79Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "### Security\n\n- The secret scan now reads the content of uncommitted files git shows as binary, which the diff it scanned before\n  only reported as \"Binary files ... differ\": files a `.gitattributes` entry (`-diff`, `binary`) hides from diffs,\n  UTF-16 text, files with a NUL byte and files over `core.bigFileThreshold`. The paths come from\n  `git diff --cached --numstat`, their object ids from `git diff --cached --raw --no-renames`, and the blobs are read\n  locally with `git cat-file --batch` (never with filters or textconv, so no attribute driver runs). Text (UTF-16 with\n  a byte order mark, or text with no NUL byte in its first 8000 bytes) is scanned up to 32 MB per file and 256 MB per\n  snapshot, plus its printable strings when it holds a NUL or a byte order mark; a real binary has its printable\n  strings (8-bit, UTF-16 and UTF-32 runs of 4 or more characters) scanned, up to 8 MB per file and 64 MB per snapshot.\n  The caps are decided from git's sizes and a file's first 8000 bytes, so a file over a cap is never read whole. In a\n  modified file only lines or strings the old version did not have count. Texts are scanned in line-cut chunks of\n  about 1 MB; each starts with the previous chunk's last 64 non-blank lines (blank lines between them included). A\n  pattern timeout still refuses the run. A binary path git does not list, or an object it cannot produce, refuses the\n  run (`scan-incomplete`, with a hint to check the repository with `git fsck`). Symlinks, submodules, deleted files and\n  mode-only changes read nothing. Compressed or encrypted content is not unpacked.\n- `lanq makeready --json`, each `--all --json` row and `--add --json` now print the worker's report through one\n  output-only wrapper: every string is sanitised (control, bidi and zero-width characters become `?`, keys of\n  `suggestedMachine.env` included), as JSON.md always promised; before, the JSON paths printed them as the worker\n  sent them. `suggestedMachine.path_prepend` and `env` are kept only when the text and `--add` would use them (exactly\n  one usable folder, `env` exactly `DOTNET_ROOT` set to it).\n- lanq's own Linux safe-folder rule (the toolchain search of `lanq doctor --remote` and `lanq makeready --add`, before\n  a folder is proposed for `path_prepend:`) now reads POSIX ACLs, exactly as lanq-makeready 0.4.1: `getfacl -cpn` (at\n  most 5 s); a named `user:ID`/`group:ID` entry whose effective rights include write, or a `default:` entry whose own\n  rights do, for an ID other than root, the build account or its private group, makes the folder open; so do\n  `getfacl` failing and output with no `user::` line. Without `getfacl`, `ls -ld` failing or showing the `+` ACL marker\n  (or a missing marker column) is open, and with BusyBox `ls` any group write is. Parent folders are checked unless they\n  are links or sticky. macOS is not checked. Before, a folder writable by another account through an ACL was proposed.\n\n### Behaviour changes\n\n- `lanq makeready` runs lanq-makeready 0.4.1 (embedded, SHA-256 pinned): its safe-folder check reads POSIX ACLs, so a\n  `path_prepend` suggestion may now be left out (and listed in `lanqWithheld`, or the text's comment) where 0.4.0\n  proposed it. A folder lanq or lanq-makeready calls open is reported, never proposed; install the `acl` package on a\n  Linux worker that uses ACLs, or the folder stays open.\n\n- A run 0.9.1 accepted may now be `Rejected` (2) for a secret in such a file. The finding names\n  `uncommitted file <path> (binary per git)`, never the value, and the message adds: \"A file git shows as binary is\n  read anyway: a .gitattributes entry (-diff or binary) hides a file from diffs, not from lanq; take the secret out of\n  the file.\" An agent must not rename, compress, move or re-attribute the file to get past the scan.\n- A file over a cap is not refused. It is named on stderr (`[lanq] secret scan: N file(s) not read in full: ...`, at\n  most 5) and listed in the new conditional `scanSkipped` key (`path`, `bytes`, `reason`: `binary_over_file_cap`,\n  `binary_over_total_cap`, `masked_text_over_cap` or `masked_text_over_total_cap`) of `lanq run --json`, at the top level of `--shards` and\n  `--plan`, and in both dry runs, whose snapshot line also notes the count. Report it; do not try to \"fix\" it.\n- In `lanq makeready` JSON, `suggestedMachine.path_prepend` and `env` may now be absent where 0.9.1 printed them (a\n  list, a redacted home folder, a mismatched or extra variable, or characters lanq refuses). Both keys were always\n  optional. What was left out is listed in the new conditional report key `lanqWithheld` (`key`, `reason`), which is\n  lanq's own: a worker that sends one is ignored. The schema stays `lanq-makeready/v1` and the report still has no\n  `nextSteps`. `suggestedMachine` is advice for the developer; an agent never writes it into `machines.yml`.\n\n### Docs\n\n- The .NET shard recipe in docs/SHARDING.md split classes by their position in a sorted list, and `sort -u` /\n  `Sort-Object -Unique` sort by the machine's locale or culture: shards on machines with different locales could run\n  some classes twice and others never while the run stayed green. A class now goes to shard\n  `cksum(class) mod N + 1` (the POSIX `cksum` of its full name), identical in sh and PowerShell on every locale, and a\n  class keeps its shard when others are added. If you copied the old scripts, replace them. The recipe also gains a\n  guard script (`check-test-split.sh PROJECT N`) that fails unless every test lands in exactly one shard, and the\n  durations recipe's sorts are now ordinal (`LC_ALL=C`, `[StringComparer]::Ordinal`).\n- README (security model, `lanq makeready --json`, a new \"Developing lanq\" section with the allowlist lines),\n  SECURITY.md, docs/JSON.md (`scanSkipped`, `lanqWithheld`), PLANS.md, SHARDING.md, CONTRIBUTING.md and the AI guide\n  (AGENTS.md, docs/AGENTS-GUIDE.md, both snippets, the skill, llms.txt): an agent never adds a `.gitattributes`\n  entry, renames, compresses, moves or re-encodes a file (or moves a secret into a `-diff` file) to get past the scan;\n  it reports `scanSkipped` and `scan-incomplete` instead of fixing them; it never writes `suggestedMachine` into\n  `machines.yml`; it may run lanq's own plan but never edits `lanq.yml` or its scripts to turn a red run green; and it\n  runs the release smoke only when asked, never editing `machines.yml` or `machines.smoke.yml`.\n\n### Project\n\n- lanq's repository has its own `lanq.yml`: a PowerShell `guard` job and two Windows shards of the test suite,\n  running the scripts in `scripts/lanq/` (the same files as the SHARDING.md recipe), plus a commented Linux job for\n  pools with Linux workers (a plan has no conditions, so a job no machine can take would fail it). It names no\n  machines. CI runs the split guard on Linux (sh) and Windows (PowerShell).\n- `scripts/smoke-workers.ps1` (Windows PowerShell 5.1 and PowerShell 7) smokes a release candidate on real workers,\n  as RELEASING.md's new step 1b: it runs the release dry run's `native-win-x64` binary (checked by the run's `headSha`\n  against the release branch), with the owner's separate `machines.smoke.yml` and a temporary `LANQ_HOME`. It needs\n  `-Branch` (never the default branch), a successful `release` workflow_dispatch run at that branch's head, and a\n  binary whose `--version` carries `+<headSha>`. It refuses the real config (`LANQ_CONFIG` and the per-user file, by\n  resolved path or the same SHA-256) and checks it is unchanged, refuses unless the smoke machines' `ssh`, `work_root`\n  and `max_jobs` equal the real ones, and prints a PASS/FAIL/SKIP/N/A table: exit 0 only when every scenario that\n  applies passed (N/A: no machine of that kind in the smoke config; a skip fails unless `-AllowSkip`). Agents run it\n  only when asked.\n\nFull changelog: https://github.com/jangolath/lanqueue/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#repository",
+    "commit": "9ef5055a9958ed04974e57e611174f68f7e7d21d",
+    "type": "git",
+    "url": "https://github.com/jangolath/lanqueue"
+  },
+  "verbatimVersion": "0.9.2",
+  "version": "0.9.2",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#LanQueue.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4169,
+      "fullName": "LanQueue.nuspec",
+      "length": 8906,
+      "name": "LanQueue.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4162,
+      "fullName": "PACKAGE.md",
+      "length": 9009,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26568,
+      "fullName": "icon.png",
+      "length": 26558,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 179,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#tools/net10.0/any/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121764,
+      "fullName": "tools/net10.0/any/YamlDotNet.dll",
+      "length": 300032,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#tools/net10.0/any/lanq.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 428,
+      "fullName": "tools/net10.0/any/lanq.deps.json",
+      "length": 988,
+      "name": "lanq.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#tools/net10.0/any/lanq.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 643587,
+      "fullName": "tools/net10.0/any/lanq.dll",
+      "length": 2060800,
+      "name": "lanq.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#tools/net10.0/any/lanq.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 347930,
+      "fullName": "tools/net10.0/any/lanq.pdb",
+      "length": 559420,
+      "name": "lanq.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#tools/net10.0/any/lanq.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 245,
+      "fullName": "tools/net10.0/any/lanq.runtimeconfig.json",
+      "length": 435,
+      "name": "lanq.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.13.20.46.43/lanqueue.0.9.2.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "dotnet-tool",
+    "ssh",
+    "build",
+    "ci",
+    "lan",
+    "distributed",
+    "homelab",
+    "ai-agents",
+    "claude-code",
+    "test-runner"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

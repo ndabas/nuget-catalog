@@ -1,0 +1,121 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.12.00.42/credfeto.orchestrator.cmd.0.0.9.3406-main.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Mark Ridgwell",
+  "catalog:commitId": "8f61276c-fd7e-4c01-9225-901153691f9c",
+  "catalog:commitTimeStamp": "2026-11-14T12:00:42.155091Z",
+  "copyright": "Mark Ridgwell",
+  "created": "2026-11-14T11:56:27.363Z",
+  "description": "Credfeto Orchestrator: the .NET replacement for the oneshot orchestrator, introduced one area at a time",
+  "id": "Credfeto.Orchestrator.Cmd",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-14T12:00:34.417Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "AZZ7H/RsOScxFiFEdlRmDn9WwGjqMMg87PxjUwzJX7Ud+xJUkmyGUCPs2YPs7jwWdM/O4JjGWLgKhpnOe2HBnQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 20762,
+  "published": "2026-11-14T11:56:27.363Z",
+  "releaseNotes": "﻿### Security\n- Keep the GitHub, cfwf and kb MCP tokens out of the agent's readable environment: tokens are mounted as root-only files and served to MCP headers helpers by a root-owned broker (#1838)\n### Added\n- The development-tools image installs `clang` and `zlib1g-dev`, so agents can run Native AOT `dotnet publish` builds inside the container; the build-time sanity step checks for both (#1861)\n- The `kb` knowledge-base MCP server is installed in the development-full agent image with its tools allowed as `mcp__kb__*`, and the image sanity check requires it and pins it exactly, alongside cfwf and build-dotnet; its token is an optional `KB_MCP_TOKEN` in `.env`, passed to each container as a per-container Podman secret and read only by a root-owned headers helper, so it is never written to the image or the managed MCP configuration, a malformed `KB_MCP_TOKEN` in `.env` is warned about and ignored on the host, and a shell-exported `KB_MCP_TOKEN` or Discord webhook URL is no longer left exported to host child processes, and the pre-commit pre-check container no longer receives the kb token (#1791)\n- `install-claude-hooks` installs the same `kb` MCP server on a developer machine, with its token taken from `KB_MCP_TOKEN` or a private `~/.config/kb-mcp/token` file, which is warned about when it is not private, the token file's first non-blank line is used with its surrounding whitespace trimmed, a dangling token-file symlink is reported as not private, a host entry identical to a shipped server merges silently, and a left-out duplicate holding a literal secret is warned about (#1791)\n- oneshot skips the whole tick (logs one line and exits 0) while githubstatus.com has an unresolved incident on Git Operations, Pull Requests, Issues, API Requests or Webhooks, so no session runs and no idle budget is charged during an outage. The lookup fails open, and the agent pre-flight SSH-auth message now says it can be a Git Operations outage. As a second guard, when a session's pre-flight fails on GitHub SSH auth, oneshot treats it as a likely GitHub outage: it logs one line, picks no further items that tick and exits 0 (the attempt is still not counted against the invocation budget) - #1846\n- The development-tools agent image installs the CodeGraph code-knowledge-graph CLI at a pinned release, verified against its SHA256 checksum before extraction and bumped daily by the pinned-tool bump workflow like the other curl-installed tools, and the development-full image inherits it and registers it as a managed `codegraph` MCP server with its tools allowed as `mcp__codegraph__*`, with its sanity check requiring both; agents have no shell access to codegraph and use only that MCP tool. Each work item's CodeGraph index is kept outside the checkout in the orchestrator state directory, shared by an Issue and its PR, purged after 14 days idle, and mounted at the checkout's `.codegraph` for agent sessions only. The entrypoint builds a missing index within a time limit, `CODEGRAPH_INIT_TIMEOUT_SECS` (default 900 seconds, set in lib/globals and passed into the agent container), so a hung build cannot use up the session's own time limit, and adds `.codegraph/` to the checkout's `.git/info/exclude`; a failed or timed-out index build only logs a warning and the session starts without an index, which never stops the session. When the checkout tracks files under `.codegraph`, CodeGraph is skipped entirely for that session with a warning: no index is mounted, built or cleared, and no exclude entry is added, so those tracked files are never touched. A new docs/codegraph.md rollout guide describes setting CodeGraph up across repositories (#1882)\n- Phase 1 of the .NET rewrite of oneshot (#252): the Credfeto.Orchestrator.Cmd dotnet tool (trimmed, Native AOT) with its configuration, jq and fingerprint libraries. Setting ORCHESTRATOR_DOTNET_FINGERPRINTS=1 makes oneshot compute Issue and PR fingerprints with the tool (ORCHESTRATOR_CMD, default credfeto-orchestrator) instead of jq; it is off by default, so nothing changes until an operator opts in, and shared golden cases test that both produce identical fingerprints\n### Fixed\n- The token broker allows a github.com issue or pull request URL as the `--url` of `gh project item-add`, which takes the item in no other form, so `cfwf` can put items on the Workflow board again; every other URL is still refused, now also when it is the value of a `--name=value` argument (#1907)\n- Agent image: the sanity check verifies again that the token broker is present and root-owned (`root:root 755`) (#1904). It was left out of #1899 only because CI built the agent image on the published base, which didn't have the broker yet\n- shell-tests installs bats 1.14.0 and shfmt 3.14.1 from their pinned upstream GitHub releases, each checked against a pinned SHA256, instead of from apt, with retrying downloads and a 5-minute step timeout, so an Ubuntu package mirror that hangs or fails to resolve no longer stalls or fails the check (#1372)\n- A per-container Podman secret (Claude OAuth, GH Enterprise token or kb token) left behind by a killed oneshot run is now removed on the next launch even when its token is no longer configured (#1791)\n- `cfwf pr edit`, `cfwf pr close` and `cfwf pr reopen` act on any pull request in the repository: the ownership refusal (only the agent's own, or a bot's whose commits were all the agent's) is gone, so a pull request a person opened, or a bot's one a person has pushed to, can have its title, body and priority set, the agent assigned, and be closed or reopened. The leak checks, the Conventional Commits title rule, the Security priority rule and the refusal of a merged pull request are unchanged, and neither the pull request's author nor its commits are read any more (#1845)\n- oneshot treats a required check that has not reported on the PR's head commit yet as CI pending when the required check names are known, so such a PR is neither invoked nor charged against its idle budget until the check reports (#1847)\n- oneshot treats a check run still running on the PR's head commit (queued, in progress, waiting, pending or requested, read from the commit's check runs) as CI pending, even when the PR's check rollup does not show it, both before invoking an agent and when deciding whether a session that made no progress is charged, so a running check never uses up the idle budget; a failed lookup warns and falls back to the rollup alone, and the CI-pending timeout still escalates a check that never finishes (#1860)\n- oneshot: the pre-commit pre-check runs with the agent marker (CLAUDECODE=1), so the global hook skips its installation freshness check as it does for the agent's own commits, and the pre-check no longer fails whenever the hooks have released since the image was built (#1843)\n- oneshot: the AI Coverage phase (PHASE G) and the COVERAGE.md conflict step of the rebase notice now have Code Tester measure coverage with the build MCP coverage tool. The main session, which has no build or coverage tools, used to run raw test commands itself, which gave figures that didn't match the baseline (#1868).\n- `install-claude-hooks` ignores every argument again instead of reading the first as an allowed-dirs file, so e.g. `install-claude-hooks --system` no longer fails with \"Allowed directories file not found\"; the host's `allowed-dirs.local` is now maintained by hand, and the script warns when it is missing (#1876)\n- shell-tests no longer depends on GNU coreutils' install error wording, so it passes on ubuntu-26.04 runners with uutils coreutils (#1879)\n- oneshot re-invokes a Blocked issue that has no posted `## Implementation Plan` comment to plan it, once per Blocked spell, and notifies Discord when it does, instead of skipping it forever; issues that already have a plan stay skipped (#1718)\n- oneshot charges the idle budget when it re-runs an unchanged BEHIND or DIRTY PR, so a session that pushes no rebase counts as no progress and a PR whose conflicts the agent cannot resolve is Blocked with a merge-conflict reason once the budget runs out, instead of being re-run on every tick; a pushed rebase, a board move or a new trusted comment still resets the budget. A BEHIND PR that is already handed off (not draft, auto-merge on, no failed or pending required check, review required, no unaddressed trusted comment) is now settled and gets no session; once approved it is rebased as before (#1654)\n- `cfwf run rerun` reruns the whole run, with no new option, when a completed run has no failed jobs and a check the pull request's base branch requires never ran on its head (the job that reports it was never created), printing `Rerunning all jobs of run <id> (attempt <n>): required check <name> never ran`; such a run whose required checks all have a result is refused (exit 8, nothing written). The attempt limit, default branch and open pull request head rules, their order and exit codes, and the failed-jobs rerun are unchanged (#1884)\n- `cfwf` accepts only a line that is exactly `lgtm` or `approved` (case-insensitive, whitespace around allowed) as an approval, so `not approved`, `LGTM!` and `LGTM but ...` no longer count (#1682)\n- oneshot returns a clean repository checkout to main before every item, even when the branch an earlier session left it on is still open, so the agent's pre-flight checks (such as the .NET SDK check against global.json) judge main rather than another item's branch; an open SDK-bump PR no longer fails, and gets Blocked, every other item in its repository. A checkout with uncommitted changes is still handed to the agent to recover (#1909)\n- oneshot checks out the branch an item needs before launching its container (a PR's head branch, tracking origin, or main for an issue), so the container pre-flight judges the item's own files. Local checkout state no longer gets an item marked Blocked: an item whose branch cannot be checked out, or whose checkout holds another item's uncommitted changes, is skipped for the tick without charging its budget, and an item whose own branch fails the pre-flight twice in a row on the same image and commit (for example an SDK the image does not have yet) is skipped until the agent image or the branch changes, then retried automatically (#1914)\n- The build-dotnet MCP server now starts through a root-owned wrapper that resolves the repo root and runs the credfeto-build-dotnet tool from each user's own dotnet-tools.json or global tools, with the .NET logo and preview SDK messages suppressed, so it works for every user on a host (#1894)\n- oneshot stashes a dirty checkout on a branch that no queued item owns, or on a detached HEAD (untracked files included, under an orchestrator-autostash message naming the branch, time and reason, keeping the newest 20 such stashes), and carries on with the item, instead of skipping every item in the repository on every tick; a dirty branch that another queued item owns is still left for that item (#1917)\n- Agent sessions may run `npm update` (allowed as `Bash(npm update *)`, the same shape as `npm install`), so an agent can bump a transitive dependency in `package-lock.json` with `npm update <pkg> --package-lock-only`; the existing `--prefix` and npm config-option refusals apply to it as to every npm subcommand (#1921)\n- development-dotnet-tools pins the PowerShell global tool to 7.6.10 through a POWERSHELL_VERSION build argument, and its sanity check verifies pwsh reports that version: PowerShell 7.7.0's linux-x64 tool package is not published, so the unpinned install failed and the image stopped building (#1923)\n- The development-full image build again fails if the inherited codegraph binary is missing from PATH or its --version check fails, now that the published base image chain carries it, so a broken CodeGraph install can no longer reach the agent image unnoticed (#1927)\n### Changed\n- The default `CLAUDE_CODE_AUTO_COMPACT_WINDOW` is now 160000 (was 100000). A session starts with about 60k tokens of fixed context, so at 100k it had about 7k tokens of working room before auto-compaction, and sessions compacted within a few turns and could end with \"Autocompact is thrashing\". The environment override is unchanged (#1866)\n- The enforce-git-dash-c hook and its bats test are renamed to enforce-git-policy, with all references updated, so the name reflects everything the hook enforces (#1678)\n- SDK - Updated DotNet SDK to 11.0.100\n### Removed\n- The agent images no longer install PowerShell or the PSScriptAnalyzer module, now that the global pre-commit has dropped its PSScriptAnalyzer hook: the development-dotnet-tools PowerShell install and its version pin, the module install, their sanity and installed-versions checks, the pwsh and run-psscriptanalyzer checks in development-full and the agent image, and the run-psscriptanalyzer agent allow rules are gone (#1925)",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.12.00.42/credfeto.orchestrator.cmd.0.0.9.3406-main.json#repository",
+    "commit": "9e7a365d0b1138e3f84e8856ff17238f93b669c3",
+    "type": "git",
+    "url": "https://github.com/credfeto/credfeto-orchestrator"
+  },
+  "verbatimVersion": "0.0.9.3406-main",
+  "version": "0.0.9.3406-main",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.12.00.42/credfeto.orchestrator.cmd.0.0.9.3406-main.json#Credfeto.Orchestrator.Cmd.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5862,
+      "fullName": "Credfeto.Orchestrator.Cmd.nuspec",
+      "length": 13766,
+      "name": "Credfeto.Orchestrator.Cmd.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.12.00.42/credfeto.orchestrator.cmd.0.0.9.3406-main.json#tools/any/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 181,
+      "fullName": "tools/any/any/DotnetToolSettings.xml",
+      "length": 323,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.12.00.42/credfeto.orchestrator.cmd.0.0.9.3406-main.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.12.00.42/credfeto.orchestrator.cmd.0.0.9.3406-main.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "orchestrator",
+    "claude",
+    "github",
+    "tool",
+    "command",
+    "line"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

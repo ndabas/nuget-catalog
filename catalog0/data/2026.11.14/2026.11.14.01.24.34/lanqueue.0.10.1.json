@@ -1,0 +1,183 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Jason Wood",
+  "catalog:commitId": "a10fe3a0-f767-4e6d-9450-97d133f0a28d",
+  "catalog:commitTimeStamp": "2026-11-14T01:24:34.1090628Z",
+  "created": "2026-11-14T01:21:31.09Z",
+  "description": "Plug your old PCs back in and give them work. lanq sends builds, tests and coding-agent jobs to spare machines on your LAN over key-only SSH, with allowlisted commands and per-job git worktrees.",
+  "iconFile": "icon.png",
+  "id": "LanQueue",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-14T01:24:09.527Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "1usevU/nk0O7ieub9LFon0suDzqFRqVRsmBm1U5yuUvmvNq2fHvqVDaQ7fcagieJe8pdkjiCZST3UhtZk/FO5w==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1204373,
+  "projectUrl": "https://github.com/jangolath/lanqueue",
+  "published": "2026-11-14T01:21:31.09Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "### Security\n\n- **A private key replaced in place in a text file is found.** The secret scan reads the uncommitted diff, which\n  shows only changed lines: a key whose body changed while its BEGIN line stayed the same never showed its BEGIN line,\n  so it was not recognised (files git shows as binary already got this in 0.9.2). Now lanq greps the snapshot's changed\n  text files for `-----BEGIN` (`git grep --cached`, only those files), and for each modified or renamed one compares its\n  old and new blobs (read by object id, no filters or textconv): an unchanged BEGIN line is scanned again only for a key\n  block: a line holding `-----END` (any case) within 8192 lines, every line strictly between them key material (after\n  stripping whitespace, runs of the characters `\" ' + . & , ; # * > | - /` at the start and `\" ' + . & , ; _ \\ |` at\n  the end (quotes, concatenation, comment and quote markers, a YAML `- `, a `\\` continuation), one-letter string\n  prefixes and short suffixes (`b\"`, `\"u8`), `\\n` and `\\r\\n` escapes and XML CR/LF character references: blank, base64 or an armor header such as `Proc-Type: ...`), at least one a base64 line of 16 or more\n  characters with a digit, `+` or `/` (lines over 16 KB are never key material), and the new line strictly between BEGIN and END (an edit to the END line alone does not count). Code\n  that handles PEM (header and footer constants, adjacent or with parser code between them) never refuses an edit; a\n  key in a string concatenation, a comment or a YAML block is still found. A key with no END line, longer than 8192\n  lines or written in a form not stripped (see SECURITY.md) is not found when replaced in place, and neither is a\n  UTF-16 text file a `diff` attribute forces to text. A changed text file (modified or renamed, with added lines) whose\n  path git gives in bytes that are not UTF-8 refuses the job (`scan-incomplete`); other files with such names pass as\n  before. The finding reads `private-key-block in uncommitted file\n  <path> (key block changed in place)` and never shows the key. A file lanq cannot look up or read refuses the job\n  (`scan-incomplete`, with a `git fsck` hint). Such a file is read up to 32 MB per version and 256 MB in all; one over\n  that is listed in `scanSkipped` with the new reason `text_over_cap` (the larger version's size) and on stderr, not\n  refused. Added files are not read (every line is already in the diff), nor files without a BEGIN line.\n- **Colliding file names fail closed.** Two changed paths that git gives in bytes that are not UTF-8 and that decode\n  to the same name now refuse the job (`scan-incomplete`), whatever the files are. Before, one of them could hide the\n  other from the content scans, the binary scan included.\n- **One rename mode for the text scan.** The diff, its file list and the new comparison now always use `-M`,\n  whatever `diff.renames` says, so a renamed file is compared with its old version everywhere. The pathspec variables (`GIT_LITERAL_PATHSPECS`,\n  `GIT_GLOB_PATHSPECS`, `GIT_NOGLOB_PATHSPECS`, `GIT_ICASE_PATHSPECS`) are removed from lanq's local git calls. The binary scan\n  keeps `--no-renames` (a moved binary is read whole).\n\n### Added\n\n- **A Linux worker in Docker on your own PC.** `scripts/docker-linux-worker/` holds a `Dockerfile`, an entrypoint, an\n  sshd drop-in and `setup.ps1`. The image is the .NET 10 SDK on Ubuntu 24.04, pinned by digest (runtime 10.0.15), plus\n  sshd and git, with key-only login as `lanq`. `setup.ps1`:\n  - makes the key, the host key and a private ssh config entry with an `Include` at the top of `~/.ssh/config`;\n  - runs the container on `127.0.0.1` only, with `restrict` on the key, 8 GB, 4 CPUs (with a matching cpuset),\n    `--cap-drop ALL` plus the six capabilities sshd needs, `--init` and `--restart unless-stopped`;\n  - mounts the host key under `/root`, so job code cannot read it;\n  - checks the result with `ssh -G` and one login.\n\n  A separate `-Register` step, run by the owner, adds the machine (`size: medium`, `max_jobs: 1`) to `machines.yml`\n  and `machines.smoke.yml`. It keeps the change only when `lanq doctor --remote` passes for the machine in every\n  file, and restores them all otherwise. See\n  docs/WORKERS.md, \"A Linux worker in Docker on your own PC\", for what it proves and what it does not.\n- A test checks that the Docker worker's base image is pinned by digest.\n\n### Behaviour changes\n\n- Edits to sample keys kept in tracked text files are now refused: changing the body of a committed private key (a\n  test fixture, a doc sample) under the same BEGIN line refuses the run like a new key. Generate test keys when the\n  tests run, or keep such samples out of the files you edit.\n- A user whose `diff.renames` is `false` now gets rename-aware file lists and diffs for the scan: a renamed file's\n  old name is no longer listed among the changed files (its new name is).\n\n### Documentation\n\n- SECURITY.md and the README now say that the uncommitted diff is scanned with its removed lines too (so removing a\n  secret from a tracked file is refused until that removal is committed), and describe the text key-block comparison\n  and its limits; `scanSkipped` documents `text_over_cap`.\n\nFull changelog: https://github.com/jangolath/lanqueue/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#repository",
+    "commit": "66a830d081a67e88eb6d0cdbf3e484dcb7b7c0b9",
+    "type": "git",
+    "url": "https://github.com/jangolath/lanqueue"
+  },
+  "verbatimVersion": "0.10.1",
+  "version": "0.10.1",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#LanQueue.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3045,
+      "fullName": "LanQueue.nuspec",
+      "length": 6327,
+      "name": "LanQueue.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4309,
+      "fullName": "PACKAGE.md",
+      "length": 9342,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 26568,
+      "fullName": "icon.png",
+      "length": 26558,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 179,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#tools/net10.0/any/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121764,
+      "fullName": "tools/net10.0/any/YamlDotNet.dll",
+      "length": 300032,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#tools/net10.0/any/lanq.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 428,
+      "fullName": "tools/net10.0/any/lanq.deps.json",
+      "length": 990,
+      "name": "lanq.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#tools/net10.0/any/lanq.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 674471,
+      "fullName": "tools/net10.0/any/lanq.dll",
+      "length": 2186752,
+      "name": "lanq.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#tools/net10.0/any/lanq.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 357743,
+      "fullName": "tools/net10.0/any/lanq.pdb",
+      "length": 578604,
+      "name": "lanq.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#tools/net10.0/any/lanq.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 245,
+      "fullName": "tools/net10.0/any/lanq.runtimeconfig.json",
+      "length": 435,
+      "name": "lanq.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.01.24.34/lanqueue.0.10.1.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "dotnet-tool",
+    "ssh",
+    "build",
+    "ci",
+    "lan",
+    "distributed",
+    "homelab",
+    "ai-agents",
+    "claude-code",
+    "test-runner"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

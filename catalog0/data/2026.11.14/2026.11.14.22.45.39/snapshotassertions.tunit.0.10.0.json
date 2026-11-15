@@ -1,0 +1,234 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "d837ae85-e1c9-4d61-a025-1123ccb1910f",
+  "catalog:commitTimeStamp": "2026-11-14T22:45:39.1060747Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-11-14T22:39:03.883Z",
+  "description": "TUnit-native text-snapshot assertions using [AssertionExtension]. Provides Assert.That(actual).MatchesSnapshot() / .MatchesSnapshotFile() with line-based diff display, accept-via-environment-variable workflow, and CI guard. Baselines are plain-text files at any path, so existing golden files work as they are. AOT-compatible, trimmable, no reflection. Designed for API-surface verification and small text snapshots; coexists with Verify for object-graph cases.",
+  "id": "SnapshotAssertions.TUnit",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-14T22:45:07.72Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "PMpL2691XZxCVQF/nytrJMF7q+BrgXKGqqb+Dr0x4/ow2/vPsIuG0YCa1/Nbb+yGMyShIDKwHMWMhMv9djJMXA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 62336,
+  "projectUrl": "https://github.com/JohnVerheij/SnapshotAssertions.TUnit",
+  "published": "2026-11-14T22:39:03.883Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/SnapshotAssertions.TUnit/releases/tag/v0.10.0\n\n### Changed\n\n- **`TUnit.Assertions`** and **`TUnit.Core`** minimum versions raised from 1.80.0 to 1.85.0: 1.83.0 is the first TUnit with a `net11.0` asset, and 1.85.0 keeps TUnit's OpenTelemetry and ASP.NET Core packages on OpenTelemetry 1.20.x for `net10.0`, so a project with one version for all its TUnit packages gets no .NET 11 packages there.\n- **Targets .NET 10 and .NET 11.** Both packages ship `net10.0` and `net11.0` assets; a test project that targets both runs each test on both frameworks against one shared baseline per default name. Content that differs per framework needs a name of its own per framework (`.WithName(...)`): accepted from both at once, the last writer would win.\n- **`SnapshotComparer`, `SnapshotEvaluator` and `MatchesSnapshot()`** now reject a `SnapshotOptions.LineEndingMode` value outside the enum with an `ArgumentOutOfRangeException` (`Unknown LineEndingMode value: N`) instead of comparing it as some other mode. This is what the removed `IgnoreLineEndings` value (`3`) does if a compiled caller still passes it.\n- **`WithScrubber(...)`** now fails with an `InvalidOperationException` that names the scrubber when a custom scrubber returns `null`, as a normalizer that returns `null` already did, instead of an `ArgumentNullException` about `actualContent` or `input`.\n- **README samples** now compile against the packed packages: the renderer, regular expression, XML, JSON and public API samples gained the `using` lines they were missing, and the file-name section states two limits of the default name (a generic test class resolves one name for every type argument, and a record, tuple or `KeyValuePair` row holding a number or date is not culture independent) and that a normalizer has to be idempotent.\n- **XML documentation** now matches the code: `SnapshotException` is for adapters and callers to throw and nothing in these packages throws it (the TUnit adapter fails the TUnit assertion), `Scrubbers.Pattern(string, string)` and `Scrubbers.IndexedPattern(string, string)` document the `NotSupportedException` of a pattern that `RegexOptions.NonBacktracking` cannot compile, the `SnapshotFileResolver` methods document the `ArgumentException` of an empty directory or path, and `SnapshotAssertion` documents which misuse and file errors propagate instead of failing the assertion.\n\n### Removed\n\n- **BREAKING:** `SnapshotLineEndingMode.IgnoreLineEndings`, which was marked obsolete, is removed. Use `NormalizeToLF`, which keeps every line break in the comparison; a baseline that an earlier version accepted as one line has to be accepted again.\n\n### Fixed\n\n- **`SnapshotTrailingNewline.Optional`** (and so `SnapshotOptions.NormalizedLineEndings`): content that ends with a blank line, such as `\"a\\n\\n\"`, or, with `TrimTrailingPerLine`, whose last line holds only spaces or tabs, such as `\"a\\n \"`, could never be accepted into a passing state. The accepted baseline was written with one line break too few: the comparison drops a final line break from each side, so the file it read back never matched and every run reported a mismatch. The written file now has that line break; other content is written as before.\n- **`SnapshotEvaluator.EvaluateAsync`** (and so `MatchesSnapshot()`) no longer fails on Windows when two evaluations of one snapshot meet, for example the `net10.0` and `net11.0` test processes of one `dotnet test` run accepting the same project baseline, or tests that share a default name: a baseline that is being read or replaced by another evaluation, or an actual file that is being deleted, is retried for a short bounded time instead of throwing an `IOException` or `UnauthorizedAccessException`. A missing file or directory, a path that is too long and a missing drive are not retried and fail at once with their own exception.\n- **`Scrubbers.ElapsedMs`** (and so `Scrubbers.Common` and the scrubber suggestions in a failure message) no longer joins a number that ends a line to a word `ms` that starts the next line: the text between the number and `ms` may be spaces or tabs, not a line break, so `retries 3` followed by `ms: ...` on the next line is left alone instead of being replaced by an `<elapsed-ms:N>` token.\n- **Failure messages** keep their line structure when a path or text holds a line break: a path with a carriage return or line feed (possible in a file name on Linux) is shown escaped (`\\r`, `\\n`) on its `Expected:`, `Actual:` and `Project baseline:` lines and in the file-access exception, a `.WithName(...)` or `.AtPath(...)` argument is escaped in the assertion expression, and the message of an exception thrown by a renderer, often several lines, is escaped on the one `renderer threw` clause. The line diff still shows the compared lines as they are.\n- **Accepting a baseline** whose file name is close to the file system's limit for one name (255 characters on NTFS and ext4) no longer fails: the temporary file of the atomic write has a short name of its own instead of the target name plus 37 characters.\n- **Accepting into a read-only baseline** on Windows now throws an `UnauthorizedAccessException` that names the file, where the operating system's message did not.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#repository",
+    "commit": "270e3b05f5b2b10f6b04dff88735cfddf5498e93",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/SnapshotAssertions.TUnit"
+  },
+  "verbatimVersion": "0.10.0",
+  "version": "0.10.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#dependencygroup/net10.0/snapshotassertions",
+          "@type": "PackageDependency",
+          "id": "SnapshotAssertions",
+          "range": "[0.10.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#dependencygroup/net10.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.85.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#dependencygroup/net10.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.85.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#dependencygroup/net11.0/snapshotassertions",
+          "@type": "PackageDependency",
+          "id": "SnapshotAssertions",
+          "range": "[0.10.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#dependencygroup/net11.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.85.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#dependencygroup/net11.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.85.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#SnapshotAssertions.TUnit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3013,
+      "fullName": "SnapshotAssertions.TUnit.nuspec",
+      "length": 7245,
+      "name": "SnapshotAssertions.TUnit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4381,
+      "fullName": "README.md",
+      "length": 11386,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#build/SnapshotAssertions.TUnit.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 289,
+      "fullName": "build/SnapshotAssertions.TUnit.targets",
+      "length": 475,
+      "name": "SnapshotAssertions.TUnit.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#buildTransitive/SnapshotAssertions.TUnit.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 715,
+      "fullName": "buildTransitive/SnapshotAssertions.TUnit.targets",
+      "length": 1577,
+      "name": "SnapshotAssertions.TUnit.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#lib/net10.0/SnapshotAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5786,
+      "fullName": "lib/net10.0/SnapshotAssertions.TUnit.xml",
+      "length": 32943,
+      "name": "SnapshotAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#lib/net10.0/SnapshotAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8830,
+      "fullName": "lib/net10.0/SnapshotAssertions.TUnit.dll",
+      "length": 19456,
+      "name": "SnapshotAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#lib/net11.0/SnapshotAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 5786,
+      "fullName": "lib/net11.0/SnapshotAssertions.TUnit.xml",
+      "length": 32943,
+      "name": "SnapshotAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#lib/net11.0/SnapshotAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8830,
+      "fullName": "lib/net11.0/SnapshotAssertions.TUnit.dll",
+      "length": 19456,
+      "name": "SnapshotAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 8512,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 64228,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.14.22.45.39/snapshotassertions.tunit.0.10.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tunit",
+    "assertions",
+    "testing",
+    "snapshot",
+    "publicapi",
+    "approval",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

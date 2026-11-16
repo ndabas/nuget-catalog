@@ -1,0 +1,193 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "51587132-cf35-403c-942d-35508852c940",
+  "catalog:commitTimeStamp": "2026-11-15T21:01:37.676297Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-11-15T20:56:48.637Z",
+  "description": "Framework-agnostic core for fluent log assertions over Microsoft.Extensions.Logging.Testing.FakeLogCollector. Provides ILogRecordFilter + LogFilter composable filter primitives, the failure-message rendering, the FakeLogCollector inspection extensions (Filter, CountMatching, DumpTo), event-driven waits for background logs (WaitForLogAsync, WaitForLogsAsync on FakeLogCollector.GetLogsAsync), the LogCollectorBuilder factories (Create returns a LogCapture, CreateDiscarding), and deterministic renderers for snapshot baselines (LogSnapshotRenderer for captured records, LogContractRenderer for log definitions). Test-framework-specific entry points live in adapter packages (LogAssertions.TUnit); adapters for other test frameworks are not planned, as the family targets TUnit.",
+  "id": "LogAssertions",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-15T21:01:29.4Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "13G6LX/o8wLXSqXqWmUeoDb6TpWvIuh7oMdGbxXIAldJ8lk9ydrbISPkhEh1YfXaeW2XebDuG8/ugAXik7rPUA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 129179,
+  "projectUrl": "https://logassertions.dev/",
+  "published": "2026-11-15T20:56:48.637Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/LogAssertions.TUnit/releases/tag/v0.15.0\n\n### BREAKING\n\n- **`LogCapture.Deconstruct`** was removed, as 0.14.0 announced. It only turned `var (factory, collector) = LogCollectorBuilder.Create();` into a build error that named the new form; that line now fails with the compiler's own error (`CS1061`, no `Deconstruct` on `LogCapture`). Source that compiled against 0.14.x never contained the call, so this changes binary compatibility only. Migration: `using var logs = LogCollectorBuilder.Create();`, then `logs.Collector` (`await using var` in async code).\n- **`LogContractRenderer.Render`** output changed in two cases. Definitions that tie on event ID, name, template, and level used to keep their input order, so the same set could render in two orders; they are now ordered by their rendered line as well. The event name and the placeholder names are now escaped like the template (`\\\\`, `\\\"`, CR, LF, and tab), so a name with a line break no longer splits its line. A committed contract baseline changes only if it held such a tie or such a name. Migration: regenerate the baseline and review the diff.\n\n### Added\n\n- **Targets `net10.0` and `net11.0`.** Each target framework resolves its own `Microsoft.Extensions.Diagnostics.Testing` (10.11.0 for `net10.0`, 11.0.0 for `net11.0`).\n- **`WithEventIdIn(params int[] eventIds)`** on every assertion chain (`HasLogged`, `HasNotLogged`, `HasLoggedSequence` steps, `WillLog`) and **`LogFilter.WithEventIdIn(params int[] eventIds)`**: records whose event ID is any of the listed IDs, in place of `LogFilter.Any(LogFilter.WithEventId(a), LogFilter.WithEventId(b))`. Duplicates count once. An empty list throws `ArgumentException`, because a filter that accepts nothing is almost always a mistake and would make `HasNotLogged()` pass for no reason. The failure text names the call with its distinct IDs and describes the filter as `EventId in {1, 2}`, with braces, so it is not taken for the range of `WithEventIdInRange`.\n- **`DumpVerbosity.CompactWithException`** (value 3, appended after `Verbose`; the values of the other members did not change): the `Compact` headline of each record plus one `exception: Type: message` line for a record that carries an exception, with no properties and no scopes. It works with `DumpTo`, `DumpToTestOutput`, and both `DumpToTestOutputOnFailure` overloads; a dump of 46 records, three of them with an exception, is 49 lines.\n\n### Changed\n\n- **`TUnit.Assertions`** and **`TUnit.Core`** minimum versions raised from 1.81.10 to 1.85.0: 1.83.0 is the first TUnit with a `net11.0` asset, and 1.85.0 keeps TUnit's OpenTelemetry and ASP.NET Core packages on OpenTelemetry 1.20.x for `net10.0`, so a project with one version for all its TUnit packages gets no .NET 11 packages there.\n- **README:** the shared-host recipe (build and start a host that outlives a test inside `Task.Run` within `ExecutionContext.SuppressFlow()` and await it after the block, because suppressing the flow does not clear the calling thread's own context) is in the TUnit adapter README and in the remarks of `AddTeedFakeLogging` as well; the lifetime attribute is needed once in every test assembly, also when the package arrives through another project; a new cookbook entry, \"Pin the records other tools read\", shows `WithEventName(...).WithMessageTemplate(...)` for a record the contract renderer cannot reach; the troubleshooting entry for the removed `Deconstruct` names the new error; every C# sample compiles against the packed packages.\n\n### Fixed\n\n- **Dumps and failure messages** (`DumpTo`, `DumpToTestOutput`, `DumpToTestOutputOnFailure`, and the captured records in an assertion failure) wrote an exception message with line breaks as several lines, the later ones without indentation. The `exception:` line now shows the message on one line, each line break replaced by a space; `Verbose` still writes the full exception text below it.\n- **Captured records in failure messages and dumps** wrote a captured message, category, property key or value, or scope text that held a line break as several lines, the later ones without indentation, so they could be mistaken for records or detail lines of their own. Each now stays on one line, each line break replaced by a space, as the exception message does. `LogSnapshotRenderer` is unchanged: it writes the captured text verbatim, as documented.\n- **Filter descriptions and the allowlist** (the `matching:` and `Step filters:` clauses of a failure, the filter named by a canceled wait, and the `Allowed definitions:` lines of `HasLoggedOnly`) wrote a substring, key, template, or event name that held a line break as several lines. Each line break is now one space.\n- **Expression text of a failure** (`.Containing(...)`, `.WithProperty(...)`, `.WithCategory(...)`, and the other chain methods that take a string, a value, or a definition) wrote the caller's argument raw, so a line break in it split the expression line and a quote or backslash made it ambiguous. The text now reads as a C# string literal does: `\\`, `\"`, CR, and LF are written as `\\\\`, `\\\"`, `\\r`, and `\\n`, and the other line breaks the failure text recognizes (form feed, NEL, LS, and PS) as `\\f`, `\\u0085`, `\\u2028`, and `\\u2029`.\n- **`HasNotLogged()` failure** showed only the last 50 captured records, so a matching record older than that was not in the message. When an older match would be hidden, the message now lists the matching records themselves (`Matching records (N of M captured):`, capped at the latest 50 after a line that counts the earlier ones). When the last 50 captured records hold every match, the message is unchanged.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#repository",
+    "commit": "66e0de5b1d7bfc7c8c6b9477ac1df728fb110c5b",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/LogAssertions.TUnit"
+  },
+  "verbatimVersion": "0.15.0",
+  "version": "0.15.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#dependencygroup/net10.0/microsoft.extensions.diagnostics.testing",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.Testing",
+          "range": "[10.11.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#dependencygroup/net11.0/microsoft.extensions.diagnostics.testing",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.Testing",
+          "range": "[11.0.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#LogAssertions.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3312,
+      "fullName": "LogAssertions.nuspec",
+      "length": 7648,
+      "name": "LogAssertions.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3147,
+      "fullName": "README.md",
+      "length": 7800,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#lib/net10.0/LogAssertions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26195,
+      "fullName": "lib/net10.0/LogAssertions.dll",
+      "length": 59904,
+      "name": "LogAssertions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#lib/net10.0/LogAssertions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 19811,
+      "fullName": "lib/net10.0/LogAssertions.xml",
+      "length": 111854,
+      "name": "LogAssertions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#lib/net11.0/LogAssertions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26182,
+      "fullName": "lib/net11.0/LogAssertions.dll",
+      "length": 59904,
+      "name": "LogAssertions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#lib/net11.0/LogAssertions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 19811,
+      "fullName": "lib/net11.0/LogAssertions.xml",
+      "length": 111854,
+      "name": "LogAssertions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 14848,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 117452,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.01.37/logassertions.0.15.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "assertions",
+    "testing",
+    "logging",
+    "fakelogcollector",
+    "microsoft-extensions-logging",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

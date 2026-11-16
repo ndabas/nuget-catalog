@@ -1,0 +1,217 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "b2840a74-e462-4c04-8744-11d67a56daeb",
+  "catalog:commitTimeStamp": "2026-11-15T18:10:14.9978939Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-11-15T18:02:49.757Z",
+  "description": "TUnit-native Server-Sent Events (SSE) assertions for .NET tests. A single HasSseEvent(eventName) chain on the string, Stream, and HttpResponseMessage receivers with frame narrowers (WithData / WithDataParsedAs<T> / WithId / WithRetryMillis), Until(eventName) windows, and AtLeast / AtMost / Exactly count terminators, plus HasSseEventIds() for the id sequence and HasSseContentType() on the response and on an open SseStream. The streaming receivers read event by event and stop as soon as the outcome is decided, so they work on endless streams, including an SseStream opened once the endpoint has subscribed; Content-Type: text/event-stream validation is on by default. Builds on the SseAssertions framework-agnostic core. AOT-compatible, trimmable, no runtime reflection in the assertion path.",
+  "id": "SseAssertions.TUnit",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-15T18:09:21.927Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "FSxm0KT6ImX8G7ziqDxcVLV5+RcA+HYF42kKibOYWKDvr5vsthEfGzMzCU/CA8SdHxxnUsHuYke6zgugupztjw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 132408,
+  "projectUrl": "https://sseassertions.dev/",
+  "published": "2026-11-15T18:02:49.757Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/SseAssertions.TUnit/releases/tag/v0.9.0\n\n### Added\n\n- **`HasSseContentType(bool strict = false)`** on an open `SseStream`, so a stream test keeps one subject (`Assert.That(sse).HasSseContentType()`) instead of switching to `sse.Response`. It is the header-only check of the `HttpResponseMessage` form, with the same failure text, and it does not read the stream. `SseStream.OpenAsync` already throws when the response is not `text/event-stream`, so on a stream only `strict: true` (no `Content-Type` parameters) can fail.\n- **Targets .NET 10 and .NET 11.** Both packages target `net10.0` and `net11.0`; the TUnit and runtime dependencies are the same for both.\n- **Two README recipes.** Cookbook pattern 6 tests an endpoint with two subscribers (one `SseStream` per subscriber, trigger once, assert each stream on its own), and pattern 7 tests an ASP.NET Core `TypedResults.ServerSentEvents` endpoint end to end through `WebApplicationFactory`.\n\n### Changed\n\n- **`TUnit.Assertions`** and **`TUnit.Core`** minimum versions raised from 1.77.0 to 1.85.0: 1.83.0 is the first TUnit with a `net11.0` asset, and 1.85.0 keeps TUnit's OpenTelemetry and ASP.NET Core packages on OpenTelemetry 1.20.x for `net10.0`, so a project with one version for all its TUnit packages gets no .NET 11 packages there.\n- **Every failure text states the expectation once.** The `Expected ...` line comes from the assertion (`ExpectationMessage` on the flat assertions, `GetExpectation()` on the chains) and the `but ...` line says only what was found. Before, most `but` lines repeated the expectation, so a failure read `Expected to satisfy HasFirstSseEvent(other, True, System.Threading.CancellationToken)` followed by `but the first event to be \"other\"` and `but the first event was \"tick\"`. The flat assertions now read, for example, `Expected to have the first event named 'other'` and `but the first event was \"tick\"`. The texts of `IsServerSentEventsStream`, `HasSseContentType`, `HasFirstSseEvent`, `HasSseEventsInOrder`, `HasSseRetryDirective`, `HasSseRetryDirectiveFirst` and `EndsCleanlyOnCancellation` all changed, on every receiver. A test that pinned an old text needs its pin updated.\n- **The `HasSseEvent` chains name their narrowers in the expectation line.** `WithData`, `WithDataParsedAs<T>`, `WithId` (both forms), `WithRetryMillis` and `Until` now appear there (`Expected to find at least 1 event(s) of type \"tick\" whose Data satisfies the predicate`), and the `but` line counts the events that passed the narrowers or, for an unmet narrower, the events of that type (`but observed 3 event(s) of type \"tick\", none whose Data satisfied the predicate:`). When the token cuts an `Until` window and the count itself was met, the failure now reads `but the read was canceled after 4 event(s), before an event of type \"done\" arrived to end the observation window`. The `HasSseEventsInOrder` and `HasSseEventIds` chain failures no longer repeat their expectation either.\n- **`SseFailureMessage` factories return only the text after `but`.** `ParseFailure`, `EventNotFound`, `EventCountMismatch`, `DataPredicateNotMatched`, `IdNotMatched`, `IdPredicateNotMatched`, `UntilEventNotReached`, `EventIdsNotAsExpected`, `DataDeserializationFailed`, `RetryMillisPredicateNotMatched`, `UnexpectedContentType` and `UncleanCancellation` no longer render the expectation; a consumer assertion states it in its own `ExpectationMessage` (the cookbook sample shows it). `EventCountMismatch` still takes `expected` and `comparison`, `EventIdsNotAsExpected` still takes `expectation`, and `DataDeserializationFailed` still takes `eventName`, but none of the four is rendered. `UnexpectedContentType` now reads `the response Content-Type was \"application/json\" (expected \"text/event-stream\")`, or `the response had no Content-Type header (expected \"text/event-stream\")`.\n- **`HasSseRetryDirective(millis)`** says `no retry directive was found` when the body has no valid `retry:` field, and `observed retry value(s): 3, 4, none equal to 5` when it has other values.\n\n### Fixed\n\n- **`HasSseRetryDirective`** now counts a `retry:` field in a frame without `data:`, on `string`, `Stream` and `HttpResponseMessage`. A server commonly opens the stream with a bare `retry: 3000` frame; the assertion read only the dispatched events, which never carry such a frame, so it failed although the directive was sent. It now reads the `retry:` fields themselves, like `HasSseRetryDirectiveFirst`. A `retry:` whose value is not a non-negative integer is still ignored by `HasSseRetryDirective`.\n- **`HasSseRetryDirectiveFirst(millis)`** read a `retry:` value followed by a NUL character (U+0000) as the number before it. A value with any character other than an ASCII digit is now unparseable there, and `HasSseRetryDirective`, which now reads the fields itself, ignores it, both as the parser does. On a `Stream` or `HttpResponseMessage` whose read the token ended inside a line, the retry-directive assertions read that unfinished line as a field, so `retry: 3`, cut from `retry: 3000`, passed `HasSseRetryDirectiveFirst(3)`. The line the token cut off is now left out.\n- **A failing `HasSseEvent`, `HasSseEventIds` or `HasSseEventsInOrder` chain named its entry point twice** in the trailing `at Assert.That(...)` line (`.HasSseEvent(\"x\").HasSseEvent(\"x\")`). It is named once.\n- **A multi-line value no longer breaks the line structure of a failure.** Event data is multi-line by design and exception messages often are, yet the near-miss lists (`data: \"...\"`, `id: \"...\"`, `[0] event=... data=\"...\"`), the `the deserializer threw ...` and `threw ...` lines, the `the read threw ...` and foreign-cancellation lines, and the names and ids quoted in expectations and in `at Assert.That(...)` expressions printed their raw line breaks. Each carriage return and line feed is now shown as `\\r` and `\\n`. Data is cut at 80 characters first, then escaped. The `SseFailureMessage` factories do the same for the values they quote; the body excerpts of `ParseFailure` and `CancellationCutRead` are the body itself and keep its lines.\n- **`SseFormat.LooksLikeServerSentEvents`** (and so `IsServerSentEventsStream`) recognized only LF and CRLF line endings. A stream whose lines end in CR alone, which the specification allows and the parser reads, returned `false`. It now accepts all three, also mixed in one stream (a blank line that ends in CRLF after a line that ends in LF, for example), and skips a leading byte order mark, as the parser does.\n- **README samples** that a consumer could not compile: the JSON samples of cookbook patterns 2 and 4 lacked `using System.Text.Json;`. The failure diagnostics in the README are now real output (the cancellation sample showed a count mismatch with a follow-up, which the assertion never printed).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#repository",
+    "commit": "6c0d9426fc363995738cc09ba50be51f5df11949",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/SseAssertions.TUnit"
+  },
+  "verbatimVersion": "0.9.0",
+  "version": "0.9.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#dependencygroup/net10.0/sseassertions",
+          "@type": "PackageDependency",
+          "id": "SseAssertions",
+          "range": "[0.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#dependencygroup/net10.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.85.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#dependencygroup/net10.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.85.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#dependencygroup/net11.0/sseassertions",
+          "@type": "PackageDependency",
+          "id": "SseAssertions",
+          "range": "[0.9.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#dependencygroup/net11.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.85.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#dependencygroup/net11.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.85.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#SseAssertions.TUnit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3631,
+      "fullName": "SseAssertions.TUnit.nuspec",
+      "length": 9107,
+      "name": "SseAssertions.TUnit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3266,
+      "fullName": "README.md",
+      "length": 9686,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 8066,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 60157,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#lib/net10.0/SseAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 16037,
+      "fullName": "lib/net10.0/SseAssertions.TUnit.xml",
+      "length": 123922,
+      "name": "SseAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#lib/net10.0/SseAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34710,
+      "fullName": "lib/net10.0/SseAssertions.TUnit.dll",
+      "length": 92160,
+      "name": "SseAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#lib/net11.0/SseAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 16037,
+      "fullName": "lib/net11.0/SseAssertions.TUnit.xml",
+      "length": 123922,
+      "name": "SseAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#lib/net11.0/SseAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34699,
+      "fullName": "lib/net11.0/SseAssertions.TUnit.dll",
+      "length": 92160,
+      "name": "SseAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.18.10.14/sseassertions.tunit.0.9.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tunit",
+    "assertions",
+    "testing",
+    "sse",
+    "server-sent-events",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

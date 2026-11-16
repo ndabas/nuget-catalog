@@ -1,0 +1,859 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "ProjectThunder",
+  "catalog:commitId": "aebd9bf3-59a0-4ed4-9c79-2eb21c709a44",
+  "catalog:commitTimeStamp": "2026-11-15T12:54:17.3953444Z",
+  "copyright": "Copyright (c) 2026 ProjectThunder",
+  "created": "2026-11-15T12:46:57.097Z",
+  "description": "thunder-dbf: check, inspect, import, export and migrate dBASE and FoxPro data from the command line.",
+  "iconFile": "icon.png",
+  "id": "thunder-dbf",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-15T12:53:46.063Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "yZmceP5vLvE5erok8pTYEfoY9Qvr9JlfE+h+pISXgjp8rHz+QNqQ7FaMYZ8zbaZMF/dWsw0pKhLyEepWYRQnjQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 54944609,
+  "projectUrl": "https://github.com/pthunder/Thunder.Dbf",
+  "published": "2026-11-15T12:46:57.097Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Thunder.Dbf now targets .NET 11 as well as .NET 10, and allocates less on seeks, appends and reads. Two fixes are worth upgrading for: on the .NET 11 runtime a double was converted to decimal exactly (1.23 became 1.2299999999999999822...), which could round currency wrongly and miss seeks; and a FoxPro `.cdx` left torn by a killed `DeferIndexWrites` batch could only be repaired in Visual FoxPro, where `RebuildIndex()` now repairs it.\n\n**Upgrading from 0.4.4:** nothing in the public API changed, and apps on .NET 10 keep the .NET 10 build. Three things behave differently:\n- A double meets a decimal (currency, `.ntx` keys, expressions, `ModifyStructure`, `GetDecimal`) as the number it prints as, on both runtimes: on .NET 11 that's what .NET 10 gave for most values, and a double with 16 or 17 significant digits, or a float with 8 or 9, now keeps them, where .NET 10 rounded them to 15 and 7.\n- A `.cdx` whose tag trees are torn, but whose tag headers and roots read, is refused as rebuildable instead of unreadable: `RebuildIndex()` on an exclusive open, or `MaintainIndex(path, rebuild: true)`, rebuilds it. Writes are still refused until then.\n- The `IndexWouldGoStale` message for an unfinished `DeferIndexWrites` batch says the batch didn't finish (it failed partway or its program stopped) instead of saying it was cut off. Code that matches on the message text needs the new wording; the error code is unchanged.\n\n### Fixed\n\n- **A double is taken as the number it prints as, on .NET 11 too.** .NET 11 converts a double to decimal exactly, so the double 1.23 became 1.2299999999999999822..., where .NET 10 gave 1.23. On .NET 11 that rounded a currency value given as the double 0.00015 to 0.0001 instead of 0.0002, and could miss seeks and change `ModifyStructure`'s loss checks. Thunder.Dbf now goes through the double's shortest text (as it already did for numeric fields) wherever a double meets a decimal: currency writes and seeks, `.ntx` keys, expressions, `ModifyStructure`, `DbfDataReader.GetDecimal` on a double field, and SQL `REAL` values coming back through Thunder.Dbf.Sql. This affects apps running 0.4.4 or earlier on the .NET 11 runtime. On .NET 10 it changes two things, so that both runtimes now store the same value: a double with 16 or 17 significant digits keeps them, where .NET 10's conversion rounded it to 15 (the double 1234567890123456 was stored as 1234567890123460), and a float with 8 or 9 significant digits keeps them, where it was rounded to 7 (the float 12345678 was stored as 12345680).\n\n- **`RebuildIndex()` repairs a `.cdx` whose tag trees a cut-off batch left torn.** A `DeferIndexWrites` batch killed while it rewrote pages that already existed could leave a tree that reaches a page twice. Its note stopped writes, as designed, but nothing in Thunder.Dbf could repair the index: the exclusive open kept no index, `RebuildIndex()` said there was none, and `MaintainIndex(path, rebuild: true)` called it unreadable. Only Visual FoxPro's REINDEX could. Now, when every tag's header still reads and every tag's root is its own page, as a cut-off batch leaves them, the index is refused as rebuildable: nothing but a rebuild of every tag may write to it, a journal note's replay included, and the rebuild builds every tag from the table in new pages. It frees none of the torn trees' pages, since which ones are still in use can't be told, and starts the free list over; the old pages stay in the file, unused. This affects 0.4.4 too.\n\n### Changed\n\n- **Thunder.Dbf, Thunder.Dbf.Sql and the `thunder-dbf` tool now target .NET 11 as well as .NET 10.** Apps on .NET 10 (the long-term support release) keep working as before; apps on .NET 11 get a build compiled for it. The web service, samples and benchmarks now run on .NET 11. Building the repository needs the .NET 11 SDK, and the tests run on both runtimes.\n- **Seeks, appends and reads allocate less.** An `.mdx` seek reads each index page into a pooled buffer and decodes numeric keys without building strings: 10,000 seeks allocate 20 MB, down from 63 MB. Every write claims its locks and walks its indexes without LINQ or closures (`.mdx` appends allocate 24% less), and `.cdx` pages are cached as written instead of copied (19% less). Numeric, date and memo-pointer fields are parsed straight from their bytes; a plain number is no longer checked digit by digit through strings, because a decimal holds any number of 28 digits or fewer exactly. Every field reads exactly as before, errors included.\n- **A batch of deferred index writes that failed no longer reads as a crash.** When a `DeferIndexWrites` batch stopped partway (a damaged index, a full disk), the next writer was told the batch \"was cut off\", which pointed at a killed program. It now says the batch didn't finish because it failed partway or its program stopped. The refusal itself is unchanged.\n- **The benchmarks cover writes, seeks and garbage collection.** New benchmarks time appends that keep a dBASE IV `.mdx` and a FoxPro `.cdx` up to date and seeks through an `.mdx`, and `-- gc` reports GC pause time, collections and allocations for a mixed workload. Run them with `-f net10.0` or `-f net11.0` to compare runtimes; on .NET 11 they run in-process, because BenchmarkDotNet 0.15 can't yet start a separate .NET 11 process.\n\nFull changelog: https://github.com/pthunder/Thunder.Dbf/blob/main/CHANGELOG.md",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#repository",
+    "commit": "5fa508b785f150e74e46bce958b2e00ebcb51666",
+    "type": "git",
+    "url": "https://github.com/pthunder/Thunder.Dbf"
+  },
+  "verbatimVersion": "0.5.0",
+  "version": "0.5.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#thunder-dbf.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2757,
+      "fullName": "thunder-dbf.nuspec",
+      "length": 6391,
+      "name": "thunder-dbf.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 700,
+      "fullName": "README.md",
+      "length": 1459,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 18511,
+      "fullName": "icon.png",
+      "length": 18501,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 140,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 193,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/Microsoft.Data.Sqlite.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 75557,
+      "fullName": "tools/net10.0/any/Microsoft.Data.Sqlite.dll",
+      "length": 178528,
+      "name": "Microsoft.Data.Sqlite.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/SQLitePCLRaw.batteries_v2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2295,
+      "fullName": "tools/net10.0/any/SQLitePCLRaw.batteries_v2.dll",
+      "length": 5632,
+      "name": "SQLitePCLRaw.batteries_v2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/SQLitePCLRaw.core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21115,
+      "fullName": "tools/net10.0/any/SQLitePCLRaw.core.dll",
+      "length": 51712,
+      "name": "SQLitePCLRaw.core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/SQLitePCLRaw.provider.e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14937,
+      "fullName": "tools/net10.0/any/SQLitePCLRaw.provider.e_sqlite3.dll",
+      "length": 36864,
+      "name": "SQLitePCLRaw.provider.e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/Thunder.Dbf.Sql.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19620,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.Sql.dll",
+      "length": 44032,
+      "name": "Thunder.Dbf.Sql.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/Thunder.Dbf.Sql.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 11747,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.Sql.pdb",
+      "length": 20776,
+      "name": "Thunder.Dbf.Sql.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/Thunder.Dbf.Sql.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2499,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.Sql.xml",
+      "length": 11613,
+      "name": "Thunder.Dbf.Sql.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/Thunder.Dbf.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 249507,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.dll",
+      "length": 611840,
+      "name": "Thunder.Dbf.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/Thunder.Dbf.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 81611,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.pdb",
+      "length": 172836,
+      "name": "Thunder.Dbf.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/Thunder.Dbf.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 43426,
+      "fullName": "tools/net10.0/any/Thunder.Dbf.xml",
+      "length": 213751,
+      "name": "Thunder.Dbf.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/android-arm/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 813357,
+      "fullName": "tools/net10.0/any/runtimes/android-arm/native/libe_sqlite3.so",
+      "length": 1246788,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/android-arm64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 920393,
+      "fullName": "tools/net10.0/any/runtimes/android-arm64/native/libe_sqlite3.so",
+      "length": 1772160,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/android-x64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 944243,
+      "fullName": "tools/net10.0/any/runtimes/android-x64/native/libe_sqlite3.so",
+      "length": 1801864,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/android-x86/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 941477,
+      "fullName": "tools/net10.0/any/runtimes/android-x86/native/libe_sqlite3.so",
+      "length": 1820380,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/browser-wasm/nativeassets/net9.0/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 599744,
+      "fullName": "tools/net10.0/any/runtimes/browser-wasm/nativeassets/net9.0/e_sqlite3.a",
+      "length": 1309264,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/ios-arm/native/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 1008346,
+      "fullName": "tools/net10.0/any/runtimes/ios-arm/native/e_sqlite3.a",
+      "length": 2219032,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/ios-arm64/native/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 1008346,
+      "fullName": "tools/net10.0/any/runtimes/ios-arm64/native/e_sqlite3.a",
+      "length": 2219032,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/iossimulator-arm64/native/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 1973911,
+      "fullName": "tools/net10.0/any/runtimes/iossimulator-arm64/native/e_sqlite3.a",
+      "length": 4275720,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/iossimulator-x64/native/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 1973911,
+      "fullName": "tools/net10.0/any/runtimes/iossimulator-x64/native/e_sqlite3.a",
+      "length": 4275720,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-arm/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 629949,
+      "fullName": "tools/net10.0/any/runtimes/linux-arm/native/libe_sqlite3.so",
+      "length": 982192,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-arm64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 748389,
+      "fullName": "tools/net10.0/any/runtimes/linux-arm64/native/libe_sqlite3.so",
+      "length": 1534416,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-armel/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 701523,
+      "fullName": "tools/net10.0/any/runtimes/linux-armel/native/libe_sqlite3.so",
+      "length": 1375344,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-mips64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 724342,
+      "fullName": "tools/net10.0/any/runtimes/linux-mips64/native/libe_sqlite3.so",
+      "length": 1756616,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-musl-arm/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 679387,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-arm/native/libe_sqlite3.so",
+      "length": 1322584,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-musl-arm64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 725306,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-arm64/native/libe_sqlite3.so",
+      "length": 1450744,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-musl-riscv64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 599399,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-riscv64/native/libe_sqlite3.so",
+      "length": 1015928,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-musl-s390x/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 757984,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-s390x/native/libe_sqlite3.so",
+      "length": 1685800,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-musl-x64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 713726,
+      "fullName": "tools/net10.0/any/runtimes/linux-musl-x64/native/libe_sqlite3.so",
+      "length": 1445376,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-ppc64le/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 861070,
+      "fullName": "tools/net10.0/any/runtimes/linux-ppc64le/native/libe_sqlite3.so",
+      "length": 1937448,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-riscv64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 732367,
+      "fullName": "tools/net10.0/any/runtimes/linux-riscv64/native/libe_sqlite3.so",
+      "length": 1291936,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-s390x/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 767067,
+      "fullName": "tools/net10.0/any/runtimes/linux-s390x/native/libe_sqlite3.so",
+      "length": 1655816,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-x64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 731519,
+      "fullName": "tools/net10.0/any/runtimes/linux-x64/native/libe_sqlite3.so",
+      "length": 1470824,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/linux-x86/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 804638,
+      "fullName": "tools/net10.0/any/runtimes/linux-x86/native/libe_sqlite3.so",
+      "length": 1548016,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/maccatalyst-arm64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 872939,
+      "fullName": "tools/net10.0/any/runtimes/maccatalyst-arm64/native/libe_sqlite3.dylib",
+      "length": 1695264,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/maccatalyst-x64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 935781,
+      "fullName": "tools/net10.0/any/runtimes/maccatalyst-x64/native/libe_sqlite3.dylib",
+      "length": 1724352,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 873956,
+      "fullName": "tools/net10.0/any/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "length": 1696624,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/osx-x64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 936269,
+      "fullName": "tools/net10.0/any/runtimes/osx-x64/native/libe_sqlite3.dylib",
+      "length": 1724472,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/win-arm64/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 947215,
+      "fullName": "tools/net10.0/any/runtimes/win-arm64/native/e_sqlite3.dll",
+      "length": 1816064,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/win-x64/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1100110,
+      "fullName": "tools/net10.0/any/runtimes/win-x64/native/e_sqlite3.dll",
+      "length": 1972224,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/runtimes/win-x86/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 878700,
+      "fullName": "tools/net10.0/any/runtimes/win-x86/native/e_sqlite3.dll",
+      "length": 1529344,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/thunder-dbf.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1735,
+      "fullName": "tools/net10.0/any/thunder-dbf.deps.json",
+      "length": 12953,
+      "name": "thunder-dbf.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/thunder-dbf.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7289,
+      "fullName": "tools/net10.0/any/thunder-dbf.dll",
+      "length": 21504,
+      "name": "thunder-dbf.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/thunder-dbf.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8094,
+      "fullName": "tools/net10.0/any/thunder-dbf.pdb",
+      "length": 13268,
+      "name": "thunder-dbf.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net10.0/any/thunder-dbf.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 208,
+      "fullName": "tools/net10.0/any/thunder-dbf.runtimeconfig.json",
+      "length": 330,
+      "name": "thunder-dbf.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 140,
+      "fullName": "tools/net11.0/any/DotnetToolSettings.xml",
+      "length": 193,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/Microsoft.Data.Sqlite.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 75557,
+      "fullName": "tools/net11.0/any/Microsoft.Data.Sqlite.dll",
+      "length": 178528,
+      "name": "Microsoft.Data.Sqlite.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/SQLitePCLRaw.batteries_v2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2295,
+      "fullName": "tools/net11.0/any/SQLitePCLRaw.batteries_v2.dll",
+      "length": 5632,
+      "name": "SQLitePCLRaw.batteries_v2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/SQLitePCLRaw.core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21115,
+      "fullName": "tools/net11.0/any/SQLitePCLRaw.core.dll",
+      "length": 51712,
+      "name": "SQLitePCLRaw.core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/SQLitePCLRaw.provider.e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14937,
+      "fullName": "tools/net11.0/any/SQLitePCLRaw.provider.e_sqlite3.dll",
+      "length": 36864,
+      "name": "SQLitePCLRaw.provider.e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/Thunder.Dbf.Sql.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19616,
+      "fullName": "tools/net11.0/any/Thunder.Dbf.Sql.dll",
+      "length": 44032,
+      "name": "Thunder.Dbf.Sql.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/Thunder.Dbf.Sql.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 12063,
+      "fullName": "tools/net11.0/any/Thunder.Dbf.Sql.pdb",
+      "length": 21488,
+      "name": "Thunder.Dbf.Sql.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/Thunder.Dbf.Sql.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 2499,
+      "fullName": "tools/net11.0/any/Thunder.Dbf.Sql.xml",
+      "length": 11613,
+      "name": "Thunder.Dbf.Sql.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/Thunder.Dbf.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 249530,
+      "fullName": "tools/net11.0/any/Thunder.Dbf.dll",
+      "length": 611840,
+      "name": "Thunder.Dbf.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/Thunder.Dbf.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 81951,
+      "fullName": "tools/net11.0/any/Thunder.Dbf.pdb",
+      "length": 173612,
+      "name": "Thunder.Dbf.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/Thunder.Dbf.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 43426,
+      "fullName": "tools/net11.0/any/Thunder.Dbf.xml",
+      "length": 213751,
+      "name": "Thunder.Dbf.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/android-arm/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 813357,
+      "fullName": "tools/net11.0/any/runtimes/android-arm/native/libe_sqlite3.so",
+      "length": 1246788,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/android-arm64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 920393,
+      "fullName": "tools/net11.0/any/runtimes/android-arm64/native/libe_sqlite3.so",
+      "length": 1772160,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/android-x64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 944243,
+      "fullName": "tools/net11.0/any/runtimes/android-x64/native/libe_sqlite3.so",
+      "length": 1801864,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/android-x86/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 941477,
+      "fullName": "tools/net11.0/any/runtimes/android-x86/native/libe_sqlite3.so",
+      "length": 1820380,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/browser-wasm/nativeassets/net9.0/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 599744,
+      "fullName": "tools/net11.0/any/runtimes/browser-wasm/nativeassets/net9.0/e_sqlite3.a",
+      "length": 1309264,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/ios-arm/native/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 1008346,
+      "fullName": "tools/net11.0/any/runtimes/ios-arm/native/e_sqlite3.a",
+      "length": 2219032,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/ios-arm64/native/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 1008346,
+      "fullName": "tools/net11.0/any/runtimes/ios-arm64/native/e_sqlite3.a",
+      "length": 2219032,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/iossimulator-arm64/native/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 1973911,
+      "fullName": "tools/net11.0/any/runtimes/iossimulator-arm64/native/e_sqlite3.a",
+      "length": 4275720,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/iossimulator-x64/native/e_sqlite3.a",
+      "@type": "PackageEntry",
+      "compressedLength": 1973911,
+      "fullName": "tools/net11.0/any/runtimes/iossimulator-x64/native/e_sqlite3.a",
+      "length": 4275720,
+      "name": "e_sqlite3.a"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-arm/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 629949,
+      "fullName": "tools/net11.0/any/runtimes/linux-arm/native/libe_sqlite3.so",
+      "length": 982192,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-arm64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 748389,
+      "fullName": "tools/net11.0/any/runtimes/linux-arm64/native/libe_sqlite3.so",
+      "length": 1534416,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-armel/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 701523,
+      "fullName": "tools/net11.0/any/runtimes/linux-armel/native/libe_sqlite3.so",
+      "length": 1375344,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-mips64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 724342,
+      "fullName": "tools/net11.0/any/runtimes/linux-mips64/native/libe_sqlite3.so",
+      "length": 1756616,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-musl-arm/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 679387,
+      "fullName": "tools/net11.0/any/runtimes/linux-musl-arm/native/libe_sqlite3.so",
+      "length": 1322584,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-musl-arm64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 725306,
+      "fullName": "tools/net11.0/any/runtimes/linux-musl-arm64/native/libe_sqlite3.so",
+      "length": 1450744,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-musl-riscv64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 599399,
+      "fullName": "tools/net11.0/any/runtimes/linux-musl-riscv64/native/libe_sqlite3.so",
+      "length": 1015928,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-musl-s390x/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 757984,
+      "fullName": "tools/net11.0/any/runtimes/linux-musl-s390x/native/libe_sqlite3.so",
+      "length": 1685800,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-musl-x64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 713726,
+      "fullName": "tools/net11.0/any/runtimes/linux-musl-x64/native/libe_sqlite3.so",
+      "length": 1445376,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-ppc64le/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 861070,
+      "fullName": "tools/net11.0/any/runtimes/linux-ppc64le/native/libe_sqlite3.so",
+      "length": 1937448,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-riscv64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 732367,
+      "fullName": "tools/net11.0/any/runtimes/linux-riscv64/native/libe_sqlite3.so",
+      "length": 1291936,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-s390x/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 767067,
+      "fullName": "tools/net11.0/any/runtimes/linux-s390x/native/libe_sqlite3.so",
+      "length": 1655816,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-x64/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 731519,
+      "fullName": "tools/net11.0/any/runtimes/linux-x64/native/libe_sqlite3.so",
+      "length": 1470824,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/linux-x86/native/libe_sqlite3.so",
+      "@type": "PackageEntry",
+      "compressedLength": 804638,
+      "fullName": "tools/net11.0/any/runtimes/linux-x86/native/libe_sqlite3.so",
+      "length": 1548016,
+      "name": "libe_sqlite3.so"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/maccatalyst-arm64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 872939,
+      "fullName": "tools/net11.0/any/runtimes/maccatalyst-arm64/native/libe_sqlite3.dylib",
+      "length": 1695264,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/maccatalyst-x64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 935781,
+      "fullName": "tools/net11.0/any/runtimes/maccatalyst-x64/native/libe_sqlite3.dylib",
+      "length": 1724352,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 873956,
+      "fullName": "tools/net11.0/any/runtimes/osx-arm64/native/libe_sqlite3.dylib",
+      "length": 1696624,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/osx-x64/native/libe_sqlite3.dylib",
+      "@type": "PackageEntry",
+      "compressedLength": 936269,
+      "fullName": "tools/net11.0/any/runtimes/osx-x64/native/libe_sqlite3.dylib",
+      "length": 1724472,
+      "name": "libe_sqlite3.dylib"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/win-arm64/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 947215,
+      "fullName": "tools/net11.0/any/runtimes/win-arm64/native/e_sqlite3.dll",
+      "length": 1816064,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/win-x64/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1100110,
+      "fullName": "tools/net11.0/any/runtimes/win-x64/native/e_sqlite3.dll",
+      "length": 1972224,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/runtimes/win-x86/native/e_sqlite3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 878700,
+      "fullName": "tools/net11.0/any/runtimes/win-x86/native/e_sqlite3.dll",
+      "length": 1529344,
+      "name": "e_sqlite3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/thunder-dbf.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1735,
+      "fullName": "tools/net11.0/any/thunder-dbf.deps.json",
+      "length": 12953,
+      "name": "thunder-dbf.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/thunder-dbf.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7286,
+      "fullName": "tools/net11.0/any/thunder-dbf.dll",
+      "length": 21504,
+      "name": "thunder-dbf.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/thunder-dbf.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 8404,
+      "fullName": "tools/net11.0/any/thunder-dbf.pdb",
+      "length": 13972,
+      "name": "thunder-dbf.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#tools/net11.0/any/thunder-dbf.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 208,
+      "fullName": "tools/net11.0/any/thunder-dbf.runtimeconfig.json",
+      "length": 330,
+      "name": "thunder-dbf.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12989,
+      "fullName": ".signature.p7s",
+      "length": 12989,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.12.54.17/thunder-dbf.0.5.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "dbase",
+    "foxpro",
+    "clipper",
+    "xbase",
+    "dbf",
+    "mdx",
+    "cdx",
+    "ntx",
+    "legacy",
+    "migration",
+    "cli",
+    "dotnet-tool",
+    "sqlite"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

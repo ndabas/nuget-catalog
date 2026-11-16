@@ -1,0 +1,187 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Igor Tkachev",
+  "catalog:commitId": "905733c7-b8ec-4555-8c53-33c598950b8f",
+  "catalog:commitTimeStamp": "2026-11-15T19:17:10.1710176Z",
+  "copyright": "Copyright © 2026 Igor Tkachev",
+  "created": "2026-11-15T19:07:06.21Z",
+  "description": "A C#-style expression language written in .gram, compiled straight into System.Linq.Expressions trees.",
+  "iconFile": "icon.png",
+  "id": "DotGram.ExpressionLanguage",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-15T19:16:57.943Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "cwtxLG3FEMZZx19ZxmtFiao1B2sH5d0T2fAS52Jfxkt4tmn94/4EmtWPgstqisYymuJO2/Pdw2RqB4LNhdkiZA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1174181,
+  "projectUrl": "https://github.com/dotgram/dotgram",
+  "published": "2026-11-15T19:07:06.21Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Since 0.2.0. The language reads more of C#'s initializers, with, target-typed new and nullable types, refuses what C# refuses in them, and parses faster.\n\nBREAKING CHANGES, and what to do\n\n- Initializers are read as C# reads them, so texts 0.2.0 accepted are refused: an entry of a member initializer that is not Name = … (CS0747); an assignment as an element of a collection initializer, { 1, x = 2 }, { b.Capacity = 2 }, { x += 1 } - 0.2.0 read x = … as an assignment to a variable and added it (write the assignment in parentheses, { (x = 1), 2 }, to keep it an element); a member set twice in one initializer (CS1912); an initializer of the members of a property of a value type (CS1918); a collection initializer on a type that is not IEnumerable (CS1922); an initializer that assigns through a setter the text cannot call or a property with none (CS0200) or a read-only field (CS0191); an object creation that leaves a required member unset (CS9035).\n- A switch expression with no natural type as the operand of a plain operator (1 + (x switch { … }), !(x switch { … })) is refused, naming the two arms that meet in nothing (CS8506), where it reached the operator's factory with no type. String concatenation still takes it, boxed to object.\n- A member's own initializer, Items = { 1, 2 }, reads the member once for each entry inside it, as C# does, where it read it once for all; the tree is then a block of assignments, not a MemberInit.\n- The public type ExpressionParser.ParserInput<T> is removed; nothing public took or returned it.\n- ExpressionParser.SourceSpan is no longer public; nothing public took or returned it.\n- ExpressionParser.Scan, the scanner of its lexer, is no longer public: the kind it gave was the grammar's own numbering of its tokens, which changed with the grammar. Migration: none in the package; a caller that cut text into tokens with it has no replacement.\n\nNEW\n\n- A trailing comma after the last entry of an object, collection or array initializer; empty braces as an object initializer that sets nothing (new List<int> { }, Items = { }); indexers among members (new Dictionary<int, int> { [1] = 2 }), built as a block of assignments in C#'s order.\n- new[] { 1, 2L }, typed by the one type its elements convert to (CS0826 where there is none).\n- x with { Name = value, … } over a record class or a struct (CS8858 for any other type); with stays a name a variable may have.\n- new(…) with its type left out, wherever the place it stands in says the type: a declaration, a member or element of an initializer, an argument, a return, a cast, a throw, a ?: typed by its place.\n- T? as System.Nullable<T> in every type position; string? is string; int?? is refused (CS8629). After is and as, a bare ? is read as nullable only where what follows could not begin an expression, as C# reads it.\n- A switch with no natural type converts to object as to any other target.\n\nFASTER\n\n- The parser reads with the immediate carrier, building the tree as it reads: against 0.2.0 on the release benchmark, accepted text parses about 40% faster (deeply nested text the most), and DotGram.ExpressionLanguage.dll carries 68% less IL. A text refused late is 38 to 71% slower, with about 4.3 times the bytes; one refused early takes about the time it did. The answers - tree, refusal, message, exception - are unchanged.\n- Member initializers nested and never closed are read once at every level, where they were read twice (three quarters of a second at seventeen levels). A string left unclosed inside an interpolated string's hole, $\"{x\", is refused at once, where the time doubled with every further character.\n- Interpolated strings nested in one another's holes allocate the same at every level, where every level held room for a quarter of all the text nested in it: 3,200 levels allocated 76 MB and now allocate 14 MB. The time still grows with the square of the depth.\n\nFIXED\n\n- A dotted name with more parts than any type in reach, generic or not, is refused in time and bytes proportional to its length, where it was quadratic, and worse on names new to the caches: a parameter typed by 800 parts after an unknown root took 59 GB and 143 seconds, a generic one of 1,600 parts 3.2 GB. The first such name in a scope counts how deep the types in reach go, once an assembly; a member chain on a declared name never does. A long member chain on a parameter is read in linear time as well.\n- Generic arguments nested n levels deep, closed or not, allocate in proportion to n, where every level copied the text of the levels inside it (2.6 GB at 6,400 levels).\n- A chain of conditionals whose branches meet in no type, b ? 1 : b ? 1 : … : b, and nests of switches and new() of that kind are typed in linear time, where every level asked the whole nest below it (1.9 seconds for 12,800 levels).\n\nKNOWN ISSUES\n\n- A lambda is never converted to an expression-tree type (Expression<TDelegate>): over an IQueryable, LINQ operators that take a lambda bind to Enumerable and run in memory, and Queryable's methods written out are refused.\n- Interpolated strings nested in one another's holes, $\"{$\"{$\"{x}\"}\"}\", are read in time that grows with the square of the depth: 1,100 levels (about 5 KB of text) take about half a second, 3,200 levels about four seconds. The memory is linear. Bound the size of untrusted input.\n- A chain of comparisons written as generics, a < a < a < … > b, is read in time that grows with the square of its length, because every a is tried as the start of a generic type's arguments first: 4,500 operands (about 18 KB) take about half a second, 6,400 about one second. Bound the size of untrusted input.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#repository",
+    "commit": "c7cd493b0e136bd52ef0ee3ada34a42f61b859e5",
+    "type": "git",
+    "url": "https://github.com/dotgram/dotgram"
+  },
+  "verbatimVersion": "0.3.0",
+  "version": "0.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#dependencygroup/.netstandard2.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.3, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#DotGram.ExpressionLanguage.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3048,
+      "fullName": "DotGram.ExpressionLanguage.nuspec",
+      "length": 6855,
+      "name": "DotGram.ExpressionLanguage.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3320,
+      "fullName": "README.md",
+      "length": 7717,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#SKILL.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6501,
+      "fullName": "SKILL.md",
+      "length": 15873,
+      "name": "SKILL.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 176155,
+      "fullName": "icon.png",
+      "length": 176122,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#lib/net10.0/DotGram.ExpressionLanguage.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 411722,
+      "fullName": "lib/net10.0/DotGram.ExpressionLanguage.dll",
+      "length": 942592,
+      "name": "DotGram.ExpressionLanguage.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#lib/net10.0/DotGram.ExpressionLanguage.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 55437,
+      "fullName": "lib/net10.0/DotGram.ExpressionLanguage.xml",
+      "length": 271802,
+      "name": "DotGram.ExpressionLanguage.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#lib/netstandard2.0/DotGram.ExpressionLanguage.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 441255,
+      "fullName": "lib/netstandard2.0/DotGram.ExpressionLanguage.dll",
+      "length": 980480,
+      "name": "DotGram.ExpressionLanguage.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#lib/netstandard2.0/DotGram.ExpressionLanguage.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 61196,
+      "fullName": "lib/netstandard2.0/DotGram.ExpressionLanguage.xml",
+      "length": 317585,
+      "name": "DotGram.ExpressionLanguage.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.17.10/dotgram.expressionlanguage.0.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "expressions",
+    "expression-tree",
+    "linq",
+    "linq-expressions",
+    "parser",
+    "csharp",
+    "dsl",
+    "dotgram"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

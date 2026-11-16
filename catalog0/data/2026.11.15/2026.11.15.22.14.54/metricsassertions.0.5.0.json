@@ -1,0 +1,194 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "c146a9b1-0b51-4224-955f-e412b18432f7",
+  "catalog:commitTimeStamp": "2026-11-15T22:14:54.4961152Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-11-15T22:11:46.44Z",
+  "description": "Framework-agnostic core for fluent metric-measurement assertions over System.Diagnostics.Metrics instruments in .NET test projects, built on the first-party MetricCollector testing primitive. Captures the measurements an instrument records into a disposable, per-test InstrumentCapture and projects them to a uniform CapturedMeasurement shape, with meter-wide, observable, by-name and per-flow capture, and tag and delta queries. Test-framework assertion entry points live in adapter packages (MetricsAssertions.TUnit). AOT-compatible, trimmable, no runtime reflection.",
+  "id": "MetricsAssertions",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-15T22:14:31.653Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "i9TFzO5uxJqzA4zRGK9+3Db0xaSRUo5M9cnz1fZZD+kRcWHfczROJ7xlrcM+FSEJWMCKjF8+jQ9FRNXNR6Cr/Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 89848,
+  "projectUrl": "https://metricsassertions.dev/",
+  "published": "2026-11-15T22:11:46.44Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/MetricsAssertions.TUnit/releases/tag/v0.5.0\n\n### Added\n\n- **`MeterCapture.InCurrentFlow()`** makes a capture record only the measurements emitted in the async flow of the code that calls it, and in the flows started from it afterwards (after an `await`, in `Task.Run`, `Parallel.ForEachAsync`, `ThreadPool.QueueUserWorkItem` and timers). Call it right after `For` and before the first `Add`: `MeterCapture.For(\"MyCompany.Orders\").InCurrentFlow().Add<long>(\"orders.placed\")`. Capture by name is process-wide and a keyed `[NotInParallel]` does not keep out the tests that carry another key; a flow-scoped capture does, and it attaches to every matching instrument in the process instead of the first only, so a meter created per test is not missed. It does not record a capture created inside an awaited async method, in a constructor or in a `[Before(Test)]` / `[Before(Class)]` hook (the marker does not reach the test body), nor code that was already running before the capture was created, nor a thread started with `ExecutionContext.SuppressFlow()`. When such a capture is empty while other flows emitted to the same instruments, the failure message says so.\n- **.NET 11 target.** Both packages target `net10.0;net11.0`; each target framework uses the `Microsoft.Extensions.Diagnostics.Testing` version of its own .NET release (10.11.0 and 11.0.0).\n\n### Changed\n\n- **`TUnit.Assertions`** and **`TUnit.Core`** minimum versions raised from 1.77.0 to 1.85.0: 1.83.0 is the first TUnit with a `net11.0` asset, and 1.85.0 keeps TUnit's OpenTelemetry and ASP.NET Core packages on OpenTelemetry 1.20.x for `net10.0`, so a project with one version for all its TUnit packages gets no .NET 11 packages there.\n- **`HasAllSamplesInRange` and `HasSampleAverage`** now fail on a set with no samples, with a message that says so. They used to pass vacuously: nothing is in range of nothing, and the average of an empty set (reported as 0) matched an expected 0.\n- **Failure messages.** Every assertion now has an expectation message, so the \"Expected ...\" line says what the assertion checks and the \"but ...\" line describes only what was found, instead of repeating the expectation. For example `HasMeasurementCount(2)` on a capture with one measurement now reads `Expected to have 2 measurement(s)` / `but it had 1` / the dump of the captured measurements. The sample assertions (`HasSamples`, `HasSamplesInAnyOrder`) show the expected samples on the \"but\" line. There is no API change.\n- **README and XML documentation of capture isolation.** They now say that a keyed `[NotInParallel]` is not enough to isolate a test from a static meter (0.4.0 listed it as the remedy for that case) and put `InCurrentFlow()` first, then capture by `Meter` instance, a per-test `IMeterFactory` scope, a unique tag and an un-keyed `[NotInParallel]`.\n- **Documentation.** The adapter README lists all 25 assertions and the family; the core README names the members of `MeterCapture` and `MeterInspector`; the READMEs state that values keep the unit of the instrument, that tag values compare as invariant text (a `null` tag value equals an empty string), that `HasCounterTotal` and `HasCounterTotalAtLeast` reject negative deltas while `HasUpDownCounterValue` does not, that an instrument that never existed reads as \"nothing emitted\" (check with `MeterInspector.IsPublished`), and that on .NET 11 the `http.client.open_connections` and `http.client.active_requests` metrics are observable instruments, so a capture of them needs `RecordObservable()`. The README sample that drives a capture with a fake clock now names the package that provides `FakeTimeProvider`, `Microsoft.Extensions.TimeProvider.Testing`.\n\n### Fixed\n\n- **`HasCounterTotal`, `HasCounterTotalAtLeast` and `HasUpDownCounterValue`** threw `OverflowException` when the values summed to something no `long` can hold (`NaN`, infinity, or a counter that recorded `long.MaxValue`). They now fail the assertion with a message that names the sum. `MeasurementSet.Total`, `InstrumentCapture.Total` and `MeterCapture.CounterTotal` still throw `OverflowException` for such a sum, now documented.\n- **`InstrumentCapture.WaitForAsync`** on a disposed capture waited until its token was canceled, or forever without one. It now throws `ObjectDisposedException`, as every other read of a disposed capture does.\n- **`MeasurementSet.SamplesEqual(expected, tolerance)`, `SamplesEquivalentTo(expected, tolerance)` and the tolerance assertions** matched a `NaN` sample against any expected value (the comparison was `difference > tolerance`, which is false for `NaN`), and an infinite sum, average or last value never matched the equal infinity in `HasSampleSum`, `HasSampleAverage` and `HasLastValue`. A `NaN` now never matches within a tolerance, and equal infinities match. This covers `HasSamples`, `HasSamplesInAnyOrder`, `HasSampleSum`, `HasSampleAverage` and `HasLastValue` with a tolerance.\n- **`MeasurementSet.Describe()`, `ToSnapshotString()` and the failure messages** wrote a carriage return or line feed in an instrument name, tag key or tag value as it was, which split one measurement over several lines. It is now written as `\\r` or `\\n`, and a backslash as `\\\\`, so a snapshot tells a real line break from a backslash followed by `n`. Text without a line break or a backslash renders as before; a baseline with a backslash in a name or a tag value, such as a Windows path, has to be accepted again.\n- **Failure messages of `HasMeasurementCount`, `HasNoMeasurements`, `HasLastValue`, `HasTaggedMeasurement` and `HasUpDownCounterValue`** read the count or value from one snapshot of the capture and listed the measurements from a second one, so a capture that kept receiving measurements could say `it had 3` above four lines. The claim and the listing now come from the same snapshot.\n- **A tag value whose `ToString()` returns `null`** now compares as an empty string, as a `null` tag value does, so `Tagged(key, null)` and `Tagged(key, \"\")` match it; it matched neither.\n- **`MeasurementSet.Tagged(key, value)`** threw `ArgumentNullException` for a null `key` only when the set was not empty. It now throws on an empty set too.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#repository",
+    "commit": "c5d0a2d1aa9988a66e798a2ef5b62dacc1577f8a",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/MetricsAssertions.TUnit"
+  },
+  "verbatimVersion": "0.5.0",
+  "version": "0.5.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#dependencygroup/net10.0/microsoft.extensions.diagnostics.testing",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.Testing",
+          "range": "[10.11.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#dependencygroup/net11.0/microsoft.extensions.diagnostics.testing",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.Testing",
+          "range": "[11.0.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#MetricsAssertions.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3354,
+      "fullName": "MetricsAssertions.nuspec",
+      "length": 7996,
+      "name": "MetricsAssertions.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1268,
+      "fullName": "README.md",
+      "length": 2698,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#lib/net10.0/MetricsAssertions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9372,
+      "fullName": "lib/net10.0/MetricsAssertions.xml",
+      "length": 60123,
+      "name": "MetricsAssertions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#lib/net10.0/MetricsAssertions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17890,
+      "fullName": "lib/net10.0/MetricsAssertions.dll",
+      "length": 39936,
+      "name": "MetricsAssertions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#lib/net11.0/MetricsAssertions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 9372,
+      "fullName": "lib/net11.0/MetricsAssertions.xml",
+      "length": 60123,
+      "name": "MetricsAssertions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#lib/net11.0/MetricsAssertions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17891,
+      "fullName": "lib/net11.0/MetricsAssertions.dll",
+      "length": 39936,
+      "name": "MetricsAssertions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 14898,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 117558,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 52,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.22.14.54/metricsassertions.0.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "assertions",
+    "testing",
+    "metrics",
+    "diagnostics",
+    "instrumentation",
+    "metriccollector",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

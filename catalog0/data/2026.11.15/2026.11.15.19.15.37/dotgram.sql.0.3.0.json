@@ -1,0 +1,188 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Igor Tkachev",
+  "catalog:commitId": "224a5d40-85ce-4f32-87c0-176add28034d",
+  "catalog:commitTimeStamp": "2026-11-15T19:15:37.4310678Z",
+  "copyright": "Copyright © 2026 Igor Tkachev",
+  "created": "2026-11-15T19:07:51.13Z",
+  "description": "SQL parsers written in .gram: ISO SQL:2023, SQL-92 and Microsoft's T-SQL, all three building one tree of the standard's own constructs, with T-SQL's beside them.",
+  "iconFile": "icon.png",
+  "id": "DotGram.Sql",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-15T19:14:58.773Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "KZ9XBcsl3SHh9n3YrXYgPJdzxe7pQ6YLnCD09LUGEFMFcJ/UjSIFv3VwhclXHHGNV9fxrQ0w1F+i+YrBcsTYJQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 8449495,
+  "projectUrl": "https://github.com/dotgram/dotgram",
+  "published": "2026-11-15T19:07:51.13Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Since 0.2.0. The three parsers build one tree: TransactSqlParser and Sql92Parser now build DotGram.Sql.Ast, the tree SqlStandardParser builds, and the T-SQL tree of 0.2.0 is gone. A script is cut into batches as sqlcmd cuts it, and every parser is carried immediately. docs/ast.md maps every node to the production or page it comes from.\n\nBREAKING CHANGES, and what to write instead\n\n- One tree. TransactSqlParser and Sql92Parser hand back DotGram.Sql.Ast nodes through every entry, plain and Located: a Statement, a Statement[], an Expression or a Query of DotGram.Sql.Ast. A text two parsers read is the same tree. The 0.2.0 T-SQL tree in the DotGram.Sql namespace is removed: Statement, SetExpression, Query, Expression, TableReference, Clause, their records and factories, SqlComparison and SqlTruth; SqlJoin, SqlOrder, SqlLiteralKind and SetCategory are no longer public. Migration: use the types of DotGram.Sql.Ast; walk with SqlWalker; write with SqlWriter or TransactSqlWriter. A T-SQL construct with no node of its own yet comes back as an Extension node (Dialect \"T-SQL\", and a Kind that names it), which the writers refuse.\n- The DotGram.Sql.Ast tree of 0.2.0 changes shape. A SELECT holds a Query (Statement.Select.Query, beside its Hints), which a subquery, a derived table, a CTE, a view and an INSERT source hold as well (InSource.Query and InsertSource.Query are gone). SelectItem is SelectColumn, OFFSET and FETCH are one Limit (OffsetClause, FetchClause and FetchMode are gone), QueryOperand is gone, and set operations are a list on the query. DROP is a record per kind: Statement.DropObject and DropObjectKind are replaced by 46 records, and DropFulltextIndex is DropFullTextIndex. The session SET options are reshaped (eleven SetOption cases are gone), and Ast.SetCategory and JsonApiCommon.PathSpecification are removed. Migration: docs/ast.md says which node a construct now builds.\n- Writers. Sql2023Writer is renamed SqlWriter, in DotGram.Sql.Ast; the old SqlWriter of the DotGram.Sql namespace, which wrote only the removed tree, is gone. Migration: DotGram.Sql.Ast.Sql2023Writer.Write -> DotGram.Sql.Ast.SqlWriter.Write. The writers print key words and date parts in capitals.\n- Batch moves from DotGram.Sql to DotGram.Sql.Ast, with Statements, Go and Source. Migration: change the using.\n- Entries. SqlStandardParser reads by level, six entries where it published forty-two productions: ParseValue (was ParseLiteral; also reads NULL), ParseDataType, ParseExpression (was ParseValueExpression), ParseSearchCondition, ParseStatement (replaces ParseDirectSQLStatement, ParseSQLProcedureStatement and ParseQueryExpression) and ParseSql; 258 public methods are removed besides the two renamed. TransactSqlParser reads ParseExpression (was ParseValueExpression), ParseSearchCondition, ParseStatement, ParseSql, ParseScript and ParseSelect, each with its Try forms; ParseStatement, ParseSql and ParseScript also have a form per compatibility level from 100 to 170 (ParseStatement130, TryParseSql130, ParseScript160, …), with Try forms of their own. ParseQuery is gone. Migration: read a production below a level through the level that holds it (a table reference as a query that names it, a predicate as a search condition); for a T-SQL query take the statement's Query, ((Statement.Select)TransactSqlParser.ParseSelect(text)).Query.\n- Lists. Every list a node holds is a SqlList<T>, a read-only struct over one array that compares element by element: 183 IReadOnlyList<T> members of DotGram.Sql.Ast. Reading code mostly compiles unchanged (foreach, an indexer, Length, Count, LINQ, list patterns). Migration: where a list is handed in, write [.. array] or SqlList.From(array); use the list's own Exists and TrueForAll, or AsSpan, in place of Array.Exists and the other T[] methods; a SqlList<Derived> is not a SqlList<Base>.\n- Equality by content. A node's Span takes no part in its equality: a located tree equals the plain tree of the same text, and two equal subtrees in different places compare equal. Migration: a table keyed by node is keyed by reference (ReferenceEqualityComparer on .NET 5 and later, or a comparer of your own). Hash values differ from 0.2.0.\n- QualifiedName is a struct, its first Identifier and an array of the others: an optional name is a QualifiedName?, a Nullable, whose value is x.Value; the positional Parts and its Deconstruct are gone (Parts is kept and makes a list on each call; Count, the indexer, First, Last and foreach read without allocating). default(QualifiedName) is no name, and the writers and SqlWalker refuse it.\n- LiteralValue is an Expression, and Expression.Literal is removed. Migration: Expression.Literal { Value: LiteralValue.Numeric n } -> LiteralValue.Numeric n; new Expression.Literal(v) -> v.\n- Scripts. ParseScript, TryParseScript and their levels cut a script as ODBC sqlcmd 18.6 cuts it, so they answer differently wherever 0.2.0 disagreed with sqlcmd: GO; is text, a GO after a statement on its line is text, GO /* c */, GO 2; and GO x are refused at that line, :setvar is read and  substituted, :r is refused. The four position and window forms of TryParseScript are removed at every level, 72 methods. Migration: cut the text with SqlScript.Read and read each batch with TryParseSql(ScriptBatch). ParseSql no longer refuses a GO line: in one command GO is a word, as the server reads it. Text from a file or an editor is a script, for ParseScript; text a program sends in one command is for ParseSql.\n- Sql92Parser reserves every word SQL-92 reserves (section 5.2), so year, month, zone, with, names and the like are refused as names - write them delimited (\"year\"); SELECT b DAY FROM t reads b qualified by DAY. It refuses an interval qualifier SQL-92 does not have and a length, precision or scale above 2,147,483,647.\n- Derivation. The concrete records of DotGram.Sql.Ast are sealed. The abstract records their families derive from (Statement, Expression, LiteralValue, Query, DataType and the rest) are not sealed: their parameterless constructor is private protected, so a type outside the package cannot derive through it, but the copy constructor C# requires of a record that is not sealed stays protected, and a record that calls it can still derive. No family is designed for that. Sql92Parser, SqlStandardParser and TransactSqlParser have no constructor outside the package. Migration: hold a node or call a parser rather than derive from it.\n- Syntax, the helpers the T-SQL grammar's rules call, is no longer public, nor are the rule-value helper types nested in the parsers (the …_Dialect types of TransactSqlParser and TransactSqlParser.Located, CreateStatisticsWith, UpdateStatisticsWith, DottedType, Sql92Parser.Reserved, TransactSqlParser.ParserInput<T>).\n- QualifiedName.Of is no longer public, and EndpointEncryptionLevel, EndpointAlgorithm and EndpointWindowsMode, which no node held, are removed. Migration: new QualifiedName(first, rest) or new QualifiedName([.. parts]).\n- TransactSqlParser.SourceSpan is no longer public; nothing public took or returned it.\n- Scan, the scanner of the lexer of Sql92Parser, SqlStandardParser and TransactSqlParser, is no longer public: the kind it gave was the grammar's own numbering of its tokens, which changed with the grammar. Migration: none in the package; a caller that cut text into tokens with it has no replacement.\n- In a located T-SQL reading, an OVER spans the keyword and the window's name or brackets, as a located reading of SQL:2023 spans it.\n\nNEW\n\n- SqlScript.Read(text, options) cuts a script into the batches a client tool sends: ScriptProfile.SqlCmd() reads separator lines, GO n, :setvar and , :r through ScriptOptions.ResolveInclude (bounded by ScriptOptions.MaximumIncludes) and reports every other command as a ScriptDirective; ScriptProfile.Ssms() reads separator lines alone. Each ScriptBatch has Count, IsVerbatim and Locate. TransactSqlParser.TryParseSql(ScriptBatch) and its forms read one batch. Held byte for byte to what sqlcmd 18.6 sends the server.\n- SqlList<T>, the list every node holds, made with a collection expression, SqlList.From or ToSqlList(). A list of one element of a reference type holds it without an array.\n- TransactSqlParser.Located is the same parser called with locations on, rather than a second compilation, so the assembly carries one T-SQL parser instead of two.\n\nCHANGED\n\n- All three parsers are carried immediately (Carrier = GramCarrier.Immediate): a node is built as its rule is read. Accepted readings are mostly faster (FASTER, below); a text refused part-way allocates more. Trees, refusals and messages are as before.\n- A node of DotGram.Sql.Ast keeps its location in eight bytes (start and length); its Span.GapStart is its At.\n- A located node's span is the range of the rule that built it; a clause's keyword is no longer inside the value it introduces (a WHERE condition spans its own text).\n- Equality and GetHashCode of a node throw InsufficientExecutionStackException on a tree deeper than the stack has room for, where they would have overflowed it.\n\nFASTER\n\n- Against 0.2.0 on the release benchmark. SqlStandardParser (SQL:2023) parses about 80% faster, with less than a third of the bytes.\n- Sql92Parser parses about 29% faster and allocates about 1.6 times the bytes; a refused text costs more, up to 96% slower, with up to 108 times the 208 bytes it took.\n- TransactSqlParser is 22% faster at the median, and a script of 400 statements 30% faster, but an UPDATE with a subquery is 6 to 9% slower. Accepted T-SQL allocates up to 2.2 times the bytes (1.6 times at the median), the cost of the one tree's records; a first call takes about 6% longer.\n- DotGram.Sql.dll carries 63% less IL (9.2 MB to 3.4 MB).\n\nFIXED\n\n- Ten thousand nested T-SQL CASE … ELSE CASE … ended the process with a stack overflow; they are read. The writers carry a deep walk onto a thread of their own, and the T-SQL checks of a chain of UNION, brackets and PIVOT loop rather than recurse.\n- SqlStandardParser refuses a length, precision, scale or cardinality beyond 2147483647 and a large object length beyond 9223372036854775807, where it read CHAR (4294967297) as 1 and threw OverflowException on a number beyond long.\n- SqlStandardParser no longer reads a string literal through a simple comment: 'a' --c 'b' is the literal 'a' and a comment.\n- TransactSqlParser refuses EXTRACT(f FROM x), POSITION(a IN b), SUBSTRING(x FROM a FOR b), CONVERT(x USING cs), TRANSLATE(x USING cs), CURRENT_TIME, CURRENT_TIME(n) and CURRENT_TIMESTAMP(n), which it read from SQL-92's rules and SQL Server 2025 refuses at every compatibility level. CURRENT_DATE and plain CURRENT_TIMESTAMP stay, and so do the ODBC escapes { fn EXTRACT (HOUR FROM d) } and { fn CURRENT_TIME }.\n- A nest of T-SQL UPPER, LOWER, the four lengths, TRIM, CHOOSE or a set function (AVG, COUNT, MAX, MIN, SUM) took time doubling with every level, tripling for TRIM: 20 unclosed levels of UPPER ( took most of a second, and closed, accepted nests of TRIM ( and CHOOSE ( and of calls such as SUM (x, 1) did the same; so did SQL-92's TRIM (TRIM (a)). They are read in time proportional to the depth, and every tree, span and message is what it was.\n- A chain of UNION, EXCEPT or INTERSECT, accepted or refused, allocates in proportion to its length in Sql92Parser and TransactSqlParser, where the operation list was copied at every operator (17 KB a branch at 2,048 branches, 2.1 GB at 16,384); Query.Combine appends without copying too. Trees, refusals and messages are as before.\n- TransactSqlParser refuses TRIM (LEADING), TRIM (LEADING + 1) and every trim specification with no FROM after it, from level 160, as SQL Server does (Msg 102); it read them as a call over a column named LEADING.\n\nKNOWN ISSUES\n\n- Most DotGram.Sql.Ast records have no XML summary yet. The entry points have one (Batch; Statement with Select, Insert, Update, Delete, Merge and CreateTable; Query with Select; TableSource with Named, Subquery and Join; Expression with Reference, Unary and Binary), and most of the others that have one name the Microsoft reference page or the BNF production they follow. The tree's members carry no XML documentation beyond that yet; docs/ast.md is the reference, and the documentation comes in a later release.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#repository",
+    "commit": "c7cd493b0e136bd52ef0ee3ada34a42f61b859e5",
+    "type": "git",
+    "url": "https://github.com/dotgram/dotgram"
+  },
+  "verbatimVersion": "0.3.0",
+  "version": "0.3.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#dependencygroup/.netstandard2.0/system.memory",
+          "@type": "PackageDependency",
+          "id": "System.Memory",
+          "range": "[4.6.3, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#DotGram.Sql.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5735,
+      "fullName": "DotGram.Sql.nuspec",
+      "length": 13514,
+      "name": "DotGram.Sql.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4450,
+      "fullName": "README.md",
+      "length": 10964,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#SKILL.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4193,
+      "fullName": "SKILL.md",
+      "length": 10165,
+      "name": "SKILL.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 176155,
+      "fullName": "icon.png",
+      "length": 176122,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#lib/net10.0/DotGram.Sql.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3878088,
+      "fullName": "lib/net10.0/DotGram.Sql.dll",
+      "length": 11293696,
+      "name": "DotGram.Sql.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#lib/net10.0/DotGram.Sql.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 225071,
+      "fullName": "lib/net10.0/DotGram.Sql.xml",
+      "length": 1598146,
+      "name": "DotGram.Sql.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#lib/netstandard2.0/DotGram.Sql.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3909021,
+      "fullName": "lib/netstandard2.0/DotGram.Sql.dll",
+      "length": 11316224,
+      "name": "DotGram.Sql.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#lib/netstandard2.0/DotGram.Sql.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 231351,
+      "fullName": "lib/netstandard2.0/DotGram.Sql.xml",
+      "length": 1647565,
+      "name": "DotGram.Sql.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.19.15.37/dotgram.sql.0.3.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "parser",
+    "sql",
+    "iso-sql",
+    "sql-2023",
+    "sql-92",
+    "tsql",
+    "t-sql",
+    "sql-server",
+    "dotgram"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

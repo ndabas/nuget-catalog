@@ -1,0 +1,318 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kebechet",
+  "catalog:commitId": "95c714ff-c157-43d2-869f-54cde2c00dcc",
+  "catalog:commitTimeStamp": "2026-11-15T21:50:58.867108Z",
+  "created": "2026-11-15T21:45:34.007Z",
+  "description": "A C# source generator that transforms ASP.NET Core API endpoints into MCP (Model Context Protocol) tools.",
+  "iconFile": "icon.png",
+  "id": "Kebechet.Api.ToMcp",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-15T21:50:25.55Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "cIJExA5ntUxgNZzHMzuCV7TgCFfKlwSq/u7r0Q06ARrbSQxv7SZi8pMMoqzhwRx1o9wmjC1/ZakzvqmW2yJ/fQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 711827,
+  "projectUrl": "https://github.com/Kebechet/Api.ToMcp",
+  "published": "2026-11-15T21:45:34.007Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Added:\n- [FromHeader] arguments are sent as request headers and [FromForm] arguments as an application/x-www-form-urlencoded form, under the name MVC binds each under, with an object's properties under its prefix. Before, neither reached the action. A header value HTTP cannot carry, such as a non-ASCII character, returns an error result before the API is called. Form numbers and dates are written in the culture of the tool call, as MVC reads a form in the request's culture. A Minimal API endpoint's [FromHeader] of a type it parses from one string is sent as a header too.\n- McpHttpRequest and IMcpHttpRequestInvoker, which McpHttpInvoker implements. A tool that sends headers or a form builds an McpHttpRequest, calls request.SendAsync(invoker, ct) and carries [McpGeneratedTool(SendsHeadersOrForm = true)]. IMcpHttpInvoker is unchanged. With an invoker of your own that implements only IMcpHttpInvoker, such a call gets an error result that names IMcpHttpRequestInvoker, and a warning is logged once per invoker.\n- MCP014 (info) names a route of an action that its tool does not call, of the HTTP method the tool sends, where MVC binds a value of the action from that route alone. Give that route an action of its own for a tool to call it. Generated tools are unchanged.\n- MCP015 (warning) at an AdditionalFiles item named generator.json that the config at ApiToMcpConfigPath wins over.\n- A startup warning when MVC writes responses with Newtonsoft.Json (AddNewtonsoftJson) while generated tools advertise output schemas, which follow System.Text.Json. It names the generated tools with an output schema.\n\nChanged:\n- ⚠️ The AI chooses every [FromHeader] value, and the tool's request never passes the app's reverse proxy. A header the app trusts because its front end sets it must not be a [FromHeader] argument of an action exposed to MCP. A header a tool never sets is no argument, and the action gets the value the tool's request carries, or none: Authorization, Cookie, Host, Forwarded, X-Forwarded-*, X-Real-IP and the other client address headers, the method-override headers, and the identity and client certificate headers of App Service Authentication, oauth2-proxy, Google IAP, the AWS ALB, Cloudflare Access and other front ends. A required one that the request never carries gives MCP009, or MCP010 for an endpoint. A call that would send a header under a name the app configured for ForwardedHeadersOptions or CertificateForwardingOptions gets an error result.\n- An action that reads a form file, a header into an object, both a JSON body and a form, or a form that its [Consumes] or a visible antiforgery attribute refuses gets MCP009 and no tool. Before, a tool of a complex parameter holding an IFormFile sent the other properties and never the file. MCP009's title is now \"Action cannot become a tool\".\n- Only /mcp and the routes under it are kept from MCP. A route that merely contains \"mcp\", such as api/mcp or mcp-status, now gets a tool when the config or [McpExpose] selects it.\n- The config at ApiToMcpConfigPath is read whatever its file is named, and the property may be set anywhere, Directory.Build.targets included. A file such as openapi-generator.json is never read as the config.\n- ⚠️ A config listed by hand in AdditionalFiles under a name that only ends in generator.json, such as my-generator.json, is no longer read. Set ApiToMcpConfigPath to it.\n- ⚠️ A project that lists a generator.json at another path by hand, while a file exists at ApiToMcpConfigPath, now reads the file at ApiToMcpConfigPath. With the default path, that is the starter config the first build wrote, so the project's tools are gone until it is fixed. MCP015 points at the listed file.\n- Over HTTP (AreApiCallsInProcess = false) without McpTools:BaseUrl, tools call the server's own binding, never the host the MCP request names: an https:// binding first, then an http:// one on loopback or a wildcard one (called at localhost), then any other. Unix socket and named pipe bindings are skipped. For an MCP request over HTTPS, a call to an http:// address on loopback carries X-Forwarded-Proto: https, under the app's ForwardedProtoHeaderName, so UseHttpsRedirection does not redirect it. A call to an http:// address off loopback fails with an error that says to set McpTools:BaseUrl.\n- ⚠️ Over HTTP behind a TLS-terminating proxy, these setups now need McpTools:BaseUrl or a change: KnownProxies and KnownNetworks without loopback, an AllowedHosts without localhost, RequireHeaderSymmetry, a ForwardedProtoHeaderName renamed only in the options passed to UseForwardedHeaders(options), and IIS out of process. An absolute URL the API builds from the tool's request, such as a pagination link, now names the bound address. In process, the default, none of this applies.\n- Over HTTP, a redirect is followed only back to the address the tool called, keeping Authorization, as in process. A redirect anywhere else comes back as an error result naming its status. AddMcpTools turns off AllowAutoRedirect on the named client's primary handler.\n- Schemas no longer claim a format MVC does not check. Output schemas drop \"uri\" from every node, and any format a string gets from an attribute such as [Url], [EmailAddress] or [DataType]. A generated tool's input schema drops \"uri\" except under [Url], which MVC validates, and the format a plain [DataType] gives a string; [EmailAddress] keeps \"email\". Hand-written tools are unchanged.\n\nFixed:\n- A parameter that [ModelBinder(Name)], [Bind(Prefix)], [FromQuery(Name)] or another IModelNameProvider names was sent under its C# name, or without its prefix, so MVC never bound it. It is now sent under the name MVC binds it under, such as ?q=brno or f.City=Brno, for actions and Minimal API endpoints alike. [FromRoute(Name = \"productId\")] on {productId} gets a tool instead of MCP009 or MCP010.\n- A Minimal API endpoint whose two inputs read the same route or query value, through [FromRoute(Name)] or [FromQuery(Name)], gets MCP010 instead of a tool that cannot give each a value of its own.\n- The tools of actions under a controller at [Route(\"/\")], [Route(\"~/\")] or [Route(\"~/...\")], and of Minimal API endpoints whose pattern or group starts with ~/, called URLs such as //probe-root or /~/api/items, which answered 404.\n\nPerformance:\n- The generator analyzes action bodies only for the tools that get an output schema, and in parallel. On a project with 2,000 actions, an edit takes about 37% less generator time with structured output on, and about 66% less with it off.\n- The runtime decides once per type which properties of a query object a tool sends, instead of on every call.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#repository",
+    "commit": "66178d1f88fda25c949b42f1eecd6d821d6856d8",
+    "type": "git",
+    "url": "https://github.com/Kebechet/Api.ToMcp"
+  },
+  "verbatimVersion": "2.5.0",
+  "version": "2.5.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#dependencygroup/net10.0/modelcontextprotocol.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol.AspNetCore",
+          "range": "[2.2.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#dependencygroup/net8.0/modelcontextprotocol.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol.AspNetCore",
+          "range": "[2.2.0, )"
+        }
+      ],
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#dependencygroup/net9.0/modelcontextprotocol.aspnetcore",
+          "@type": "PackageDependency",
+          "id": "ModelContextProtocol.AspNetCore",
+          "range": "[2.2.0, )"
+        }
+      ],
+      "targetFramework": "net9.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#Kebechet.Api.ToMcp.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3432,
+      "fullName": "Kebechet.Api.ToMcp.nuspec",
+      "length": 8430,
+      "name": "Kebechet.Api.ToMcp.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 637,
+      "fullName": "LICENSE",
+      "length": 1069,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 56729,
+      "fullName": "README.md",
+      "length": 178211,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 33969,
+      "fullName": "icon.png",
+      "length": 33954,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#analyzers/dotnet/cs/Api.ToMcp.Generator.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 138513,
+      "fullName": "analyzers/dotnet/cs/Api.ToMcp.Generator.dll",
+      "length": 353280,
+      "name": "Api.ToMcp.Generator.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#build/Kebechet.Api.ToMcp.props",
+      "@type": "PackageEntry",
+      "compressedLength": 163,
+      "fullName": "build/Kebechet.Api.ToMcp.props",
+      "length": 205,
+      "name": "Kebechet.Api.ToMcp.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#build/Kebechet.Api.ToMcp.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 2128,
+      "fullName": "build/Kebechet.Api.ToMcp.targets",
+      "length": 7070,
+      "name": "Kebechet.Api.ToMcp.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net10.0/Api.ToMcp.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9984,
+      "fullName": "lib/net10.0/Api.ToMcp.Abstractions.dll",
+      "length": 14336,
+      "name": "Api.ToMcp.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net10.0/Api.ToMcp.Abstractions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1717,
+      "fullName": "lib/net10.0/Api.ToMcp.Abstractions.xml",
+      "length": 5723,
+      "name": "Api.ToMcp.Abstractions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net10.0/Api.ToMcp.Runtime.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 102417,
+      "fullName": "lib/net10.0/Api.ToMcp.Runtime.dll",
+      "length": 194048,
+      "name": "Api.ToMcp.Runtime.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net10.0/Api.ToMcp.Runtime.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 24924,
+      "fullName": "lib/net10.0/Api.ToMcp.Runtime.xml",
+      "length": 113367,
+      "name": "Api.ToMcp.Runtime.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net10.0/Api.ToMcp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14070,
+      "fullName": "lib/net10.0/Api.ToMcp.dll",
+      "length": 16384,
+      "name": "Api.ToMcp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net8.0/Api.ToMcp.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9984,
+      "fullName": "lib/net8.0/Api.ToMcp.Abstractions.dll",
+      "length": 14336,
+      "name": "Api.ToMcp.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net8.0/Api.ToMcp.Abstractions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1717,
+      "fullName": "lib/net8.0/Api.ToMcp.Abstractions.xml",
+      "length": 5723,
+      "name": "Api.ToMcp.Abstractions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net8.0/Api.ToMcp.Runtime.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 102249,
+      "fullName": "lib/net8.0/Api.ToMcp.Runtime.dll",
+      "length": 194048,
+      "name": "Api.ToMcp.Runtime.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net8.0/Api.ToMcp.Runtime.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 24924,
+      "fullName": "lib/net8.0/Api.ToMcp.Runtime.xml",
+      "length": 113367,
+      "name": "Api.ToMcp.Runtime.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net8.0/Api.ToMcp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13921,
+      "fullName": "lib/net8.0/Api.ToMcp.dll",
+      "length": 16384,
+      "name": "Api.ToMcp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net9.0/Api.ToMcp.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9984,
+      "fullName": "lib/net9.0/Api.ToMcp.Abstractions.dll",
+      "length": 14336,
+      "name": "Api.ToMcp.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net9.0/Api.ToMcp.Abstractions.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 1717,
+      "fullName": "lib/net9.0/Api.ToMcp.Abstractions.xml",
+      "length": 5723,
+      "name": "Api.ToMcp.Abstractions.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net9.0/Api.ToMcp.Runtime.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 102308,
+      "fullName": "lib/net9.0/Api.ToMcp.Runtime.dll",
+      "length": 194048,
+      "name": "Api.ToMcp.Runtime.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net9.0/Api.ToMcp.Runtime.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 24924,
+      "fullName": "lib/net9.0/Api.ToMcp.Runtime.xml",
+      "length": 113367,
+      "name": "Api.ToMcp.Runtime.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#lib/net9.0/Api.ToMcp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13961,
+      "fullName": "lib/net9.0/Api.ToMcp.dll",
+      "length": 16384,
+      "name": "Api.ToMcp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.15.21.50.58/kebechet.api.tomcp.2.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "mcp",
+    "model-context-protocol",
+    "source-generator",
+    "aspnetcore",
+    "api",
+    "claude",
+    "ai"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

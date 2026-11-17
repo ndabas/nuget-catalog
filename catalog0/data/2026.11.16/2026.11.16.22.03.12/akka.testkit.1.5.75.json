@@ -1,0 +1,274 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Akka.NET Team",
+  "catalog:commitId": "4e3f79ea-306f-44b0-9f77-92e291df213b",
+  "catalog:commitTimeStamp": "2026-11-16T22:03:12.1821151Z",
+  "copyright": "Copyright © 2013-2026 Akka.NET Team",
+  "created": "2026-11-16T21:52:36.217Z",
+  "description": "You need a Akka.TestKit.* package! Add the one appropriate for the test framework you use instead. For example: Akka.TestKit.Xunit or Akka.TestKit.VsTest. This package only contains base functionality for writing tests for the Akka.NET framework.",
+  "iconFile": "akkalogo.png",
+  "id": "Akka.TestKit",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-16T22:03:03.587Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "0Jlla7AKhTLQ1ws1BzyXZAGaBseC77+RI1bxHQrnEXurBQ3eF2gWYbG8tsnJq/GeGCDUrR8TnZwWi7uaj5WYSw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 347337,
+  "projectUrl": "https://getakka.net/",
+  "published": "2026-11-16T21:52:36.217Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Akka.NET v1.5.75 adds restart-free TLS certificate rotation for the DotNetty transport, fixes two certificate-validation gaps that silently disabled security checks, backports two Akka.Persistence ordering fixes, and brings Akka.Reminders to the 1.5 line as `Akka.Reminders.*` packages.\n\n**Upgrading from `Aaron.Akka.Reminders`?** The package IDs are now `Akka.Reminders`, `Akka.Reminders.Sql`, `Akka.Reminders.SqlServer`, `Akka.Reminders.PostgreSql` and `Akka.Reminders.Sqlite`, and the module shares the Akka.NET version number. Change your package references; stored data is read-compatible, proven by a golden-database spec against data written by the released `Aaron.Akka.Reminders` 1.5.73 packages.\n\n**Two behavior changes to check before upgrading.** `CertificateValidation.ValidateHostname(expectedHostname)` and `SslOptions.CustomValidator` now actually enforce what they were configured to enforce. Both were silently no-ops in earlier versions, so a peer that used to connect may now fail the TLS handshake. See the Akka.Remote / TLS section below.\n\n**Akka.Remote / TLS**\n* [Rotate DotNetty TLS certificates without a restart](https://github.com/akkadotnet/akka.net/pull/8960) - A node can now pick up a renewed TLS certificate with no restart. Set `akka.remote.dot-netty.tcp.ssl.certificate.common-name` to find the certificate in a store by name, or point `ssl.certificate.path` at a folder of PKCS#12/PEM files, and place the renewed certificate beside the old one. New connections use it within about 10 seconds; open connections keep the certificate they started with. In code, use `DotNettySslSetup.FromSource` with `TlsCertificateSource`, or `SslOptions.CertificateSource` in Akka.Hosting. Existing TLS setups are unchanged. **Behavior change:** a certificate source checks that the certificate is allowed for the role. With `require-mutual-authentication = true` (the default) the certificate must allow both client and server authentication. `X509Certificate`, a single-file `Path` and a `Thumbprint` are not checked this way, so a certificate that worked before may be skipped with a warning when moved to a source, and a node with no other usable certificate does not start.\n* [Add `TlsCertificateSource` for TLS certificate rotation](https://github.com/akkadotnet/akka.net/pull/8959) - The new `Akka.IO.TlsCertificateSource` resolves a certificate from a store common name, a thumbprint, a single file, or a folder of files, and re-checks it once a minute. A certificate that cannot be used is judged again at the next look-up, so granting access to a private key later is picked up. The source never disposes a certificate it has published. PEM files need the `net6.0` target; the `netstandard2.0` build skips them and logs why.\n* [Security fix: `CertificateValidation.ValidateHostname(expectedHostname)` now enforces the expected hostname](https://github.com/akkadotnet/akka.net/pull/8958) - In v1.5.74 and earlier this validator logged a warning and did not compare `expectedHostname` with the certificate, so a node that used it to check inbound client certificates accepted every client certificate. It now rejects any certificate that does not match the name, by the rules of .NET's `X509Certificate2.MatchesHostname`. **Behavior change:** a certificate that does not match now fails the TLS handshake, and on the dialing side that shuts the `ActorSystem` down with exit code 79. Only nodes that opt in are affected: `validate-certificate-hostname` defaults to `false`. A certificate whose subject alternative name extension holds a malformed entry is rejected, as in 1.6. `ValidateHostname()` without an argument is unchanged.\n* [Security fix: `SslOptions.CustomValidator` in Akka.Remote.Hosting now applies when the certificate is set by file path or thumbprint](https://github.com/akkadotnet/akka.net/pull/8963) - In earlier versions the validator only ran when `SslOptions.X509Certificate` was set, and was otherwise ignored without a warning. **Behavior change:** the validator now runs, so a peer it rejects fails the TLS handshake. A `CustomValidator` with no certificate in the options now fails at startup with a `ConfigurationException`, and the certificate loads when `WithRemoting` runs rather than when the `ActorSystem` starts.\n* [Log an unexpected failure of the once-a-minute TLS certificate check](https://github.com/akkadotnet/akka.net/pull/8972) - The check's catch block swallowed any unexpected exception without a trace. The source already logs every failure it expects, so anything reaching this catch is a bug, and it now logs a warning. The node keeps its current certificate, as before.\n\n**Akka.Reminders**\n* [Port Akka.Reminders to v1.5](https://github.com/akkadotnet/akka.net/pull/8952) - Akka.Reminders now ships on the 1.5 line, dual-targeted at `netstandard2.0` and `net10.0` so it reaches .NET Framework 4.8 through .NET 10. This is a port rather than a backport: the module is new to 1.5, so the whole thing was re-targeted onto the branch. It ships five packages — `Akka.Reminders`, `Akka.Reminders.Sql`, `Akka.Reminders.SqlServer`, `Akka.Reminders.PostgreSql` and `Akka.Reminders.Sqlite` — renamed from `Aaron.Akka.Reminders*` and now sharing the Akka.NET version number. A golden-database spec proves the new packages read data written by the released `Aaron.Akka.Reminders` 1.5.73 packages. AOT is not supported on Akka.NET 1.5, so the module carries no AOT annotations here. The module ships no `reference.conf` and no MultiNode specs; serializer registration goes through the Akka.Hosting API, so HOCON-only users have no configuration surface for it.\n* [End every older live occurrence when a newer one is sent](https://github.com/akkadotnet/akka.net/pull/8971) - A recurring reminder could deliver an older occurrence after a newer one when its interval was well below `MaxSlippage` and its shard region was missing for a while and then came back. The recipient got the newer occurrence and then the older one, and both acknowledgements succeeded. When the newest occurrence of a series moves to `AwaitingAck`, every older live occurrence of that series now expires in the same storage commit. Fixes [#8965](https://github.com/akkadotnet/akka.net/issues/8965).\n* [Cap the older occurrences one send ends at 256](https://github.com/akkadotnet/akka.net/pull/8975) - The fix above expires `ceil(earliness / interval)` older occurrences per early send with no upper bound, and Reminders accepts any interval above zero. A 1 ms interval put about 5,000 expiries in one commit, and a sub-millisecond interval could put millions into the scheduler's memory. The cap is 256 per send, nearest first. No interval of about 20 ms or more at the default 5 s `MaxSlippage` can reach it. Below that, during a shard region outage, an older occurrence more than 256 intervals back can still be sent after a newer one; `failure-modes.md` documents the limit.\n\n**Akka.Persistence**\n* [Do not run the `PersistAll` completion callback when the journal rejects the batch](https://github.com/akkadotnet/akka.net/pull/8950) - The completion callback of a `PersistAll` or `PersistAllAsync` call ran even when the journal rejected the batch, so an actor could act on a write that never happened. The defect was present since 1.5.57. Fixes [#8948](https://github.com/akkadotnet/akka.net/issues/8948).\n* [Run stashed commands in order when an async persist handler completes asynchronously](https://github.com/akkadotnet/akka.net/pull/8943) - A persistent actor ran stashed commands out of order when an async `Persist` handler, or the async completion of `PersistAll`, did not complete synchronously: two calls unstashed in the same turn. These overloads first shipped in 1.5.57. Fixes [#8942](https://github.com/akkadotnet/akka.net/issues/8942).\n\n**Docs**\n* [TLS certificate rotation article](https://github.com/akkadotnet/akka.net/pull/8961) - New article covering how a node picks its certificate and when a renewed one is used, how to rotate, changing an existing setup, trust by CA and name, loading from Azure Key Vault, rotating with a rolling restart, and troubleshooting. It leads with Akka.Hosting, then HOCON, then code. `security.md` now says which certificate options can rotate without a restart, and no longer claims that revocation is checked, which the DotNetty transport does not do. A follow-up ([#8970](https://github.com/akkadotnet/akka.net/pull/8970)) corrected the article's note about `CustomValidator`, which does apply to thumbprint and single-file certificates since [#8963](https://github.com/akkadotnet/akka.net/pull/8963).\n\n**Build and tests**\n* [Skip the simultaneous-disassociate graceful-close spec on .NET Framework](https://github.com/akkadotnet/akka.net/pull/8900) - On net48 the tests load Akka.Remote's `netstandard2.0` build, where `HalfClose` falls back to a full close. When both sides disassociate at once, one side can close while the other's frames are still unread and its kernel sends an RST, so the spec failed intermittently. The two sibling \"no reset\" tests in the class already skip on .NET Framework for the same reason. This changes no product code.\n* Akka.Reminders CI lane - The new module adds a Linux-only `net_tests_reminders_linux` lane with its own Incrementalist config, because `Akka.Reminders.Migration.Tests` starts SQL Server and PostgreSQL containers unconditionally and the Windows agents have no Docker. `src/contrib/reminders/**` is excluded from the Windows test configs.\n\n1 contributor since release 1.5.74\n\n| COMMITS | LOC+ | LOC- | AUTHOR |\n| --- | --- | --- | --- |\n| 13 | 40157 | 552 | Aaron Stannard |\n\nTo see the full set of changes in Akka.NET v1.5.75, [click here](https://github.com/akkadotnet/akka.net/milestone/158?closed=1).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#repository",
+    "commit": "a4a7af49cd624fca5b39bc9fbbe9066d687bcd53",
+    "type": "git",
+    "url": "https://github.com/akkadotnet/akka.net"
+  },
+  "verbatimVersion": "1.5.75",
+  "version": "1.5.75",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net6.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net6.0/akka",
+          "@type": "PackageDependency",
+          "id": "Akka",
+          "range": "[1.5.75, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net6.0/microsoft.bcl.asyncinterfaces",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.AsyncInterfaces",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net6.0/nito.asyncex.context",
+          "@type": "PackageDependency",
+          "id": "Nito.AsyncEx.Context",
+          "range": "[5.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net6.0/nito.asyncex.coordination",
+          "@type": "PackageDependency",
+          "id": "Nito.AsyncEx.Coordination",
+          "range": "[5.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net6.0/system.linq.async",
+          "@type": "PackageDependency",
+          "id": "System.Linq.Async",
+          "range": "[6.0.1, )"
+        }
+      ],
+      "targetFramework": "net6.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net10.0/akka",
+          "@type": "PackageDependency",
+          "id": "Akka",
+          "range": "[1.5.75, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net10.0/nito.asyncex.context",
+          "@type": "PackageDependency",
+          "id": "Nito.AsyncEx.Context",
+          "range": "[5.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/net10.0/nito.asyncex.coordination",
+          "@type": "PackageDependency",
+          "id": "Nito.AsyncEx.Coordination",
+          "range": "[5.1.2, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/.netstandard2.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/.netstandard2.0/akka",
+          "@type": "PackageDependency",
+          "id": "Akka",
+          "range": "[1.5.75, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/.netstandard2.0/microsoft.bcl.asyncinterfaces",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Bcl.AsyncInterfaces",
+          "range": "[6.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/.netstandard2.0/nito.asyncex.context",
+          "@type": "PackageDependency",
+          "id": "Nito.AsyncEx.Context",
+          "range": "[5.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/.netstandard2.0/nito.asyncex.coordination",
+          "@type": "PackageDependency",
+          "id": "Nito.AsyncEx.Coordination",
+          "range": "[5.1.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#dependencygroup/.netstandard2.0/system.linq.async",
+          "@type": "PackageDependency",
+          "id": "System.Linq.Async",
+          "range": "[6.0.1, )"
+        }
+      ],
+      "targetFramework": ".NETStandard2.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#Akka.TestKit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4475,
+      "fullName": "Akka.TestKit.nuspec",
+      "length": 12239,
+      "name": "Akka.TestKit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#lib/net10.0/Akka.TestKit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78838,
+      "fullName": "lib/net10.0/Akka.TestKit.dll",
+      "length": 197120,
+      "name": "Akka.TestKit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#lib/net10.0/Akka.TestKit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 24407,
+      "fullName": "lib/net10.0/Akka.TestKit.xml",
+      "length": 281256,
+      "name": "Akka.TestKit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#lib/net6.0/Akka.TestKit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 79069,
+      "fullName": "lib/net6.0/Akka.TestKit.dll",
+      "length": 197632,
+      "name": "Akka.TestKit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#lib/net6.0/Akka.TestKit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 24407,
+      "fullName": "lib/net6.0/Akka.TestKit.xml",
+      "length": 281256,
+      "name": "Akka.TestKit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#lib/netstandard2.0/Akka.TestKit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 78330,
+      "fullName": "lib/netstandard2.0/Akka.TestKit.dll",
+      "length": 195584,
+      "name": "Akka.TestKit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#lib/netstandard2.0/Akka.TestKit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 24407,
+      "fullName": "lib/netstandard2.0/Akka.TestKit.xml",
+      "length": 281256,
+      "name": "Akka.TestKit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#akkalogo.png",
+      "@type": "PackageEntry",
+      "compressedLength": 14746,
+      "fullName": "akkalogo.png",
+      "length": 17058,
+      "name": "akkalogo.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2962,
+      "fullName": "README.md",
+      "length": 9440,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.16.22.03.12/akka.testkit.1.5.75.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12979,
+      "fullName": ".signature.p7s",
+      "length": 12979,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "akka",
+    "actors",
+    "actor",
+    "model",
+    "Akka",
+    "concurrency"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

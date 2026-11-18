@@ -1,0 +1,821 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Benoit Robin",
+  "catalog:commitId": "c64038a8-19a7-47bd-b916-04af248eeaab",
+  "catalog:commitTimeStamp": "2026-11-17T14:05:25.8752055Z",
+  "created": "2026-11-17T13:47:08.13Z",
+  "description": "dotnet new templates for Kazo OS: window app, terminal command, service, ASP.Kazo site, network drive provider, host and app repository solution.",
+  "id": "Kazo.Os.Templates",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-17T14:05:02.473Z",
+  "licenseFile": "LICENSE.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "hMu3WmQj4kafxf90WvLVHYx6Zwsvivqi4ZimPl6GwZVD/xakNLZV8IEz/oRBrsftqf4k2oJ/gbdS5vXC3gP2hg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 99836,
+  "published": "2026-11-17T13:47:08.13Z",
+  "releaseNotes": "Kazo OS 3.5.0, changes for app developers:\n- Features can declare roles that an administrator grants. A feature can now declare roles, such as the manager of its virtual machines, and reserve some of its commands and windows for them. An administrator grants a role to an ordinary account in the new Roles of the features panel of Settings ▸ Users, or with sudo kazorole grant <user> <role>; kazorole list shows who holds what. Every administrator holds every role, implicitly. A command that requires a role you do not hold is absent from the launcher and the completion, and the shell answers role required (exit 126). Each sensitive operation still asks the system’s own window for your password, never the feature’s, and auth.log records feature.authenticate, feature.role-denied, role.grant and role.revoke. A feature’s roles are named <feature>:<role>, such as x86:vm-manager. For developers: FeatureDefinition.Roles, FeatureEntryPoint.RequiresRole, KazoUser.Current.IsInRole (the OS role admin, or <feature>:<role>), KazoRoles, KazoFeatureAuthentication (AuthenticateAsync, ConsumeAsync), KazoUserAccounts.ListRolesAsync, GrantRoleAsync and RevokeRoleAsync.\n- Features declare their own permissions, and no permission is granted silently any more. An optional feature of the OS can now declare permissions of its own under a reserved prefix (for example x86.vm.use or x86.vm.destroy), normal or dangerous, with a title and a risk statement. An app that uses the feature asks for them in its manifest; a normal one is granted while the feature is installed and enabled, a dangerous one only after an administrator approves it, always in the OS’s secure window, even from a terminal command. A permission can cover others. At sign-in the OS now grants only the capabilities it knows: an unknown identifier is never granted and is written to /var/log/syslog, and the bus topic permissions need an approval (issue #432). Settings ▸ Permissions, the installation approval window and kazopkg show the feature that declares a permission. For developers: FeatureDefinition.CapabilityPrefix and ProvidedCapabilities, IFeatureServiceContext.Caller.Require and Has, ICapabilityCatalog.\n- Installing an app installs what it needs, with one approval. When an app needs another package, for example a feature of the OS, the Kazo OS Store and kazopkg now install it with the app: they show the whole plan first (each package, its version, its size and its dangerous permissions) and ask once. A feature always goes to every user, so an administrator approves it, even for an app installed for yourself; if no administrator approves, nothing is installed. A required package that no catalog publishes stops the installation with its name and the versions it needs. The app's page in the Store lists what it needs and whether it is installed, and warns when the installed version is out of range. Removing a package other apps need names them and disables them; their data stays, and installing the package again turns them back on. An update that would break an installed app is refused. kazopkg install, remove and update ask for a confirmation; --yes answers for you. For developers: KazoApps.RequestInstallAsync opens the Store on an optional dependency; KazoAppPackages.PlanInstallAsync and GetDependentsAsync; catalog.json lists the dependencies of each version.\n- Kazo OS tells you when the browser erased its data, and can ask it not to. Browsers may erase a site's data when the disk is full or after a while without a visit. Kazo OS now notices it at startup: the first-run screen says the browser erased its data, with the date of the last start and how to restore a backup, and kern.log gets storage.evicted. The new Settings ▸ System ▸ Storage page shows how much the browser lets Kazo OS use, how much each kind of storage takes when the browser tells, whether the storage is protected, with a button to ask the browser to protect it, and the space each feature declared. A feature that keeps disks in the browser (a virtual machine, for example) is told when they were erased, and you get a notification. df shows a /dev/feature/<id> line for each such feature. For developers: KazoStorage (GetEstimateAsync, RequestPersistenceAsync, RegisterMarkerAsync, ReportUsageAsync, GetFeatureUsageAsync, Changed).\n- Network drive types are described by the OS. The Connect a network drive dialog, Settings > Cloud accounts and mount -t now show every network drive type the OS describes, including those a Store feature provides, marked \"Provided by <feature>\". S3 uses the same generic form, and its access key id is now a masked secret. mount never reads a secret from the command line. A drive whose provider is missing stays greyed in File Explorer with the reason, and Install the provider opens the Store. Apps read the descriptions with KazoDriveInfo.DescribeNetworkDriveTypesAsync and GetProviderMissingDrivesAsync.\n- A developer kit for network drive providers. dotnet new kazoos-drive-provider creates a feature that provides a network drive type, with tests that run the public conformance suite KazoDriveProviderTests against an in-memory service. A WebDAV sample shows a form connection. drives.provide alone now lets a provider reach the hosts of its declaration, and a form field marked serverAddress lets it reach the server each user types there while the drive is open. The approval screen names both.\n- An account of a declared drive type belongs to its feature. Accounts of a drive type a feature declares now record that feature (CloudAccount.FeatureId). Another feature serving the same type later never reaches them: its drive context and a reconnection are refused, and signing in again creates a separate account. CloudAccountService.CreateDriveProviderContextAsync and SaveFormAccountAsync now take the feature id.\n- Apps can reach the web services they declare directly. KazoDirectHttpClient sends requests straight through the browser, without the Kazo server, and reads the response as a stream. An app needs the dangerous capability network.direct.access and lists every host it reaches in directNetworkHosts; the administrator approves that list, and the OS refuses any other host.\n- Drives of a removed or disabled provider are kept. When the feature that provides a drive type is removed or disabled, its drives are unmounted but stay in the user's list with their mount point reserved, and come back by themselves when the same feature returns. Another feature that provides the same type does not take them over. Platform.Core: NetworkDrive.ProviderFeatureId; network-drives.json lines gain a provider field.\n- Publish Kazo OS without Dropbox, OneDrive or S3. The shipped cloud drive connectors moved to a new package, Kazo.Os.Platform.CloudDrives (same namespaces). The MSBuild properties KazoOsDropboxDrives, KazoOsOneDriveDrives and KazoOsS3Drives (true by default) leave a connector out of the build; with all three false the assembly leaves the download. KazoOs:CloudDrives:Disabled in appsettings.json and the disabled key of /etc/kazoos/cloud-drives.config hide a type without publishing again. A drive of a disabled type stays in the user's list, unmounted, and comes back when the type is enabled again. Breaking change for a host that composes the connectors itself: reference Kazo.Os.Platform.CloudDrives (ADR 0282 §5).\n- The OS opens the drive types that Store features provide. A drive type a feature declares is offered as soon as the feature is installed and enabled, with no restart. Its provider is loaded at the first drive, once per page, in the feature's own process; a provider that fails or is slow leaves the drive disconnected with a line in the feature's log, and a login never waits for it. The installer refuses a second feature that provides the same type.\n- The OS signs in to the drive types features declare. An OAuth drive type an installed feature declares is now signed in by the OS like Dropbox and OneDrive, with the same callback page and tokens sealed on the device; an administrator can replace its app ids in /etc/kazoos/cloud-drives.config. Form accounts keep their plain values and seal their secret ones, and a provider's context only reaches the access token or secrets of the drive it opens. Platform.Core: AppCatalog.GetDriveProviders, CloudAccountService.SaveFormAccountAsync and CreateDriveProviderContextAsync; CloudOAuthProvider.Identity is now optional (breaking for code that builds a CloudOAuthProvider).\n- The SDK describes network drive providers. A feature can now declare the network drive types it provides (FeatureDefinition.DriveProviders, the drives.provide capability) and write them with the new Kazo.Os.AppSdk.Drives contract: KazoDriveProvider, KazoDriveFolder, KazoDrivePath. The build checks the declaration (KOSAPP0036).\nRelease notes: https://github.com/Kazo-ca/Os/releases/tag/v3.5.0",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#repository",
+    "commit": "5cb8db50fcc6af78d0f408a54b4f5c683723a0d5",
+    "type": "git",
+    "url": "https://github.com/Kazo-ca/Os"
+  },
+  "verbatimVersion": "3.5.0",
+  "version": "3.5.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#Kazo.Os.Templates.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3965,
+      "fullName": "Kazo.Os.Templates.nuspec",
+      "length": 9762,
+      "name": "Kazo.Os.Templates.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4405,
+      "fullName": "LICENSE.md",
+      "length": 15261,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/command/.template.config/icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "content/command/.template.config/icon.png",
+      "length": 133,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/command/.template.config/ide.host.json",
+      "@type": "PackageEntry",
+      "compressedLength": 187,
+      "fullName": "content/command/.template.config/ide.host.json",
+      "length": 292,
+      "name": "ide.host.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/command/.template.config/template.json",
+      "@type": "PackageEntry",
+      "compressedLength": 433,
+      "fullName": "content/command/.template.config/template.json",
+      "length": 1001,
+      "name": "template.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/command/Command.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 628,
+      "fullName": "content/command/Command.cs",
+      "length": 1310,
+      "name": "Command.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/command/Kazo.Os.Template.Command.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 511,
+      "fullName": "content/command/Kazo.Os.Template.Command.csproj",
+      "length": 988,
+      "name": "Kazo.Os.Template.Command.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/command/TemplateCommandApp.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 446,
+      "fullName": "content/command/TemplateCommandApp.cs",
+      "length": 1035,
+      "name": "TemplateCommandApp.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/.template.config/icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "content/drive-provider/.template.config/icon.png",
+      "length": 133,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/.template.config/ide.host.json",
+      "@type": "PackageEntry",
+      "compressedLength": 234,
+      "fullName": "content/drive-provider/.template.config/ide.host.json",
+      "length": 472,
+      "name": "ide.host.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/.template.config/template.json",
+      "@type": "PackageEntry",
+      "compressedLength": 668,
+      "fullName": "content/drive-provider/.template.config/template.json",
+      "length": 1717,
+      "name": "template.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/Kazo.Os.Template.DriveProvider.slnx",
+      "@type": "PackageEntry",
+      "compressedLength": 127,
+      "fullName": "content/drive-provider/Kazo.Os.Template.DriveProvider.slnx",
+      "length": 303,
+      "name": "Kazo.Os.Template.DriveProvider.slnx"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/src/Kazo.Os.Template.DriveProvider/CloudDriveFeature.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 1201,
+      "fullName": "content/drive-provider/src/Kazo.Os.Template.DriveProvider/CloudDriveFeature.cs",
+      "length": 3080,
+      "name": "CloudDriveFeature.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/src/Kazo.Os.Template.DriveProvider/CloudDriveFolder.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 1471,
+      "fullName": "content/drive-provider/src/Kazo.Os.Template.DriveProvider/CloudDriveFolder.cs",
+      "length": 5700,
+      "name": "CloudDriveFolder.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/src/Kazo.Os.Template.DriveProvider/CloudDriveHttpApi.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 3103,
+      "fullName": "content/drive-provider/src/Kazo.Os.Template.DriveProvider/CloudDriveHttpApi.cs",
+      "length": 11468,
+      "name": "CloudDriveHttpApi.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/src/Kazo.Os.Template.DriveProvider/CloudDriveProvider.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 858,
+      "fullName": "content/drive-provider/src/Kazo.Os.Template.DriveProvider/CloudDriveProvider.cs",
+      "length": 1938,
+      "name": "CloudDriveProvider.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/src/Kazo.Os.Template.DriveProvider/ICloudDriveApi.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 1227,
+      "fullName": "content/drive-provider/src/Kazo.Os.Template.DriveProvider/ICloudDriveApi.cs",
+      "length": 3459,
+      "name": "ICloudDriveApi.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/src/Kazo.Os.Template.DriveProvider/Kazo.Os.Template.DriveProvider.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 568,
+      "fullName": "content/drive-provider/src/Kazo.Os.Template.DriveProvider/Kazo.Os.Template.DriveProvider.csproj",
+      "length": 1134,
+      "name": "Kazo.Os.Template.DriveProvider.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/tests/Kazo.Os.Template.DriveProvider.Tests/CloudDriveProviderTests.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 1139,
+      "fullName": "content/drive-provider/tests/Kazo.Os.Template.DriveProvider.Tests/CloudDriveProviderTests.cs",
+      "length": 3200,
+      "name": "CloudDriveProviderTests.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/tests/Kazo.Os.Template.DriveProvider.Tests/InMemoryCloudDrive.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 2203,
+      "fullName": "content/drive-provider/tests/Kazo.Os.Template.DriveProvider.Tests/InMemoryCloudDrive.cs",
+      "length": 8835,
+      "name": "InMemoryCloudDrive.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/drive-provider/tests/Kazo.Os.Template.DriveProvider.Tests/Kazo.Os.Template.DriveProvider.Tests.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 428,
+      "fullName": "content/drive-provider/tests/Kazo.Os.Template.DriveProvider.Tests/Kazo.Os.Template.DriveProvider.Tests.csproj",
+      "length": 970,
+      "name": "Kazo.Os.Template.DriveProvider.Tests.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/host/.template.config/icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "content/host/.template.config/icon.png",
+      "length": 133,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/host/.template.config/ide.host.json",
+      "@type": "PackageEntry",
+      "compressedLength": 79,
+      "fullName": "content/host/.template.config/ide.host.json",
+      "length": 92,
+      "name": "ide.host.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/host/.template.config/template.json",
+      "@type": "PackageEntry",
+      "compressedLength": 289,
+      "fullName": "content/host/.template.config/template.json",
+      "length": 535,
+      "name": "template.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/host/Kazo.Os.Template.Host.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 851,
+      "fullName": "content/host/Kazo.Os.Template.Host.csproj",
+      "length": 3280,
+      "name": "Kazo.Os.Template.Host.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/host/Program.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 341,
+      "fullName": "content/host/Program.cs",
+      "length": 578,
+      "name": "Program.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/host/wwwroot/appsettings.json",
+      "@type": "PackageEntry",
+      "compressedLength": 131,
+      "fullName": "content/host/wwwroot/appsettings.json",
+      "length": 202,
+      "name": "appsettings.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/host/wwwroot/index.html",
+      "@type": "PackageEntry",
+      "compressedLength": 541,
+      "fullName": "content/host/wwwroot/index.html",
+      "length": 1241,
+      "name": "index.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/service/.template.config/icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "content/service/.template.config/icon.png",
+      "length": 133,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/service/.template.config/ide.host.json",
+      "@type": "PackageEntry",
+      "compressedLength": 187,
+      "fullName": "content/service/.template.config/ide.host.json",
+      "length": 292,
+      "name": "ide.host.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/service/.template.config/template.json",
+      "@type": "PackageEntry",
+      "compressedLength": 441,
+      "fullName": "content/service/.template.config/template.json",
+      "length": 1011,
+      "name": "template.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/service/Kazo.Os.Template.Service.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 511,
+      "fullName": "content/service/Kazo.Os.Template.Service.csproj",
+      "length": 988,
+      "name": "Kazo.Os.Template.Service.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/service/Service.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 717,
+      "fullName": "content/service/Service.cs",
+      "length": 1605,
+      "name": "Service.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/service/TemplateServiceApp.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 440,
+      "fullName": "content/service/TemplateServiceApp.cs",
+      "length": 1083,
+      "name": "TemplateServiceApp.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/site/.template.config/icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "content/site/.template.config/icon.png",
+      "length": 133,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/site/.template.config/ide.host.json",
+      "@type": "PackageEntry",
+      "compressedLength": 187,
+      "fullName": "content/site/.template.config/ide.host.json",
+      "length": 292,
+      "name": "ide.host.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/site/.template.config/template.json",
+      "@type": "PackageEntry",
+      "compressedLength": 441,
+      "fullName": "content/site/.template.config/template.json",
+      "length": 1002,
+      "name": "template.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/site/Kazo.Os.Template.Site.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 590,
+      "fullName": "content/site/Kazo.Os.Template.Site.csproj",
+      "length": 1181,
+      "name": "Kazo.Os.Template.Site.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/site/TemplateSite.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 845,
+      "fullName": "content/site/TemplateSite.cs",
+      "length": 2021,
+      "name": "TemplateSite.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/site/wwwroot/css/site.css",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "content/site/wwwroot/css/site.css",
+      "length": 182,
+      "name": "site.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/scripts/bump-app-version.sh",
+      "@type": "PackageEntry",
+      "compressedLength": 1204,
+      "fullName": "content/solution/.github/scripts/bump-app-version.sh",
+      "length": 2650,
+      "name": "bump-app-version.sh"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/scripts/check-kazoos-submodule.sh",
+      "@type": "PackageEntry",
+      "compressedLength": 573,
+      "fullName": "content/solution/.github/scripts/check-kazoos-submodule.sh",
+      "length": 1193,
+      "name": "check-kazoos-submodule.sh"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/scripts/store-readme.mjs",
+      "@type": "PackageEntry",
+      "compressedLength": 1463,
+      "fullName": "content/solution/.github/scripts/store-readme.mjs",
+      "length": 3697,
+      "name": "store-readme.mjs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/ci.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 420,
+      "fullName": "content/solution/.github/workflows/ci.yml",
+      "length": 706,
+      "name": "ci.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/kazoos-ci.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 1051,
+      "fullName": "content/solution/.github/workflows/kazoos-ci.yml",
+      "length": 2849,
+      "name": "kazoos-ci.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/kazoos-publish-packages.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 1498,
+      "fullName": "content/solution/.github/workflows/kazoos-publish-packages.yml",
+      "length": 3488,
+      "name": "kazoos-publish-packages.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/kazoos-publish-to-store.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 3381,
+      "fullName": "content/solution/.github/workflows/kazoos-publish-to-store.yml",
+      "length": 9807,
+      "name": "kazoos-publish-to-store.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/kazoos-sdk-update.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 6294,
+      "fullName": "content/solution/.github/workflows/kazoos-sdk-update.yml",
+      "length": 19916,
+      "name": "kazoos-sdk-update.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/kazoos-tag-release.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 1683,
+      "fullName": "content/solution/.github/workflows/kazoos-tag-release.yml",
+      "length": 4757,
+      "name": "kazoos-tag-release.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/publish-packages.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 423,
+      "fullName": "content/solution/.github/workflows/publish-packages.yml",
+      "length": 764,
+      "name": "publish-packages.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/publish-to-kazoos-store.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 497,
+      "fullName": "content/solution/.github/workflows/publish-to-kazoos-store.yml",
+      "length": 911,
+      "name": "publish-to-kazoos-store.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/sdk-update.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 782,
+      "fullName": "content/solution/.github/workflows/sdk-update.yml",
+      "length": 1668,
+      "name": "sdk-update.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.github/workflows/tag-release.yml",
+      "@type": "PackageEntry",
+      "compressedLength": 555,
+      "fullName": "content/solution/.github/workflows/tag-release.yml",
+      "length": 1160,
+      "name": "tag-release.yml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.gitignore",
+      "@type": "PackageEntry",
+      "compressedLength": 95,
+      "fullName": "content/solution/.gitignore",
+      "length": 107,
+      "name": ".gitignore"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.gitmodules",
+      "@type": "PackageEntry",
+      "compressedLength": 94,
+      "fullName": "content/solution/.gitmodules",
+      "length": 111,
+      "name": ".gitmodules"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.template.config/icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "content/solution/.template.config/icon.png",
+      "length": 133,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.template.config/ide.host.json",
+      "@type": "PackageEntry",
+      "compressedLength": 254,
+      "fullName": "content/solution/.template.config/ide.host.json",
+      "length": 526,
+      "name": "ide.host.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/.template.config/template.json",
+      "@type": "PackageEntry",
+      "compressedLength": 957,
+      "fullName": "content/solution/.template.config/template.json",
+      "length": 2261,
+      "name": "template.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/Directory.Build.props",
+      "@type": "PackageEntry",
+      "compressedLength": 786,
+      "fullName": "content/solution/Directory.Build.props",
+      "length": 1894,
+      "name": "Directory.Build.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/Directory.Build.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 412,
+      "fullName": "content/solution/Directory.Build.targets",
+      "length": 804,
+      "name": "Directory.Build.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/Kazo.Os.Template.Solution.sln",
+      "@type": "PackageEntry",
+      "compressedLength": 633,
+      "fullName": "content/solution/Kazo.Os.Template.Solution.sln",
+      "length": 2662,
+      "name": "Kazo.Os.Template.Solution.sln"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3452,
+      "fullName": "content/solution/README.md",
+      "length": 8183,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/global.json",
+      "@type": "PackageEntry",
+      "compressedLength": 93,
+      "fullName": "content/solution/global.json",
+      "length": 111,
+      "name": "global.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/readme-fr.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3809,
+      "fullName": "content/solution/readme-fr.md",
+      "length": 8800,
+      "name": "readme-fr.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution.Os/Kazo.Os.Template.Solution.Os.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 904,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution.Os/Kazo.Os.Template.Solution.Os.csproj",
+      "length": 3381,
+      "name": "Kazo.Os.Template.Solution.Os.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution.Os/Program.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 341,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution.Os/Program.cs",
+      "length": 578,
+      "name": "Program.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution.Os/Properties/launchSettings.json",
+      "@type": "PackageEntry",
+      "compressedLength": 294,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution.Os/Properties/launchSettings.json",
+      "length": 461,
+      "name": "launchSettings.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution.Os/wwwroot/appsettings.json",
+      "@type": "PackageEntry",
+      "compressedLength": 131,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution.Os/wwwroot/appsettings.json",
+      "length": 202,
+      "name": "appsettings.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution.Os/wwwroot/index.html",
+      "@type": "PackageEntry",
+      "compressedLength": 548,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution.Os/wwwroot/index.html",
+      "length": 1255,
+      "name": "index.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution/Kazo.Os.Template.Solution.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 574,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution/Kazo.Os.Template.Solution.csproj",
+      "length": 1216,
+      "name": "Kazo.Os.Template.Solution.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution/MainWindow.razor",
+      "@type": "PackageEntry",
+      "compressedLength": 229,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution/MainWindow.razor",
+      "length": 382,
+      "name": "MainWindow.razor"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution/MainWindow.razor.css",
+      "@type": "PackageEntry",
+      "compressedLength": 324,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution/MainWindow.razor.css",
+      "length": 700,
+      "name": "MainWindow.razor.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution/TemplateSolutionApp.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 512,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution/TemplateSolutionApp.cs",
+      "length": 1198,
+      "name": "TemplateSolutionApp.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/src/Kazo.Os.Template.Solution/_Imports.razor",
+      "@type": "PackageEntry",
+      "compressedLength": 70,
+      "fullName": "content/solution/src/Kazo.Os.Template.Solution/_Imports.razor",
+      "length": 72,
+      "name": "_Imports.razor"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/store/description.en.md",
+      "@type": "PackageEntry",
+      "compressedLength": 123,
+      "fullName": "content/solution/store/description.en.md",
+      "length": 157,
+      "name": "description.en.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/store/description.fr.md",
+      "@type": "PackageEntry",
+      "compressedLength": 146,
+      "fullName": "content/solution/store/description.fr.md",
+      "length": 184,
+      "name": "description.fr.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/store/icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 256,
+      "fullName": "content/solution/store/icon.png",
+      "length": 840,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/store/short_description.en.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 63,
+      "fullName": "content/solution/store/short_description.en.txt",
+      "length": 61,
+      "name": "short_description.en.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/store/short_description.fr.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 68,
+      "fullName": "content/solution/store/short_description.fr.txt",
+      "length": 68,
+      "name": "short_description.fr.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/store/store.json",
+      "@type": "PackageEntry",
+      "compressedLength": 148,
+      "fullName": "content/solution/store/store.json",
+      "length": 216,
+      "name": "store.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/tests/Kazo.Os.Template.Solution.Tests/Kazo.Os.Template.Solution.Tests.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 287,
+      "fullName": "content/solution/tests/Kazo.Os.Template.Solution.Tests/Kazo.Os.Template.Solution.Tests.csproj",
+      "length": 676,
+      "name": "Kazo.Os.Template.Solution.Tests.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/solution/tests/Kazo.Os.Template.Solution.Tests/ManifestTests.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 368,
+      "fullName": "content/solution/tests/Kazo.Os.Template.Solution.Tests/ManifestTests.cs",
+      "length": 688,
+      "name": "ManifestTests.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/window/.template.config/icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 136,
+      "fullName": "content/window/.template.config/icon.png",
+      "length": 133,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/window/.template.config/ide.host.json",
+      "@type": "PackageEntry",
+      "compressedLength": 187,
+      "fullName": "content/window/.template.config/ide.host.json",
+      "length": 292,
+      "name": "ide.host.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/window/.template.config/template.json",
+      "@type": "PackageEntry",
+      "compressedLength": 446,
+      "fullName": "content/window/.template.config/template.json",
+      "length": 1011,
+      "name": "template.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/window/Kazo.Os.Template.Window.csproj",
+      "@type": "PackageEntry",
+      "compressedLength": 555,
+      "fullName": "content/window/Kazo.Os.Template.Window.csproj",
+      "length": 1167,
+      "name": "Kazo.Os.Template.Window.csproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/window/MainWindow.razor",
+      "@type": "PackageEntry",
+      "compressedLength": 229,
+      "fullName": "content/window/MainWindow.razor",
+      "length": 382,
+      "name": "MainWindow.razor"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/window/MainWindow.razor.css",
+      "@type": "PackageEntry",
+      "compressedLength": 324,
+      "fullName": "content/window/MainWindow.razor.css",
+      "length": 700,
+      "name": "MainWindow.razor.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/window/TemplateWindowApp.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 400,
+      "fullName": "content/window/TemplateWindowApp.cs",
+      "length": 940,
+      "name": "TemplateWindowApp.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#content/window/_Imports.razor",
+      "@type": "PackageEntry",
+      "compressedLength": 70,
+      "fullName": "content/window/_Imports.razor",
+      "length": 72,
+      "name": "_Imports.razor"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.14.05.25/kazo.os.templates.3.5.0.json#packagetypes/Template",
+      "@type": "PackageType",
+      "name": "Template"
+    }
+  ],
+  "tags": [
+    "kazoos",
+    "dotnet-new",
+    "templates"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,273 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Benoit Robin",
+  "catalog:commitId": "a7e1d318-1689-4731-9981-78c36ae0a068",
+  "catalog:commitTimeStamp": "2026-11-17T13:59:52.3427128Z",
+  "created": "2026-11-17T13:46:40.357Z",
+  "description": "Build integration of Kazo OS apps: generated manifest.json, SDK boundary checks, ASP.Kazo route generator and host aggregation of app packages.",
+  "developmentDependency": true,
+  "id": "Kazo.Os.App.Build",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-17T13:59:28.693Z",
+  "licenseFile": "LICENSE.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "S/r1fXr/YZhriErzb9NTEvBd/1kR7Srqp7lohh558DS1Sfa4fcQsU3Nki4NUZ/nPvaZKcPaF3SrfI3icroAvjw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 4250620,
+  "published": "2026-11-17T13:46:40.357Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "Kazo OS 3.5.0, changes for app developers:\n- Features can declare roles that an administrator grants. A feature can now declare roles, such as the manager of its virtual machines, and reserve some of its commands and windows for them. An administrator grants a role to an ordinary account in the new Roles of the features panel of Settings ▸ Users, or with sudo kazorole grant <user> <role>; kazorole list shows who holds what. Every administrator holds every role, implicitly. A command that requires a role you do not hold is absent from the launcher and the completion, and the shell answers role required (exit 126). Each sensitive operation still asks the system’s own window for your password, never the feature’s, and auth.log records feature.authenticate, feature.role-denied, role.grant and role.revoke. A feature’s roles are named <feature>:<role>, such as x86:vm-manager. For developers: FeatureDefinition.Roles, FeatureEntryPoint.RequiresRole, KazoUser.Current.IsInRole (the OS role admin, or <feature>:<role>), KazoRoles, KazoFeatureAuthentication (AuthenticateAsync, ConsumeAsync), KazoUserAccounts.ListRolesAsync, GrantRoleAsync and RevokeRoleAsync.\n- Features declare their own permissions, and no permission is granted silently any more. An optional feature of the OS can now declare permissions of its own under a reserved prefix (for example x86.vm.use or x86.vm.destroy), normal or dangerous, with a title and a risk statement. An app that uses the feature asks for them in its manifest; a normal one is granted while the feature is installed and enabled, a dangerous one only after an administrator approves it, always in the OS’s secure window, even from a terminal command. A permission can cover others. At sign-in the OS now grants only the capabilities it knows: an unknown identifier is never granted and is written to /var/log/syslog, and the bus topic permissions need an approval (issue #432). Settings ▸ Permissions, the installation approval window and kazopkg show the feature that declares a permission. For developers: FeatureDefinition.CapabilityPrefix and ProvidedCapabilities, IFeatureServiceContext.Caller.Require and Has, ICapabilityCatalog.\n- Installing an app installs what it needs, with one approval. When an app needs another package, for example a feature of the OS, the Kazo OS Store and kazopkg now install it with the app: they show the whole plan first (each package, its version, its size and its dangerous permissions) and ask once. A feature always goes to every user, so an administrator approves it, even for an app installed for yourself; if no administrator approves, nothing is installed. A required package that no catalog publishes stops the installation with its name and the versions it needs. The app's page in the Store lists what it needs and whether it is installed, and warns when the installed version is out of range. Removing a package other apps need names them and disables them; their data stays, and installing the package again turns them back on. An update that would break an installed app is refused. kazopkg install, remove and update ask for a confirmation; --yes answers for you. For developers: KazoApps.RequestInstallAsync opens the Store on an optional dependency; KazoAppPackages.PlanInstallAsync and GetDependentsAsync; catalog.json lists the dependencies of each version.\n- Kazo OS tells you when the browser erased its data, and can ask it not to. Browsers may erase a site's data when the disk is full or after a while without a visit. Kazo OS now notices it at startup: the first-run screen says the browser erased its data, with the date of the last start and how to restore a backup, and kern.log gets storage.evicted. The new Settings ▸ System ▸ Storage page shows how much the browser lets Kazo OS use, how much each kind of storage takes when the browser tells, whether the storage is protected, with a button to ask the browser to protect it, and the space each feature declared. A feature that keeps disks in the browser (a virtual machine, for example) is told when they were erased, and you get a notification. df shows a /dev/feature/<id> line for each such feature. For developers: KazoStorage (GetEstimateAsync, RequestPersistenceAsync, RegisterMarkerAsync, ReportUsageAsync, GetFeatureUsageAsync, Changed).\n- Network drive types are described by the OS. The Connect a network drive dialog, Settings > Cloud accounts and mount -t now show every network drive type the OS describes, including those a Store feature provides, marked \"Provided by <feature>\". S3 uses the same generic form, and its access key id is now a masked secret. mount never reads a secret from the command line. A drive whose provider is missing stays greyed in File Explorer with the reason, and Install the provider opens the Store. Apps read the descriptions with KazoDriveInfo.DescribeNetworkDriveTypesAsync and GetProviderMissingDrivesAsync.\n- A developer kit for network drive providers. dotnet new kazoos-drive-provider creates a feature that provides a network drive type, with tests that run the public conformance suite KazoDriveProviderTests against an in-memory service. A WebDAV sample shows a form connection. drives.provide alone now lets a provider reach the hosts of its declaration, and a form field marked serverAddress lets it reach the server each user types there while the drive is open. The approval screen names both.\n- An account of a declared drive type belongs to its feature. Accounts of a drive type a feature declares now record that feature (CloudAccount.FeatureId). Another feature serving the same type later never reaches them: its drive context and a reconnection are refused, and signing in again creates a separate account. CloudAccountService.CreateDriveProviderContextAsync and SaveFormAccountAsync now take the feature id.\n- Apps can reach the web services they declare directly. KazoDirectHttpClient sends requests straight through the browser, without the Kazo server, and reads the response as a stream. An app needs the dangerous capability network.direct.access and lists every host it reaches in directNetworkHosts; the administrator approves that list, and the OS refuses any other host.\n- Drives of a removed or disabled provider are kept. When the feature that provides a drive type is removed or disabled, its drives are unmounted but stay in the user's list with their mount point reserved, and come back by themselves when the same feature returns. Another feature that provides the same type does not take them over. Platform.Core: NetworkDrive.ProviderFeatureId; network-drives.json lines gain a provider field.\n- Publish Kazo OS without Dropbox, OneDrive or S3. The shipped cloud drive connectors moved to a new package, Kazo.Os.Platform.CloudDrives (same namespaces). The MSBuild properties KazoOsDropboxDrives, KazoOsOneDriveDrives and KazoOsS3Drives (true by default) leave a connector out of the build; with all three false the assembly leaves the download. KazoOs:CloudDrives:Disabled in appsettings.json and the disabled key of /etc/kazoos/cloud-drives.config hide a type without publishing again. A drive of a disabled type stays in the user's list, unmounted, and comes back when the type is enabled again. Breaking change for a host that composes the connectors itself: reference Kazo.Os.Platform.CloudDrives (ADR 0282 §5).\n- The OS opens the drive types that Store features provide. A drive type a feature declares is offered as soon as the feature is installed and enabled, with no restart. Its provider is loaded at the first drive, once per page, in the feature's own process; a provider that fails or is slow leaves the drive disconnected with a line in the feature's log, and a login never waits for it. The installer refuses a second feature that provides the same type.\n- The OS signs in to the drive types features declare. An OAuth drive type an installed feature declares is now signed in by the OS like Dropbox and OneDrive, with the same callback page and tokens sealed on the device; an administrator can replace its app ids in /etc/kazoos/cloud-drives.config. Form accounts keep their plain values and seal their secret ones, and a provider's context only reaches the access token or secrets of the drive it opens. Platform.Core: AppCatalog.GetDriveProviders, CloudAccountService.SaveFormAccountAsync and CreateDriveProviderContextAsync; CloudOAuthProvider.Identity is now optional (breaking for code that builds a CloudOAuthProvider).\n- The SDK describes network drive providers. A feature can now declare the network drive types it provides (FeatureDefinition.DriveProviders, the drives.provide capability) and write them with the new Kazo.Os.AppSdk.Drives contract: KazoDriveProvider, KazoDriveFolder, KazoDrivePath. The build checks the declaration (KOSAPP0036).\nRelease notes: https://github.com/Kazo-ca/Os/releases/tag/v3.5.0",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#repository",
+    "commit": "5cb8db50fcc6af78d0f408a54b4f5c683723a0d5",
+    "type": "git",
+    "url": "https://github.com/Kazo-ca/Os"
+  },
+  "verbatimVersion": "3.5.0",
+  "version": "3.5.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#Kazo.Os.App.Build.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3994,
+      "fullName": "Kazo.Os.App.Build.nuspec",
+      "length": 9776,
+      "name": "Kazo.Os.App.Build.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4405,
+      "fullName": "LICENSE.md",
+      "length": 15261,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 499,
+      "fullName": "README.md",
+      "length": 811,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#analyzers/dotnet/cs/Kazo.Os.Tools.WebRouteGenerator.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 35292,
+      "fullName": "analyzers/dotnet/cs/Kazo.Os.Tools.WebRouteGenerator.dll",
+      "length": 87040,
+      "name": "Kazo.Os.Tools.WebRouteGenerator.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#buildTransitive/Kazo.Os.App.Build.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 362,
+      "fullName": "buildTransitive/Kazo.Os.App.Build.targets",
+      "length": 602,
+      "name": "Kazo.Os.App.Build.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#kazoos-build/Kazo.Os.Apps.targets",
+      "@type": "PackageEntry",
+      "compressedLength": 11647,
+      "fullName": "kazoos-build/Kazo.Os.Apps.targets",
+      "length": 50141,
+      "name": "Kazo.Os.Apps.targets"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#kazoos-build/api-surface/kazoos-api-surface.json.gz",
+      "@type": "PackageEntry",
+      "compressedLength": 1733717,
+      "fullName": "kazoos-build/api-surface/kazoos-api-surface.json.gz",
+      "length": 1802075,
+      "name": "kazoos-api-surface.json.gz"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#kazoos-build/asp-kazo/KazoRazorCompat.cs",
+      "@type": "PackageEntry",
+      "compressedLength": 1274,
+      "fullName": "kazoos-build/asp-kazo/KazoRazorCompat.cs",
+      "length": 4869,
+      "name": "KazoRazorCompat.cs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#kazoos-build/asp-kazo/_ViewImports.cshtml",
+      "@type": "PackageEntry",
+      "compressedLength": 422,
+      "fullName": "kazoos-build/asp-kazo/_ViewImports.cshtml",
+      "length": 915,
+      "name": "_ViewImports.cshtml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.App.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 188348,
+      "fullName": "tools/generator/Kazo.Os.App.Abstractions.dll",
+      "length": 607744,
+      "name": "Kazo.Os.App.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.AppSdk.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 382478,
+      "fullName": "tools/generator/Kazo.Os.AppSdk.dll",
+      "length": 1094656,
+      "name": "Kazo.Os.AppSdk.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.Platform.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1325369,
+      "fullName": "tools/generator/Kazo.Os.Platform.Core.dll",
+      "length": 3483648,
+      "name": "Kazo.Os.Platform.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.Server.Contracts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 114251,
+      "fullName": "tools/generator/Kazo.Os.Server.Contracts.dll",
+      "length": 389632,
+      "name": "Kazo.Os.Server.Contracts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.Simulation.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 175232,
+      "fullName": "tools/generator/Kazo.Os.Simulation.Abstractions.dll",
+      "length": 475136,
+      "name": "Kazo.Os.Simulation.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.Theming.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 62737,
+      "fullName": "tools/generator/Kazo.Os.Theming.Abstractions.dll",
+      "length": 161280,
+      "name": "Kazo.Os.Theming.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.Tools.ManifestGenerator.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 688,
+      "fullName": "tools/generator/Kazo.Os.Tools.ManifestGenerator.deps.json",
+      "length": 4167,
+      "name": "Kazo.Os.Tools.ManifestGenerator.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.Tools.ManifestGenerator.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 54012,
+      "fullName": "tools/generator/Kazo.Os.Tools.ManifestGenerator.dll",
+      "length": 125440,
+      "name": "Kazo.Os.Tools.ManifestGenerator.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/Kazo.Os.Tools.ManifestGenerator.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 242,
+      "fullName": "tools/generator/Kazo.Os.Tools.ManifestGenerator.runtimeconfig.json",
+      "length": 468,
+      "name": "Kazo.Os.Tools.ManifestGenerator.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/System.Reflection.MetadataLoadContext.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 113022,
+      "fullName": "tools/generator/System.Reflection.MetadataLoadContext.dll",
+      "length": 257296,
+      "name": "System.Reflection.MetadataLoadContext.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/fr/Kazo.Os.AppSdk.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3286,
+      "fullName": "tools/generator/fr/Kazo.Os.AppSdk.resources.dll",
+      "length": 8192,
+      "name": "Kazo.Os.AppSdk.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/fr/Kazo.Os.Platform.Core.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13290,
+      "fullName": "tools/generator/fr/Kazo.Os.Platform.Core.resources.dll",
+      "length": 37376,
+      "name": "Kazo.Os.Platform.Core.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#tools/generator/fr/Kazo.Os.Theming.Abstractions.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 7990,
+      "fullName": "tools/generator/fr/Kazo.Os.Theming.Abstractions.resources.dll",
+      "length": 24576,
+      "name": "Kazo.Os.Theming.Abstractions.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.59.52/kazo.os.app.build.3.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "kazoos",
+    "msbuild",
+    "build",
+    "app-manifest"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

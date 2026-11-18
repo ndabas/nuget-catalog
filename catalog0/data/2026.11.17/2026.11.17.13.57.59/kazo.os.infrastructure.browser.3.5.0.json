@@ -1,0 +1,347 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Benoit Robin",
+  "catalog:commitId": "45149391-9655-4b72-bda7-20d6355bc03f",
+  "catalog:commitTimeStamp": "2026-11-17T13:57:59.332617Z",
+  "created": "2026-11-17T13:47:00.027Z",
+  "description": "Browser infrastructure of Kazo OS: IndexedDB storage, Web Worker runtime and the JavaScript they need.",
+  "id": "Kazo.Os.Infrastructure.Browser",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-17T13:57:32.453Z",
+  "licenseFile": "LICENSE.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "6NVfnDphRj6PnHHteY9JDFqWKggJKreK7MrinqsFk75YaQ1EtpCymmq0OhXkEizQpBawZP44O1Ru7rcLPNvlLQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 325565,
+  "published": "2026-11-17T13:47:00.027Z",
+  "releaseNotes": "Kazo OS 3.5.0, changes for app developers:\n- Features can declare roles that an administrator grants. A feature can now declare roles, such as the manager of its virtual machines, and reserve some of its commands and windows for them. An administrator grants a role to an ordinary account in the new Roles of the features panel of Settings ▸ Users, or with sudo kazorole grant <user> <role>; kazorole list shows who holds what. Every administrator holds every role, implicitly. A command that requires a role you do not hold is absent from the launcher and the completion, and the shell answers role required (exit 126). Each sensitive operation still asks the system’s own window for your password, never the feature’s, and auth.log records feature.authenticate, feature.role-denied, role.grant and role.revoke. A feature’s roles are named <feature>:<role>, such as x86:vm-manager. For developers: FeatureDefinition.Roles, FeatureEntryPoint.RequiresRole, KazoUser.Current.IsInRole (the OS role admin, or <feature>:<role>), KazoRoles, KazoFeatureAuthentication (AuthenticateAsync, ConsumeAsync), KazoUserAccounts.ListRolesAsync, GrantRoleAsync and RevokeRoleAsync.\n- Features declare their own permissions, and no permission is granted silently any more. An optional feature of the OS can now declare permissions of its own under a reserved prefix (for example x86.vm.use or x86.vm.destroy), normal or dangerous, with a title and a risk statement. An app that uses the feature asks for them in its manifest; a normal one is granted while the feature is installed and enabled, a dangerous one only after an administrator approves it, always in the OS’s secure window, even from a terminal command. A permission can cover others. At sign-in the OS now grants only the capabilities it knows: an unknown identifier is never granted and is written to /var/log/syslog, and the bus topic permissions need an approval (issue #432). Settings ▸ Permissions, the installation approval window and kazopkg show the feature that declares a permission. For developers: FeatureDefinition.CapabilityPrefix and ProvidedCapabilities, IFeatureServiceContext.Caller.Require and Has, ICapabilityCatalog.\n- Installing an app installs what it needs, with one approval. When an app needs another package, for example a feature of the OS, the Kazo OS Store and kazopkg now install it with the app: they show the whole plan first (each package, its version, its size and its dangerous permissions) and ask once. A feature always goes to every user, so an administrator approves it, even for an app installed for yourself; if no administrator approves, nothing is installed. A required package that no catalog publishes stops the installation with its name and the versions it needs. The app's page in the Store lists what it needs and whether it is installed, and warns when the installed version is out of range. Removing a package other apps need names them and disables them; their data stays, and installing the package again turns them back on. An update that would break an installed app is refused. kazopkg install, remove and update ask for a confirmation; --yes answers for you. For developers: KazoApps.RequestInstallAsync opens the Store on an optional dependency; KazoAppPackages.PlanInstallAsync and GetDependentsAsync; catalog.json lists the dependencies of each version.\n- Kazo OS tells you when the browser erased its data, and can ask it not to. Browsers may erase a site's data when the disk is full or after a while without a visit. Kazo OS now notices it at startup: the first-run screen says the browser erased its data, with the date of the last start and how to restore a backup, and kern.log gets storage.evicted. The new Settings ▸ System ▸ Storage page shows how much the browser lets Kazo OS use, how much each kind of storage takes when the browser tells, whether the storage is protected, with a button to ask the browser to protect it, and the space each feature declared. A feature that keeps disks in the browser (a virtual machine, for example) is told when they were erased, and you get a notification. df shows a /dev/feature/<id> line for each such feature. For developers: KazoStorage (GetEstimateAsync, RequestPersistenceAsync, RegisterMarkerAsync, ReportUsageAsync, GetFeatureUsageAsync, Changed).\n- Network drive types are described by the OS. The Connect a network drive dialog, Settings > Cloud accounts and mount -t now show every network drive type the OS describes, including those a Store feature provides, marked \"Provided by <feature>\". S3 uses the same generic form, and its access key id is now a masked secret. mount never reads a secret from the command line. A drive whose provider is missing stays greyed in File Explorer with the reason, and Install the provider opens the Store. Apps read the descriptions with KazoDriveInfo.DescribeNetworkDriveTypesAsync and GetProviderMissingDrivesAsync.\n- A developer kit for network drive providers. dotnet new kazoos-drive-provider creates a feature that provides a network drive type, with tests that run the public conformance suite KazoDriveProviderTests against an in-memory service. A WebDAV sample shows a form connection. drives.provide alone now lets a provider reach the hosts of its declaration, and a form field marked serverAddress lets it reach the server each user types there while the drive is open. The approval screen names both.\n- An account of a declared drive type belongs to its feature. Accounts of a drive type a feature declares now record that feature (CloudAccount.FeatureId). Another feature serving the same type later never reaches them: its drive context and a reconnection are refused, and signing in again creates a separate account. CloudAccountService.CreateDriveProviderContextAsync and SaveFormAccountAsync now take the feature id.\n- Apps can reach the web services they declare directly. KazoDirectHttpClient sends requests straight through the browser, without the Kazo server, and reads the response as a stream. An app needs the dangerous capability network.direct.access and lists every host it reaches in directNetworkHosts; the administrator approves that list, and the OS refuses any other host.\n- Drives of a removed or disabled provider are kept. When the feature that provides a drive type is removed or disabled, its drives are unmounted but stay in the user's list with their mount point reserved, and come back by themselves when the same feature returns. Another feature that provides the same type does not take them over. Platform.Core: NetworkDrive.ProviderFeatureId; network-drives.json lines gain a provider field.\n- Publish Kazo OS without Dropbox, OneDrive or S3. The shipped cloud drive connectors moved to a new package, Kazo.Os.Platform.CloudDrives (same namespaces). The MSBuild properties KazoOsDropboxDrives, KazoOsOneDriveDrives and KazoOsS3Drives (true by default) leave a connector out of the build; with all three false the assembly leaves the download. KazoOs:CloudDrives:Disabled in appsettings.json and the disabled key of /etc/kazoos/cloud-drives.config hide a type without publishing again. A drive of a disabled type stays in the user's list, unmounted, and comes back when the type is enabled again. Breaking change for a host that composes the connectors itself: reference Kazo.Os.Platform.CloudDrives (ADR 0282 §5).\n- The OS opens the drive types that Store features provide. A drive type a feature declares is offered as soon as the feature is installed and enabled, with no restart. Its provider is loaded at the first drive, once per page, in the feature's own process; a provider that fails or is slow leaves the drive disconnected with a line in the feature's log, and a login never waits for it. The installer refuses a second feature that provides the same type.\n- The OS signs in to the drive types features declare. An OAuth drive type an installed feature declares is now signed in by the OS like Dropbox and OneDrive, with the same callback page and tokens sealed on the device; an administrator can replace its app ids in /etc/kazoos/cloud-drives.config. Form accounts keep their plain values and seal their secret ones, and a provider's context only reaches the access token or secrets of the drive it opens. Platform.Core: AppCatalog.GetDriveProviders, CloudAccountService.SaveFormAccountAsync and CreateDriveProviderContextAsync; CloudOAuthProvider.Identity is now optional (breaking for code that builds a CloudOAuthProvider).\n- The SDK describes network drive providers. A feature can now declare the network drive types it provides (FeatureDefinition.DriveProviders, the drives.provide capability) and write them with the new Kazo.Os.AppSdk.Drives contract: KazoDriveProvider, KazoDriveFolder, KazoDrivePath. The build checks the declaration (KOSAPP0036).\nRelease notes: https://github.com/Kazo-ca/Os/releases/tag/v3.5.0",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#repository",
+    "commit": "5cb8db50fcc6af78d0f408a54b4f5c683723a0d5",
+    "type": "git",
+    "url": "https://github.com/Kazo-ca/Os"
+  },
+  "verbatimVersion": "3.5.0",
+  "version": "3.5.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#dependencygroup/net10.0/kazo.os.simulation.abstractions",
+          "@type": "PackageDependency",
+          "id": "Kazo.Os.Simulation.Abstractions",
+          "range": "[3.5.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#dependencygroup/net10.0/microsoft.jsinterop",
+          "@type": "PackageDependency",
+          "id": "Microsoft.JSInterop",
+          "range": "[10.0.14, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#Kazo.Os.Infrastructure.Browser.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4069,
+      "fullName": "Kazo.Os.Infrastructure.Browser.nuspec",
+      "length": 9940,
+      "name": "Kazo.Os.Infrastructure.Browser.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4405,
+      "fullName": "LICENSE.md",
+      "length": 15261,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#build/Kazo.Os.Infrastructure.Browser.props",
+      "@type": "PackageEntry",
+      "compressedLength": 91,
+      "fullName": "build/Kazo.Os.Infrastructure.Browser.props",
+      "length": 163,
+      "name": "Kazo.Os.Infrastructure.Browser.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "@type": "PackageEntry",
+      "compressedLength": 2504,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssetEndpoints.props",
+      "length": 36319,
+      "name": "Microsoft.AspNetCore.StaticWebAssetEndpoints.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "@type": "PackageEntry",
+      "compressedLength": 1991,
+      "fullName": "build/Microsoft.AspNetCore.StaticWebAssets.props",
+      "length": 23303,
+      "name": "Microsoft.AspNetCore.StaticWebAssets.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#buildMultiTargeting/Kazo.Os.Infrastructure.Browser.props",
+      "@type": "PackageEntry",
+      "compressedLength": 83,
+      "fullName": "buildMultiTargeting/Kazo.Os.Infrastructure.Browser.props",
+      "length": 92,
+      "name": "Kazo.Os.Infrastructure.Browser.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#buildTransitive/Kazo.Os.Infrastructure.Browser.props",
+      "@type": "PackageEntry",
+      "compressedLength": 97,
+      "fullName": "buildTransitive/Kazo.Os.Infrastructure.Browser.props",
+      "length": 106,
+      "name": "Kazo.Os.Infrastructure.Browser.props"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#lib/net10.0/Kazo.Os.Infrastructure.Browser.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 213090,
+      "fullName": "lib/net10.0/Kazo.Os.Infrastructure.Browser.dll",
+      "length": 593408,
+      "name": "Kazo.Os.Infrastructure.Browser.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#lib/net10.0/Kazo.Os.Infrastructure.Browser.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 35829,
+      "fullName": "lib/net10.0/Kazo.Os.Infrastructure.Browser.xml",
+      "length": 263388,
+      "name": "Kazo.Os.Infrastructure.Browser.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/binaryChunks.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1420,
+      "fullName": "staticwebassets/binaryChunks.js",
+      "length": 3787,
+      "name": "binaryChunks.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/crossOriginIsolation.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1426,
+      "fullName": "staticwebassets/crossOriginIsolation.js",
+      "length": 3521,
+      "name": "crossOriginIsolation.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/cryptoHasher.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1116,
+      "fullName": "staticwebassets/cryptoHasher.js",
+      "length": 3245,
+      "name": "cryptoHasher.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/fileContent.js",
+      "@type": "PackageEntry",
+      "compressedLength": 5015,
+      "fullName": "staticwebassets/fileContent.js",
+      "length": 19375,
+      "name": "fileContent.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/hostClipboard.js",
+      "@type": "PackageEntry",
+      "compressedLength": 2238,
+      "fullName": "staticwebassets/hostClipboard.js",
+      "length": 6109,
+      "name": "hostClipboard.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/hostFolder.js",
+      "@type": "PackageEntry",
+      "compressedLength": 3154,
+      "fullName": "staticwebassets/hostFolder.js",
+      "length": 11046,
+      "name": "hostFolder.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/indexedDb.js",
+      "@type": "PackageEntry",
+      "compressedLength": 5427,
+      "fullName": "staticwebassets/indexedDb.js",
+      "length": 23092,
+      "name": "indexedDb.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/installedAppAssets.js",
+      "@type": "PackageEntry",
+      "compressedLength": 3437,
+      "fullName": "staticwebassets/installedAppAssets.js",
+      "length": 11243,
+      "name": "installedAppAssets.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/installedAppAssets.sw.js",
+      "@type": "PackageEntry",
+      "compressedLength": 4323,
+      "fullName": "staticwebassets/installedAppAssets.sw.js",
+      "length": 14265,
+      "name": "installedAppAssets.sw.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/oauth-callback.css",
+      "@type": "PackageEntry",
+      "compressedLength": 384,
+      "fullName": "staticwebassets/oauth-callback.css",
+      "length": 664,
+      "name": "oauth-callback.css"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/oauth-callback.html",
+      "@type": "PackageEntry",
+      "compressedLength": 287,
+      "fullName": "staticwebassets/oauth-callback.html",
+      "length": 501,
+      "name": "oauth-callback.html"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/oauth-callback.js",
+      "@type": "PackageEntry",
+      "compressedLength": 851,
+      "fullName": "staticwebassets/oauth-callback.js",
+      "length": 1800,
+      "name": "oauth-callback.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/oauthWindow.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1241,
+      "fullName": "staticwebassets/oauthWindow.js",
+      "length": 3110,
+      "name": "oauthWindow.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/renamedStorage.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1734,
+      "fullName": "staticwebassets/renamedStorage.js",
+      "length": 5208,
+      "name": "renamedStorage.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/sharedRing.js",
+      "@type": "PackageEntry",
+      "compressedLength": 2643,
+      "fullName": "staticwebassets/sharedRing.js",
+      "length": 7884,
+      "name": "sharedRing.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/storageManager.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1119,
+      "fullName": "staticwebassets/storageManager.js",
+      "length": 3065,
+      "name": "storageManager.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/webAuthn.js",
+      "@type": "PackageEntry",
+      "compressedLength": 2044,
+      "fullName": "staticwebassets/webAuthn.js",
+      "length": 6639,
+      "name": "webAuthn.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/webSiteDatabases.js",
+      "@type": "PackageEntry",
+      "compressedLength": 2818,
+      "fullName": "staticwebassets/webSiteDatabases.js",
+      "length": 10001,
+      "name": "webSiteDatabases.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/workerBootstrap.js",
+      "@type": "PackageEntry",
+      "compressedLength": 1532,
+      "fullName": "staticwebassets/workerBootstrap.js",
+      "length": 3962,
+      "name": "workerBootstrap.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#staticwebassets/workerHost.js",
+      "@type": "PackageEntry",
+      "compressedLength": 2454,
+      "fullName": "staticwebassets/workerHost.js",
+      "length": 6635,
+      "name": "workerHost.js"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.17.13.57.59/kazo.os.infrastructure.browser.3.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "kazoos",
+    "browser",
+    "indexeddb"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

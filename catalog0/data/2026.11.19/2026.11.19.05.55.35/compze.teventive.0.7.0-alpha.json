@@ -1,0 +1,191 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Lidbom Solutions AB",
+  "catalog:commitId": "51ccdc1a-5cfe-40fb-8e64-9314c26006c8",
+  "catalog:commitTimeStamp": "2026-11-19T05:55:35.8901989Z",
+  "copyright": "Copyright (c) Lidbom Solutions AB. All rights reserved.",
+  "created": "2026-11-19T05:52:11.077Z",
+  "description": "The Teventive programming model for the Compze framework: taggregates, tevents and tevent dispatching.",
+  "iconFile": "compze-icon.png",
+  "id": "Compze.Teventive",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-19T05:55:15.44Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "6r3L1UpO/MIBIu8OJ4EXoc3vpVZzUqlNGWOo+NETbmu7xH5/COGblOTYPZVJ4ishvoE/pcA0n4z97m21hAtnYQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 142408,
+  "projectUrl": "https://github.com/mlidbom/Compze",
+  "published": "2026-11-19T05:52:11.077Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "- **Changed without a signature changing, so no compiler error points at it:**\n  - **A taggregate's tevents are no longer delivered to other processes unless their hierarchy says so.** `ITaggregateTevent` no longer extends `IExactlyOnceTevent`, so a hierarchy whose root interface declares no delivery guarantee of its own is published and handled within the process only. Nothing fails where it is published: another endpoint that handled or observed its tevents simply receives none. A hierarchy whose tevents other processes need declares its guarantee on its root interface, such as `IExactlyOnceTevent`. Below, under `ITaggregateTevent`.\n  - **A taggregate store's updater needs a unit of work that `ExecuteUnitOfWork` began,** and **a publish that fails rolls its unit of work back, even when the code that published catches the exception.** Both are new for a tevent store's taggregates: see Compze.Teventive.TeventStore's changelog.\n- **Every teventive class changes: it declares its tevent routing once, for the class,** a taggregate's, its components', its entities' and a shared tomponent's alike, in a `TeventRouting` kept in a static field, and returns it from its override of the protected abstract `TeventAppliers` (and, for a taggregate's tevent handlers, of the protected virtual `TeventHandlers`): `protected override TeventRouting TeventAppliers => Appliers;`. This replaces registering appliers and handlers in every instance's constructor (`RegisterTeventAppliers()`, `RegisterTeventHandlers()`), so an instance holds none of its routing. A class's routing starts with its Compze base class's `DeclareAppliers`, a subclass's extends its base class's with `Extend`, and a tevent reaches the routes it matches one after another, in the order declared, a base class's before a subclass's, as it reached registered appliers and handlers in the order registered. A class that inherits its base class's routing without declaring its own is refused when it is constructed. A taggregate's tevent handlers are declared with `DeclareHandlers`. The constructors no longer take a `TeventDispatcherConfig`. `Taggregate` is abstract. `TeventApplyingRoot<TRoot, TTevent>` and `TeventApplyingPart<TPart, TPartTevent>` are the base classes that apply tevents by a class's routing: the first of a taggregate and of a self-generating query model, the second of their components and entities.\n- **Taggregate stores share one programming model:** `ITaggregateStoreReader` (`Get`, `TryGet`, `Reference`) reads the taggregates of whichever store keeps each class, and returns a unit of work's own instance inside it; `ITaggregateStoreUpdater` (`GetForUpdate`, `TryGetForUpdate`, and `Add` for a new taggregate) changes them, one for each unit of work, which must be one that `ExecuteUnitOfWork` began, and which rolls back when a publish has failed, even if the code that published caught the exception; `ITaggregateReference<TTaggregate>` is what code holds across units of work, and only reads: a unit of work gets the taggregate it stands for for update by its `Id`. Compze.Teventive.MemoryImageStateStore and Compze.Teventive.TeventStore both implement them, so one unit of work can change taggregates of both. Asking for a taggregate that no store holds throws an `ArgumentOutOfRangeException`, and asking for one as another class than its own, of the same store, throws. What a read or a get for update costs is each store's own, and its documentation says it.\n- **A taggregate is deleted by publishing a tevent that implements `ITaggregateDeletedTevent`,** from a method of its own, as any other change is made; the stores have no delete operation. Inside the unit of work it is then no longer found, by `Get`, `TryGet`, `GetForUpdate` or `ReferencesToAll`, and when the unit of work commits it leaves its store. A taggregate publishes nothing after its deleted tevent: such a publish throws, naming the taggregate and the tevent, and the unit of work rolls back.\n- **`ITaggregateStoreBulkReader`,** which extends `ITaggregateStoreReader` with `ReferencesToAll<TTaggregate>()`: a reference to every taggregate of a class, in no particular order, whichever store keeps the class, and inside a unit of work its own view. Reading every taggregate of a class is a scan of all a store holds for most stores, so it has a reader of its own, and code that reads everything says so in what it depends on.\n- **`ISnapshotable<TSelf, TSnapshot>`:** a taggregate whose whole state is taken as a snapshot and restored from one, for a store that keeps taggregates as their state. `Taggregate`'s protected `RestoreIdentity` gives an instance being restored its id, and an entity collection's `AddWhileRestoring(id)` adds a restored entity without a tevent, only while the restore lasts.\n- A taggregate instance that a store serves to readers is read only: publishing on it throws, saying so.\n- **`SnapshotRoundTrip.DifferencesBetweenItAndItsCopy`,** for a consumer's specifications and tools: it makes a copy of a taggregate through a snapshot, as a state store makes each unit of work's copy, and names each difference between the copy and the taggregate, none when the copy holds the state the taggregate holds, in every field of the taggregate's own classes and of its parts. It catches a field the snapshot type has no place for, and one that `TakeSnapshot` or `RestoreFrom` leaves out. A value created on its first read, a `LazyCE` or a `Lazy<T>`, is compared by its value. A specification asserts that the list is empty, and a tool that checks many taggregates reports what it finds.\n- **`ITaggregateTevent` is a plain `ITevent`:** it no longer extends `IExactlyOnceTevent`, so a taggregate's tevents are published and handled synchronously within the process, and carry no identity. A hierarchy that a tevent store keeps declares `ITaggregateTeventWithIdentity` on its root interface and derives its root class from `TaggregateTeventWithIdentity`; one whose tevents are delivered to other processes declares its guarantee, such as `IExactlyOnceTevent`. `TaggregateTevent` no longer has an `Id`.\n- **`IMutableTaggregateTevent` and `IMutableTaggregateTeventWithIdentity` are internal:** their members, for Compze's internal use, set the values a taggregate gives a tevent when it publishes it, and a tevent store when it reads it back.\n- `TaggregateIdentifyingTevent.WrapIn` has an overload for a tevent with identity, returning the wrapped form a tevent migration hands to the tevent store.\n- **A `SharedTomponentSlot` belongs to the owner's class:** declared once, in a static field, and shared by every instance, it takes the adopting wrapper tevent implementation and a `Func<TOwner, SharedTomponent<TTomponentTevent>>` that gets the shared tomponent from an owner, and a shared tomponent is constructed with `slot.In(owner)`. The owner keeps no slot object.\n- **A `SharedTomponentSlot` refuses an adopting wrapper tevent implementation that doesn't implement its adopting wrapper tevent:** constructing it with another slot's wrapper, such as the billing address's for the shipping address, throws an `ArgumentException` naming the implementation. Before, the slot's tevents were wrapped as the other slot's and applied to that slot's tomponent, with no error.\n- **Requires newer minor versions of other Compze packages:** Compze.DependencyInjection 0.10.0-alpha (was 0.9.0-alpha), Compze.Internals.SystemCE 0.9.0-internal (was 0.8.0-internal). Upgrading to this version upgrades each package listed here too, so their changelogs apply to this upgrade as well.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "022aa32bbceafcddc2d0b7e91ef8c54a2929666c",
+    "type": "git",
+    "url": "https://github.com/mlidbom/Compze.git"
+  },
+  "verbatimVersion": "0.7.0-alpha",
+  "version": "0.7.0-alpha",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#dependencygroup/net11.0/compze.abstractions",
+          "@type": "PackageDependency",
+          "id": "Compze.Abstractions",
+          "range": "[0.4.0-alpha, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#dependencygroup/net11.0/compze.contracts",
+          "@type": "PackageDependency",
+          "id": "Compze.Contracts",
+          "range": "[0.7.2, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#dependencygroup/net11.0/compze.dependencyinjection",
+          "@type": "PackageDependency",
+          "id": "Compze.DependencyInjection",
+          "range": "[0.10.0-alpha, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#dependencygroup/net11.0/compze.internals.systemce",
+          "@type": "PackageDependency",
+          "id": "Compze.Internals.SystemCE",
+          "range": "[0.9.0-internal, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#dependencygroup/net11.0/compze.tessaging.abstractions",
+          "@type": "PackageDependency",
+          "id": "Compze.Tessaging.Abstractions",
+          "range": "[0.6.0-alpha, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#dependencygroup/net11.0/compze.threading",
+          "@type": "PackageDependency",
+          "id": "Compze.Threading",
+          "range": "[0.12.0-alpha, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#dependencygroup/net11.0/compze.typeidentifiers",
+          "@type": "PackageDependency",
+          "id": "Compze.TypeIdentifiers",
+          "range": "[0.3.0-alpha, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#Compze.Teventive.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3454,
+      "fullName": "Compze.Teventive.nuspec",
+      "length": 9355,
+      "name": "Compze.Teventive.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 115,
+      "fullName": "README.md",
+      "length": 147,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#compze-icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 35053,
+      "fullName": "compze-icon.png",
+      "length": 37988,
+      "name": "compze-icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#lib/net11.0/Compze.Teventive.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 52523,
+      "fullName": "lib/net11.0/Compze.Teventive.dll",
+      "length": 124928,
+      "name": "Compze.Teventive.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#lib/net11.0/Compze.Teventive.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 36218,
+      "fullName": "lib/net11.0/Compze.Teventive.xml",
+      "length": 207419,
+      "name": "Compze.Teventive.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.19.05.55.35/compze.teventive.0.7.0-alpha.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "compze",
+    "messaging",
+    "event-sourcing",
+    "cqrs"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

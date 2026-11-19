@@ -1,0 +1,212 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "endpointsystems",
+  "catalog:commitId": "ad40b120-4fa8-4ce1-a729-bf71817bcb54",
+  "catalog:commitTimeStamp": "2026-11-18T23:09:03.4322883Z",
+  "copyright": "Copyright © Endpoint Systems 2026. All rights reserved.",
+  "created": "2026-11-18T23:01:56.47Z",
+  "description": "Command-line XSLT 3.0/4.0 processor — transform XML documents from the terminal",
+  "iconFile": "icon.png",
+  "id": "xslt",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-18T23:08:53.247Z",
+  "licenseExpression": "Apache-2.0",
+  "licenseUrl": "https://licenses.nuget.org/Apache-2.0",
+  "listed": true,
+  "packageHash": "RKYydRjq/DAmnTSXMg3XucqPR+s4SLMz9GXrq1WgxL15PgUzmVg56jwatZETV7u7dv0+0mCf4XSoZ5JS5V2Rxw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 2865146,
+  "projectUrl": "https://phoenixml.dev/",
+  "published": "2026-11-18T23:01:56.47Z",
+  "readmeFile": "PACKAGE.md",
+  "releaseNotes": "Requires PhoenixmlDb.XQuery 3.2.0 and PhoenixmlDb.Core 2.6.1. Streamability errors by default, the\npackage rules of XSLT 3.0 §3.5, and a security update for hosts that use a `ResourcePolicy`. W3C\nXSLT 3.0: 57 failing of 11,518 applicable cases (3.1.0: 131 failing of 11,539). The applicable\ncount leaves out the XSLT 1.0 and 2.0 cases and the cases ruled not applicable\n(`scripts/conformance.sh` lists each one with its reason).\n\nThe changes to XPath functions and to serialization that come from PhoenixmlDb.XQuery 3.2.0 apply\nhere too: see its release notes.\n\n### Security: a file that changes between the policy check and the read (GHSA-5wrq-f8xr-54w5)\n\nOnly hosts that use a `ResourcePolicy`, and whose allowed roots untrusted parties can write to,\nare affected. The library opens a file first, and the policy then judges the path of the file\nthat is open, as the operating system reports it. A symbolic link put in place of the file, or of\na directory on its path, after the check is not followed. This applies to `fn:unparsed-text` and\n`fn:unparsed-text-lines`, `fn:document` and collections, `xsl:source-document`, `xsl:merge`\nsources, `fn:stream-available`, `fn:transform`, `xsl:import` and `xsl:include`, and serialization\nparameter documents. Content that the host's resource resolver supplies, and locations that the\nhost maps, do not change. It requires PhoenixmlDb.XQuery 3.2.0 (GHSA-v27x-ffg3-3wqq). See\n[GHSA-5wrq-f8xr-54w5](https://github.com/phoenixmldb/phoenixmldb-xslt/security/advisories/GHSA-5wrq-f8xr-54w5).\n\n### Breaking — read this when you upgrade\n\n- **A stylesheet that is not guaranteed streamable gives XTSE3430 by default** (#545). A\n  streamable mode, a streamed `xsl:source-document` or a streamable function whose body breaks the\n  rules of XSLT 3.0 §19.8 gives XTSE3430 at compile time. 3.1.0 reads the input into a buffer and\n  gives no error. Examples:\n  - two `xsl:copy-of` of the context node in one `xsl:for-each`;\n  - two aggregates over the streamed input in sibling variables;\n  - a template rule in a streamable mode whose body is `xsl:call-template`, when the called\n    template has no `xsl:context-item use=\"prohibited\"` (§19.8.4.9: the context item has\n    navigation usage). To call such a template, ground the node first:\n    `<xsl:for-each select=\"copy-of(.)\"><xsl:call-template name=\"t\"/></xsl:for-each>`;\n  - SchXslt2 validators built with `schxslt:streamable=true`.\n\n  To run such a stylesheet with a buffer, set `XsltTransformer.StreamingFallback` or\n  `XsltTransformOptions.StreamingFallback` (`xslt --streaming-fallback`, #546), or\n  `DisableStreaming`. `StreamingFallback` takes precedence over `StrictStreamability`. The message\n  of the error names the setting. The setting covers template rules in a streamable mode and\n  `xsl:source-document` bodies. The compile-time checks of accumulators, functions with a\n  streamability category, attribute sets, merge sources and match patterns do not change. The\n  check gives an error only when every rule in its verdict is modelled. `--strict-streaming` does\n  not change.\n- **A component of a used package is visible only as `xsl:use-package` and `xsl:accept` give it**\n  (XSLT 3.0 §3.5.3.2, #548, #538). A stylesheet that uses a component of a package that it does not\n  use directly, or a private component of a used package, gives XTSE0650 (template), XPST0017\n  (function), XTSE0710 (attribute set) or XPST0008 (variable). To keep the component visible, add\n  `xsl:accept` with `visibility=\"public\"` in the package between. A later `xsl:expose` wildcard\n  does not change the visibility that an earlier `xsl:expose` gives. A package that is used by two\n  paths keeps the wider visibility. Modes are not checked.\n- **`xsl:accept` names a function with its arity** (#547). A function name without `#arity`, or a\n  name that matches no function of the used package (`p:f#5` with no `f#5`), gives XTSE3030.\n  Example: `<xsl:accept component=\"function\" names=\"my-public-func#1\" visibility=\"public\"/>`. An\n  `xsl:accept` without `component`, `names` or `visibility` gives XTSE0010. Saxon-HE 12.10 gives\n  XTSE3020 for the name without arity; this library gives the code of the specification.\n- **An `as=` type name that no schema in scope defines gives XPST0051** (#558). This applies to\n  variables, function and template parameters, function results, and inside `array()`, `map()` and\n  function types, with or without `?` or `*`, prefixed or not. Example:\n  `<xsl:variable name=\"v\" as=\"nosuch\" select=\"1\"/>`. With `fn:transform`, schema imports are not\n  loaded, so only `xs:` names are checked there. Saxon-HE 12.10 gives the same code.\n- **The `xslt` tool refuses an unknown option and a third argument** (#481): exit code 1 and a\n  message. Example: `xslt style.xsl in.xml -d out` gives an error; the option is `--output-dir`.\n- **A relative URI with no base URI gives an error** (#485). A stylesheet compiled from a string\n  with no base URI does not read from the process working directory. `doc()` gives FODC0002,\n  `document()` gives FODC0005, `unparsed-text()`, `unparsed-text-lines()` and `json-doc()` give\n  FOUT1170, and `doc-available()` and `unparsed-text-available()` return false. An `xsl:merge`\n  source, streamed or not, gives FODC0005 or FODC0002. This applies with and without a resource\n  policy. Host-supplied content and mapped locations do not change. To read a local file, set a\n  base URI or give an absolute URI. The `xslt` tool sets file base URIs.\n- **Indented XML output has the layout of Saxon** (#559). With `indent=\"yes\"` and the xml method,\n  an empty element is `<e/>` (3.1.0: `<e />`), and the document element starts on the line after\n  the XML declaration. Text directly after the declaration gets no line break. The xhtml method\n  keeps `<br />`. The indent width (2 spaces) does not change. A test that compares indented output\n  byte for byte must update its expected files.\n- **Error codes at compile time:** a static parameter whose default value does not match its type\n  gives XTDE0050 (#497); a reserved namespace in `extension-element-prefixes` gives XTSE0085\n  (#498); an unknown schema type in `xsl:context-item/@as` gives XPST0008 (#500); `key()` with an\n  undeclared key name gives XTDE1260 (#537); an override of a component that is private by default\n  gives XTSE3060 (#540). A stylesheet that compiled with one of these errors gets the error.\n\n### Packages\n\n- An unprefixed type name in `as=` names a schema type in the `xpath-default-namespace` (§5.1.2).\n  Two union types with the same member types are identical (§3.5.3.3), in any order (#549).\n- The schemas of a used package are available at run time. A function parameter of a schema type\n  casts an untyped value to that type (#549).\n- `use-accumulators` on `xsl:source-document` uses the accumulator of the package that runs the\n  instruction (#549).\n- Inside a used package, `function-lookup()` finds the functions that the package sees (#534).\n- `xsl:accept` does not change a component that `xsl:use-package` overrides (#535).\n- A package can override an abstract component that its used package inherits (#539).\n- `xsl:original` in an attribute set brings the attribute sets that the original uses (#541).\n\n### Streaming\n\n- A question to the processor in a streamed rule streams (#480): `system-property()`,\n  `function-available()`, `element-available()`, `type-available()` and\n  `available-system-properties()` read no input. Over 1,000,000 items, an `accumulator-after()`\n  total followed by `system-property('xsl:product-name')` peaks at 106 MiB (3.1.0: 986 MiB).\n  Reported by Martin Honnen.\n- Constant memory over 1,000,000 items:\n  - streamed `copy-of(path)` in a variable, and in a sequence such as `(copy-of(path), $x)`:\n    approx. 105 MiB (3.1.0: 650 MiB and 1.26 GiB) (#525);\n  - streamed `count(copy-of(path))`: approx. 102 MiB (3.1.0: 1.25 GiB) (#532);\n  - a streamed nested `xsl:apply-templates`: approx. 98 MiB (3.1.0: 932 MiB) (#533).\n- Streamed `count()` over a path that ends in `text()` or `node()` counts those nodes (#486).\n- Streamed `xsl:merge` (#488): a `select` is matched from the document node, a `select` with more\n  than one step streams, the documents of one `xsl:merge-source` are merged in key order, and\n  merged items keep their ancestors. An input that is not in merge-key order gives XTDE2220\n  (#531).\n- `xsl:source-document type=` validates the document against the named type (#487).\n  `input-type-annotations=\"strip\"` applies to `xsl:source-document` (#527).\n- Streamed `copy-of()` and `snapshot()` over a sequence such as `(streamed-path, $x)` give the\n  nodes in order (#518). A copy from a streamed snapshot keeps its namespaces in scope (#522).\n- A streamed `xsl:for-each-group select=\"t/copy-of()\"` groups only the selected elements (#519).\n- A streamed positional predicate on the last step of a path (`ITEM[2]`, `ITEM[1]/@CAT`) selects\n  only the elements at that position (#521).\n- Nodes that a streamed descendant path selects keep their ancestors, so upward navigation works\n  (#524). Streamed attributes have their parent element (#552).\n- Streamed accumulators give the same values as the same accumulators over a tree (#528).\n- In a streamable mode with `on-no-match=\"shallow-skip\"`, template rules below an unmatched\n  element run when a nested `xsl:apply-templates` reads that element (#530).\n- The streamability check models `xsl:analyze-string` and `xsl:evaluate`, and a range such as\n  `1 to count(.//*)` is not a crawl (#552). A shallow-descent function whose body is not striding\n  gives XTSE3430 (#536).\n\n### Serialization and output\n\n- html output writes no whitespace in inline content and minimizes boolean attributes (#502).\n- `xsl:map-entry` content gives nodes, and the json method escapes the solidus (#503).\n- An initial template, mode or function name keeps its namespace (#504).\n- `use-character-maps` on `xsl:output` concatenate in import precedence order (#506).\n- The adaptive principal result keeps item order and adaptive forms (#507). The principal result\n  uses the unnamed `xsl:output` (#508). `xsl:result-document` applies its own serialization\n  attributes (#511).\n- A version 1.0 stylesheet keeps the xml method for an XHTML `<html>` root (#509).\n- Text that precedes a comment or processing instruction stays outside it (#510).\n- One result writer does the HTML and XHTML prefix removal, empty and void element forms, the\n  Content-Type meta element and indentation in one pass (#496). html `indent=\"yes\"` does not\n  size a buffer for the whole result (#484).\n- Of two attributes with one expanded name, only the last is written (XSLT 3.0 §11.3, #553).\n\n### Also in this release\n\n- `xsl:attribute type=` keeps its type annotation inside an element under construction (#483).\n  `as=\"attribute(N, T)\"` checks T: an attribute that is not of type T gives XTTE0570.\n- `type-available()` knows the types of an imported schema (#489). An attribute value template\n  or a text value template uses the typed value of a schema-typed node (#490).\n- `format-number()` formats the exponent part of a picture (#491).\n- The string value of an `xsl:document` result does not include comments and processing\n  instructions (#492).\n- `xsl:copy-of` does not copy a default-namespace undeclaration (`xmlns=\"\"`) to a new parent\n  (#493).\n- `element(name)` in a kind test uses `xpath-default-namespace` (#495).\n- Parameter and variable bodies: a literal result element in an `xsl:param` or `xsl:with-param`\n  body gets the default namespace in scope (#512); `xsl:text` and elements together in a parameter\n  body are all kept, in order (#513); attributes from an attribute set stay on their element in a\n  variable body (#514). A local `xsl:param` or `xsl:with-param` whose body is only text gives a\n  document node, as `xsl:variable` does (#515).\n- `generate-id()` gives a different id for each node (#517). The form of an id changes.\n- `fn:analyze-string()` returns an element with no parent, so `analyze-string($s, $re)/*` works,\n  and `parse-xml-fragment(\"<b/><c/>\")/*` gives two elements (#554).\n- A global `xsl:variable` whose body is text, and a variable with `as=\"text()\"`, decode character\n  and entity references: `&amp;amp;` gives `&amp;` (#555).\n- `xsl:catch` of an error raised inside an `xsl:function` keeps the items that the `xsl:try` body\n  writes ahead of the error (#556).\n- An attribute pattern with two or more predicates matches (#552).\n- DocBook xslTNG output equals the expected output of its test suite in the cases that the\n  release gate samples, except for the timestamp.\n\n### `xslt` tool\n\n- Runs on PhoenixmlDb.Xslt 3.2.0 and PhoenixmlDb.XQuery 3.2.0. Includes the fixes for\n  GHSA-5wrq-f8xr-54w5 and GHSA-v27x-ffg3-3wqq.\n- `--streaming-fallback` (#546). An unknown option or a third argument is an error (#481).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#repository",
+    "commit": "fc01e00de2ac06b8bb96fff8f96616a2c941eebe",
+    "type": "git",
+    "url": "https://github.com/phoenixmldb/phoenixmldb-xslt"
+  },
+  "verbatimVersion": "3.2.0",
+  "version": "3.2.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#xslt.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 5681,
+      "fullName": "xslt.nuspec",
+      "length": 13871,
+      "name": "xslt.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#PACKAGE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 752,
+      "fullName": "PACKAGE.md",
+      "length": 1514,
+      "name": "PACKAGE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 15291,
+      "fullName": "icon.png",
+      "length": 17725,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/Antlr4.Runtime.Standard.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 86688,
+      "fullName": "tools/net10.0/any/Antlr4.Runtime.Standard.dll",
+      "length": 192000,
+      "name": "Antlr4.Runtime.Standard.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 135,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 179,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/PhoenixmlDb.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 168252,
+      "fullName": "tools/net10.0/any/PhoenixmlDb.Core.dll",
+      "length": 330240,
+      "name": "PhoenixmlDb.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/PhoenixmlDb.XQuery.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1283049,
+      "fullName": "tools/net10.0/any/PhoenixmlDb.XQuery.dll",
+      "length": 2930688,
+      "name": "PhoenixmlDb.XQuery.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/PhoenixmlDb.Xslt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1017318,
+      "fullName": "tools/net10.0/any/PhoenixmlDb.Xslt.dll",
+      "length": 2289152,
+      "name": "PhoenixmlDb.Xslt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/PhoenixmlDb.Xslt.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 241525,
+      "fullName": "tools/net10.0/any/PhoenixmlDb.Xslt.xml",
+      "length": 1116118,
+      "name": "PhoenixmlDb.Xslt.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/xslt.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 731,
+      "fullName": "tools/net10.0/any/xslt.deps.json",
+      "length": 2611,
+      "name": "xslt.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/xslt.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 28743,
+      "fullName": "tools/net10.0/any/xslt.dll",
+      "length": 54272,
+      "name": "xslt.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/xslt.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 223,
+      "fullName": "tools/net10.0/any/xslt.runtimeconfig.json",
+      "length": 377,
+      "name": "xslt.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#tools/net10.0/any/xslt.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 551,
+      "fullName": "tools/net10.0/any/xslt.xml",
+      "length": 1982,
+      "name": "xslt.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 13001,
+      "fullName": ".signature.p7s",
+      "length": 13001,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.18.23.09.03/xslt.3.2.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "xslt",
+    "xml",
+    "transform",
+    "cli",
+    "xslt3",
+    "xslt4"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

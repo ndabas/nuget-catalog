@@ -1,0 +1,1717 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Peter Palotas",
+  "catalog:commitId": "f09aff29-b7fc-4853-8c78-b642a2c7270e",
+  "catalog:commitTimeStamp": "2026-11-20T11:46:42.5647739Z",
+  "copyright": "Copyright (c) 2026 Peter Palotas",
+  "created": "2026-11-20T11:31:25.69Z",
+  "description": "MCP server providing a comprehensive suite of AI-optimized tools for .NET/C# semantic code analysis using Roslyn.",
+  "id": "DotLens.MCP",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-20T11:46:25.67Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "/bA6fAdXTE90/LhYKnwWSx8g1+zmPhC5lOSmc+jVksEXfDLsau10YOMLiqt0kMDyp7JS2L3+k6muHkh84Oyh5Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 16714774,
+  "projectUrl": "https://github.com/alphaleonis/dotlens-mcp",
+  "published": "2026-11-20T11:31:25.69Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Added\n\n- C# 15 support. DotLens analyzes code with unions, labeled `break` and `continue`, and extension indexers. A union keeps its struct or class kind and gets a `union` modifier that `search_symbols` and `find_symbols` can filter on. Declarations print the `union` keyword, `get_file_outline` lists unions with their case types, and `get_type_overview` reports `IsUnion` and `UnionCaseTypes`.\n- `search_symbols` (`kind`) and `find_symbols` (`kinds`) can filter to C# 14 extension blocks with the new `Extension` value.\n- The `memberKind` filter of `get_type_members` and `get_type_members_batch` can select constructors, destructors, operators, conversions, accessors and nested types, so every kind the listing reports can be filtered.\n- `find_unused_code` takes an `entryPointAttributes` parameter that names more attributes whose members count as used.\n- `find_references` lists references in source-generated files, which it used to count without listing. References, caller locations and impact locations carry `IsGenerated`.\n- `load_solution`, `reload_solution` and `health_check` warn when a project resolves no framework references, usually because it was never restored, and `get_diagnostics` reports the warning for that project.\n- `organize_usings` and `add_using` follow `dotnet_sort_system_directives_first` and `dotnet_separate_import_directive_groups` from `.editorconfig`.\n\n### Changed\n\n- DotLens also starts on a machine that has .NET 11 but not .NET 10, and analyzes code with Roslyn 5.12.\n- `organize_usings` writes what Roslyn's Organize Imports writes: the same order (global usings first, then namespace, static and alias usings, with System first and an order that does not depend on the current culture), the same group blank lines and the same line breaks, including the `end_of_line` option where no using ends its line. A using list that a preprocessor directive splits keeps its order, as Roslyn keeps it. It also sorts extern aliases and the using lists inside namespaces, and leaves code outside the using lists untouched instead of reformatting the file. Where a using shares a line with the next using or with code, it gets a line break, without the whitespace before it, only when what follows it changes.\n- `add_using` treats a namespace as present only when a using in scope imports it, including global and implicit usings. It refuses type names and malformed names, adds to the namespace's using list when the file keeps its usings there, joins the usings inside an `#if` that encloses all the code, and writes a `global::` or extern-alias-qualified name when a plain name would bind to something else.\n- `get_complexity_metrics` computes cognitive complexity as the SonarSource Cognitive Complexity white paper (v1.7) defines it. That covers `goto` and labeled jumps, `do`-`while`, `else if` chains, sequences of logical operators, nesting inside lambdas, local functions, ternaries and switch expressions, and recursion, including methods that call each other. Scores can differ from earlier versions and from SonarQube's C# analyzer; the tool description says where SonarQube departs from the white paper.\n- `find_unused_code` counts only references from code that can run. Private and internal members that only reference each other are now reported. Members that test, web, serializer, MEF, Blazor and benchmark frameworks call by reflection count as used, and so does a static class whose members, extension members included, are used outside it. Extension blocks are no longer reported as unnamed unused classes; their unused members are.\n- `get_type_members` and `get_type_members_batch` list every overload, apply the C# hiding rules to inherited members, leave out inherited members the type cannot access, and report one kind per member, with nested types by their type kind. `get_type_members_batch` resolves names as `get_type_members` does, so nested names such as `Outer.Inner` work, and an ambiguous name fails only its own entry.\n- Declarations from `get_symbol_info`, `search_symbols`, `get_file_overview`, `analyze_method` and `get_method_info` keep ref returns, nullable annotations, constraints, variance, explicit interface qualifiers, the `this` of extension methods, default values in full and base lists as written.\n- Every tool names an extension block by its header, such as `extension(Grid)`, and reports it with an `extension` kind instead of as an unnamed class. `rename_symbol` refuses a block.\n- Name lookup selects `Task` apart from `Task<T>` when the name gives no type parameters, accepts a metadata arity suffix such as ``Task`1``, finds extension block members by their block's header and accessors by their `get_`/`set_`/`add_`/`remove_` names. An ambiguity error lists every candidate in a form that name lookup accepts.\n- `search_symbols` lists only symbols that source code declares, so a wildcard search no longer returns the global namespace, compiler-generated members or the implementation methods behind extension members.\n- `find_references`, `find_callers`, `analyze_method`, `analyze_change_impact` and `find_unused_code` list each use once in a multi-targeted project or a linked file, instead of once per target framework.\n- `find_callers` reports a use in a property or event initializer as a use by that property or event, and a use in top-level statements with no calling member. `get_containing_member` reports no member inside top-level statements.\n- The tools that add or remove files refuse, before anything is written, a change that MSBuild would get wrong: deleting a file another project still compiles, removing a file an SDK glob includes, or listing a file a glob already adds. When a write fails partway, DotLens restores the files it changed and reports which. Writes honor cancellation.\n- A failed `load_solution` or `reload_solution` keeps the previous solution loaded and reports why the load failed.\n\n### Fixed\n\n- `find_references` classified writes through indexers, deconstruction targets, null-conditional assignments, writable refs and attribute named arguments as reads. A `ref` passed to an `in` or `ref readonly` parameter, and a nested member initializer such as `Items = { 1 }`, now count as reads.\n- `find_references`, `find_callers`, `analyze_change_impact`, `analyze_method` and `find_unused_code` missed indexers used in null-conditional accesses such as `x?[i] = v`.\n- A position lookup on an indexer's `[` or another argument-list token resolved to the enclosing declaration instead of the indexer or call. A position lookup on a positional record parameter now finds the property that `search_symbols` reports there.\n- `get_file_overview` left out enums and delegates.\n- `get_file_outline` left out extension block headers, unions and primary-constructor parameters, broke on signatures written across lines, showed private fields with `includePrivate` false, cut expression-bodied indexers and the first `///` of doc comments, and dropped explicit interface qualifiers, `checked` operators, `record class` and fixed buffer sizes.\n- `sync_documents` left the other copies of a multi-targeted or linked file stale, and later edits re-applied its changes, which could re-save project files or overwrite a synced file with old text.\n- `organize_usings` and `add_using` wrote CRLF line breaks into LF files, dropped the file header and `#nullable` and `#pragma` lines above the usings, could drop or unbalance `#if` and `#region` blocks among them, and added blank lines after U+2028, U+2029 and U+0085 line breaks.\n- `get_type_members` suggested the nonexistent tools `get_method_signature` and `get_base_types`.\n- `load_solution` failed when the server ran as `dotnet DotLens.dll`. A worker's error code, message and hint now reach the client as the worker reported them.\n- `--help` listed `Trace` as a log level, which made the server fail at startup; it now lists `Verbose` through `Fatal`. \"No solution loaded\" messages named a `DOTNET_SOLUTION_PATH` variable and a `roslyn:load_solution` tool, which do not exist.\n- `THIRD-PARTY-NOTICES.txt` lists every third-party component the package redistributes, including transitive dependencies and the assemblies bundled inside Roslyn's BuildHost, and includes the full MIT and Apache-2.0 license texts. The notices in 1.0.0 and 1.0.1 listed only direct dependencies, some at outdated versions.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#repository",
+    "branch": "main",
+    "commit": "33db7ba6c93e0ae9b03fbe8ab7619b26d8dae193",
+    "type": "git",
+    "url": "https://github.com/alphaleonis/dotlens-mcp"
+  },
+  "verbatimVersion": "1.1.0",
+  "version": "1.1.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#DotLens.MCP.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4029,
+      "fullName": "DotLens.MCP.nuspec",
+      "length": 9368,
+      "name": "DotLens.MCP.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 5950,
+      "fullName": "README.md",
+      "length": 15478,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#THIRD-PARTY-NOTICES.txt",
+      "@type": "PackageEntry",
+      "compressedLength": 5450,
+      "fullName": "THIRD-PARTY-NOTICES.txt",
+      "length": 27460,
+      "name": "THIRD-PARTY-NOTICES.txt"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/Microsoft.Bcl.AsyncInterfaces.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15471,
+      "fullName": "tools/net10.0/any/BuildHost-net472/Microsoft.Bcl.AsyncInterfaces.dll",
+      "length": 27984,
+      "name": "Microsoft.Bcl.AsyncInterfaces.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/Microsoft.Build.Locator.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19338,
+      "fullName": "tools/net10.0/any/BuildHost-net472/Microsoft.Build.Locator.dll",
+      "length": 34848,
+      "name": "Microsoft.Build.Locator.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe",
+      "@type": "PackageEntry",
+      "compressedLength": 57805,
+      "fullName": "tools/net10.0/any/BuildHost-net472/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe",
+      "length": 121728,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe.config",
+      "@type": "PackageEntry",
+      "compressedLength": 477,
+      "fullName": "tools/net10.0/any/BuildHost-net472/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe.config",
+      "length": 3559,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.exe.config"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29889,
+      "fullName": "tools/net10.0/any/BuildHost-net472/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll",
+      "length": 62760,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 10547,
+      "fullName": "tools/net10.0/any/BuildHost-net472/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.pdb",
+      "length": 17352,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/Microsoft.IO.Redist.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 61979,
+      "fullName": "tools/net10.0/any/BuildHost-net472/Microsoft.IO.Redist.dll",
+      "length": 131880,
+      "name": "Microsoft.IO.Redist.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/System.Buffers.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13699,
+      "fullName": "tools/net10.0/any/BuildHost-net472/System.Buffers.dll",
+      "length": 23816,
+      "name": "System.Buffers.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/System.IO.Pipelines.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 40940,
+      "fullName": "tools/net10.0/any/BuildHost-net472/System.IO.Pipelines.dll",
+      "length": 85288,
+      "name": "System.IO.Pipelines.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/System.Memory.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 62022,
+      "fullName": "tools/net10.0/any/BuildHost-net472/System.Memory.dll",
+      "length": 145200,
+      "name": "System.Memory.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/System.Numerics.Vectors.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30800,
+      "fullName": "tools/net10.0/any/BuildHost-net472/System.Numerics.Vectors.dll",
+      "length": 110344,
+      "name": "System.Numerics.Vectors.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/System.Runtime.CompilerServices.Unsafe.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10865,
+      "fullName": "tools/net10.0/any/BuildHost-net472/System.Runtime.CompilerServices.Unsafe.dll",
+      "length": 19256,
+      "name": "System.Runtime.CompilerServices.Unsafe.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/System.Text.Encodings.Web.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 38726,
+      "fullName": "tools/net10.0/any/BuildHost-net472/System.Text.Encodings.Web.dll",
+      "length": 87336,
+      "name": "System.Text.Encodings.Web.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/System.Text.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 277463,
+      "fullName": "tools/net10.0/any/BuildHost-net472/System.Text.Json.dll",
+      "length": 778024,
+      "name": "System.Text.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-net472/System.Threading.Tasks.Extensions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15382,
+      "fullName": "tools/net10.0/any/BuildHost-net472/System.Threading.Tasks.Extensions.dll",
+      "length": 27960,
+      "name": "System.Threading.Tasks.Extensions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-netcore/Microsoft.Build.Locator.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26572,
+      "fullName": "tools/net10.0/any/BuildHost-netcore/Microsoft.Build.Locator.dll",
+      "length": 50720,
+      "name": "Microsoft.Build.Locator.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 668,
+      "fullName": "tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.deps.json",
+      "length": 3542,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 56384,
+      "fullName": "tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll",
+      "length": 118608,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 225,
+      "fullName": "tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.runtimeconfig.json",
+      "length": 369,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25772,
+      "fullName": "tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll",
+      "length": 53584,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 13768,
+      "fullName": "tools/net10.0/any/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.pdb",
+      "length": 22920,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/DotLens.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 9607,
+      "fullName": "tools/net10.0/any/DotLens.deps.json",
+      "length": 79743,
+      "name": "DotLens.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/DotLens.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 400446,
+      "fullName": "tools/net10.0/any/DotLens.dll",
+      "length": 1122816,
+      "name": "DotLens.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/DotLens.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 100412,
+      "fullName": "tools/net10.0/any/DotLens.pdb",
+      "length": 229936,
+      "name": "DotLens.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/DotLens.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 222,
+      "fullName": "tools/net10.0/any/DotLens.runtimeconfig.json",
+      "length": 358,
+      "name": "DotLens.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 138,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 185,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Humanizer.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 160433,
+      "fullName": "tools/net10.0/any/Humanizer.dll",
+      "length": 355944,
+      "name": "Humanizer.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Build.Framework.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 219319,
+      "fullName": "tools/net10.0/any/Microsoft.Build.Framework.dll",
+      "length": 583464,
+      "name": "Microsoft.Build.Framework.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.CSharp.Features.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 867857,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.CSharp.Features.dll",
+      "length": 2333992,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.CSharp.Workspaces.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 405470,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.CSharp.Workspaces.dll",
+      "length": 1047848,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.CSharp.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2522539,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.CSharp.dll",
+      "length": 7098152,
+      "name": "Microsoft.CodeAnalysis.CSharp.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.Elfie.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 67998,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.Elfie.dll",
+      "length": 145840,
+      "name": "Microsoft.CodeAnalysis.Elfie.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.ExternalAccess.RazorCompiler.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11479,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.ExternalAccess.RazorCompiler.dll",
+      "length": 20816,
+      "name": "Microsoft.CodeAnalysis.ExternalAccess.RazorCompiler.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.Features.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2052168,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.Features.dll",
+      "length": 5681960,
+      "name": "Microsoft.CodeAnalysis.Features.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.Scripting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 65348,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.Scripting.dll",
+      "length": 137552,
+      "name": "Microsoft.CodeAnalysis.Scripting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25772,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll",
+      "length": 53584,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.Contracts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.Workspaces.MSBuild.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 67945,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.Workspaces.MSBuild.dll",
+      "length": 150312,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.Workspaces.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1577763,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.Workspaces.dll",
+      "length": 4349776,
+      "name": "Microsoft.CodeAnalysis.Workspaces.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.CodeAnalysis.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1149280,
+      "fullName": "tools/net10.0/any/Microsoft.CodeAnalysis.dll",
+      "length": 3111208,
+      "name": "Microsoft.CodeAnalysis.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.DiaSymReader.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 93643,
+      "fullName": "tools/net10.0/any/Microsoft.DiaSymReader.dll",
+      "length": 345384,
+      "name": "Microsoft.DiaSymReader.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.AI.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 214097,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.AI.Abstractions.dll",
+      "length": 679224,
+      "name": "Microsoft.Extensions.AI.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Caching.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21954,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Caching.Abstractions.dll",
+      "length": 43344,
+      "name": "Microsoft.Extensions.Caching.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Caching.Memory.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27538,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Caching.Memory.dll",
+      "length": 56104,
+      "name": "Microsoft.Extensions.Caching.Memory.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15075,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.Abstractions.dll",
+      "length": 27432,
+      "name": "Microsoft.Extensions.Configuration.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.Binder.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21818,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.Binder.dll",
+      "length": 43304,
+      "name": "Microsoft.Extensions.Configuration.Binder.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.CommandLine.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14094,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.CommandLine.dll",
+      "length": 25384,
+      "name": "Microsoft.Extensions.Configuration.CommandLine.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.EnvironmentVariables.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14973,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.EnvironmentVariables.dll",
+      "length": 27432,
+      "name": "Microsoft.Extensions.Configuration.EnvironmentVariables.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.FileExtensions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16188,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.FileExtensions.dll",
+      "length": 29480,
+      "name": "Microsoft.Extensions.Configuration.FileExtensions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15211,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.Json.dll",
+      "length": 27432,
+      "name": "Microsoft.Extensions.Configuration.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.UserSecrets.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14244,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.UserSecrets.dll",
+      "length": 25896,
+      "name": "Microsoft.Extensions.Configuration.UserSecrets.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23029,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Configuration.dll",
+      "length": 44880,
+      "name": "Microsoft.Extensions.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30475,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
+      "length": 68392,
+      "name": "Microsoft.Extensions.DependencyInjection.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.DependencyInjection.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 45369,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.DependencyInjection.dll",
+      "length": 97064,
+      "name": "Microsoft.Extensions.DependencyInjection.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Diagnostics.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14554,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Diagnostics.Abstractions.dll",
+      "length": 28456,
+      "name": "Microsoft.Extensions.Diagnostics.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Diagnostics.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24570,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Diagnostics.dll",
+      "length": 47952,
+      "name": "Microsoft.Extensions.Diagnostics.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.FileProviders.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12385,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.FileProviders.Abstractions.dll",
+      "length": 22312,
+      "name": "Microsoft.Extensions.FileProviders.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.FileProviders.Physical.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26478,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.FileProviders.Physical.dll",
+      "length": 50984,
+      "name": "Microsoft.Extensions.FileProviders.Physical.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.FileSystemGlobbing.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24381,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.FileSystemGlobbing.dll",
+      "length": 47440,
+      "name": "Microsoft.Extensions.FileSystemGlobbing.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Hosting.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17067,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Hosting.Abstractions.dll",
+      "length": 32552,
+      "name": "Microsoft.Extensions.Hosting.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 35052,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Hosting.dll",
+      "length": 74536,
+      "name": "Microsoft.Extensions.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32565,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Abstractions.dll",
+      "length": 66896,
+      "name": "Microsoft.Extensions.Logging.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15598,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Configuration.dll",
+      "length": 28456,
+      "name": "Microsoft.Extensions.Logging.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 39670,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Console.dll",
+      "length": 80680,
+      "name": "Microsoft.Extensions.Logging.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.Debug.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11412,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.Debug.dll",
+      "length": 19752,
+      "name": "Microsoft.Extensions.Logging.Debug.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.EventLog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16532,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.EventLog.dll",
+      "length": 28968,
+      "name": "Microsoft.Extensions.Logging.EventLog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.EventSource.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18246,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.EventSource.dll",
+      "length": 35112,
+      "name": "Microsoft.Extensions.Logging.EventSource.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 26129,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Logging.dll",
+      "length": 51496,
+      "name": "Microsoft.Extensions.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12420,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Options.ConfigurationExtensions.dll",
+      "length": 21800,
+      "name": "Microsoft.Extensions.Options.ConfigurationExtensions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Options.DataAnnotations.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12143,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Options.DataAnnotations.dll",
+      "length": 20304,
+      "name": "Microsoft.Extensions.Options.DataAnnotations.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Options.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 46275,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Options.dll",
+      "length": 108840,
+      "name": "Microsoft.Extensions.Options.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.Extensions.Primitives.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 23378,
+      "fullName": "tools/net10.0/any/Microsoft.Extensions.Primitives.dll",
+      "length": 45864,
+      "name": "Microsoft.Extensions.Primitives.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.NET.StringTools.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18128,
+      "fullName": "tools/net10.0/any/Microsoft.NET.StringTools.dll",
+      "length": 33064,
+      "name": "Microsoft.NET.StringTools.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Microsoft.VisualStudio.SolutionPersistence.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 79799,
+      "fullName": "tools/net10.0/any/Microsoft.VisualStudio.SolutionPersistence.dll",
+      "length": 172072,
+      "name": "Microsoft.VisualStudio.SolutionPersistence.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ModelContextProtocol.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 414025,
+      "fullName": "tools/net10.0/any/ModelContextProtocol.Core.dll",
+      "length": 1308672,
+      "name": "ModelContextProtocol.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ModelContextProtocol.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 34680,
+      "fullName": "tools/net10.0/any/ModelContextProtocol.dll",
+      "length": 91136,
+      "name": "ModelContextProtocol.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Serilog.Extensions.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14150,
+      "fullName": "tools/net10.0/any/Serilog.Extensions.Hosting.dll",
+      "length": 35840,
+      "name": "Serilog.Extensions.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Serilog.Extensions.Logging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 14033,
+      "fullName": "tools/net10.0/any/Serilog.Extensions.Logging.dll",
+      "length": 28672,
+      "name": "Serilog.Extensions.Logging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Serilog.Sinks.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 16555,
+      "fullName": "tools/net10.0/any/Serilog.Sinks.Console.dll",
+      "length": 38400,
+      "name": "Serilog.Sinks.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/Serilog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 68875,
+      "fullName": "tools/net10.0/any/Serilog.dll",
+      "length": 161792,
+      "name": "Serilog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Composition.AttributedModel.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11190,
+      "fullName": "tools/net10.0/any/System.Composition.AttributedModel.dll",
+      "length": 19792,
+      "name": "System.Composition.AttributedModel.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Composition.Convention.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25221,
+      "fullName": "tools/net10.0/any/System.Composition.Convention.dll",
+      "length": 54056,
+      "name": "System.Composition.Convention.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Composition.Hosting.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27650,
+      "fullName": "tools/net10.0/any/System.Composition.Hosting.dll",
+      "length": 55632,
+      "name": "System.Composition.Hosting.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Composition.Runtime.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15226,
+      "fullName": "tools/net10.0/any/System.Composition.Runtime.dll",
+      "length": 26960,
+      "name": "System.Composition.Runtime.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Composition.TypedParts.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 31850,
+      "fullName": "tools/net10.0/any/System.Composition.TypedParts.dll",
+      "length": 65320,
+      "name": "System.Composition.TypedParts.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Configuration.ConfigurationManager.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 170521,
+      "fullName": "tools/net10.0/any/System.Configuration.ConfigurationManager.dll",
+      "length": 444200,
+      "name": "System.Configuration.ConfigurationManager.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Diagnostics.DiagnosticSource.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 92199,
+      "fullName": "tools/net10.0/any/System.Diagnostics.DiagnosticSource.dll",
+      "length": 208168,
+      "name": "System.Diagnostics.DiagnosticSource.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Diagnostics.EventLog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24443,
+      "fullName": "tools/net10.0/any/System.Diagnostics.EventLog.dll",
+      "length": 54056,
+      "name": "System.Diagnostics.EventLog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.IO.Pipelines.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 41207,
+      "fullName": "tools/net10.0/any/System.IO.Pipelines.dll",
+      "length": 84304,
+      "name": "System.IO.Pipelines.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21256,
+      "fullName": "tools/net10.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "length": 39760,
+      "name": "System.Security.Cryptography.ProtectedData.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Text.Encodings.Web.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30216,
+      "fullName": "tools/net10.0/any/System.Text.Encodings.Web.dll",
+      "length": 66384,
+      "name": "System.Text.Encodings.Web.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/System.Text.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 273253,
+      "fullName": "tools/net10.0/any/System.Text.Json.dll",
+      "length": 733480,
+      "name": "System.Text.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/cs/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20598,
+      "fullName": "tools/net10.0/any/cs/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 47912,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/cs/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12181,
+      "fullName": "tools/net10.0/any/cs/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22352,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/cs/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 126700,
+      "fullName": "tools/net10.0/any/cs/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 454480,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/cs/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 59551,
+      "fullName": "tools/net10.0/any/cs/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 196392,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/cs/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10630,
+      "fullName": "tools/net10.0/any/cs/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/cs/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10207,
+      "fullName": "tools/net10.0/any/cs/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/cs/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18371,
+      "fullName": "tools/net10.0/any/cs/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 40744,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/cs/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19356,
+      "fullName": "tools/net10.0/any/cs/Microsoft.CodeAnalysis.resources.dll",
+      "length": 41256,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/de/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20616,
+      "fullName": "tools/net10.0/any/de/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 48936,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/de/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12257,
+      "fullName": "tools/net10.0/any/de/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22864,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/de/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 130948,
+      "fullName": "tools/net10.0/any/de/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 486696,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/de/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 60836,
+      "fullName": "tools/net10.0/any/de/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 207184,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/de/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10660,
+      "fullName": "tools/net10.0/any/de/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 18216,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/de/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10221,
+      "fullName": "tools/net10.0/any/de/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17744,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/de/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18499,
+      "fullName": "tools/net10.0/any/de/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 42280,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/de/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19645,
+      "fullName": "tools/net10.0/any/de/Microsoft.CodeAnalysis.resources.dll",
+      "length": 42832,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/es/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20488,
+      "fullName": "tools/net10.0/any/es/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 48936,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/es/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12080,
+      "fullName": "tools/net10.0/any/es/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22312,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/es/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 125899,
+      "fullName": "tools/net10.0/any/es/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 475944,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/es/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 59156,
+      "fullName": "tools/net10.0/any/es/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 204112,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/es/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10615,
+      "fullName": "tools/net10.0/any/es/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 17744,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/es/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10212,
+      "fullName": "tools/net10.0/any/es/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/es/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18278,
+      "fullName": "tools/net10.0/any/es/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 41768,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/es/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19233,
+      "fullName": "tools/net10.0/any/es/Microsoft.CodeAnalysis.resources.dll",
+      "length": 42280,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/fr/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20605,
+      "fullName": "tools/net10.0/any/fr/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 49488,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/fr/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12190,
+      "fullName": "tools/net10.0/any/fr/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22824,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/fr/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 128216,
+      "fullName": "tools/net10.0/any/fr/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 489808,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/fr/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 60314,
+      "fullName": "tools/net10.0/any/fr/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 211280,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/fr/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10665,
+      "fullName": "tools/net10.0/any/fr/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 18216,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/fr/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10270,
+      "fullName": "tools/net10.0/any/fr/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/fr/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18501,
+      "fullName": "tools/net10.0/any/fr/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 42832,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/fr/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19452,
+      "fullName": "tools/net10.0/any/fr/Microsoft.CodeAnalysis.resources.dll",
+      "length": 42792,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/it/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20428,
+      "fullName": "tools/net10.0/any/it/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 48976,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/it/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12077,
+      "fullName": "tools/net10.0/any/it/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22312,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/it/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 124309,
+      "fullName": "tools/net10.0/any/it/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 482128,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/it/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 59066,
+      "fullName": "tools/net10.0/any/it/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 206160,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/it/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10602,
+      "fullName": "tools/net10.0/any/it/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 18216,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/it/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10222,
+      "fullName": "tools/net10.0/any/it/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17744,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/it/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18223,
+      "fullName": "tools/net10.0/any/it/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 42280,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/it/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19167,
+      "fullName": "tools/net10.0/any/it/Microsoft.CodeAnalysis.resources.dll",
+      "length": 42792,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ja/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20724,
+      "fullName": "tools/net10.0/any/ja/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 50984,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ja/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12264,
+      "fullName": "tools/net10.0/any/ja/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 23376,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ja/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 127898,
+      "fullName": "tools/net10.0/any/ja/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 531752,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ja/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 59661,
+      "fullName": "tools/net10.0/any/ja/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 217384,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ja/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10737,
+      "fullName": "tools/net10.0/any/ja/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 18216,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ja/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10312,
+      "fullName": "tools/net10.0/any/ja/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ja/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18423,
+      "fullName": "tools/net10.0/any/ja/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 44840,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ja/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19497,
+      "fullName": "tools/net10.0/any/ja/Microsoft.CodeAnalysis.resources.dll",
+      "length": 45352,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ko/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20261,
+      "fullName": "tools/net10.0/any/ko/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 47912,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ko/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12097,
+      "fullName": "tools/net10.0/any/ko/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22312,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ko/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 122461,
+      "fullName": "tools/net10.0/any/ko/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 487208,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ko/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 57558,
+      "fullName": "tools/net10.0/any/ko/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 202024,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ko/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10679,
+      "fullName": "tools/net10.0/any/ko/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 18216,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ko/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10270,
+      "fullName": "tools/net10.0/any/ko/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ko/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18147,
+      "fullName": "tools/net10.0/any/ko/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 42280,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ko/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19090,
+      "fullName": "tools/net10.0/any/ko/Microsoft.CodeAnalysis.resources.dll",
+      "length": 42792,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pl/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20780,
+      "fullName": "tools/net10.0/any/pl/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 48936,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pl/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12239,
+      "fullName": "tools/net10.0/any/pl/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22352,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pl/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 130326,
+      "fullName": "tools/net10.0/any/pl/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 488784,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pl/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 60706,
+      "fullName": "tools/net10.0/any/pl/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 203560,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pl/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10726,
+      "fullName": "tools/net10.0/any/pl/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 18256,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pl/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10266,
+      "fullName": "tools/net10.0/any/pl/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pl/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18572,
+      "fullName": "tools/net10.0/any/pl/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 42280,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pl/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19637,
+      "fullName": "tools/net10.0/any/pl/Microsoft.CodeAnalysis.resources.dll",
+      "length": 42832,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20373,
+      "fullName": "tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 48424,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12131,
+      "fullName": "tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22352,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 125216,
+      "fullName": "tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 467240,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 58940,
+      "fullName": "tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 202024,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10618,
+      "fullName": "tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 17744,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10221,
+      "fullName": "tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17744,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18202,
+      "fullName": "tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 41768,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19222,
+      "fullName": "tools/net10.0/any/pt-BR/Microsoft.CodeAnalysis.resources.dll",
+      "length": 41768,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ru/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 21328,
+      "fullName": "tools/net10.0/any/ru/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 57128,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ru/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12522,
+      "fullName": "tools/net10.0/any/ru/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 24360,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ru/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 141455,
+      "fullName": "tools/net10.0/any/ru/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 641872,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ru/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 64346,
+      "fullName": "tools/net10.0/any/ru/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 268072,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ru/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10944,
+      "fullName": "tools/net10.0/any/ru/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 19280,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ru/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10363,
+      "fullName": "tools/net10.0/any/ru/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 18216,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ru/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19034,
+      "fullName": "tools/net10.0/any/ru/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 47440,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/ru/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20457,
+      "fullName": "tools/net10.0/any/ru/Microsoft.CodeAnalysis.resources.dll",
+      "length": 51536,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/runtimes/browser/lib/net10.0/System.Text.Encodings.Web.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30230,
+      "fullName": "tools/net10.0/any/runtimes/browser/lib/net10.0/System.Text.Encodings.Web.dll",
+      "length": 66344,
+      "name": "System.Text.Encodings.Web.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/runtimes/win/lib/net10.0/System.Diagnostics.EventLog.Messages.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 13458,
+      "fullName": "tools/net10.0/any/runtimes/win/lib/net10.0/System.Diagnostics.EventLog.Messages.dll",
+      "length": 800592,
+      "name": "System.Diagnostics.EventLog.Messages.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/runtimes/win/lib/net10.0/System.Diagnostics.EventLog.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 76857,
+      "fullName": "tools/net10.0/any/runtimes/win/lib/net10.0/System.Diagnostics.EventLog.dll",
+      "length": 180008,
+      "name": "System.Diagnostics.EventLog.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/tr/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20458,
+      "fullName": "tools/net10.0/any/tr/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 47952,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/tr/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12094,
+      "fullName": "tools/net10.0/any/tr/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 22312,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/tr/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 124743,
+      "fullName": "tools/net10.0/any/tr/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 463144,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/tr/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 59044,
+      "fullName": "tools/net10.0/any/tr/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 197968,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/tr/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10598,
+      "fullName": "tools/net10.0/any/tr/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/tr/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10181,
+      "fullName": "tools/net10.0/any/tr/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/tr/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18150,
+      "fullName": "tools/net10.0/any/tr/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 41256,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/tr/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 19102,
+      "fullName": "tools/net10.0/any/tr/Microsoft.CodeAnalysis.resources.dll",
+      "length": 41256,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20171,
+      "fullName": "tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 45904,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 12055,
+      "fullName": "tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 21840,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 119891,
+      "fullName": "tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 411984,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 56980,
+      "fullName": "tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 176936,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10579,
+      "fullName": "tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10200,
+      "fullName": "tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17232,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18036,
+      "fullName": "tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 39208,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18859,
+      "fullName": "tools/net10.0/any/zh-Hans/Microsoft.CodeAnalysis.resources.dll",
+      "length": 38696,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20180,
+      "fullName": "tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.CSharp.Features.resources.dll",
+      "length": 45904,
+      "name": "Microsoft.CodeAnalysis.CSharp.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11965,
+      "fullName": "tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll",
+      "length": 21800,
+      "name": "Microsoft.CodeAnalysis.CSharp.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 120577,
+      "fullName": "tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.CSharp.resources.dll",
+      "length": 411432,
+      "name": "Microsoft.CodeAnalysis.CSharp.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.Features.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 57532,
+      "fullName": "tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.Features.resources.dll",
+      "length": 178472,
+      "name": "Microsoft.CodeAnalysis.Features.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10548,
+      "fullName": "tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.Scripting.resources.dll",
+      "length": 17704,
+      "name": "Microsoft.CodeAnalysis.Scripting.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 10140,
+      "fullName": "tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll",
+      "length": 17192,
+      "name": "Microsoft.CodeAnalysis.Workspaces.MSBuild.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18004,
+      "fullName": "tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.Workspaces.resources.dll",
+      "length": 39248,
+      "name": "Microsoft.CodeAnalysis.Workspaces.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18849,
+      "fullName": "tools/net10.0/any/zh-Hant/Microsoft.CodeAnalysis.resources.dll",
+      "length": 38696,
+      "name": "Microsoft.CodeAnalysis.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12986,
+      "fullName": ".signature.p7s",
+      "length": 12986,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.20.11.46.42/dotlens.mcp.1.1.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "mcp",
+    "roslyn",
+    "csharp",
+    "dotnet",
+    "code-analysis",
+    "ai",
+    "semantic-analysis"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

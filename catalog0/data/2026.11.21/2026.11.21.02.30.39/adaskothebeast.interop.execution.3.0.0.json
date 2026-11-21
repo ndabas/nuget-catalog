@@ -1,0 +1,316 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Adam \"AdaskoTheBeAsT\" Pluciński",
+  "catalog:commitId": "7fb9efb7-4ebd-4a92-812a-3965930520a8",
+  "catalog:commitTimeStamp": "2026-11-21T02:30:39.1852437Z",
+  "copyright": "Adam \"AdaskoTheBeAsT\" Pluciński",
+  "created": "2026-11-21T02:27:13.733Z",
+  "description": "Dedicated-thread worker and worker pool that serialize async work onto per-session background threads. Supports STA on Windows, configurable thread stack sizes, pre-thread and worker-thread lifecycle hooks, contextual and delegate session factories, typed queue-capacity admission rejections, execution deadlines, cancellation, session recycling, pluggable scheduling (IWorkerScheduler), and diagnostics via ActivitySource / Meter. Targets net11.0, net10.0, and net481/net48/net472.",
+  "id": "AdaskoTheBeAsT.Interop.Execution",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-21T02:29:54.257Z",
+  "licenseFile": "LICENSE",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "DQXgn8e0SW4h0Bd1OwgJxLQ09wrIl3N07DOl27VZZtZ26fixZ242wNuLZenNh6+PYSw4mNr8mxOYfYFpXh8vOA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 329203,
+  "projectUrl": "https://github.com/AdaskoTheBeAsT/AdaskoTheBeAsT.Interop",
+  "published": "2026-11-21T02:27:13.733Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## [3.0.0]\n\nUpgrades the solution to .NET 11 (`11.0.100`) and C# 14, updates the supported\ntarget framework matrix to `net11.0`, `net10.0`, `net481`, `net48`, and\n`net472`, introduces the companion `AdaskoTheBeAsT.Interop.Execution.AspNetCore`\npackage (`net11.0;net10.0`), and adds contextual session lifecycle metadata,\ndelegate session factories, worker-indexed and `IServiceProvider`-aware DI /\nHosting registration with `IExecutionDispatcher<TSession>` forwarding and\n`ValidateOnStart`, typed admission-rejection exceptions, dedicated worker-thread\nstack sizing and thread-affine lifecycle scopes, execution deadline extensions,\nand Hosting `IHealthCheck` support.\n\n**Breaking change:** `.NET 8` (`net8.0`) and `.NET 9` (`net9.0`) support has\nbeen removed, `.NET 11` (`net11.0`) has been added, and package dependency\nfloors move to `11.0.0` (on `net11.0` and `.NET Framework`) and `10.0.15` (on\n`net10.0`). On retained targets, existing `2.2.0` public signatures remain\nsource- and binary-compatible. See the\n[2.x to 3.0.0 migration guide](docs/migration-3.0.0.md) for upgrade steps.\n\n### Removed\n\n- **`.NET 8` (`net8.0`) and `.NET 9` (`net9.0`) target frameworks** from the\n  three multi-targeted packages and four multi-targeted test projects. The\n  supported five-target matrix is `net11.0`, `net10.0`, `net481`, `net48`, and\n  `net472` (`AdaskoTheBeAsT.Interop.Execution.AspNetCore` targets `net11.0` and\n  `net10.0`).\n\n### Added\n\n- **Contextual session lifecycle (`EX-01`):**\n  `SessionLifecycleContext`, `SessionRecycleReason` (`MaxOperationsReached`,\n  `OperationFaulted`), `IContextualExecutionSessionFactory<TSession>` (deriving\n  from `IExecutionSessionFactory<TSession>`), and the abstract\n  `ContextualExecutionSessionFactory<TSession>` base class. Contextual factories\n  receive a stable `WorkerIndex` (`0` for standalone workers, `0..WorkerCount-1`\n  in pools), `WorkerCount`, `WorkerName`, `ManagedThreadId`,\n  `PreviousRecycleReason`, and the same `SessionGeneration` across matching\n  `CreateSession` and `DisposeSession` calls, incrementing `SessionGeneration`\n  only after a session or replacement is successfully created.\n- **Worker-indexed DI and Hosting overloads (`EX-01`):**\n  `AddExecutionWorkerPool<TSession>(Func<IServiceProvider, int, IExecutionSessionFactory<TSession>>, ...)`\n  in `AdaskoTheBeAsT.Interop.Execution.DependencyInjection` and\n  `AddExecutionWorkerPoolHostedService<TSession>(Func<IServiceProvider, int, IExecutionSessionFactory<TSession>>, ...)`\n  in `AdaskoTheBeAsT.Interop.Execution.Hosting`, plus automatic resolution of\n  `IContextualExecutionSessionFactory<TSession>` ahead of\n  `IExecutionSessionFactory<TSession>` in standard worker and pool DI\n  registrations.\n- **Execution deadline extension overloads (`EX-03`):**\n  `ExecutionDispatcherExtensions` adds `ExecuteAsync` and `ExecuteValueAsync`\n  (void and `TResult`, with and without `ExecutionRequestOptions`) overloads\n  accepting `TimeSpan timeout` on `IExecutionDispatcher<TSession>`. Deadlines\n  bound startup, queueing, and execution waits without adding abstract interface\n  members; queued expired items never run; caller cancellation preserves the\n  exact caller `CancellationToken` while deadline expiry throws\n  `TimeoutException`; in-flight synchronous native work keeps the worker/session\n  occupied and retains its linked cancellation source until completion before\n  reusing uncancelled `CancellationTokenSource` instances on `.NET 6+`.\n- **Hosting health checks and readiness snapshot fields (`EX-04`):**\n  extended `ExecutionWorkerSnapshot` (`IsInitialized`, `IsDisposed`) and\n  `ExecutionWorkerPoolSnapshot` (`IsInitialized`, `IsDisposed`,\n  `InitializedWorkerCount`, `FaultedWorkerCount`) while preserving existing\n  constructors, and added `ExecutionHealthCheckOptions`,\n  `ExecutionWorkerHealthCheck<TSession>`,\n  `ExecutionWorkerPoolHealthCheck<TSession>`,\n  `AddExecutionWorkerHealthCheck<TSession>`, and\n  `AddExecutionWorkerPoolHealthCheck<TSession>` in\n  `AdaskoTheBeAsT.Interop.Execution.Hosting`. Health checks report `Unhealthy`\n  before eager initialization finishes, after disposal, on startup/total worker\n  faults, `Degraded` on partial pool worker loss or when `QueueDepth` reaches\n  `QueueDepthWarningThreshold`, and `Healthy` otherwise.\n- **Pre-thread startup callback (`EX-06`):**\n  optional `Action? BeforeThreadStart` on `ExecutionWorkerOptions` and\n  `ExecutionWorkerPoolOptions` (propagated through option snapshots and DI).\n  Runs synchronously on the caller before dedicated worker threads are created,\n  configured for STA, and started, running once per pool startup attempt before\n  any worker thread spawns.\n- **Typed `ExecutionAdmissionRejectedException` (`EX-07`):**\n  `public sealed class ExecutionAdmissionRejectedException : InvalidOperationException`\n  carrying `WorkerName`, `QueueCapacity`, and `DefaultMessage`\n  (`\"The worker admission capacity is exhausted.\"`), emitted by both\n  `ExecutionWorker<TSession>` and `ExecutionWorkerPool<TSession>` across `Task`\n  and `ValueTask` submissions when `QueueCapacity > 0` is saturated (with\n  `.NET Framework` `[Serializable]` round-trip support).\n- **Automatic `IExecutionDispatcher<TSession>` forwarding and validated\n  `IServiceProvider` options in DI and Hosting (`EX-08`):**\n  `AddExecutionWorker<TSession>` and `AddExecutionWorkerPool<TSession>` now\n  forward `IExecutionDispatcher<TSession>` via `TryAddSingleton`, add\n  `Action<IServiceProvider, ExecutionWorkerOptions>` and\n  `Action<IServiceProvider, ExecutionWorkerPoolOptions>` overloads (mirrored on\n  `AddExecutionWorkerHostedService<TSession>` and\n  `AddExecutionWorkerPoolHostedService<TSession>`), expose public `Validate()`\n  methods on `ExecutionWorkerOptions` and `ExecutionWorkerPoolOptions`, and wire\n  `IValidateOptions<T>` with `.ValidateOnStart()` so invalid options fail fast\n  during `IHost.StartAsync`.\n- **`DelegateExecutionSessionFactory<TSession>` and inline delegate DI/Hosting\n  registration (`EX-09`):**\n  `DelegateExecutionSessionFactory<TSession>` (deriving from\n  `ContextualExecutionSessionFactory<TSession>`) supports simple and contextual\n  session creation/disposal lambdas with automatic `(session as IDisposable)?.Dispose()`\n  fallback, paired with inline `createSession` / `disposeSession` registration\n  overloads in `Execution.DependencyInjection` and `Execution.Hosting`.\n- **Companion `AdaskoTheBeAsT.Interop.Execution.AspNetCore` package (`EX-10`,\n  `net11.0;net10.0`):**\n  zero-third-party-dependency ASP.NET Core integration shipping\n  `ExecutionAspNetCoreOptions`, `ExecutionEndpointFilter`\n  (`WithExecutionExceptionHandling` on `RouteHandlerBuilder` and\n  `RouteGroupBuilder`), `ExecutionExceptionHandler : IExceptionHandler`\n  (`AddExecutionExceptionHandler`), AOT-safe source-generated\n  `ExecutionWorkerDiagnosticsDto` and `ExecutionWorkerPoolDiagnosticsDto`\n  (`FaultType` instead of raw `Exception`, avoiding `MethodBase` serialization\n  failures and stack-trace leaks), `ExecutionAspNetCoreJsonSerializerContext`,\n  `AddExecutionAspNetCoreJson()`, `MapExecutionWorkerDiagnostics<TSession>()`,\n  `MapExecutionWorkerPoolDiagnostics<TSession>()`, and\n  `MapExecutionHealthProbes()`.\n- **Worker-thread `MaxStackSize`, `OnWorkerThreadStart`, and\n  `CreateWorkerThreadScope` (`EX-11`):**\n  configurable dedicated-thread `MaxStackSize` (`>= 0`) plus once-per-thread\n  `OnWorkerThreadStart` (`Action?` / `Action<int>?`) and worker-lifetime\n  `CreateWorkerThreadScope` (`Func<IDisposable?>?` /\n  `Func<int, IDisposable?>?`) on `ExecutionWorkerOptions` and\n  `ExecutionWorkerPoolOptions`, running on the dedicated STA/MTA thread before\n  initial session creation, surviving session recyclings, and disposing on the\n  same worker thread strictly after final `DisposeSession()`.\n- [2.x to 3.0.0 migration guide](docs/migration-3.0.0.md) and Architecture\n  Decision Records [ADR-0011](docs/adr/0011-net11-target-framework-matrix.md),\n  [ADR-0012](docs/adr/0012-contextual-session-lifecycle.md),\n  [ADR-0013](docs/adr/0013-before-thread-start-hook.md),\n  [ADR-0014](docs/adr/0014-execution-deadline-extensions.md),\n  [ADR-0015](docs/adr/0015-hosting-health-checks-and-readiness-snapshots.md),\n  [ADR-0016](docs/adr/0016-typed-admission-rejected-exception.md),\n  [ADR-0017](docs/adr/0017-dispatcher-forwarding-and-validated-di-options.md),\n  [ADR-0018](docs/adr/0018-delegate-execution-session-factory.md),\n  [ADR-0019](docs/adr/0019-aspnetcore-execution-integration-and-safe-diagnostics.md),\n  and [ADR-0020](docs/adr/0020-worker-thread-stack-size-and-thread-affine-scopes.md).\n\n### Changed\n\n- Updated `global.json` to `.NET SDK 11.0.100` with\n  `Microsoft.Testing.Platform`, `<LangVersion>14.0</LangVersion>`, and package\n  version `3.0.0` in `Directory.Build.props`.\n- Updated `.NET Framework` package dependencies (`System.Threading.Channels`,\n  `System.Diagnostics.DiagnosticSource`, and `Microsoft.Extensions.*`) and\n  `net11.0` `Microsoft.Extensions.*` dependencies to `[11.0.0, 12.0.0)`, raised\n  `net10.0` `Microsoft.Extensions.*` floors to `[10.0.15, 11.0.0)`, and added\n  `Microsoft.Extensions.Diagnostics.HealthChecks` to\n  `AdaskoTheBeAsT.Interop.Execution.Hosting`.\n- Updated analyzer and test-project dependencies (`Meziantou.Analyzer`\n  `3.0.341`, `Microsoft.CodeAnalysis.*` `5.12.0`,\n  `Microsoft.CodeAnalysis.NetAnalyzers` `11.0.100`, `SonarAnalyzer.CSharp`\n  `10.36.0.15337`, `StyleCop.Analyzers` `1.3.180`, `Microsoft.NET.Test.Sdk`\n  `18.12.0`, `Microsoft.Testing.Extensions.GitHubActionsReport` `2.5.3`,\n  `xunit.v3` `4.0.3`, and `xunit.analyzers` `2.3.0`).\n\n### Regression coverage\n\n- Unit and integration tests across `net11.0`, `net10.0`, `net481`, `net48`, and\n  `net472` (plus `net11.0` and `net10.0` for `Execution.AspNetCore.Test`) cover\n  contextual lifecycle generations, `DelegateExecutionSessionFactory`, failure\n  handling, two concurrent STA/MTA pools over 50+ recycles per slot,\n  `BeforeThreadStart`, `MaxStackSize`, `OnWorkerThreadStart`, and\n  `CreateWorkerThreadScope` ordering/affinity, eager startup readiness\n  (`EX-02`), CAS `QueueCapacity` admission and typed\n  `ExecutionAdmissionRejectedException` (`EX-05`, `EX-07`), deadline\n  boundary/cancellation/race semantics, `IExecutionDispatcher<TSession>` DI\n  forwarding and `ValidateOnStart` (`EX-08`), Hosting health-check state\n  transitions, and ASP.NET Core `TestServer` filter/exception-handler HTTP\n  mappings and strict source-generated `/api/diagnostics` serialization under\n  worker faults (`EX-10`).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#repository",
+    "commit": "fffb5e718928f1f1c7c97fbc92991761172e5cbb",
+    "type": "git",
+    "url": "https://github.com/AdaskoTheBeAsT/AdaskoTheBeAsT.Interop"
+  },
+  "verbatimVersion": "3.0.0",
+  "version": "3.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net11.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.7.2",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.7.2/system.diagnostics.diagnosticsource",
+          "@type": "PackageDependency",
+          "id": "System.Diagnostics.DiagnosticSource",
+          "range": "[11.0.0, 12.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.7.2/system.threading.channels",
+          "@type": "PackageDependency",
+          "id": "System.Threading.Channels",
+          "range": "[11.0.0, 12.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.7.2"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.8",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.8/system.diagnostics.diagnosticsource",
+          "@type": "PackageDependency",
+          "id": "System.Diagnostics.DiagnosticSource",
+          "range": "[11.0.0, 12.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.8/system.threading.channels",
+          "@type": "PackageDependency",
+          "id": "System.Threading.Channels",
+          "range": "[11.0.0, 12.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.8"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.8.1",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.8.1/system.diagnostics.diagnosticsource",
+          "@type": "PackageDependency",
+          "id": "System.Diagnostics.DiagnosticSource",
+          "range": "[11.0.0, 12.0.0)"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#dependencygroup/.netframework4.8.1/system.threading.channels",
+          "@type": "PackageDependency",
+          "id": "System.Threading.Channels",
+          "range": "[11.0.0, 12.0.0)"
+        }
+      ],
+      "targetFramework": ".NETFramework4.8.1"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#AdaskoTheBeAsT.Interop.Execution.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4475,
+      "fullName": "AdaskoTheBeAsT.Interop.Execution.nuspec",
+      "length": 13292,
+      "name": "AdaskoTheBeAsT.Interop.Execution.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 14919,
+      "fullName": "README.md",
+      "length": 47943,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 660,
+      "fullName": "LICENSE",
+      "length": 1093,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29094,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.dll",
+      "length": 65024,
+      "name": "AdaskoTheBeAsT.Interop.Execution.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 18031,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "length": 32500,
+      "name": "AdaskoTheBeAsT.Interop.Execution.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net10.0/AdaskoTheBeAsT.Interop.Execution.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 12977,
+      "fullName": "lib/net10.0/AdaskoTheBeAsT.Interop.Execution.xml",
+      "length": 111880,
+      "name": "AdaskoTheBeAsT.Interop.Execution.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net11.0/AdaskoTheBeAsT.Interop.Execution.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 29085,
+      "fullName": "lib/net11.0/AdaskoTheBeAsT.Interop.Execution.dll",
+      "length": 65024,
+      "name": "AdaskoTheBeAsT.Interop.Execution.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net11.0/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 18349,
+      "fullName": "lib/net11.0/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "length": 33224,
+      "name": "AdaskoTheBeAsT.Interop.Execution.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net11.0/AdaskoTheBeAsT.Interop.Execution.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 12977,
+      "fullName": "lib/net11.0/AdaskoTheBeAsT.Interop.Execution.xml",
+      "length": 111880,
+      "name": "AdaskoTheBeAsT.Interop.Execution.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30340,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.dll",
+      "length": 67584,
+      "name": "AdaskoTheBeAsT.Interop.Execution.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 13636,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "length": 24756,
+      "name": "AdaskoTheBeAsT.Interop.Execution.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net472/AdaskoTheBeAsT.Interop.Execution.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 13023,
+      "fullName": "lib/net472/AdaskoTheBeAsT.Interop.Execution.xml",
+      "length": 112131,
+      "name": "AdaskoTheBeAsT.Interop.Execution.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30343,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.dll",
+      "length": 67584,
+      "name": "AdaskoTheBeAsT.Interop.Execution.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 13625,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "length": 24764,
+      "name": "AdaskoTheBeAsT.Interop.Execution.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net48/AdaskoTheBeAsT.Interop.Execution.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 13023,
+      "fullName": "lib/net48/AdaskoTheBeAsT.Interop.Execution.xml",
+      "length": 112131,
+      "name": "AdaskoTheBeAsT.Interop.Execution.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 30344,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.dll",
+      "length": 67584,
+      "name": "AdaskoTheBeAsT.Interop.Execution.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "@type": "PackageEntry",
+      "compressedLength": 13652,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.pdb",
+      "length": 24788,
+      "name": "AdaskoTheBeAsT.Interop.Execution.pdb"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#lib/net481/AdaskoTheBeAsT.Interop.Execution.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 13023,
+      "fullName": "lib/net481/AdaskoTheBeAsT.Interop.Execution.xml",
+      "length": 112131,
+      "name": "AdaskoTheBeAsT.Interop.Execution.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.02.30.39/adaskothebeast.interop.execution.3.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12988,
+      "fullName": ".signature.p7s",
+      "length": 12988,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "Interop",
+    "STA",
+    "Worker",
+    "WorkerPool",
+    "Threading",
+    "Session",
+    "COM",
+    "DedicatedThread",
+    "AsyncOverSync"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,164 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Yaroslav V Tatarenko",
+  "catalog:commitId": "e3a23fe9-541f-4b31-a02b-cd96e44629c8",
+  "catalog:commitTimeStamp": "2026-11-21T10:42:42.0263638Z",
+  "copyright": "Copyright (c) 2026 Yaroslav V Tatarenko",
+  "created": "2026-11-21T10:39:38.237Z",
+  "description": "GStreamer backend for MediaToolkit.NET: build a pipeline from a gst-launch description, drive its state, read its bus, and take decoded video and audio frames out of an appsink, probe files with GstDiscoverer and transcode them through a pipeline built from the request. The portable counterpart of the DirectShow filter graph on Linux.",
+  "iconFile": "icon.png",
+  "id": "MediaToolkitNet.GStreamer",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-21T10:42:40.843Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "HHYqHV62rCwY6D7csKtI5C0opx5ugR8gNIhLZqYpge3WPE4M2+6m3WV5tXvZdMTsZ6bq1L7Pldc8jRmG/SzzOA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 89235,
+  "projectUrl": "https://github.com/yartat/MediaToolkit.NET",
+  "published": "2026-11-21T10:39:38.237Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "MediaToolkit.NET 1.0.0 - the first stable release.\n\nFollows an audit of 0.3.1 for bugs, resource leaks and vulnerabilities. Every\nfix was written test first, and the findings were reproduced on Windows 11 and\nDebian 13 before they were fixed. The public API follows semantic versioning\nfrom here. Four behaviours changed, and each can break a caller that worked\nbefore.\n\nCHANGES THAT CAN BREAK EXISTING CODE\n\n- FFmpeg inputs are local files and pipes by default. FFmpegProber,\n  FFmpegMediaReader and FFmpegTranscoder refuse network URLs (http://, https://,\n  rtsp://, tcp://, udp://...) and playlists (HLS, DASH, concat), so a path that\n  came from somebody else cannot make the process connect anywhere or read other\n  files. To open URLs on purpose, set FFmpegDemuxer.AllowNetworkByDefault = true\n  once at start-up, or give one reader\n  MediaReaderOptions.DemuxerOptions[\"protocol_whitelist\"]. FFmpegPlayer and\n  capture devices are not restricted; GStreamer and mpv accept URLs as before.\n  The README has examples.\n- All three transcoders write a partial file beside the output and rename it when\n  the job has finished. An output that is a link to an input no longer overwrites\n  the input, and a failed or refused job no longer deletes a file that was\n  already at the output path. The output directory must allow creating a file.\n- Native library search is narrower: the walk up to src/FFMpeg/<platform> needs a\n  folder holding MediaToolkit.NET.slnx, relative and empty PATH entries are not\n  used, and on Windows the default search order (current directory included) is\n  no longer the fallback.\n- MpvPlayer sets ytdl=no and load-scripts=no by default (put them back through\n  Options); MpvFilterChain.Lavfi returns lavfi=graph=%N%... instead of\n  lavfi=[...]; planar audio with more than 8 channels pushed to a filter graph\n  throws ArgumentException; Ole32.Initialize returns true for S_FALSE.\n\nFIXED\n\n- GStreamer video read past a buffer shorter than its caps and aborted the\n  process. FrameBounds.FitsIn now checks every frame in the GStreamer,\n  DirectShow, Media Foundation, V4L2 and AVFoundation producers.\n- MpvPlayer: access violation when Stop, Pause or Volume ran while another\n  thread disposed it.\n- FFmpegPlayer: Seek while paused used the decoder from two threads; Dispose from\n  inside a frame handler freed the media under the worker; a read blocked on the\n  network held Dispose for the whole timeout (the input is now interruptible:\n  FFmpegDemuxer.Interrupt and ClearInterrupt).\n- A subscriber that throws from Failed no longer ends the process, on any\n  backend (SafeEvents.RaiseFailed).\n- FFmpeg audio frames described themselves with the format known at open; they\n  now carry their own, and FFmpegMediaReader follows a stream that changes rate,\n  channels or size part way through.\n- TryReadAt on MPEG-TS returned the key frame after the requested time.\n- Transcoding audio from MP2 failed; a timestamp that jumps back is repaired; a\n  video that changes size is rebuilt; encoder options nobody recognised are\n  reported as warnings (FFmpeg and mpv).\n- WasapiRenderer.Write no longer waits for ever on a stopped endpoint.\n- Leaks: FFmpegDemuxer.Open, FFmpegRecorder and the DirectShowGraph constructor\n  on failure; wrappers the DirectShow graph kept until disposal; V4L2 mappings\n  (and the descriptor is now close-on-exec); a variant in the DirectShow\n  property reader; unbalanced COM initialisation on the capture threads; mpv's\n  argument vector.\n\nNEW PUBLIC API\n\nPartialOutput, FrameBounds.FitsIn and SafeEvents.RaiseFailed (Abstractions);\nFFmpegDemuxer.AllowNetworkByDefault, Open(..., allowPlaylists, allowNetwork),\nInterrupt() and ClearInterrupt().\n\nNOT COVERED\n\n- WASAPI, Media Foundation, V4L2, ALSA and PulseAudio still join their worker\n  with a two-second timeout and then free native objects, and a capture whose\n  loop failed still reports IsRunning until Stop. FFmpegPlayer and MpvPlayer no\n  longer have this.\n- The macOS backend changed (frame checks, Failed handling) and has never been\n  run. A callback in flight during Dispose and a restart after Stop are open.\n- A connect already in progress inside FFmpegDemuxer.Open cannot be interrupted;\n  pass rw_timeout through DemuxerOptions. Only FFmpegPlayer interrupts reads.\n- The Media Foundation recorder does not check a frame against its stream's\n  format.\n\nVERIFIED BY RUNNING\n\n- Debian 13, FFmpeg 7.1.5, GStreamer 1.26.2, libmpv 2.5: 213 unit and 124\n  integration tests pass.\n- Windows 11: 213 unit and 107 integration tests pass, 15 skip (GStreamer is\n  Linux-only); DirectShow, WASAPI, Media Foundation and camera capture were also\n  run by hand.\n- Not run: FFmpeg 8 and 9 transcoding, mpv playback, the macOS backend, the V4L2,\n  ALSA and PulseAudio paths.\n\nFull notes: https://github.com/yartat/MediaToolkit.NET/releases/tag/v1.0.0\nIssues: https://github.com/yartat/MediaToolkit.NET/issues",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#repository",
+    "commit": "e38b000ffa124e836d0f89581d23b4029c519dcf",
+    "type": "git",
+    "url": "https://github.com/yartat/MediaToolkit.NET"
+  },
+  "verbatimVersion": "1.0.0",
+  "version": "1.0.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#dependencygroup/net10.0/mediatoolkitnet.abstractions",
+          "@type": "PackageDependency",
+          "id": "MediaToolkitNet.Abstractions",
+          "range": "[1.0.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#dependencygroup/net10.0/mediatoolkitnet.interop",
+          "@type": "PackageDependency",
+          "id": "MediaToolkitNet.Interop",
+          "range": "[1.0.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#MediaToolkitNet.GStreamer.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3022,
+      "fullName": "MediaToolkitNet.GStreamer.nuspec",
+      "length": 6379,
+      "name": "MediaToolkitNet.GStreamer.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4546,
+      "fullName": "README.md",
+      "length": 11086,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 4981,
+      "fullName": "icon.png",
+      "length": 4976,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#lib/net10.0/MediaToolkitNet.GStreamer.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 45961,
+      "fullName": "lib/net10.0/MediaToolkitNet.GStreamer.dll",
+      "length": 105984,
+      "name": "MediaToolkitNet.GStreamer.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#lib/net10.0/MediaToolkitNet.GStreamer.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 15505,
+      "fullName": "lib/net10.0/MediaToolkitNet.GStreamer.xml",
+      "length": 91776,
+      "name": "MediaToolkitNet.GStreamer.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.21.10.42.42/mediatoolkitnet.gstreamer.1.0.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12980,
+      "fullName": ".signature.p7s",
+      "length": 12980,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "gstreamer",
+    "linux",
+    "pipeline",
+    "appsink",
+    "capture",
+    "audio",
+    "video",
+    "transcoding"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

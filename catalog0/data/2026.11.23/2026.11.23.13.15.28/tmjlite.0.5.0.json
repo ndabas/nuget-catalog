@@ -1,0 +1,129 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.23.13.15.28/tmjlite.0.5.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "TMJ Sistemas",
+  "catalog:commitId": "8a085886-2f61-4b4e-8d45-f54bcf435914",
+  "catalog:commitTimeStamp": "2026-11-23T13:15:28.3738373Z",
+  "copyright": "© 2026 TMJ Sistemas",
+  "created": "2026-11-23T13:12:20.703Z",
+  "description": "TMJLite embedded database driver (.tmjp). Motor nativo incluído para Windows, Linux e macOS — nenhuma configuração necessária.",
+  "id": "TMJLite",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-23T13:15:24.323Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "y0psCG2NkxmOo2iIRatiUJ22Tfi8wsAJMZa4oLyEFTswWDxdb7LPwdK07+DJOskhh+Ces32gMoJVV2UqLdLjgw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 3327905,
+  "projectUrl": "https://tmjlite.com.br/",
+  "published": "2026-11-23T13:12:20.703Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Adicionado\n- **Chaves estrangeiras** (`REFERENCES` / `FOREIGN KEY`). Até aqui o\n  relacionamento era uma coluna `STRING(36)` com o UUID do pai e a integridade\n  ficava por conta da aplicação (com corrida entre o \"pai existe?\" e o\n  INSERT). Agora o engine garante:\n  - `coluna TEXT|STRING(36+) REFERENCES pai [ON DELETE RESTRICT | NO ACTION |\n    CASCADE | SET NULL]`, também na forma de tabela `FOREIGN KEY (col)\n    REFERENCES pai (pk)`. A FK aponta sempre para a `PK` do pai, uma coluna\n    só; auto-referência é aceita. Sem `ON UPDATE` (a PK é imutável).\n  - INSERT / UPDATE / upsert no filho exigem o pai; `DELETE` no pai aplica a\n    ação — planejado inteiro antes de tocar qualquer linha (statement\n    atômico, cascata multi-nível, desfeita por `ROLLBACK`); `DROP TABLE` /\n    `TRUNCATE` do pai são recusados enquanto houver filho.\n  - `ALTER TABLE t ADD FOREIGN KEY (col) REFERENCES pai …` em tabela já\n    populada (valida as linhas existentes e diz quantas estão órfãs) e\n    `ALTER TABLE t DROP FOREIGN KEY col`; `ADD COLUMN … REFERENCES`;\n    `MODIFY COLUMN` preserva a FK.\n  - Sessões shadow / branches: as FKs valem dentro da sessão, a cascata vira\n    ops no oplog, e o merge revalida o estado final contra o main — recusa\n    (`merge conflict: foreign key …`) em vez de criar órfão.\n  - A FK mora no catálogo do `.tmjp` (campo novo, opcional, na coluna).\n    `.schema` e o DDL do Studio mostram o `REFERENCES`. As palavras novas não são reservadas (`key`, `foreign` etc.\n    continuam nomes de coluna válidos). Sem mudança na FFI nem nos drivers.\n  - O engine não cria índice na coluna da FK: crie um (`CREATE INDEX`) para o\n    `DELETE` do pai achar os filhos por seek em vez de varrer a tabela filha.\n- **Índice de PK no arquivo.** Toda tabela ganha um índice automático na\n  coluna `PK`, gravado junto com os dados (UUID em 16 bytes, não nos 36 do\n  texto). Até aqui o índice de PK existia só em RAM, depois de a tabela ser\n  carregada por uma escrita: num arquivo recém-aberto e nas leituras em\n  snapshot da conexão compartilhada, `WHERE id = ?` **varria a tabela\n  inteira**. Agora é uma descida na B+tree em qualquer conexão (num teste com\n  5 mil linhas: até 8 páginas lidas, contra mais de 100 da varredura). Custo:\n  35 a 47 bytes por linha em cada tabela e ~4% no tempo de INSERT em\n  autocommit (a PK é aleatória: uma página a mais por INSERT).\n- **`ORDER BY … DESC LIMIT n`, `MAX()` e `MIN()` pelo índice.** A B+tree\n  ganhou varredura reversa. `ORDER BY col DESC LIMIT n` lê só as `n` últimas\n  entradas (`IndexSeek(…, order=desc)`), inclusive com prefixo de índice\n  composto (`WHERE a = ? ORDER BY b DESC LIMIT n` num índice `(a, b)`) e com\n  intervalo na mesma coluna. `SELECT MAX(c), MIN(c) FROM t [WHERE a = ?]` vira\n  uma descida por agregação, sem ler a tabela (`IndexMinMax`). Com dois\n  índices servindo ao `WHERE`, o planner agora prefere o que já entrega na\n  ordem pedida.\n- **JOIN lendo só as linhas necessárias.** Quando o `WHERE` tem condição\n  indexada só sobre a tabela do `FROM` e cada `JOIN` (`INNER`/`LEFT`, `ON` de\n  igualdade) chega numa coluna indexada (a PK sempre é), a base vem por seek\n  e cada tabela juntada tem só as chaves encontradas buscadas no índice\n  (`IndexLookupJoin`). Na conexão compartilhada, todo JOIN carregava as\n  tabelas inteiras do snapshot a cada consulta; num teste de 3 tabelas\n  (12 mil linhas) um JOIN pontual lê 9 páginas e um de 40 pedidos vizinhos\n  lê 17, contra 296 do JOIN inteiro. Fora dessas condições nada muda.\n- **`VACUUM`**: reescreve o banco num arquivo novo e compacto e troca pelo\n  atual (o arquivo nunca encolhia: `DELETE`/`DROP TABLE` só devolviam páginas\n  à lista de livres). Arquivo novo gravado e sincronizado por inteiro antes de\n  um `rename` atômico; exige conexão exclusiva, fora de transação (a conexão\n  compartilhada recusa com explicação). Num teste que apaga 90% das linhas e\n  uma tabela inteira: 3,5 MB → 205 KB.\n- **Formato de arquivo v3**, com atualização automática na primeira abertura\n  de um arquivo ≤ 0.4.0: completa os índices com as linhas NULL (ver\n  *Corrigido*) e cria o índice de PK de cada tabela — uma leitura de cada\n  tabela, um commit só, idempotente. **Sem volta**: a versão do arquivo sobe\n  de 2 para 3 e um engine ≤ 0.4.0 passa a recusá-lo (`unsupported page file\n  version: 3`) em vez de devolver resultado errado ou deixar entradas órfãs\n  nos índices. Atualizar CLI, drivers e Studio juntos.\n- **TMJStudio: diagrama de tabelas e chaves estrangeiras** (botão *Diagrama*).\n  Uma caixa por tabela, uma linha por FK. Arrastar uma coluna até outra tabela\n  cria a FK (nos dois sentidos: coluna da filha → pai, ou PK do pai → coluna da\n  filha; soltar a PK no cabeçalho da filha cria a coluna junto); um diálogo\n  mostra o SQL e o `ON DELETE` antes de executar. Clicar numa linha edita ou\n  remove a FK. Só leitura em branch/snapshot. Erros de FK ganharam mensagem\n  amigável e o plano do `EXPLAIN` descreve `IndexMinMax`, `IndexLookupJoin` e\n  `order=desc`.\n- **Apelido de coluna**: `SELECT COUNT(*) AS total`, `SELECT col AS nome` —\n  antes era erro de parse. O apelido vira o nome da coluna de saída (em todos\n  os caminhos: executor, snapshot, cursor, atalho do `COUNT(*)`) e pode ser\n  usado em `ORDER BY` e `GROUP BY`. O `AS` é obrigatório.\n- FFI: `tmjlite_result_type` e `tmjlite_cursor_type` devolvem o tipo que o\n  engine guardou no valor (0 NULL, 1 INT, 2 FLOAT, 3 BOOL, 4 TEXT, 5 UUID,\n  6 DATE, 7 DATETIME). Só adição — a ABI existente não muda.\n\n### Corrigido\n- **Índices não guardavam linhas com NULL — duas consultas davam resultado\n  errado** (existia desde os índices compostos). (1) Seek por prefixo:\n  `WHERE a = 1` usando um índice `(a, b)` não devolvia as linhas com\n  `b IS NULL`. (2) `ORDER BY col LIMIT n` atendido pelo índice não devolvia as\n  linhas com `col IS NULL` — o mesmo `SELECT` sem `LIMIT` devolvia. Agora toda\n  linha tem entrada em todo índice (NULL ordena antes de qualquer valor):\n  o seek por prefixo é completo e a ordem do índice é a mesma do sort (NULL\n  primeiro no ASC, por último no DESC). Intervalos e igualdades continuam\n  nunca casando com NULL, e `UNIQUE` continua aceitando vários NULL. Arquivos\n  existentes são corrigidos na primeira abertura (formato v3).\n- `ALTER TABLE … ADD/DROP COLUMN` não reposicionava as colunas dos índices no\n  engine (as posições antigas valiam até reabrir o arquivo).\n- **Drivers devolviam texto só de dígitos como número** (Python, Node, Go, C#,\n  Java e Rust). O tipo de cada célula era *adivinhado pelo texto*: numa coluna\n  `TEXT`/`STRING`, `'593'` voltava `593` e `'007'` voltava `7` (zero à esquerda\n  perdido); `'true'` virava booleano, `'1e5'` virava float, o texto `'NULL'`\n  virava nulo, e um `FLOAT` `2.0` voltava inteiro. Agora o driver pergunta o\n  tipo ao engine (`tmjlite_*_type`) em `query()`, prepared e cursor.\n  **Muda o que a aplicação recebe**: quem dependia da conversão implícita de\n  uma coluna de texto para número passa a receber `str`/`string` — o tipo\n  declarado na coluna. `PK`, `DATE` e `DATETIME` continuam texto. Exige a lib\n  nativa desta versão (os drivers já a trazem embutida).\n- **`SUM` de coluna `INT` devolvia `FLOAT`** (somava em `f64`, com perda acima\n  de 2^53). Agora a soma de inteiros é exata e devolve `INT`; com `FLOAT` no\n  meio (ou estouro de `i64`) devolve `FLOAT`. Vale para o `SUM` agregado e o\n  `SUM(...) OVER`. `AVG` continua `FLOAT`.\n- **`WHERE fk = ? ORDER BY outra_coluna LIMIT n` varria a tabela.** Quando a\n  coluna do `ORDER BY` também tinha índice, o planejador tentava o atalho\n  \"índice já entrega em ordem\", via que o `WHERE` era em outra coluna e\n  desistia de *qualquer* seek — plano `TableScan → Filter → ExternalSort`.\n  Agora segue para o seek pelo índice do `WHERE` e ordena só as linhas que\n  sobraram (`IndexSeek → ExternalSort → Limit`). Mesmo plano no executor, no\n  snapshot e no cursor.\n- **Arquivo ~2x maior em autocommit do que em transação** (≈416 vs ≈221\n  bytes/linha no mesmo dado). O split da B+tree era sempre ao meio; com chaves\n  crescentes (o rowid de todo INSERT) cada folha ficava pela metade para\n  sempre. Agora a inserção no fim da última folha faz *split de append* (a\n  folha cheia fica cheia, a célula nova abre a seguinte), também nos nós\n  internos. Autocommit passa a ocupar o mesmo que o lote. Sem mudança de\n  formato: arquivos existentes abrem igual e passam a crescer mais devagar\n  (as páginas já pela metade não são recompactadas).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.23.13.15.28/tmjlite.0.5.0.json#repository",
+    "commit": "1178189cff7d9236a1dace7242ae58a3f64ca7ca",
+    "type": "git",
+    "url": "https://github.com/TMJacometti/TMJPlatform"
+  },
+  "verbatimVersion": "0.5.0",
+  "version": "0.5.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.23.13.15.28/tmjlite.0.5.0.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.23.13.15.28/tmjlite.0.5.0.json#TMJLite.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4673,
+      "fullName": "TMJLite.nuspec",
+      "length": 9596,
+      "name": "TMJLite.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.23.13.15.28/tmjlite.0.5.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 2192,
+      "fullName": "README.md",
+      "length": 4389,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.23.13.15.28/tmjlite.0.5.0.json#lib/net8.0/TMJLite.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3306270,
+      "fullName": "lib/net8.0/TMJLite.dll",
+      "length": 6492160,
+      "name": "TMJLite.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.23.13.15.28/tmjlite.0.5.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tmjlite",
+    "database",
+    "embedded",
+    "sql"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

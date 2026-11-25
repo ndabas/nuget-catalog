@@ -1,0 +1,229 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "John Verheij",
+  "catalog:commitId": "a590eed2-83b4-4324-9de1-aea2163ef7ac",
+  "catalog:commitTimeStamp": "2026-11-24T18:07:45.6273828Z",
+  "copyright": "Copyright (c) 2026 John Verheij",
+  "created": "2026-11-24T18:00:17.293Z",
+  "description": "TUnit-native fluent log-assertion DSL using [AssertionExtension] over Microsoft.Extensions.Logging.Testing.FakeLogCollector. Provides Assert.That(collector).HasLogged()/HasNotLogged()/HasLoggedSequence()/HasLoggedOnly() with filter and terminator chaining, the event-driven WillLog() wait for background work, a live tee of each record into the test report, and a dump of the captured records when a test does not pass; emits a captured-records snapshot in failure messages.",
+  "id": "LogAssertions.TUnit",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-24T18:07:33.967Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "ERzlc3WylTxp6iTU9qWyxRTGrbI8O2Oo993sH6/xBtBVcdhg6zgzc2kkwd3/ioL4rzpkuy+KQXs1i4+Fcz+kPA==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 150589,
+  "projectUrl": "https://logassertions.dev/",
+  "published": "2026-11-24T18:00:17.293Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "View the rendered release notes: https://github.com/JohnVerheij/LogAssertions.TUnit/releases/tag/v0.17.0\n\n### BREAKING\n\n- **`LogDefinition.Properties`** was removed: a definition is the identity of a log call, and the argument values of a capture moved to `LogCall.Properties`. Migration: capture with `LogCall.Capture(...)` and read `call.Properties`; for the placeholder names alone, read `LogDefinition.PlaceholderNames`.\n- **`LogDefinition.Exception`** was removed, for the same reason. Migration: `LogCall.Capture(...)`, then `call.Exception`.\n- **`LogDefinition.Level`** changed from `LogLevel` to `LogLevel?`: a generated definition has no level when its method takes the level as a parameter. A captured definition still holds the level of the capture call. Migration: `definition.Level ?? ...`, or `definition.Level!.Value` where the definition is captured.\n- **`LogDefinition.Template`** is `null` for an empty template: an empty template is no template. `LogDefinition.Capture` of a `[LoggerMessage]` method without a message used to return `\"\"` (Microsoft.Extensions.Logging.Abstractions writes an empty template; Microsoft.Extensions.Telemetry writes none), and `LogContractRenderer.Render` and `LogDefinition.ToString()` wrote `\"\"` for it; it now returns `null`, and both write `<no template>`. `Matching` treats an empty template and none alike. Migration: regenerate a contract baseline that holds such a method, and review the diff.\n- **`LogFilter.MatchingCall`** takes a `LogCall` instead of a `LogDefinition`. A generated definition has no argument values, so passing one to the exact-call filter is a build error now, not a filter that never matches. The chain's `MatchingCall(log => ...)` is unchanged. Migration: `LogFilter.MatchingCall(LogDefinition.Capture(...))` becomes `LogFilter.MatchingCall(LogCall.Capture(...))`.\n\n### Added\n\n- **`[assembly: GenerateLogDefinitions(typeof(T))]`**: a source generator, shipped in the LogAssertions package, writes a `LogDefinition` for each `[LoggerMessage]` method of the assembly that contains `T`, at compile time and without reflection. For each type it adds an internal class `<Type>LogDefinitions` in the type's namespace with one field per method, so a test writes `HasLogged().Matching(OrderServiceLogDefinitions.LogOrderShipped)` without a capture lambda or throwaway arguments. A generated definition carries the identity the method's records carry, whichever of Microsoft's two logging generators compiled the product (Microsoft.Extensions.Logging.Abstractions or Microsoft.Extensions.Telemetry): the attribute's event ID, or, when it sets none, the ID the product's logging generator derives, as each version derives it (a hash of the event name; -1 before Microsoft.Extensions.Logging.Abstractions 8.0; 0 before Microsoft.Extensions.Telemetry 8.2; a hash of the C# text for the name in Telemetry 8.2 to 9.7); the event name as the record carries it (a backslash escape in it takes effect, with either generator), or the method name when it is empty or whitespace; the template as the record carries it (with Microsoft.Extensions.Logging.Abstractions before 11.0 a backslash escape in the message takes effect); and the placeholder names in the record's order, including the parameters the template does not use (with Microsoft.Extensions.Telemetry, not a data-classified one). With Microsoft.Extensions.Telemetry, a `[TagName]`, `[TagProvider]` or `[LogProperties]` parameter keeps its own name in `PlaceholderNames` (the first two are not compiled into the product, and the generator does not expand the properties of the third), and so, with Microsoft.Extensions.Logging.Abstractions 8.0 and later, does a parameter of a referenced assembly written with an `@` its name does not need (a compiled assembly does not record it); matching is not affected. A project that references only LogAssertions.TUnit gets the generator too. The generator sees public and protected methods, and internal ones when the product names the test project in `InternalsVisibleTo`; a private method is not in the reference assembly a test project compiles against, and the generator applies the same rule to a project reference in an IDE, so the editor and the build agree.\n- **`GenerateLogDefinitionsAttribute`** (with `TypeInAssembly`): the assembly attribute that opts a product assembly in, named by any type in it; apply it once per product assembly.\n- **Generator warnings `LOGA001` to `LOGA004`**, reported at the `GenerateLogDefinitions` attribute: an opted-in assembly has no `[LoggerMessage]` method the test project can see; two methods of a type share a name, so neither gets a definition; two types would generate the same class, so neither does; a generated name is taken (a type the test project sees, or a namespace, already has the class's full name, a type the test project sees has the full name of one of its namespaces, or a method is named like the class), so it is left out.\n- **`LogDefinition.Create(EventId, LogLevel?, string?)`**: builds a definition from its parts, reading the placeholder names from the template, for a record whose logging code a test cannot call.\n- **`LogDefinition.Create(EventId, LogLevel?, string?, IEnumerable<string>)`**: the same with the placeholder names as given. The generated definitions use it.\n- **`LogDefinition.PlaceholderNames`**: the names of the placeholder values a record of the definition carries.\n- **`LogCall`**: one captured log call, `LogCall.Capture(log => ...)`, with its `Definition`, `Properties`, and `Exception`, for `LogFilter.MatchingCall`.\n\n### Changed\n\n- **`LogContractRenderer.Render`** writes `?` as the level of a definition without one (a generated definition whose method takes the level as a parameter). Lines of captured definitions are unchanged.\n- **README:** a section on the generated definitions, and the recommendation to give each `[LoggerMessage]` method an explicit `EventId`, so a renamed method keeps its event ID.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#repository",
+    "commit": "8ad54b1bd1db549a463303a4c60ec4c34f88c789",
+    "type": "git",
+    "url": "https://github.com/JohnVerheij/LogAssertions.TUnit"
+  },
+  "verbatimVersion": "0.17.0",
+  "version": "0.17.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net10.0/logassertions",
+          "@type": "PackageDependency",
+          "id": "LogAssertions",
+          "range": "[0.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net10.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.87.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net10.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.87.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net10.0/microsoft.extensions.diagnostics.testing",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.Testing",
+          "range": "[10.11.0, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net11.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net11.0/logassertions",
+          "@type": "PackageDependency",
+          "id": "LogAssertions",
+          "range": "[0.17.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net11.0/tunit.assertions",
+          "@type": "PackageDependency",
+          "id": "TUnit.Assertions",
+          "range": "[1.87.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net11.0/tunit.core",
+          "@type": "PackageDependency",
+          "id": "TUnit.Core",
+          "range": "[1.87.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#dependencygroup/net11.0/microsoft.extensions.diagnostics.testing",
+          "@type": "PackageDependency",
+          "id": "Microsoft.Extensions.Diagnostics.Testing",
+          "range": "[11.0.0, )"
+        }
+      ],
+      "targetFramework": "net11.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#LogAssertions.TUnit.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2940,
+      "fullName": "LogAssertions.TUnit.nuspec",
+      "length": 8116,
+      "name": "LogAssertions.TUnit.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 6324,
+      "fullName": "README.md",
+      "length": 17911,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#lib/net11.0/LogAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25672,
+      "fullName": "lib/net11.0/LogAssertions.TUnit.xml",
+      "length": 152559,
+      "name": "LogAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#lib/net11.0/LogAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33076,
+      "fullName": "lib/net11.0/LogAssertions.TUnit.dll",
+      "length": 82944,
+      "name": "LogAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#lib/net10.0/LogAssertions.TUnit.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 25672,
+      "fullName": "lib/net10.0/LogAssertions.TUnit.xml",
+      "length": 152559,
+      "name": "LogAssertions.TUnit.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#lib/net10.0/LogAssertions.TUnit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33028,
+      "fullName": "lib/net10.0/LogAssertions.TUnit.dll",
+      "length": 82432,
+      "name": "LogAssertions.TUnit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "@type": "PackageEntry",
+      "compressedLength": 51,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json.sha256",
+      "length": 64,
+      "name": "manifest.spdx.json.sha256"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#_manifest/spdx_3.0/manifest.spdx.json",
+      "@type": "PackageEntry",
+      "compressedLength": 8073,
+      "fullName": "_manifest/spdx_3.0/manifest.spdx.json",
+      "length": 60165,
+      "name": "manifest.spdx.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.18.07.45/logassertions.tunit.0.17.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tunit",
+    "assertions",
+    "testing",
+    "logging",
+    "fakelogcollector",
+    "dotnet",
+    "aot"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

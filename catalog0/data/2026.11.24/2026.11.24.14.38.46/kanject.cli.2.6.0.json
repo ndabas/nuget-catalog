@@ -1,0 +1,1457 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Kanject Business Solutions",
+  "catalog:commitId": "19cc1b85-d310-446f-a663-ee03182dbbcf",
+  "catalog:commitTimeStamp": "2026-11-24T14:38:46.6779088Z",
+  "copyright": "© 2025 Kanject Business Solutions",
+  "created": "2026-11-24T14:22:46.62Z",
+  "description": "A single .NET global tool that drives C# services on AWS — bootstrap, deploy, and rollback for Lambda, ECS Fargate, static-site, and coupled full-stack targets, all from one committed manifest.",
+  "id": "Kanject.Cli",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-24T14:38:10.97Z",
+  "licenseFile": "LICENSE.md",
+  "licenseUrl": "https://aka.ms/deprecateLicenseUrl",
+  "listed": true,
+  "packageHash": "SXqa0EEydwz/LXKAWLdHidOJck7bicaHZ5pofp3VUlKBgrYmhNT7+Lf5JT25NrDf/huttlcrpzbMffGODEPX0Q==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 20115717,
+  "projectUrl": "https://www.kanject.com/cli",
+  "published": "2026-11-24T14:22:46.62Z",
+  "readmeFile": "README.nuget.md",
+  "releaseNotes": "- Native AOT deploys build in the registry's current SAM build image.\n  lambda-tools starts the build container with a plain `docker run`, so `kanject aws deploy` built a Native AOT entry in whatever `public.ecr.aws/sam/build-dotnet<N>:latest-<arch>` Docker had cached, however old. That image's SDK chooses the .NET runtime the binary links, and NuGet audit never sees it. An image cached before 2026-10-30 kept shipping .NET 10.0.13's vulnerable Brotli decoder (GHSA-p3jp-9v83-76w9), with no warning (proposal 0038 §6.1).\n  - When the image is cached, the deploy now compares its digest with the registry's before anything builds. It reads metadata only (`docker buildx imagetools inspect`) and runs `docker pull` only when the digests differ. A machine that is up to date downloads nothing, and a fresh machine or CodeBuild host makes no extra call.\n  - The deploy's closing notes name the image's .NET version and build date, and say when it was pulled.\n  - When the registry can't be read (offline, or no `docker buildx`) or the pull fails, the deploy builds in the cached image and warns `KANCLI586`, naming both versions and the `docker pull` to run.\n  - `kanject doctor --env` shows the cached image's .NET version on each Native AOT row, and warns `KANCLI586` when the next deploy would pull. It never pulls.\n\n- A `.deb` built by the desktop release kit gives the app's window its own icon in the dock.\n  The kit's Linux phase wrote `/usr/share/applications/<product id>.desktop` with no `StartupWMClass`. A desktop shell matches a running window to a launcher entry by that value or by the file's base name, and a .NET desktop app's window class is its entry assembly's name, not the product id. Nothing matched, so the launcher had the product's icon and the running window showed GNOME's generic one.\n  - The entry now carries `StartupWMClass=<KANJECT_LINUX_ENTRYPOINT>`, the published executable's file name. No new `release.env` key. An app that sets its own window class edits the line in the kit's `LinuxPackager.cs`.\n  - A kit scaffolded before this release keeps the old entry. `kanject configure distribution scaffold` never overwrites a kit, so add the line to the existing `LinuxPackager.cs` or regenerate the kit.\n\n- The tool package no longer carries debug symbols.\n  `Kanject.Cli` shipped a `.pdb` beside each of its own assemblies and each bundled provider's assembly, 22 files across the `net10.0` and `net11.0` builds. They are left out now: the download drops from 22.8 MB to about 20 MB and the installed tool is about 4.6 MB smaller.\n  - A stack trace from an installed tool still names every method, without file and line numbers.\n  - Signed provider manifests list only the files that ship, so they no longer list a `.pdb`.\n\n- The Lambda templates leave .NET 8, which left support on 2026-11-10.\n  `net10.0` is now every Lambda template's default and the only framework they offer on a managed Lambda runtime.\n  - `webapi`, `tasks`, `instant-messaging` and `file-server` defaulted to `net8.0`; they now default to `net10.0` on the `dotnet10` runtime, like `minimal-api`. `--framework net8.0` is refused by `kanject new` and `kanject add function`. `webapi`, `tasks` and `instant-messaging` still offer `net11.0` as a container image, so they still ask for a version; `minimal-api` and `file-server` offer `net10.0` alone, and `kanject new` no longer asks for one there.\n  - An image scaffold on `net10.0` builds from `public.ecr.aws/lambda/dotnet:10-arm64`. The `source-generator` attributes project targets `netstandard2.0;net10.0` (was `netstandard2.0;net8.0;net9.0`).\n  - `packages smoke feed`, `packages smoke restore` and `packages release stage` build their throwaway consumers at `net10.0` unless `--tfm` says otherwise. The `net8.0` default could not restore a package that ships no `net8.0` assets, as the Kanject Core 4.0 libraries do.\n  - `kanject distribution scaffold` writes a release-kit router targeting `net10.0`, and `kanject add distributable --scaffold-archive` writes an archive helper targeting `net10.0` with `RollForward=LatestMajor`. Kits already in a repository are yours and stay as they are; retarget their projects by hand.\n  - Native AOT build-input verification is tested against images from the .NET 11 ILCompiler, which use the .NET 10 encoding; the error for an undecodable image names .NET 8 to 11.\n  - Unchanged: a project you deploy or test that targets `net8.0` still maps to the `dotnet8` Lambda runtime and its test tool, so existing functions can be redeployed. Retarget them to `net10.0` before AWS stops accepting `dotnet8`.\n\n- A release run no longer dies on a stray 304, a lapsed read token, or an uncoded planner crash.\n  Kanject Core's waves of 2026-11-20 and 2026-11-21 needed six reruns for these three reasons (proposal 0064 P1 and P2).\n  - A version listing or service-index read that gets HTTP 304 Not Modified is retried like a 503. The plan sends no validators, so the 304 came from the feed or a proxy in front of it. If the retries run out, the message says that.\n  - CodeArtifact read routes renew their 15-minute token when fewer than two minutes remain, and once more if the feed answers 401. This covers the bump plan's feed reads and the publish preflight. A re-mint that finds the AWS session expired fails `KANCLI566`. A 401 or 403 that survives a fresh token fails `KANCLI544` with a credentials remedy instead of the feed-configuration one.\n  - The plan's restores keep a valid token too. NuGet holds a config's token for the whole restore, so the config is rewritten before each attempt with a token that has at least 12 minutes left, longer than any restore attempt may run. A restore NuGet reports as refused gets a fresh token and runs once more.\n  - A fixed-point probe that throws an unexpected exception, such as the `NullReferenceException` seen in concurrent probing, now fails `KANCLI544`. The message names the package and the probe slot, and points to a crash report under `~/.kanject/package-bump-cache/crashes/` with the full exception. `KANJECT_BUMP_PLAN_SLOTS=1` is still the workaround while the cause is found.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#repository",
+    "type": "git"
+  },
+  "requireLicenseAcceptance": true,
+  "verbatimVersion": "2.6.0",
+  "version": "2.6.0",
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#Kanject.Cli.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3305,
+      "fullName": "Kanject.Cli.nuspec",
+      "length": 7159,
+      "name": "Kanject.Cli.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#README.nuget.md",
+      "@type": "PackageEntry",
+      "compressedLength": 1544,
+      "fullName": "README.nuget.md",
+      "length": 3320,
+      "name": "README.nuget.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#LICENSE.md",
+      "@type": "PackageEntry",
+      "compressedLength": 4527,
+      "fullName": "LICENSE.md",
+      "length": 11289,
+      "name": "LICENSE.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 143,
+      "fullName": "tools/net10.0/any/DotnetToolSettings.xml",
+      "length": 189,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 882425,
+      "fullName": "tools/net10.0/any/Kanject.Cli.Abstractions.dll",
+      "length": 2819584,
+      "name": "Kanject.Cli.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 28882,
+      "fullName": "tools/net10.0/any/Kanject.Cli.Core.dll",
+      "length": 66560,
+      "name": "Kanject.Cli.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.GitHub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18547,
+      "fullName": "tools/net10.0/any/Kanject.Cli.GitHub.dll",
+      "length": 44032,
+      "name": "Kanject.Cli.GitHub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.IdeBootstrap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17650,
+      "fullName": "tools/net10.0/any/Kanject.Cli.IdeBootstrap.dll",
+      "length": 41472,
+      "name": "Kanject.Cli.IdeBootstrap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.MsBuild.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33624,
+      "fullName": "tools/net10.0/any/Kanject.Cli.MsBuild.dll",
+      "length": 87040,
+      "name": "Kanject.Cli.MsBuild.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.Packaging.DotnetPackaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 28606,
+      "fullName": "tools/net10.0/any/Kanject.Cli.Packaging.DotnetPackaging.dll",
+      "length": 73216,
+      "name": "Kanject.Cli.Packaging.DotnetPackaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3061,
+      "fullName": "tools/net10.0/any/Kanject.Cli.deps.json",
+      "length": 18153,
+      "name": "Kanject.Cli.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 667977,
+      "fullName": "tools/net10.0/any/Kanject.Cli.dll",
+      "length": 2016256,
+      "name": "Kanject.Cli.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Cli.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 248,
+      "fullName": "tools/net10.0/any/Kanject.Cli.runtimeconfig.json",
+      "length": 474,
+      "name": "Kanject.Cli.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Core.Annotations.Attributes.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4006,
+      "fullName": "tools/net10.0/any/Kanject.Core.Annotations.Attributes.dll",
+      "length": 10752,
+      "name": "Kanject.Core.Annotations.Attributes.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Core.Annotations.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 84392,
+      "fullName": "tools/net10.0/any/Kanject.Core.Annotations.dll",
+      "length": 259072,
+      "name": "Kanject.Core.Annotations.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Core.Features.Annotations.Attributes.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2634,
+      "fullName": "tools/net10.0/any/Kanject.Core.Features.Annotations.Attributes.dll",
+      "length": 7168,
+      "name": "Kanject.Core.Features.Annotations.Attributes.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Core.Features.Entitlements.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33117,
+      "fullName": "tools/net10.0/any/Kanject.Core.Features.Entitlements.dll",
+      "length": 76800,
+      "name": "Kanject.Core.Features.Entitlements.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Core.Features.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3921,
+      "fullName": "tools/net10.0/any/Kanject.Core.Features.dll",
+      "length": 9216,
+      "name": "Kanject.Core.Features.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Core.Packages.Annotations.Attributes.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2653,
+      "fullName": "tools/net10.0/any/Kanject.Core.Packages.Annotations.Attributes.dll",
+      "length": 7168,
+      "name": "Kanject.Core.Packages.Annotations.Attributes.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Core.Packages.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11710,
+      "fullName": "tools/net10.0/any/Kanject.Core.Packages.dll",
+      "length": 27648,
+      "name": "Kanject.Core.Packages.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Kanject.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 75152,
+      "fullName": "tools/net10.0/any/Kanject.Core.dll",
+      "length": 183808,
+      "name": "Kanject.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Newtonsoft.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 274538,
+      "fullName": "tools/net10.0/any/Newtonsoft.Json.dll",
+      "length": 712464,
+      "name": "Newtonsoft.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/NuGet.Common.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 53249,
+      "fullName": "tools/net10.0/any/NuGet.Common.dll",
+      "length": 107832,
+      "name": "NuGet.Common.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/NuGet.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 73719,
+      "fullName": "tools/net10.0/any/NuGet.Configuration.dll",
+      "length": 171832,
+      "name": "NuGet.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/NuGet.Frameworks.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55078,
+      "fullName": "tools/net10.0/any/NuGet.Frameworks.dll",
+      "length": 123192,
+      "name": "NuGet.Frameworks.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/NuGet.Packaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 279354,
+      "fullName": "tools/net10.0/any/NuGet.Packaging.dll",
+      "length": 735032,
+      "name": "NuGet.Packaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/NuGet.Protocol.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 398586,
+      "fullName": "tools/net10.0/any/NuGet.Protocol.dll",
+      "length": 1148216,
+      "name": "NuGet.Protocol.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/NuGet.Versioning.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32032,
+      "fullName": "tools/net10.0/any/NuGet.Versioning.dll",
+      "length": 62264,
+      "name": "NuGet.Versioning.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Spectre.Console.Ansi.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 109913,
+      "fullName": "tools/net10.0/any/Spectre.Console.Ansi.dll",
+      "length": 242176,
+      "name": "Spectre.Console.Ansi.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Spectre.Console.Cli.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 224637,
+      "fullName": "tools/net10.0/any/Spectre.Console.Cli.dll",
+      "length": 432128,
+      "name": "Spectre.Console.Cli.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/Spectre.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 404694,
+      "fullName": "tools/net10.0/any/Spectre.Console.dll",
+      "length": 847872,
+      "name": "Spectre.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20129,
+      "fullName": "tools/net10.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "length": 36616,
+      "name": "System.Security.Cryptography.ProtectedData.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/de/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2293,
+      "fullName": "tools/net10.0/any/de/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/es/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2283,
+      "fullName": "tools/net10.0/any/es/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/fr/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2270,
+      "fullName": "tools/net10.0/any/fr/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/it/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2286,
+      "fullName": "tools/net10.0/any/it/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/ja/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2318,
+      "fullName": "tools/net10.0/any/ja/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/ko/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2292,
+      "fullName": "tools/net10.0/any/ko/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CertificateManager.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 92207,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CertificateManager.dll",
+      "length": 283304,
+      "name": "AWSSDK.CertificateManager.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CloudFormation.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 189426,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CloudFormation.dll",
+      "length": 612520,
+      "name": "AWSSDK.CloudFormation.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CloudFront.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 274739,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CloudFront.dll",
+      "length": 977576,
+      "name": "AWSSDK.CloudFront.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CloudWatch.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 114230,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CloudWatch.dll",
+      "length": 354472,
+      "name": "AWSSDK.CloudWatch.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CodeArtifact.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 89943,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CodeArtifact.dll",
+      "length": 280744,
+      "name": "AWSSDK.CodeArtifact.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CodeBuild.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 140257,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CodeBuild.dll",
+      "length": 433320,
+      "name": "AWSSDK.CodeBuild.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CodeCommit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 161745,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CodeCommit.dll",
+      "length": 617128,
+      "name": "AWSSDK.CodeCommit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CodeConnections.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55598,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CodeConnections.dll",
+      "length": 160424,
+      "name": "AWSSDK.CodeConnections.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.CodePipeline.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121522,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.CodePipeline.dll",
+      "length": 366248,
+      "name": "AWSSDK.CodePipeline.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 402885,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.Core.dll",
+      "length": 1067176,
+      "name": "AWSSDK.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.DynamoDBv2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 332370,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.DynamoDBv2.dll",
+      "length": 1033896,
+      "name": "AWSSDK.DynamoDBv2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.EC2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1379086,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.EC2.dll",
+      "length": 4997800,
+      "name": "AWSSDK.EC2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.ECR.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121107,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.ECR.dll",
+      "length": 395944,
+      "name": "AWSSDK.ECR.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.ECS.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 261778,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.ECS.dll",
+      "length": 893096,
+      "name": "AWSSDK.ECS.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.Extensions.CborProtocol.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22994,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.Extensions.CborProtocol.dll",
+      "length": 43176,
+      "name": "AWSSDK.Extensions.CborProtocol.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.KeyManagementService.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 98143,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.KeyManagementService.dll",
+      "length": 320168,
+      "name": "AWSSDK.KeyManagementService.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.Lambda.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 210772,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.Lambda.dll",
+      "length": 712872,
+      "name": "AWSSDK.Lambda.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.Route53.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 116031,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.Route53.dll",
+      "length": 361128,
+      "name": "AWSSDK.Route53.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.S3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 374405,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.S3.dll",
+      "length": 1186472,
+      "name": "AWSSDK.S3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.SSO.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27594,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.SSO.dll",
+      "length": 60072,
+      "name": "AWSSDK.SSO.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.SSOOIDC.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 35645,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.SSOOIDC.dll",
+      "length": 84648,
+      "name": "AWSSDK.SSOOIDC.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.SecretsManager.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 53461,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.SecretsManager.dll",
+      "length": 150696,
+      "name": "AWSSDK.SecretsManager.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.SecurityToken.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 46600,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.SecurityToken.dll",
+      "length": 113320,
+      "name": "AWSSDK.SecurityToken.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.SimpleNotificationService.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 76387,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.SimpleNotificationService.dll",
+      "length": 225448,
+      "name": "AWSSDK.SimpleNotificationService.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/AWSSDK.SimpleSystemsManagement.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 349487,
+      "fullName": "tools/net10.0/any/providers/aws/AWSSDK.SimpleSystemsManagement.dll",
+      "length": 1282728,
+      "name": "AWSSDK.SimpleSystemsManagement.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/Kanject.Cli.Aws.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 5107,
+      "fullName": "tools/net10.0/any/providers/aws/Kanject.Cli.Aws.deps.json",
+      "length": 28911,
+      "name": "Kanject.Cli.Aws.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/Kanject.Cli.Aws.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 845955,
+      "fullName": "tools/net10.0/any/providers/aws/Kanject.Cli.Aws.dll",
+      "length": 2505216,
+      "name": "Kanject.Cli.Aws.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/Spectre.Console.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24755,
+      "fullName": "tools/net10.0/any/providers/aws/Spectre.Console.Json.dll",
+      "length": 39424,
+      "name": "Spectre.Console.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121764,
+      "fullName": "tools/net10.0/any/providers/aws/YamlDotNet.dll",
+      "length": 300032,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/dotnet-packaging/Kanject.Cli.Packaging.DotnetPackaging.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1753,
+      "fullName": "tools/net10.0/any/providers/dotnet-packaging/Kanject.Cli.Packaging.DotnetPackaging.deps.json",
+      "length": 9889,
+      "name": "Kanject.Cli.Packaging.DotnetPackaging.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/dotnet-packaging/Kanject.Cli.Packaging.DotnetPackaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 28606,
+      "fullName": "tools/net10.0/any/providers/dotnet-packaging/Kanject.Cli.Packaging.DotnetPackaging.dll",
+      "length": 73216,
+      "name": "Kanject.Cli.Packaging.DotnetPackaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/github/Kanject.Cli.GitHub.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1745,
+      "fullName": "tools/net10.0/any/providers/github/Kanject.Cli.GitHub.deps.json",
+      "length": 9834,
+      "name": "Kanject.Cli.GitHub.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/github/Kanject.Cli.GitHub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 18547,
+      "fullName": "tools/net10.0/any/providers/github/Kanject.Cli.GitHub.dll",
+      "length": 44032,
+      "name": "Kanject.Cli.GitHub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/msbuild/Kanject.Cli.MsBuild.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1742,
+      "fullName": "tools/net10.0/any/providers/msbuild/Kanject.Cli.MsBuild.deps.json",
+      "length": 9789,
+      "name": "Kanject.Cli.MsBuild.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/msbuild/Kanject.Cli.MsBuild.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33624,
+      "fullName": "tools/net10.0/any/providers/msbuild/Kanject.Cli.MsBuild.dll",
+      "length": 87040,
+      "name": "Kanject.Cli.MsBuild.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/pt/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2286,
+      "fullName": "tools/net10.0/any/pt/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/ru/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2359,
+      "fullName": "tools/net10.0/any/ru/Spectre.Console.Cli.resources.dll",
+      "length": 5632,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/sv/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2284,
+      "fullName": "tools/net10.0/any/sv/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/templates/Kanject.Cli.Templates.2.6.0.nupkg",
+      "@type": "PackageEntry",
+      "compressedLength": 132824,
+      "fullName": "tools/net10.0/any/templates/Kanject.Cli.Templates.2.6.0.nupkg",
+      "length": 180527,
+      "name": "Kanject.Cli.Templates.2.6.0.nupkg"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/zh-Hans/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2291,
+      "fullName": "tools/net10.0/any/zh-Hans/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/DotnetToolSettings.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 143,
+      "fullName": "tools/net11.0/any/DotnetToolSettings.xml",
+      "length": 189,
+      "name": "DotnetToolSettings.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.Abstractions.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 824647,
+      "fullName": "tools/net11.0/any/Kanject.Cli.Abstractions.dll",
+      "length": 2654208,
+      "name": "Kanject.Cli.Abstractions.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24434,
+      "fullName": "tools/net11.0/any/Kanject.Cli.Core.dll",
+      "length": 55808,
+      "name": "Kanject.Cli.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.GitHub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15423,
+      "fullName": "tools/net11.0/any/Kanject.Cli.GitHub.dll",
+      "length": 36352,
+      "name": "Kanject.Cli.GitHub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.IdeBootstrap.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 17650,
+      "fullName": "tools/net11.0/any/Kanject.Cli.IdeBootstrap.dll",
+      "length": 41472,
+      "name": "Kanject.Cli.IdeBootstrap.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.MsBuild.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25804,
+      "fullName": "tools/net11.0/any/Kanject.Cli.MsBuild.dll",
+      "length": 66560,
+      "name": "Kanject.Cli.MsBuild.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.Packaging.DotnetPackaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27460,
+      "fullName": "tools/net11.0/any/Kanject.Cli.Packaging.DotnetPackaging.dll",
+      "length": 71168,
+      "name": "Kanject.Cli.Packaging.DotnetPackaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 3062,
+      "fullName": "tools/net11.0/any/Kanject.Cli.deps.json",
+      "length": 18153,
+      "name": "Kanject.Cli.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 564247,
+      "fullName": "tools/net11.0/any/Kanject.Cli.dll",
+      "length": 1715200,
+      "name": "Kanject.Cli.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Cli.runtimeconfig.json",
+      "@type": "PackageEntry",
+      "compressedLength": 248,
+      "fullName": "tools/net11.0/any/Kanject.Cli.runtimeconfig.json",
+      "length": 474,
+      "name": "Kanject.Cli.runtimeconfig.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Core.Annotations.Attributes.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 4006,
+      "fullName": "tools/net11.0/any/Kanject.Core.Annotations.Attributes.dll",
+      "length": 10752,
+      "name": "Kanject.Core.Annotations.Attributes.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Core.Annotations.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 84392,
+      "fullName": "tools/net11.0/any/Kanject.Core.Annotations.dll",
+      "length": 259072,
+      "name": "Kanject.Core.Annotations.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Core.Features.Annotations.Attributes.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2634,
+      "fullName": "tools/net11.0/any/Kanject.Core.Features.Annotations.Attributes.dll",
+      "length": 7168,
+      "name": "Kanject.Core.Features.Annotations.Attributes.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Core.Features.Entitlements.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 33117,
+      "fullName": "tools/net11.0/any/Kanject.Core.Features.Entitlements.dll",
+      "length": 76800,
+      "name": "Kanject.Core.Features.Entitlements.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Core.Features.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3921,
+      "fullName": "tools/net11.0/any/Kanject.Core.Features.dll",
+      "length": 9216,
+      "name": "Kanject.Core.Features.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Core.Packages.Annotations.Attributes.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2653,
+      "fullName": "tools/net11.0/any/Kanject.Core.Packages.Annotations.Attributes.dll",
+      "length": 7168,
+      "name": "Kanject.Core.Packages.Annotations.Attributes.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Core.Packages.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 11710,
+      "fullName": "tools/net11.0/any/Kanject.Core.Packages.dll",
+      "length": 27648,
+      "name": "Kanject.Core.Packages.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Kanject.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 75152,
+      "fullName": "tools/net11.0/any/Kanject.Core.dll",
+      "length": 183808,
+      "name": "Kanject.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Newtonsoft.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 274538,
+      "fullName": "tools/net11.0/any/Newtonsoft.Json.dll",
+      "length": 712464,
+      "name": "Newtonsoft.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/NuGet.Common.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 53249,
+      "fullName": "tools/net11.0/any/NuGet.Common.dll",
+      "length": 107832,
+      "name": "NuGet.Common.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/NuGet.Configuration.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 73719,
+      "fullName": "tools/net11.0/any/NuGet.Configuration.dll",
+      "length": 171832,
+      "name": "NuGet.Configuration.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/NuGet.Frameworks.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55078,
+      "fullName": "tools/net11.0/any/NuGet.Frameworks.dll",
+      "length": 123192,
+      "name": "NuGet.Frameworks.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/NuGet.Packaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 279354,
+      "fullName": "tools/net11.0/any/NuGet.Packaging.dll",
+      "length": 735032,
+      "name": "NuGet.Packaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/NuGet.Protocol.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 398586,
+      "fullName": "tools/net11.0/any/NuGet.Protocol.dll",
+      "length": 1148216,
+      "name": "NuGet.Protocol.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/NuGet.Versioning.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 32032,
+      "fullName": "tools/net11.0/any/NuGet.Versioning.dll",
+      "length": 62264,
+      "name": "NuGet.Versioning.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Spectre.Console.Ansi.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 109913,
+      "fullName": "tools/net11.0/any/Spectre.Console.Ansi.dll",
+      "length": 242176,
+      "name": "Spectre.Console.Ansi.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Spectre.Console.Cli.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 224637,
+      "fullName": "tools/net11.0/any/Spectre.Console.Cli.dll",
+      "length": 432128,
+      "name": "Spectre.Console.Cli.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/Spectre.Console.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 404694,
+      "fullName": "tools/net11.0/any/Spectre.Console.dll",
+      "length": 847872,
+      "name": "Spectre.Console.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 20129,
+      "fullName": "tools/net11.0/any/System.Security.Cryptography.ProtectedData.dll",
+      "length": 36616,
+      "name": "System.Security.Cryptography.ProtectedData.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/de/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2293,
+      "fullName": "tools/net11.0/any/de/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/es/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2283,
+      "fullName": "tools/net11.0/any/es/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/fr/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2270,
+      "fullName": "tools/net11.0/any/fr/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/it/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2286,
+      "fullName": "tools/net11.0/any/it/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/ja/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2318,
+      "fullName": "tools/net11.0/any/ja/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/ko/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2292,
+      "fullName": "tools/net11.0/any/ko/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CertificateManager.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 92207,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CertificateManager.dll",
+      "length": 283304,
+      "name": "AWSSDK.CertificateManager.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CloudFormation.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 189426,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CloudFormation.dll",
+      "length": 612520,
+      "name": "AWSSDK.CloudFormation.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CloudFront.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 274739,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CloudFront.dll",
+      "length": 977576,
+      "name": "AWSSDK.CloudFront.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CloudWatch.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 114230,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CloudWatch.dll",
+      "length": 354472,
+      "name": "AWSSDK.CloudWatch.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CodeArtifact.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 89943,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CodeArtifact.dll",
+      "length": 280744,
+      "name": "AWSSDK.CodeArtifact.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CodeBuild.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 140257,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CodeBuild.dll",
+      "length": 433320,
+      "name": "AWSSDK.CodeBuild.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CodeCommit.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 161745,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CodeCommit.dll",
+      "length": 617128,
+      "name": "AWSSDK.CodeCommit.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CodeConnections.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 55598,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CodeConnections.dll",
+      "length": 160424,
+      "name": "AWSSDK.CodeConnections.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.CodePipeline.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121522,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.CodePipeline.dll",
+      "length": 366248,
+      "name": "AWSSDK.CodePipeline.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.Core.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 402885,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.Core.dll",
+      "length": 1067176,
+      "name": "AWSSDK.Core.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.DynamoDBv2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 332370,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.DynamoDBv2.dll",
+      "length": 1033896,
+      "name": "AWSSDK.DynamoDBv2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.EC2.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 1379086,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.EC2.dll",
+      "length": 4997800,
+      "name": "AWSSDK.EC2.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.ECR.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121107,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.ECR.dll",
+      "length": 395944,
+      "name": "AWSSDK.ECR.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.ECS.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 261778,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.ECS.dll",
+      "length": 893096,
+      "name": "AWSSDK.ECS.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.Extensions.CborProtocol.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 22994,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.Extensions.CborProtocol.dll",
+      "length": 43176,
+      "name": "AWSSDK.Extensions.CborProtocol.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.KeyManagementService.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 98143,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.KeyManagementService.dll",
+      "length": 320168,
+      "name": "AWSSDK.KeyManagementService.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.Lambda.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 210772,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.Lambda.dll",
+      "length": 712872,
+      "name": "AWSSDK.Lambda.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.Route53.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 116031,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.Route53.dll",
+      "length": 361128,
+      "name": "AWSSDK.Route53.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.S3.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 374405,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.S3.dll",
+      "length": 1186472,
+      "name": "AWSSDK.S3.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.SSO.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27594,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.SSO.dll",
+      "length": 60072,
+      "name": "AWSSDK.SSO.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.SSOOIDC.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 35645,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.SSOOIDC.dll",
+      "length": 84648,
+      "name": "AWSSDK.SSOOIDC.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.SecretsManager.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 53461,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.SecretsManager.dll",
+      "length": 150696,
+      "name": "AWSSDK.SecretsManager.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.SecurityToken.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 46600,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.SecurityToken.dll",
+      "length": 113320,
+      "name": "AWSSDK.SecurityToken.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.SimpleNotificationService.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 76387,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.SimpleNotificationService.dll",
+      "length": 225448,
+      "name": "AWSSDK.SimpleNotificationService.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/AWSSDK.SimpleSystemsManagement.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 349487,
+      "fullName": "tools/net11.0/any/providers/aws/AWSSDK.SimpleSystemsManagement.dll",
+      "length": 1282728,
+      "name": "AWSSDK.SimpleSystemsManagement.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/Kanject.Cli.Aws.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 5105,
+      "fullName": "tools/net11.0/any/providers/aws/Kanject.Cli.Aws.deps.json",
+      "length": 28911,
+      "name": "Kanject.Cli.Aws.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/Kanject.Cli.Aws.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 667099,
+      "fullName": "tools/net11.0/any/providers/aws/Kanject.Cli.Aws.dll",
+      "length": 1950720,
+      "name": "Kanject.Cli.Aws.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/Spectre.Console.Json.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 24755,
+      "fullName": "tools/net11.0/any/providers/aws/Spectre.Console.Json.dll",
+      "length": 39424,
+      "name": "Spectre.Console.Json.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/YamlDotNet.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 121764,
+      "fullName": "tools/net11.0/any/providers/aws/YamlDotNet.dll",
+      "length": 300032,
+      "name": "YamlDotNet.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/dotnet-packaging/Kanject.Cli.Packaging.DotnetPackaging.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1756,
+      "fullName": "tools/net11.0/any/providers/dotnet-packaging/Kanject.Cli.Packaging.DotnetPackaging.deps.json",
+      "length": 9889,
+      "name": "Kanject.Cli.Packaging.DotnetPackaging.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/dotnet-packaging/Kanject.Cli.Packaging.DotnetPackaging.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 27460,
+      "fullName": "tools/net11.0/any/providers/dotnet-packaging/Kanject.Cli.Packaging.DotnetPackaging.dll",
+      "length": 71168,
+      "name": "Kanject.Cli.Packaging.DotnetPackaging.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/github/Kanject.Cli.GitHub.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1745,
+      "fullName": "tools/net11.0/any/providers/github/Kanject.Cli.GitHub.deps.json",
+      "length": 9834,
+      "name": "Kanject.Cli.GitHub.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/github/Kanject.Cli.GitHub.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 15423,
+      "fullName": "tools/net11.0/any/providers/github/Kanject.Cli.GitHub.dll",
+      "length": 36352,
+      "name": "Kanject.Cli.GitHub.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/msbuild/Kanject.Cli.MsBuild.deps.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1742,
+      "fullName": "tools/net11.0/any/providers/msbuild/Kanject.Cli.MsBuild.deps.json",
+      "length": 9789,
+      "name": "Kanject.Cli.MsBuild.deps.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/msbuild/Kanject.Cli.MsBuild.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 25804,
+      "fullName": "tools/net11.0/any/providers/msbuild/Kanject.Cli.MsBuild.dll",
+      "length": 66560,
+      "name": "Kanject.Cli.MsBuild.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/pt/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2286,
+      "fullName": "tools/net11.0/any/pt/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/ru/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2359,
+      "fullName": "tools/net11.0/any/ru/Spectre.Console.Cli.resources.dll",
+      "length": 5632,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/sv/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2284,
+      "fullName": "tools/net11.0/any/sv/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/templates/Kanject.Cli.Templates.2.6.0.nupkg",
+      "@type": "PackageEntry",
+      "compressedLength": 132824,
+      "fullName": "tools/net11.0/any/templates/Kanject.Cli.Templates.2.6.0.nupkg",
+      "length": 180527,
+      "name": "Kanject.Cli.Templates.2.6.0.nupkg"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/zh-Hans/Spectre.Console.Cli.resources.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 2291,
+      "fullName": "tools/net11.0/any/zh-Hans/Spectre.Console.Cli.resources.dll",
+      "length": 5120,
+      "name": "Spectre.Console.Cli.resources.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/kanject-plugin.manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1595,
+      "fullName": "tools/net10.0/any/providers/aws/kanject-plugin.manifest.json",
+      "length": 4027,
+      "name": "kanject-plugin.manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/aws/kanject-plugin.manifest.sig",
+      "@type": "PackageEntry",
+      "compressedLength": 98,
+      "fullName": "tools/net10.0/any/providers/aws/kanject-plugin.manifest.sig",
+      "length": 96,
+      "name": "kanject-plugin.manifest.sig"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/dotnet-packaging/kanject-plugin.manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 245,
+      "fullName": "tools/net10.0/any/providers/dotnet-packaging/kanject-plugin.manifest.json",
+      "length": 417,
+      "name": "kanject-plugin.manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/dotnet-packaging/kanject-plugin.manifest.sig",
+      "@type": "PackageEntry",
+      "compressedLength": 97,
+      "fullName": "tools/net10.0/any/providers/dotnet-packaging/kanject-plugin.manifest.sig",
+      "length": 96,
+      "name": "kanject-plugin.manifest.sig"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/github/kanject-plugin.manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 232,
+      "fullName": "tools/net10.0/any/providers/github/kanject-plugin.manifest.json",
+      "length": 369,
+      "name": "kanject-plugin.manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/github/kanject-plugin.manifest.sig",
+      "@type": "PackageEntry",
+      "compressedLength": 96,
+      "fullName": "tools/net10.0/any/providers/github/kanject-plugin.manifest.sig",
+      "length": 96,
+      "name": "kanject-plugin.manifest.sig"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/msbuild/kanject-plugin.manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 231,
+      "fullName": "tools/net10.0/any/providers/msbuild/kanject-plugin.manifest.json",
+      "length": 372,
+      "name": "kanject-plugin.manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net10.0/any/providers/msbuild/kanject-plugin.manifest.sig",
+      "@type": "PackageEntry",
+      "compressedLength": 98,
+      "fullName": "tools/net10.0/any/providers/msbuild/kanject-plugin.manifest.sig",
+      "length": 96,
+      "name": "kanject-plugin.manifest.sig"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/kanject-plugin.manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 1592,
+      "fullName": "tools/net11.0/any/providers/aws/kanject-plugin.manifest.json",
+      "length": 4027,
+      "name": "kanject-plugin.manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/aws/kanject-plugin.manifest.sig",
+      "@type": "PackageEntry",
+      "compressedLength": 98,
+      "fullName": "tools/net11.0/any/providers/aws/kanject-plugin.manifest.sig",
+      "length": 96,
+      "name": "kanject-plugin.manifest.sig"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/dotnet-packaging/kanject-plugin.manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 244,
+      "fullName": "tools/net11.0/any/providers/dotnet-packaging/kanject-plugin.manifest.json",
+      "length": 417,
+      "name": "kanject-plugin.manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/dotnet-packaging/kanject-plugin.manifest.sig",
+      "@type": "PackageEntry",
+      "compressedLength": 98,
+      "fullName": "tools/net11.0/any/providers/dotnet-packaging/kanject-plugin.manifest.sig",
+      "length": 96,
+      "name": "kanject-plugin.manifest.sig"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/github/kanject-plugin.manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 232,
+      "fullName": "tools/net11.0/any/providers/github/kanject-plugin.manifest.json",
+      "length": 369,
+      "name": "kanject-plugin.manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/github/kanject-plugin.manifest.sig",
+      "@type": "PackageEntry",
+      "compressedLength": 98,
+      "fullName": "tools/net11.0/any/providers/github/kanject-plugin.manifest.sig",
+      "length": 96,
+      "name": "kanject-plugin.manifest.sig"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/msbuild/kanject-plugin.manifest.json",
+      "@type": "PackageEntry",
+      "compressedLength": 233,
+      "fullName": "tools/net11.0/any/providers/msbuild/kanject-plugin.manifest.json",
+      "length": 372,
+      "name": "kanject-plugin.manifest.json"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#tools/net11.0/any/providers/msbuild/kanject-plugin.manifest.sig",
+      "@type": "PackageEntry",
+      "compressedLength": 98,
+      "fullName": "tools/net11.0/any/providers/msbuild/kanject-plugin.manifest.sig",
+      "length": 96,
+      "name": "kanject-plugin.manifest.sig"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "packageTypes": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.24.14.38.46/kanject.cli.2.6.0.json#packagetypes/DotnetTool",
+      "@type": "PackageType",
+      "name": "DotnetTool"
+    }
+  ],
+  "tags": [
+    "kanject",
+    "aws",
+    "lambda",
+    "cli",
+    "dotnet-tool"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

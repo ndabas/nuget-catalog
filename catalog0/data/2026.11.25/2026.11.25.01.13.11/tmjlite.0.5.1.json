@@ -1,0 +1,129 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.01.13.11/tmjlite.0.5.1.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "TMJ Sistemas",
+  "catalog:commitId": "3fea842a-dd0d-4528-90d1-edd5681f2e1c",
+  "catalog:commitTimeStamp": "2026-11-25T01:13:11.6662535Z",
+  "copyright": "© 2026 TMJ Sistemas",
+  "created": "2026-11-25T01:08:45.997Z",
+  "description": "TMJLite embedded database driver (.tmjp). Motor nativo incluído para Windows, Linux e macOS — nenhuma configuração necessária.",
+  "id": "TMJLite",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-25T01:12:55.507Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "qb9msN+F6gq0srV+nyZ5P3bBiucM7tyd/YpNTHHwFAVThSz+mrorU+wgKXiWOv8oT+HQntGyCpNBtF/9FpuIHw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 3374006,
+  "projectUrl": "https://tmjlite.com.br/",
+  "published": "2026-11-25T01:08:45.997Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Corrigido\n- **Texto depois do statement não é mais descartado em silêncio.** O parser\n  parava no fim do primeiro statement e ignorava o resto: `DELETE … LIMIT 1`\n  apagava todas as linhas do `WHERE`, `OFFSET` e `RETURNING` eram ignorados,\n  `UPDATE … FROM` atualizava a tabela inteira e, em `a; b`, só `a` rodava.\n  Agora qualquer coisa depois do statement (e do `;` opcional) é `Parse\n  error`, e nada é executado. Vale para `execute`, `query` e statements\n  preparados, em todos os drivers.\n  - **Muda comportamento:** `OFFSET`, `RETURNING`, `DELETE … LIMIT` e\n    `UPDATE … FROM` passam a dar erro de sintaxe (antes \"funcionavam\" com\n    resultado errado). Vários statements numa chamada são recusados com\n    `multiple statements not supported` — mande um por chamada. No CLI, um\n    script com dois statements na mesma linha (`INSERT …; INSERT …;`) passa\n    a dar erro: um statement por linha. O Studio já divide o SQL sozinho.\n- **`UPDATE` que viola índice `UNIQUE` não altera mais nada.** A linha era\n  gravada em memória antes da checagem e a chave antiga saía do índice antes\n  de a nova ser testada: o erro voltava, mas tabela e índice ficavam\n  discordando na sessão, e o statement válido seguinte levava as linhas\n  duplicadas ao disco (em transação, o `COMMIT` gravava a parte do `UPDATE`\n  que tinha \"passado\"). Agora o `UPDATE` inteiro é validado contra o estado\n  final antes de tocar em qualquer linha. O ramo `DO UPDATE` do upsert tinha\n  o mesmo defeito no índice e foi corrigido junto.\n- **Upsert de várias linhas é tudo ou nada.** `INSERT … VALUES (…), (…) ON\n  CONFLICT …` aplica as linhas uma a uma: um erro na segunda (outro índice\n  único, `NOT NULL`, FK) deixava a primeira gravada, e ela ia para o disco no\n  statement válido seguinte ou no `COMMIT`. Agora um erro desfaz tudo o que o\n  statement fez.\n- **Texto com byte NUL (`\\0`) é recusado na entrada**, em literal e em\n  parâmetro (INSERT, UPDATE, upsert). O engine gravava o texto inteiro, mas a\n  FFI devolve texto como C string e ele voltava vazio. O erro agora sai na\n  gravação, em todos os drivers (antes só o driver Rust recusava, e só o\n  literal). Dado binário fica para o tipo `BLOB`.\n- **`CREATE INDEX` na mesma transação do `CREATE TABLE`** falhava com `table\n  not found` (o índice ia ao engine na hora, a tabela só no `COMMIT`) e ainda\n  deixava o nome do índice \"ocupado\" até fechar o banco. Agora funciona, o\n  `ROLLBACK` desfaz os dois, e um `CREATE INDEX` recusado não deixa rastro.\n- **Erro de abertura diz o motivo.** `tmjlite_open*` devolvia NULL sem\n  explicação e os drivers respondiam \"em uso por outro processo?\" para\n  qualquer falha. Agora a mensagem distingue arquivo travado, arquivo que não\n  é um banco TMJLite, permissão negada e diretório inexistente. Um arquivo de\n  **0 bytes** é aceito como banco novo (permite pré-criar o arquivo com a\n  permissão desejada). FFI: função nova `tmjlite_open_error()` — só adição;\n  os seis drivers passam a usá-la e exigem a lib nativa desta versão.\n- **Arquivo principal vazio com `.pwal` não vira banco novo.** Um `.tmjp` de\n  0 bytes só é inicializado se não houver WAL com dados ao lado. Com WAL\n  completo (banco que nunca passou por checkpoint) o banco é recuperado\n  inteiro; com WAL parcial a abertura é recusada (`does not hold the whole\n  database`) e nada é gravado — antes esse caso abria como um banco sem\n  tabelas e o checkpoint da recuperação gravava por cima.\n- **Texto com NUL já gravado** (banco de versão anterior) volta pela FFI com\n  `U+FFFD` no lugar de cada NUL, em vez de uma string vazia: dá para achar e\n  regravar essas linhas.\n- **Upsert devolve a PK** (`last_pk`): a da linha inserida ou a da linha\n  atualizada, quando o statement afeta uma linha. Vinha sempre vazia.\n\n### Alterado\n- **Arquivos novos nascem com permissão `0600`** (Unix): `.tmjp`, `.pwal`,\n  `.lock`, temporários e os oplogs de shadow/branch (`.tmjv`, `.tmjb`,\n  `.tmjc`; o diretório `.shadows/` nasce `0700`). Antes valia o padrão do sistema\n  (`0644` com a umask usual), legível por outros usuários da máquina. Os\n  auxiliares herdam o modo do `.tmjp` quando ele já existe, e o `VACUUM`\n  preserva o modo. **Arquivos existentes não são alterados**: para fechar um\n  banco antigo, `chmod 600` nele. Para um banco novo mais aberto, crie o\n  arquivo vazio com o modo desejado antes de abrir. Consequência a conhecer:\n  um `.tmjp` de 0 bytes **sem** `.pwal` ao lado abre como banco novo e vazio,\n  sem aviso — se um arquivo que tinha dados aparecer com 0 bytes (disco,\n  cópia interrompida), restaure o backup antes de abrir. O `.lock` vazio continua\n  ao lado do banco depois de fechar: apagá-lo abriria uma corrida entre\n  processos com versões diferentes do engine.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.01.13.11/tmjlite.0.5.1.json#repository",
+    "commit": "4d4cb940c1b90a6b055ec99eea13fcdcd118c55f",
+    "type": "git",
+    "url": "https://github.com/TMJacometti/TMJPlatform"
+  },
+  "verbatimVersion": "0.5.1",
+  "version": "0.5.1",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.01.13.11/tmjlite.0.5.1.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.01.13.11/tmjlite.0.5.1.json#TMJLite.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 2876,
+      "fullName": "TMJLite.nuspec",
+      "length": 5763,
+      "name": "TMJLite.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.01.13.11/tmjlite.0.5.1.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3525,
+      "fullName": "README.md",
+      "length": 7267,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.01.13.11/tmjlite.0.5.1.json#lib/net10.0/TMJLite.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3352832,
+      "fullName": "lib/net10.0/TMJLite.dll",
+      "length": 6590976,
+      "name": "TMJLite.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.01.13.11/tmjlite.0.5.1.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tmjlite",
+    "database",
+    "embedded",
+    "sql"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

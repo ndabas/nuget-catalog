@@ -1,0 +1,129 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.13.29.49/tmjlite.0.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "TMJ Sistemas",
+  "catalog:commitId": "4803a5c9-3f4e-4678-b321-e9367e409e2e",
+  "catalog:commitTimeStamp": "2026-11-25T13:29:49.3183501Z",
+  "copyright": "© 2026 TMJ Sistemas",
+  "created": "2026-11-25T13:22:46.42Z",
+  "description": "TMJLite embedded database driver (.tmjp). Motor nativo incluído para Windows, Linux e macOS — nenhuma configuração necessária.",
+  "id": "TMJLite",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-25T13:29:25.63Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "wegncGfccM4VyPht2QNuAvwimyMcvoc68zPvHjcdiZJzRuel/lvxbHaxsKpc/Slw3n/Rjde4/f348LkeSQjHEg==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 3768701,
+  "projectUrl": "https://tmjlite.com.br/",
+  "published": "2026-11-25T13:22:46.42Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "### Adicionado\n- **Abrir um banco em uso, somente para leitura e sem lock.** Dá para observar\n  um banco que outro processo segura: `tmjlite --read-only <arquivo>` no CLI,\n  `ReadOnlyDb` no engine e, no TMJStudio, a abertura automática em modo\n  \"somente leitura\" quando o arquivo está em uso (sem a espera de 10 s), além\n  do botão \"Abrir somente leitura\". Só `SELECT` e `EXPLAIN` rodam; cada\n  instrução vê o último commit do dono; nada é criado ou alterado no disco\n  (nem `.lock`, nem recovery do WAL). Se o dono fizer checkpoint no meio da\n  leitura, a instrução é repetida sozinha e, no limite, devolve o erro\n  repetível `BUSY` (501), nunca um resultado misturado. Arquivo legado ou\n  anterior à 0.5.0 é recusado neste modo: abra uma vez do jeito normal.\n- **Várias instruções na mesma linha do CLI** (`INSERT …; SELECT …;`) rodam em\n  ordem. O corte é feito pelo `split_statements` do engine, o mesmo que o\n  TMJStudio passou a usar.\n- **Resultado dos testes publicado a cada versão.** A release passa a trazer\n  `TEST-REPORT.md` e `test-report.json`: contagem por suíte (engine, FFI,\n  Studio), torture SQL completo, `kill -9` real com o número de repetições,\n  harness de durabilidade e benchmark. Falhas e\n  testes ignorados aparecem por nome, e uma tentativa repetida fica\n  registrada. Só nomes, resultados e durações — o fonte do engine continua\n  privado. O torture completo também roda toda noite no CI.\n- **Instalador do CLI para macOS e Linux:**\n  `curl -fsSL https://tmjlite.com.br/install.sh | bash` baixa o `.tar.gz` da\n  release, confere o SHA-256 e instala o `tmjlite` em `/usr/local/bin` ou\n  `~/.local/bin`, sem `sudo`. O CLI de macOS/Linux sai também em `.tar.gz`\n  (o `.zip` continua), e a release traz um `SHA256SUMS`.\n- **Fórmula do Homebrew** (`brew install tmjacometti/tap/tmjlite`), gerada a\n  cada versão quando o tap está configurado.\n- **Códigos de erro estáveis.** Todo erro passa a ter, além da mensagem, um\n  código numérico que não muda entre versões: violação de `UNIQUE` (401),\n  `NOT NULL` (403), chave estrangeira (404), banco travado por outro processo\n  (500), arquivo que não é um banco (603), erro de sintaxe (100), tabela\n  inexistente (201), corrupção (7xx), E/S (8xx), transação (9xx), merge\n  (10xx)… A centena é a categoria. A aplicação não precisa mais procurar\n  trechos da mensagem em inglês. A tabela completa está no manual (\"Códigos de\n  erro\") e em `tmjlite.h` (`TMJLITE_ERR_*`). As mensagens não mudaram.\n  - **Engine:** `TMJError::code()` devolve um `ErrorCode` (`#[non_exhaustive]`,\n    `#[repr(i32)]`), com `category()`, `class()` e `message()`.\n  - **API C:** `tmjlite_errcode`, `tmjlite_errcode_shared`,\n    `tmjlite_shadow_errcode`, `tmjlite_cursor_errcode` e `tmjlite_open_errcode`\n    acompanham cada função de mensagem; `tmjlite_errcode_name` dá o nome de um\n    código. Um panic capturado na FFI vem como `TMJLITE_ERR_INTERNAL` (1400).\n  - **Drivers:** Python `e.code` / `e.code_name` / `e.category`\n    (`tmjlite.ErrorCode`; `TMJLiteError` e `ErrorCode` agora são exportados\n    pelo pacote); Node `e.code` (nome), `e.errno` (número) e `e.category`;\n    C# `e.Code` (`TMJLiteErrorCode`), `e.ErrorNumber`, `e.Category`; Java\n    `e.getCode()` (`ErrorCode`), `e.getErrorNumber()`, `e.getCategory()`; Go\n    `errors.Is(err, tmjlite.ErrUniqueViolation)` /\n    `errors.Is(err, tmjlite.CategoryConstraint)` e o campo `Code`; Rust\n    `e.code()`, `e.raw_code()`, `e.category()`.\n- **Versão da ABI:** `tmjlite_abi_version()` devolve um inteiro que só sobe\n  quando a API C muda, separado de `tmjlite_version()`. Esta é a ABI 2 (uma\n  biblioteca sem o símbolo é a ABI 1). Os seis drivers carregam os símbolos\n  novos de forma opcional: driver novo com biblioteca nativa antiga continua\n  funcionando, com código de erro \"desconhecido\" (-1). Nos drivers:\n  `abi_version()` / `abiVersion()` / `AbiVersion()` / `ABIVersion()`.\n\n### Corrigido\n- **Subquery correlacionada por FK devolvia vazio logo depois de abrir o\n  banco.** `… WHERE EXISTS (SELECT … FROM pedidos p WHERE p.cliente_id = c.id)`\n  com índice em `cliente_id` não achava nada enquanto a tabela não tivesse\n  recebido uma escrita na sessão: o seek comparava o UUID da PK com a coluna\n  de texto pelo tipo errado. Agora acha.\n- **`INSERT` com apóstrofo gravava o texto errado.** `INSERT INTO t VALUES\n  ('it''s')` guardava `it''s` (com as duas aspas) quando passava pelo caminho\n  rápido de insert. Agora grava `it's`.\n- **SQL muito aninhado não derruba mais o processo.** Parênteses ou\n  subqueries com milhares de níveis, centenas de milhares de linhas de\n  comentário ou cadeias enormes de `AND`/`OR` estouravam a pilha. O parser\n  limita o aninhamento a 32 níveis (erro `NESTING_TOO_DEEP`, 1101) e trata os\n  outros casos sem recursão.\n- **Panic do engine não atravessa mais a FFI.** Toda função da biblioteca\n  nativa captura o panic e devolve erro (`INTERNAL`, 1400) pelo canal que já\n  usava, em vez de encerrar o processo da aplicação.\n- **macOS não mata mais o `tmjlite` baixado pelo navegador.** O CLI e a\n  `libtmjlite_ffi.dylib` que vai dentro dos drivers (PyPI, npm, NuGet, Maven,\n  crates.io, módulo Go e zips) passam a sair assinados com Developer ID e\n  notarizados pela Apple, como o Studio já saía. Antes o binário só tinha a\n  assinatura ad-hoc do linker e o Gatekeeper encerrava o processo na primeira\n  execução (`zsh: killed ./tmjlite`); o contorno com `xattr` deixa de ser\n  necessário.\n\n### Alterado\n- **DDL dentro de transação agora é desfeito pelo `ROLLBACK`.** `CREATE INDEX`,\n  `DROP INDEX` e `ALTER TABLE … SET MERGE POLICY` dentro de `BEGIN` eram\n  aplicados na hora e sobreviviam ao `ROLLBACK`; agora fazem parte da\n  transação, como `CREATE TABLE` já fazia. Quem contava com o índice criado\n  mesmo depois de um `ROLLBACK` precisa criá-lo fora da transação.\n- **`INSERT`, `UPDATE` e `DELETE` não carregam mais a tabela para a memória.**\n  A instrução lê do arquivo só as linhas que o `WHERE` alcança (pelo índice,\n  quando há) e grava direto. Um banco de vários GB deixa de ocupar RAM do\n  tamanho da tabela na primeira escrita. Vale também para tabelas com FK\n  (o pai é conferido pelo índice de PK; `RESTRICT`, `CASCADE` e `SET NULL`\n  buscam os filhos pelo índice da FK, quando existe) e para `INSERT … ON\n  CONFLICT`. `CREATE INDEX`, `DROP TABLE` e `TRUNCATE` também não carregam\n  nada (o índice é montado lendo a tabela em pedaços). Só `ALTER TABLE` que\n  mexe em coluna ainda carrega a tabela, e a solta no fim da instrução.\n  `DELETE` linha a linha ficou ~4× mais rápido, `UPDATE` ~2×; `INSERT`, igual.\n  Para quem usa o crate direto: `db.tables` só tem o que foi materializado\n  com `load_table`; o schema se lê com `table_names()` e o novo\n  `table_columns(nome)` / `table_row_count(nome)`.\n- **TMJStudio: a lista de tabelas não carrega mais as linhas.** O explorer lia\n  todas as tabelas inteiras para mostrar nome, colunas e contagem; agora vem\n  do catálogo do arquivo.\n- **A transação passou a viver no arquivo, não na memória.** Cada instrução de\n  um `BEGIN` é gravada na hora e fica pendente até o `COMMIT`; o `ROLLBACK`\n  descarta o pendente. Some a cópia da tabela inteira que DDL e `TRUNCATE`\n  guardavam para o `ROLLBACK`, e o `COMMIT` deixa de reescrever a tabela.\n  `INSERT`s seguidos continuam indo em lote (100 mil numa transação: igual à\n  versão anterior). Se o disco falhar no meio de uma transação, ela é desfeita\n  inteira e o erro diz isso.\n- **Licença.** O código-fonte do engine, da FFI, do CLI e do TMJStudio é\n  proprietário da TMJ Sistemas de Informação (arquivo `LICENSE`). Os drivers\n  continuam sob MIT, cada um com o seu `LICENSE`. Os binários oficiais podem\n  ser usados e redistribuídos sem modificação.\n- **Uma linha só com `;` no CLI não faz nada** (antes dava erro de parse).\n- **Coluna `HASH`: o formato SHA-256 antigo não é mais verificado.** As\n  funções de verificação não tinham uso no engine e foram removidas; uma linha\n  gravada antes de 2026-06 só casa com `WHERE col = '<texto>'` depois de um\n  `UPDATE` com o texto, como já acontecia.\n- **CLI em crate próprio** (`tmjlite-cli`); a biblioteca do engine não depende\n  mais de `rustyline` e expõe só a fachada pública do `lib.rs`.\n- **Driver Rust: `Error::Database` guarda `DatabaseError`** (mensagem +\n  código) no lugar de `String`. O tipo se comporta como a mensagem (`Deref`\n  para `str`, `Display`, `Debug` igual, `==` com `&str`/`String`,\n  `From<&str>`/`From<String>`), então `Error::Database(m) if m.contains(\"…\")`\n  continua compilando. Precisa de ajuste só quem movia o conteúdo para uma\n  `String` (use `m.into()` ou `m.into_string()`) ou construía a variante com\n  uma `String` já tipada (acrescente `.into()`).\n- **Driver Rust carrega biblioteca nativa mais antiga:** os símbolos da ABI 2\n  são opcionais, em vez de recusar a biblioteca inteira por um símbolo ausente.\n- **Driver Go liga com `-ldl` no Linux** (os símbolos da ABI 2 são resolvidos\n  com `dlsym` em tempo de execução).",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.13.29.49/tmjlite.0.6.0.json#repository",
+    "commit": "e0e5cc52ccda5af2eb558eccdfaf51ab42be0f3f",
+    "type": "git",
+    "url": "https://github.com/TMJacometti/TMJPlatform"
+  },
+  "verbatimVersion": "0.6.0",
+  "version": "0.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.13.29.49/tmjlite.0.6.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.13.29.49/tmjlite.0.6.0.json#TMJLite.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4968,
+      "fullName": "TMJLite.nuspec",
+      "length": 10126,
+      "name": "TMJLite.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.13.29.49/tmjlite.0.6.0.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 3525,
+      "fullName": "README.md",
+      "length": 7267,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.13.29.49/tmjlite.0.6.0.json#lib/net10.0/TMJLite.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 3745436,
+      "fullName": "lib/net10.0/TMJLite.dll",
+      "length": 7440896,
+      "name": "TMJLite.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.25.13.29.49/tmjlite.0.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12985,
+      "fullName": ".signature.p7s",
+      "length": 12985,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "tmjlite",
+    "database",
+    "embedded",
+    "sql"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

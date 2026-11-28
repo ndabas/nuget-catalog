@@ -1,0 +1,377 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "s.bokatuk",
+  "catalog:commitId": "ee08e825-f6ff-4a80-bf7c-3e45bd7de13d",
+  "catalog:commitTimeStamp": "2026-11-28T00:05:51.9633596Z",
+  "copyright": "Copyright © s.bokatuk",
+  "created": "2026-11-28T00:02:36.067Z",
+  "description": "One cross-platform API for the Salesforce Marketing Cloud SFMC SDK core: awaitable\n      initialization, identity (contact key and attributes) and custom event tracking on Android\n      and iOS from shared code, over the SFMCSDK.Net.Android and SFMCSDK.Net.iOS bindings.\n      Restores on plain target frameworks too, so shared class libraries and unit tests need no\n      platform conditionals.",
+  "iconFile": "icon.png",
+  "id": "SFMCSDK.Net",
+  "isPrerelease": true,
+  "lastEdited": "2026-11-28T00:05:14.203Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "s4047wQm7hFcQQB9cRvv4m8A9jpxe5seIS3ElHE4oKs3BT4cPhwlyzgODoJweD0mP7Zv6FuCgtrZe/sUISizZQ==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 180937,
+  "projectUrl": "https://github.com/sbokatuk/SFMCSDK.Net",
+  "published": "2026-11-28T00:02:36.067Z",
+  "readmeFile": "README.md",
+  "releaseNotes": "## What's changed\n\nRe-pins the façade onto the current generation of both native cores, and makes iOS\ninitialization wait for the SDK instead of a clock.\n\n| | Native | Binding package |\n| --- | --- | --- |\n| iOS | SFMCSDK **5.0.0** (was 4.0.1) | [SFMCSDK.Net.iOS 5.0.0.1](https://github.com/sbokatuk/SFMCSDK.Net.iOS/blob/main/docs/release-notes/5.0.0.1.md) (was 4.0.1.2) |\n| Android | sfmcsdk **3.3.0** (was 3.1.1) | [SFMCSDK.Net.Android 3.3.0.1](https://github.com/sbokatuk/SFMCSDK.Net.Android/blob/main/docs/release-notes/3.3.0.1.md) (was 3.1.1.1) |\n\nBoth stay pinned exactly. Target frameworks (`net8.0`, `net9.0`, `net10.0`, each with its\n`-android` and `-ios` head) and the floors (iOS 12.2, Android API 26) are unchanged. The façade's\npublic API is unchanged: a reflection diff against 4.0.1.2 finds no member added or removed on any\ntarget framework.\n\n## Breaking changes\n\n- **This generation pairs with MobilePush 12.** The iOS core enforces it: `SFMCSdk.State` on 5.0.0\n  accepts the MobilePush module only in the `12.0.0 - 12.9.9` range, and native MobilePush 12.0.0\n  in turn needs sfmcsdk 3.3.0 and SFMCSDK 5.0.0. An app that also references the MobilePush\n  bindings directly stays on\n  [SFMCSDK.Net 4.0.1.2](https://github.com/sbokatuk/SFMCSDK.Net/releases/tag/v4.0.1.2) until it\n  moves to their 12.x packages. On iOS NuGet refuses the mix, because MarketingCloudSDK.Net.iOS\n  11.0.2.x pins the core exactly; on Android it does not, because MarketingCloudSDK.Net.Android\n  11.0.1.x only sets a minimum, so it would restore sfmcsdk 3.3.0 under MobilePush 11, a pairing\n  nobody has run. Apps on the [MarketingCloudSDK.Net](https://github.com/sbokatuk/MarketingCloudSDK.Net)\n  umbrella are not affected: its current release pins this package at 4.0.1.1.\n- **On iOS, `InitializeAsync` now fails when the SDK does not initialize.** It used to call\n  `initializeSdk` without a completion, wait a fixed two seconds and report success whatever had\n  happened. It now awaits the completion and throws `TimeoutException` after\n  `SfmcSdkOptions.InitializationTimeout` (30 seconds by default) when none arrives. The case\n  where none arrives is an app without keychain access, and in practice that is a simulator build\n  with no entitlements; see the next section. Such an app used to see `IsInitialized == true` on\n  an SDK that was not running.\n- **Changes in the raw namespaces.** The bindings underneath arrive with this package, so their own\n  breaks reach code that uses `SFMCSDK` or `Com.Salesforce.Marketingcloud.Sfmcsdk` directly. On iOS:\n  `SFMCSdkEventCategory.FlushEvents` is 7 (was 6), `ISFMCSdkInAppMessageDetails` has two more\n  required members, four enums gained cases, and 26 parameterless constructors that could only abort\n  the process are removed. On Android: `IImageCacheApi` gained `Evict`, which matters only to code\n  that implements it. The platform release notes linked above have the details. Code that goes\n  through the façade alone needs no change.\n\n## Fixed\n\n- **iOS initialization waits for the SDK.** `InitializeAsync` used to report success after two\n  seconds without asking the SDK, on the belief that with no modules configured `initializeSdk`'s\n  completion never fires. That belief was wrong. The completion reports one status per configured\n  module, so here it reports none, but it does fire: once, a few milliseconds after the call,\n  measured on SFMCSDK 4.0.1 and 5.0.0. What had looked like an SDK quirk was the keychain. The SDK\n  keeps its keys there and, refused it, neither initializes nor reports, and a simulator app\n  without entitlements is refused (`errSecMissingEntitlement`, -34018). The .NET 8 and .NET 9 iOS\n  workloads build simulator apps that way, while the .NET 10 workload embeds simulated entitlements,\n  which is why the behaviour seemed to depend on the target framework. `InitializeAsync` on iOS now\n  returns in milliseconds instead of two seconds, `IsInitialized` means the SDK reported, and the\n  timeout message names the keychain. A device build is signed with a provisioning profile and has\n  keychain access. For a simulator build, the\n  [README](https://github.com/sbokatuk/SFMCSDK.Net#troubleshooting) shows the one entitlement to add.\n  The README, the XML documentation and the code comments no longer repeat the wrong explanation.\n- The sample app and the device tests carry that entitlement, for simulator runtime identifiers\n  only. The iOS device tests check the keychain before anything else and record how long\n  `InitializeAsync` took, and both heads now check `IsInitialized` before and after it. The sample\n  also writes its log lines to stdout, so a run can be checked from logcat or the simulator console.\n\n## Build\n\n- The Android CI jobs (emulator checks, sample, Release link check) set up Temurin JDK 17\n  themselves. `ubuntu-latest` is now Ubuntu 26.04, whose default JDK 25 no .NET for Android band\n  accepts. The .NET 8 band then falls back to JDK 11, which cannot read the sfmcsdk `.aar` (Java 17\n  bytecode) and fails with `JAVAC0000 … wrong version 61.0, should be 55.0`, as the same leg did in\n  SFMCSDK.Net.Android. An app on `net8.0-android34.0` can hit the same error; the README's\n  Troubleshooting says how to build it with JDK 17.\n\n## Tested\n\nLocally, with Xcode 26.0.1 and .NET 8.0.427, 9.0.320 and 10.0.403, against the packed package and\nthe two binding packages from nuget.org:\n\n- the unit tests on the neutral build and the package tests on the packed `.nupkg` (target\n  frameworks, exact pins, licence, symbols);\n- the device checks on an iPhone 17 Pro simulator (iOS 26.5) on `net8.0-ios18.0`,\n  `net9.0-ios18.0` and `net10.0-ios26.0`: the keychain is usable, `InitializeAsync` completes in\n  about 20 ms, `IsInitialized` follows it, the SDK reports 5.0.0, identity and tracking reach\n  native code, and the one-shot guard holds;\n- the same build without the entitlement, as a negative control: the keychain answers -34018 and\n  `InitializeAsync` throws `TimeoutException` naming the keychain, where 4.0.1.2 would have\n  reported success;\n- the device checks on an Android 15 (API 35) emulator on `net8.0-android34.0`,\n  `net9.0-android35.0` and `net10.0-android36.0`: `InitializeAsync` completes in 120 to 150 ms,\n  the state is `READY` and the SDK logs version 3.3.0;\n- the MAUI sample on both heads (`net10.0-android36.0` on the emulator, `net10.0-ios26.0` on the\n  simulator): initialization, a profile id and custom events, with the app kept in use on Android\n  for over a minute.\n\nNot tested here: a real device, a MobilePush module of either generation loaded against this core,\nand a tenant, since the device checks and the sample use no credentials by design.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#repository",
+    "commit": "c1e010e2ff78a73da703d0fb79c5c62fbdae22c2",
+    "type": "git",
+    "url": "https://github.com/sbokatuk/SFMCSDK.Net"
+  },
+  "title": "Salesforce Marketing Cloud SFMC SDK for .NET, cross-platform",
+  "verbatimVersion": "5.0.0.1-beta.11.16",
+  "version": "5.0.0.1-beta.11.16",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net8.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net8.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net8.0-android34.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net8.0-android34.0/sfmcsdk.net.android",
+          "@type": "PackageDependency",
+          "id": "SFMCSDK.Net.Android",
+          "range": "[3.3.0.1, 3.3.0.1]"
+        }
+      ],
+      "targetFramework": "net8.0-android34.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net8.0-ios18.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net8.0-ios18.0/sfmcsdk.net.ios",
+          "@type": "PackageDependency",
+          "id": "SFMCSDK.Net.iOS",
+          "range": "[5.0.0.1, 5.0.0.1]"
+        }
+      ],
+      "targetFramework": "net8.0-ios18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net9.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net9.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net9.0-android35.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net9.0-android35.0/sfmcsdk.net.android",
+          "@type": "PackageDependency",
+          "id": "SFMCSDK.Net.Android",
+          "range": "[3.3.0.1, 3.3.0.1]"
+        }
+      ],
+      "targetFramework": "net9.0-android35.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net9.0-ios18.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net9.0-ios18.0/sfmcsdk.net.ios",
+          "@type": "PackageDependency",
+          "id": "SFMCSDK.Net.iOS",
+          "range": "[5.0.0.1, 5.0.0.1]"
+        }
+      ],
+      "targetFramework": "net9.0-ios18.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "targetFramework": "net10.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net10.0-android36.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net10.0-android36.0/sfmcsdk.net.android",
+          "@type": "PackageDependency",
+          "id": "SFMCSDK.Net.Android",
+          "range": "[3.3.0.1, 3.3.0.1]"
+        }
+      ],
+      "targetFramework": "net10.0-android36.0"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net10.0-ios26.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#dependencygroup/net10.0-ios26.0/sfmcsdk.net.ios",
+          "@type": "PackageDependency",
+          "id": "SFMCSDK.Net.iOS",
+          "range": "[5.0.0.1, 5.0.0.1]"
+        }
+      ],
+      "targetFramework": "net10.0-ios26.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#SFMCSDK.Net.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 3636,
+      "fullName": "SFMCSDK.Net.nuspec",
+      "length": 9099,
+      "name": "SFMCSDK.Net.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net8.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8154,
+      "fullName": "lib/net8.0/SFMCSDK.Net.dll",
+      "length": 18432,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net8.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7026,
+      "fullName": "lib/net8.0/SFMCSDK.Net.xml",
+      "length": 27914,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net8.0-android34.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9539,
+      "fullName": "lib/net8.0-android34.0/SFMCSDK.Net.dll",
+      "length": 20992,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net8.0-android34.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7181,
+      "fullName": "lib/net8.0-android34.0/SFMCSDK.Net.xml",
+      "length": 28904,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net8.0-ios18.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9642,
+      "fullName": "lib/net8.0-ios18.0/SFMCSDK.Net.dll",
+      "length": 22016,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net8.0-ios18.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7279,
+      "fullName": "lib/net8.0-ios18.0/SFMCSDK.Net.xml",
+      "length": 29178,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net9.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8157,
+      "fullName": "lib/net9.0/SFMCSDK.Net.dll",
+      "length": 18432,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net9.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7026,
+      "fullName": "lib/net9.0/SFMCSDK.Net.xml",
+      "length": 27914,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net9.0-android35.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9538,
+      "fullName": "lib/net9.0-android35.0/SFMCSDK.Net.dll",
+      "length": 20992,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net9.0-android35.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7181,
+      "fullName": "lib/net9.0-android35.0/SFMCSDK.Net.xml",
+      "length": 28904,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net9.0-ios18.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9644,
+      "fullName": "lib/net9.0-ios18.0/SFMCSDK.Net.dll",
+      "length": 22016,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net9.0-ios18.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7279,
+      "fullName": "lib/net9.0-ios18.0/SFMCSDK.Net.xml",
+      "length": 29178,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#icon.png",
+      "@type": "PackageEntry",
+      "compressedLength": 3971,
+      "fullName": "icon.png",
+      "length": 4699,
+      "name": "icon.png"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#README.md",
+      "@type": "PackageEntry",
+      "compressedLength": 8550,
+      "fullName": "README.md",
+      "length": 21570,
+      "name": "README.md"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#licenses/LICENSE",
+      "@type": "PackageEntry",
+      "compressedLength": 632,
+      "fullName": "licenses/LICENSE",
+      "length": 1071,
+      "name": "LICENSE"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net10.0-android36.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9544,
+      "fullName": "lib/net10.0-android36.0/SFMCSDK.Net.dll",
+      "length": 20992,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net10.0-android36.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7181,
+      "fullName": "lib/net10.0-android36.0/SFMCSDK.Net.xml",
+      "length": 28904,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net10.0-ios26.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 9653,
+      "fullName": "lib/net10.0-ios26.0/SFMCSDK.Net.dll",
+      "length": 22016,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net10.0-ios26.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7279,
+      "fullName": "lib/net10.0-ios26.0/SFMCSDK.Net.xml",
+      "length": 29178,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net10.0/SFMCSDK.Net.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 8147,
+      "fullName": "lib/net10.0/SFMCSDK.Net.dll",
+      "length": 18432,
+      "name": "SFMCSDK.Net.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#lib/net10.0/SFMCSDK.Net.xml",
+      "@type": "PackageEntry",
+      "compressedLength": 7026,
+      "fullName": "lib/net10.0/SFMCSDK.Net.xml",
+      "length": 27914,
+      "name": "SFMCSDK.Net.xml"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.28.00.05.51/sfmcsdk.net.5.0.0.1-beta.11.16.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12983,
+      "fullName": ".signature.p7s",
+      "length": 12983,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "salesforce",
+    "marketingcloud",
+    "sfmc",
+    "sfmcsdk",
+    "maui",
+    "android",
+    "ios",
+    "identity",
+    "events",
+    "binding"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}

@@ -1,0 +1,445 @@
+{
+  "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json",
+  "@type": [
+    "PackageDetails",
+    "catalog:Permalink"
+  ],
+  "authors": "Caroline Ott",
+  "catalog:commitId": "d629f4bf-2774-464e-bb9c-50974fc8468c",
+  "catalog:commitTimeStamp": "2026-11-27T12:44:50.078402Z",
+  "created": "2026-11-27T12:41:46.65Z",
+  "description": "Git and Git LFS provider for VersionControlService workspace sessions.",
+  "id": "VersionControlService.Git",
+  "isPrerelease": false,
+  "lastEdited": "2026-11-27T12:44:41.877Z",
+  "licenseExpression": "MIT",
+  "licenseUrl": "https://licenses.nuget.org/MIT",
+  "listed": true,
+  "packageHash": "8U3vK9sBMSUggn/A994ryxDtRT8ZKPbkc2CVqR5qKDtISGLFptRFDIEmYFtbIdtUvdPtmO8cqVsmHk9KEFI0Jw==",
+  "packageHashAlgorithm": "SHA512",
+  "packageSize": 1067623,
+  "published": "2026-11-27T12:41:46.65Z",
+  "releaseNotes": "### Added\n\n-   `DiffComparison.Revision` compares the version in a revision with the version in its first parent. The comparison does not read the working tree. The Git provider accepts only a full object id as the revision.\n-   `IHistory` is a new group of functions. `ListRevisions` returns the revisions that lead to the current one, newest first, in pages, and `GetRevisionChanges` returns the objects that a revision changed against its first parent. The Git provider has both and the lakeFS provider answers `NoOp`. The new public types of the history are `ListRevisionsRequest`, `RevisionPage`, `RevisionEntry` and `RevisionSignature`. `ListRevisions` fails with the new code `invalid_cursor` for a malformed cursor, and `GetRevisionChanges` fails with the new code `revision_not_found` for a full object id that names no commit.\n-   `IVersionControl` is the one interface of a provider and replaces `ProviderFactory` and `WorkspaceSession`. It has `Probe`, `VerifyLocation`, `Initialize`, `Clone`, `Bind`, `Open`, `CheckDependencies`, `InstallDependency`, the eight functions of the former core (`GetStatus`, `ListRefs`, `CreateRef`, `PreflightSwitchRef`, `SwitchRef`, `CreateRevision`, `RestorePaths` and `GetDiffSummary`) and `Close`.\n-   The group interfaces `ISynchronization`, `IConflictResolution`, `ITextDiff`, `IHistory`, `IRepositoryBrowser`, `IObjectMaterialization`, `IStoragePolicy` and `IMaintenance` are members of `IVersionControl` and replace the optional services. Each function keeps the name it had and takes the `Repository` as its first argument.\n-   `Repository` is an opened repository. `Open`, `Clone`, `Initialize` and `Bind` return it and `Close` releases it. Every other function takes it as its first argument. `Repository.Descriptor` holds the `RepositoryDescriptor`. A provider that receives a repository that another provider opened answers with the failure of `Repository.ofAnotherProvider`, which has the code `repository_of_another_provider`.\n-   Every call through the interface returns `CallResult<'T>`. `Executed` holds the `OperationResult<'T>` of a provider that ran the function, and `NoOp` holds the reason of a provider that does not have it. A call to a function that is missing never throws.\n-   `ProviderFunctions` lists every function of a provider except `Probe` and `Close`. Each function is an `Entry`, either `Implemented` with the function or `Missing` with the reason. The groups have their own records, `SynchronizationFunctions`, `ConflictResolutionFunctions`, `TextDiffFunctions`, `HistoryFunctions`, `RepositoryBrowserFunctions`, `ObjectMaterializationFunctions`, `StoragePolicyFunctions` and `MaintenanceFunctions`.\n-   `ListedProvider(probe, close, functions)` builds an `IVersionControl` from a `ProviderFunctions` list. It is the only implementation of the interface in the library, and an external provider uses it too.\n-   `Subscribe.single` returns one function of a provider with its own signature and its direct result, or the reason when the provider does not have it. `Subscribe.all` returns the whole `ProviderFunctions` list. Both fail for an `IVersionControl` that is not a `ListedProvider`. Subscribing runs no check and calls no function.\n-   `GitProvider.create` takes a `GitProviderOptions` record (`Hooks`, `Credentials`, `RevisionIdentity`, `RevisionPolicy` and `TextDiff`) and returns the Git provider. `GitProviderOptions.defaults` has no hooks, anonymous credentials and identity, the automatic revision policy and no text diff pool. The Git provider has every function.\n-   `LakeFsProvider.create` takes a `LakeFsProviderOptions` record and returns the lakeFS provider. The record has the new fields `Hooks` and `Credentials` beside `StateRoot` and `PathCaseSensitivity`. The lakeFS provider has no `InstallDependency`, text diff, history, `GetRepositoryWebUrl`, object materialization, storage policy or maintenance, and a call to one of them answers `NoOp`.\n-   `OpenRequest` (`RepositoryRoot` and an optional `ConnectionProfileId`) replaces `AdoptRequest`. `Open` takes it, finds the repository root and returns the opened `Repository`.\n-   `Clone`, `Initialize` and `Bind` return the opened `Repository`. The lakeFS provider runs the first open of the folder as part of each of them.\n-   The lakeFS provider finds the state of a folder by the folder, so `Open` needs no stored reference. When the first open of a folder did not finish, `Open` fails with the new code `first_open_incomplete`, and the folder has to be initialized or bound again, or deleted and cloned again.\n\n### Changed\n\n-   The library is built and tested with Fable 5.26.0, and the package check no longer compiles the consumer with Fable 5.0.0-alpha.21.\n-   `OperationEffect.NoOp` is renamed to `OperationEffect.Unchanged`. Its `reason` field stays, and a match on `OperationEffect` has to use the new case name.\n-   `OperationOutcome.noOp` is renamed to `OperationOutcome.unchanged`. Its signature and behavior stay.\n-   `OperationResult.noOp` is renamed to `OperationResult.unchanged`. Its signature and behavior stay.\n-   `OpenDiffRequest` has a new required field `Comparison`, so record literals have to set it. `DiffComparison.WorkingFile` keeps the earlier behavior.\n-   A committed side of a text diff reports its revision in `DiffSourceInfo.Revision`, also when its content is a Git LFS object. Such a side used to report none.\n-   `WorkspaceDescriptor` is renamed to `RepositoryDescriptor`. Its fields and behavior stay, and the `WorkspaceRoot` field is renamed as described below.\n-   `WorkspaceStatus` is renamed to `RepositoryStatus`. `GetStatus` and `SwitchRef` return the new type name.\n-   The field `WorkspaceRoot` is renamed to `RepositoryRoot` in `RepositoryDescriptor`, `BindRequest` and the `RevisionIdentityRequest` of the Git package.\n-   The field `WorkspaceVersion` of `RepositoryStatus` is renamed to `RepositoryVersion`.\n-   The field `ExpectedWorkspaceVersion` is renamed to `ExpectedRepositoryVersion` in `CreateRefRequest`, `SwitchRefRequest`, `CreateRevisionRequest`, `RestoreRequest`, `UpdateRequest`, `PublishRequest`, `SynchronizeRequest`, `ResolveConflictRequest`, `FinalizeConflictRequest` and `CancelConflictRequest`.\n-   The field `ResultingWorkspaceVersion` of `OperationOutcome` is renamed to `ResultingRepositoryVersion`.\n-   The field `WorkspaceRevision` of `SynchronizationState` is renamed to `LocalRevision`.\n-   The Git provider always has a text diff. Without a pool in `GitProviderOptions.TextDiff`, `ITextDiff.Open` fails with `diff_worker_failed`. The creation functions that took no `GitSessionOptions` used to leave the text diff absent.\n-   `LakeFsSessionHooks` moved from `LakeFsWorkspaceSession` to the module `LakeFsProviderOptions`.\n-   `LakeFsProviderFactory.probe` takes the `LakeFsProviderOptions` and the folder. It answers `Detected` when the provider state records the folder and no longer looks for `.lakefs_ref.yaml`.\n-   `TextDiffPool.Service` and `GitTextDiffService.create` return the new record `TextDiffPool.TextDiffCalls`, which holds the seven text diff functions without a repository argument. They returned a `TextDiffService` before.\n\n### Removed\n\n-   `ProviderFactory`, `WorkspaceSession` with `WorkspaceSession.createCoreOnly` and `WorkspaceSession.availability`, `ServiceAvailability` and `CoreVersionControl` are removed. `IVersionControl` replaces them.\n-   `ProviderFactory.Id` is removed, and `IVersionControl` has no member for it. A host takes the provider id from `Descriptor.ProviderId` of an opened `Repository`. Before it has opened one, it knows the id because it chose the provider, and `WellKnownProviderIds` holds the ids of the two built-in providers.\n-   The service records `SynchronizationService`, `ConflictResolutionService`, `TextDiffService`, `ObjectMaterializationService`, `StoragePolicyService`, `StorageMaintenanceService` and `RepositoryBrowserService` are removed, together with the optional services as `option` values on the session. The group interfaces replace them.\n-   `WorkspaceBinding`, `WorkspaceBinding.CurrentSchemaVersion` and the `ProviderStateRef` field are removed. A host stores no binding. It gives the folder to `Open`, and the provider finds its own state.\n-   `AdoptRequest` and the `Adopt` function of the factory are removed. `Open` with an `OpenRequest` does what adopt and open did together.\n-   The failure code `operation_not_supported` is removed. A function that a provider does not have answers `NoOp`, and a refusal for one input is a failure with a code of the provider.\n-   The ten creation functions `GitWorkspaceSession.createFactory`, `createFactoryWithCredentials`, `createFactoryWithCredentialsAndIdentity`, `createFactoryWithCredentialsIdentityAndPolicy`, `createFactoryWithOptions`, `createSession`, `createSessionWithCredentials`, `createSessionWithCredentialsAndIdentity`, `createSessionWithCredentialsIdentityAndPolicy` and `createSessionWithOptions` are removed, together with `GitSessionOptions`. `GitProvider.create` replaces them, and `GitSessionHooks` stays.\n-   `LakeFsWorkspaceSession.createFactory`, `createFactoryWithPolicy`, `createFactoryWithHooks`, `createFactoryWithHooksAndPolicy`, `openSession` and `LakeFsProviderFactory.createFactory` are removed. `LakeFsProvider.create` replaces them. lakeFS ignored the revision policy that some of them accepted, so it is gone with them. `LakeFsWorkspaceSession.cleanupOwnedWorkspaceBranch` is no longer public.\n-   The stand-in services that filled absent optional services are removed, together with `WorkspaceSession.withFallbackServices` and `ProviderFactory.withFallbackServices`. A call to a function that a provider does not have answers `NoOp`.\n-   `FallbackServiceCodes` and its `FallbackServiceCodes.ServiceUnavailable` code (`service_unavailable`) are removed, because only the stand-in services reported it.\n-   `DiffBlocker.ProviderUnsupported` is removed, because only the stand-in text diff service returned it. A match on `DiffBlocker` has to drop the case.\n-   `ProviderResolver.ProviderCatalog`, `ProviderResolver.tryCreateCatalog`, `ProviderResolver.factories` and `ProviderResolver.tryGetFactory` are removed. A host keeps its providers itself.\n-   `ProviderResolver.resolve` is removed, together with `ProviderResolver.ResolutionRequest`, `ProviderResolver.ResolutionReport`, `ProviderResolver.WorkspaceResolution` with its cases `Bound`, `ProbedWorkspace`, `AmbiguousWorkspace` and `UnmanagedWorkspace`, and `ProviderResolver.DetectionCandidate`. A host asks the `Probe` of each provider it has and decides itself which provider owns a folder. `ProviderResolver.normalizePath` and `PathCaseSensitivity` stay.\n-   The lakeFS failure code `provider_state_ref_missing` is removed. `Open` no longer fails with `provider_state_mismatch` for a location that differs from the stored index, because a host passes no reference and no location to `Open`. The code stays for a state entry that belongs to another folder.\n\n### Fixed\n\n-   With `versioncontrolservice.lfs.materializelargeobjects` on, a Git `Update` or `Synchronize` that has nothing to merge but turns pointer files into their large content now reports the effect `Performed` and lists the downloaded paths in `AffectedPaths`. Before, it returned the effect `NoOp` (now `Unchanged`) and no path. This holds when the download fails after it wrote some files. An update that has no pointer left to download stays `Unchanged`.",
+  "repository": {
+    "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#repository",
+    "branch": "refs/heads/main",
+    "commit": "f5b6fafc7d5111871ad8dcef75ab912cb45017ab",
+    "type": "git",
+    "url": "https://github.com/fable-hub/VersionControlService"
+  },
+  "verbatimVersion": "0.6.0",
+  "version": "0.6.0",
+  "dependencyGroups": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#dependencygroup/net10.0",
+      "@type": "PackageDependencyGroup",
+      "dependencies": [
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#dependencygroup/net10.0/versioncontrolservice.abstractions",
+          "@type": "PackageDependency",
+          "id": "VersionControlService.Abstractions",
+          "range": "[0.6.0, 0.6.0]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#dependencygroup/net10.0/versioncontrolservice.runtime.node",
+          "@type": "PackageDependency",
+          "id": "VersionControlService.Runtime.Node",
+          "range": "[0.6.0, 0.6.0]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#dependencygroup/net10.0/versioncontrolservice.textdiff",
+          "@type": "PackageDependency",
+          "id": "VersionControlService.TextDiff",
+          "range": "[0.6.0, 0.6.0]"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#dependencygroup/net10.0/fable.core",
+          "@type": "PackageDependency",
+          "id": "Fable.Core",
+          "range": "[5.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#dependencygroup/net10.0/fable.promise",
+          "@type": "PackageDependency",
+          "id": "Fable.Promise",
+          "range": "[3.2.0, )"
+        },
+        {
+          "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#dependencygroup/net10.0/thoth.json.javascript",
+          "@type": "PackageDependency",
+          "id": "Thoth.Json.JavaScript",
+          "range": "[0.4.1, )"
+        }
+      ],
+      "targetFramework": "net10.0"
+    }
+  ],
+  "packageEntries": [
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#VersionControlService.Git.nuspec",
+      "@type": "PackageEntry",
+      "compressedLength": 4280,
+      "fullName": "VersionControlService.Git.nuspec",
+      "length": 12942,
+      "name": "VersionControlService.Git.nuspec"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/GitAuthAdapter.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 3155,
+      "fullName": "fable/Git/GitAuthAdapter.fs",
+      "length": 9646,
+      "name": "GitAuthAdapter.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/GitCommandResolver.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 2536,
+      "fullName": "fable/Git/GitCommandResolver.fs",
+      "length": 7867,
+      "name": "GitCommandResolver.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/GitEngineTypes.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1422,
+      "fullName": "fable/Git/GitEngineTypes.fs",
+      "length": 4264,
+      "name": "GitEngineTypes.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/GitInternals.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 3745,
+      "fullName": "fable/Git/GitInternals.fs",
+      "length": 13211,
+      "name": "GitInternals.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/GitLfsAdapter.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 5732,
+      "fullName": "fable/Git/GitLfsAdapter.fs",
+      "length": 25232,
+      "name": "GitLfsAdapter.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/GitLfsService.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 18621,
+      "fullName": "fable/Git/GitLfsService.fs",
+      "length": 90048,
+      "name": "GitLfsService.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/GitProvisioningService.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1916,
+      "fullName": "fable/Git/GitProvisioningService.fs",
+      "length": 7103,
+      "name": "GitProvisioningService.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/GitService.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 33318,
+      "fullName": "fable/Git/GitService.fs",
+      "length": 172290,
+      "name": "GitService.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Git/JsonDecoder.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 494,
+      "fullName": "fable/Git/JsonDecoder.fs",
+      "length": 1286,
+      "name": "JsonDecoder.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitConflictSession.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1636,
+      "fullName": "fable/GitConflictSession.fs",
+      "length": 6742,
+      "name": "GitConflictSession.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitCredentialStrategy.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 3551,
+      "fullName": "fable/GitCredentialStrategy.fs",
+      "length": 11120,
+      "name": "GitCredentialStrategy.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitExecution.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 2428,
+      "fullName": "fable/GitExecution.fs",
+      "length": 7582,
+      "name": "GitExecution.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitHistory.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 3185,
+      "fullName": "fable/GitHistory.fs",
+      "length": 10425,
+      "name": "GitHistory.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitLfsExtensions.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 7273,
+      "fullName": "fable/GitLfsExtensions.fs",
+      "length": 36920,
+      "name": "GitLfsExtensions.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitLfsObjects.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 2402,
+      "fullName": "fable/GitLfsObjects.fs",
+      "length": 9664,
+      "name": "GitLfsObjects.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitPathTransport.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 851,
+      "fullName": "fable/GitPathTransport.fs",
+      "length": 2221,
+      "name": "GitPathTransport.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitProvider.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 668,
+      "fullName": "fable/GitProvider.fs",
+      "length": 1853,
+      "name": "GitProvider.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitRefs.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 678,
+      "fullName": "fable/GitRefs.fs",
+      "length": 1528,
+      "name": "GitRefs.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitSelectedRevision.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 11934,
+      "fullName": "fable/GitSelectedRevision.fs",
+      "length": 78934,
+      "name": "GitSelectedRevision.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/GitWorkspaceSession.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 57550,
+      "fullName": "fable/GitWorkspaceSession.fs",
+      "length": 358086,
+      "name": "GitWorkspaceSession.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Support/FileSystemIO.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 575,
+      "fullName": "fable/Support/FileSystemIO.fs",
+      "length": 1446,
+      "name": "FileSystemIO.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/Support/PathHelpers.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 994,
+      "fullName": "fable/Support/PathHelpers.fs",
+      "length": 3873,
+      "name": "PathHelpers.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/GitTextDiffService.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1620,
+      "fullName": "fable/TextDiff/GitTextDiffService.fs",
+      "length": 6511,
+      "name": "GitTextDiffService.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffInProcessTransport.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 710,
+      "fullName": "fable/TextDiff/TextDiffInProcessTransport.fs",
+      "length": 1961,
+      "name": "TextDiffInProcessTransport.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffLfsPointer.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1519,
+      "fullName": "fable/TextDiff/TextDiffLfsPointer.fs",
+      "length": 4900,
+      "name": "TextDiffLfsPointer.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffPool.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 7646,
+      "fullName": "fable/TextDiff/TextDiffPool.fs",
+      "length": 37332,
+      "name": "TextDiffPool.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffPreparation.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1585,
+      "fullName": "fable/TextDiff/TextDiffPreparation.fs",
+      "length": 4789,
+      "name": "TextDiffPreparation.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffProtocol.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 10844,
+      "fullName": "fable/TextDiff/TextDiffProtocol.fs",
+      "length": 57827,
+      "name": "TextDiffProtocol.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffSourceResolver.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 4743,
+      "fullName": "fable/TextDiff/TextDiffSourceResolver.fs",
+      "length": 17748,
+      "name": "TextDiffSourceResolver.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffSources.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 5391,
+      "fullName": "fable/TextDiff/TextDiffSources.fs",
+      "length": 30234,
+      "name": "TextDiffSources.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffStorage.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 1663,
+      "fullName": "fable/TextDiff/TextDiffStorage.fs",
+      "length": 4885,
+      "name": "TextDiffStorage.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffSupervisor.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 4961,
+      "fullName": "fable/TextDiff/TextDiffSupervisor.fs",
+      "length": 18958,
+      "name": "TextDiffSupervisor.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffTransport.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 590,
+      "fullName": "fable/TextDiff/TextDiffTransport.fs",
+      "length": 1505,
+      "name": "TextDiffTransport.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffWorker.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 14913,
+      "fullName": "fable/TextDiff/TextDiffWorker.fs",
+      "length": 64628,
+      "name": "TextDiffWorker.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/TextDiff/TextDiffWorkerDispatcher.fs",
+      "@type": "PackageEntry",
+      "compressedLength": 2859,
+      "fullName": "fable/TextDiff/TextDiffWorkerDispatcher.fs",
+      "length": 10532,
+      "name": "TextDiffWorkerDispatcher.fs"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#fable/VersionControlService.Git.fsproj",
+      "@type": "PackageEntry",
+      "compressedLength": 671,
+      "fullName": "fable/VersionControlService.Git.fsproj",
+      "length": 2895,
+      "name": "VersionControlService.Git.fsproj"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#lib/net10.0/VersionControlService.Git.dll",
+      "@type": "PackageEntry",
+      "compressedLength": 819302,
+      "fullName": "lib/net10.0/VersionControlService.Git.dll",
+      "length": 2392064,
+      "name": "VersionControlService.Git.dll"
+    },
+    {
+      "@id": "https://api.nuget.org/v3/catalog0/data/2026.11.27.12.44.50/versioncontrolservice.git.0.6.0.json#.signature.p7s",
+      "@type": "PackageEntry",
+      "compressedLength": 12982,
+      "fullName": ".signature.p7s",
+      "length": 12982,
+      "name": ".signature.p7s"
+    }
+  ],
+  "tags": [
+    "fsharp",
+    "fable",
+    "version-control",
+    "provider-spi"
+  ],
+  "@context": {
+    "@vocab": "http://schema.nuget.org/schema#",
+    "catalog": "http://schema.nuget.org/catalog#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "dependencies": {
+      "@id": "dependency",
+      "@container": "@set"
+    },
+    "dependencyGroups": {
+      "@id": "dependencyGroup",
+      "@container": "@set"
+    },
+    "packageEntries": {
+      "@id": "packageEntry",
+      "@container": "@set"
+    },
+    "packageTypes": {
+      "@id": "packageType",
+      "@container": "@set"
+    },
+    "supportedFrameworks": {
+      "@id": "supportedFramework",
+      "@container": "@set"
+    },
+    "tags": {
+      "@id": "tag",
+      "@container": "@set"
+    },
+    "vulnerabilities": {
+      "@id": "vulnerability",
+      "@container": "@set"
+    },
+    "published": {
+      "@type": "xsd:dateTime"
+    },
+    "created": {
+      "@type": "xsd:dateTime"
+    },
+    "lastEdited": {
+      "@type": "xsd:dateTime"
+    },
+    "catalog:commitTimeStamp": {
+      "@type": "xsd:dateTime"
+    },
+    "reasons": {
+      "@container": "@set"
+    }
+  }
+}
